@@ -1080,7 +1080,7 @@
     },
     "splash": {
       "addFolder": "Ajouter un dossier",
-      "brand": "RapidRAW",
+      "brand": "Argentum",
       "continueSession": "Poursuivre la session",
       "contribute": "Contribuer sur GitHub",
       "descriptionAndroid": "Un éditeur d'images RAW ultra-rapide, accéléré par GPU. Ouvrez la bibliothèque pour commencer.",
@@ -1588,7 +1588,7 @@
       "font": "Police",
       "fontDesc": "Modifier la police de l'application.",
       "nativeTitlebar": "Barre de titre native",
-      "nativeTitlebarDesc": "Utiliser la barre de titre de fenêtre par défaut de votre système au lieu de celle personnalisée de RapidRAW.",
+      "nativeTitlebarDesc": "Utiliser la barre de titre de fenêtre par défaut de votre système au lieu de celle personnalisée de Argentum.",
       "poppins": "Poppins",
       "showImageCounts": "Afficher le nombre d'images",
       "system": "Défaut du système",
@@ -1701,7 +1701,7 @@
         "connector": {
           "address": "Adresse AI Connector",
           "addressDesc": "Saisissez l'adresse et le port de votre instance AI Connector en cours d'exécution. Requis pour les fonctionnalités d'IA générative.",
-          "description": "Pour les utilisateurs disposant d'un GPU performant et souhaitant un contrôle maximal, connectez RapidRAW à votre propre serveur Connector. Cela vous donne un contrôle total sur vos workflows techniques.",
+          "description": "Pour les utilisateurs disposant d'un GPU performant et souhaitant un contrôle maximal, connectez Argentum à votre propre serveur Connector. Cela vous donne un contrôle total sur vos workflows techniques.",
           "failed": "Échec de la connexion.",
           "feature1": "Utilisez votre propre instance ComfyUI",
           "feature2": "Retouches génératives avancées gratuites",
@@ -1709,16 +1709,16 @@
           "success": "Connexion réussie !",
           "test": "Tester",
           "testing": "Test en cours...",
-          "title": "Auto-hébergé (RapidRAW AI Connector)"
+          "title": "Auto-hébergé (Argentum AI Connector)"
         },
         "cpu": {
-          "description": "Intégrées directement dans RapidRAW, ces fonctionnalités fonctionnent entièrement sur votre ordinateur. Elles sont rapides, gratuites et ne nécessitent aucune configuration, idéales pour accélérer vos tâches quotidiennes.",
+          "description": "Intégrées directement dans Argentum, ces fonctionnalités fonctionnent entièrement sur votre ordinateur. Elles sont rapides, gratuites et ne nécessitent aucune configuration, idéales pour accélérer vos tâches quotidiennes.",
           "feature1": "Masquage IA (Sujet, Ciel, Premier plan)",
           "feature2": "Marquage automatique des images",
           "feature3": "Remplacement génératif basique par CPU",
           "title": "IA intégrée (CPU)"
         },
-        "description": "L'IA de RapidRAW est conçue pour être flexible. Choisissez votre workflow idéal, des outils locaux rapides aux puissantes options d'auto-hébergement.",
+        "description": "L'IA de Argentum est conçue pour être flexible. Choisissez votre workflow idéal, des outils locaux rapides aux puissantes options d'auto-hébergement.",
         "providers": {
           "aiConnector": "AI Connector",
           "cloud": "Cloud",
@@ -1837,7 +1837,7 @@
       "clearCustomTooltip": "Effacer la liste d'étiquettes IA",
       "clearShortcutsTooltip": "Effacer la liste d'étiquettes de raccourcis",
       "customList": "Liste d'étiquettes IA personnalisée",
-      "customListDesc": "Si renseignée, l'IA utilisera UNIQUEMENT les étiquettes de cette liste, ignorant la liste intégrée de RapidRAW. Le marquage ne fonctionne qu'en anglais.",
+      "customListDesc": "Si renseignée, l'IA utilisera UNIQUEMENT les étiquettes de cette liste, ignorant la liste intégrée de Argentum. Le marquage ne fonctionne qu'en anglais.",
       "maxAiTags": "Maximum d'étiquettes IA",
       "maxAiTagsDesc": "Le nombre maximum d'étiquettes à générer par image.",
       "noCustomTags": "Aucune étiquette IA personnalisée (Utilisation de la liste intégrée)",
@@ -1849,7 +1849,7 @@
       "title": "Marquage"
     },
     "thanks": {
-      "description": "Un grand merci aux projets suivants qui ont été très importants dans le développement de RapidRAW :",
+      "description": "Un grand merci aux projets suivants qui ont été très importants dans le développement de Argentum :",
       "list": {
         "darktable": "Pour certaines implémentations de référence qui ont guidé une partie de ce travail.",
         "depth": "Pour le puissant modèle d'estimation de profondeur monoculaire qui permet les capacités de masquage de profondeur par l'IA.",

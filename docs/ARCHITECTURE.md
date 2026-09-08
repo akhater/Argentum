@@ -1,0 +1,242 @@
+# Architecture
+
+The whole design has one goal: **be able to pull RapidRAW's updates forever
+without a fight.**
+
+---
+
+## The problem this solves
+
+A fork dies when your changes and upstream's changes land in the same lines of
+the same files. Every update becomes an argument. Eventually you stop updating,
+and now you're maintaining a whole photo editor alone.
+
+## The rule that prevents it
+
+> **Our code goes in our own files. We touch their files as little as physically possible — ideally one line per tool.**
+
+Files upstream has never heard of can never conflict.
+
+---
+
+## How that works for shaders
+
+RapidRAW's image engine is one file, `src-tauri/src/shaders/shader.wgsl`.
+Every tool is a function; `main()` calls them in order.
+
+The naive approach — writing our functions into that file — means every
+upstream update to it is a merge conflict.
+
+Instead: the shader is pulled in with Rust's `include_str!`, so we can glue
+two files together at build time.
+
+```rust
+// gpu_processing.rs — changed once, ever
+source: wgpu::ShaderSource::Wgsl(
+    concat!(
+        include_str!("shaders/modules.wgsl"),   // ours
+        include_str!("shaders/shader.wgsl"),       // theirs, untouched
+    ).into()
+)
+```
+
+**`modules.wgsl` is ours alone.** Every function we harvest
+goes in there. Upstream never sees it, never conflicts with it.
+
+The only mark we leave in their shader is one call line per tool:
+
+```wgsl
+// in main(), theirs:
+color = dt_white_balance(color, t_temperature, t_tint);   // ← our one line
+```
+
+A one-line change is a trivial conflict to resolve, in the rare case upstream
+edits nearby.
+
+---
+
+## Layout
+
+```
+src-tauri/src/
+  shaders/
+    shader.wgsl          THEIRS  — one call line added per tool
+    modules.wgsl         OURS    — all harvested math lives here
+  mods/                  OURS    — our Rust code
+    catalog.rs             the offline photo index
+    paths.rs               where the data folder lives
+    color.rs               conversion between their color space and darktable's
+  image_processing.rs    THEIRS  — settings fields added per tool
+  gpu_processing.rs      THEIRS  — changed once, for the concat above
+
+src/
+  components/adjustments/
+    *.tsx                THEIRS  — a slider added per tool
+```
+
+**Rule of thumb:** if a file is ours, put anything in it. If a file is theirs,
+you should be adding a handful of lines, not restructuring.
+
+---
+
+## The color space thing
+
+RapidRAW works in linear sRGB. darktable's modules assume a wider space
+(linear Rec2020). Transplanted math needs converting in and back out.
+
+That's `mods/color.rs` plus a matrix pair in `modules.wgsl`. **Written once
+during the first tool, reused by every tool after.** It is not a per-tool cost.
+
+Every darktable function follows the same shape:
+
+```wgsl
+fn dt_something(color: vec3<f32>, ...) -> vec3<f32> {
+    var c = srgb_to_rec2020(color);     // in
+    // ... darktable's math, largely as-is ...
+    return rec2020_to_srgb(c);          // out
+}
+```
+
+---
+
+## Data and storage
+
+- **Edits** — JSON sidecar next to each photo (`IMG_1234.CR3.rrdata`).
+  Upstream's format; we add fields to it. Original RAW never modified.
+- **Catalog** — SQLite in the data folder. Ours entirely. Lets you browse
+  photos whose drive is unplugged.
+- **Thumbnails** — JPEGs in the data folder. Already exists upstream; we make
+  the location configurable and keep them across sessions.
+
+All of it in one user-chosen folder. See [README](README.md#everything-in-one-folder).
+
+---
+
+## Staying mergeable
+
+```bash
+git remote add upstream https://github.com/CyberTimon/RapidRAW.git
+```
+
+```bash
+git fetch upstream && git merge upstream/main
+```
+
+If a conflict appears, it will almost always be in `shader.wgsl` or
+`image_processing.rs`, and it will be our added lines sitting next to their
+changed ones. Keep both. That's the whole resolution.
+
+**If you ever find yourself doing a real merge, something drifted from the rule
+above.** Move that code into a file of ours instead.
+
+---
+
+## Where code comes from
+
+Nothing in this design is darktable-specific. `modules.wgsl` holds *harvested*
+math — the source doesn't matter, only that it's a formula we can express as a
+shader function.
+
+Name functions by where they came from, so it stays obvious a year later:
+
+| Prefix | Source | Good for |
+|---|---|---|
+| `dt_` | darktable | color science, tone mapping, denoise, highlight recovery |
+| `rt_` | RawTherapee | demosaic, highlight recovery — often the strongest here |
+| `gimp_` | GIMP / GEGL | pixel-level effects, blend modes, distortions |
+| `gmic_` | G'MIC | huge filter library, film looks, stylisation |
+| `paper_` | a published paper | when nobody's implemented it yet |
+
+Honest note on GIMP: it's a *pixel editor*, not a RAW developer, so it has less
+to offer at the RAW end than darktable does. Its useful parts are GEGL
+operations — self-contained image effects, which is exactly the shape we want.
+Worth raiding for creative effects, not for color science.
+
+For anything RAW-specific that darktable doesn't win outright, look at
+**RawTherapee** before GIMP. Its highlight recovery and demosaic are
+best-in-class, and it's clean C++.
+
+**Same recipe regardless of source.** See [ADDING_A_TOOL.md](ADDING_A_TOOL.md).
+
+---
+
+## Where things live
+
+Two locations, deliberately. **Nothing heavy goes in OneDrive.**
+
+| | Path | Rule |
+|---|---|---|
+| Source, docs, config | `...\OneDrive\...\Personal\Argentum` | Git-tracked. Text only |
+| Build output, runtimes, models, app data | `C:\Users\you\NoCloudZone\Argentum` | Never tracked, never synced |
+
+A Rust `target/` directory reaches several GB and `node_modules` tens of
+thousands of files. Syncing either would be miserable. So they are redirected
+at the tool level, not merely gitignored:
+
+- ~~**Rust** - `.cargo/config.toml` sets `target-dir` into NoCloudZone~~
+- ~~**Node** - `node_modules` is a directory junction pointing into NoCloudZone~~
+- **App runtime data** - catalog, thumbnails, AI models: the app's own
+  configurable data folder, defaulting into NoCloudZone
+
+**Both redirects above are gone.** See the correction at the end of this file -
+OneDrive destroyed the junction, and the `target-dir` override later broke the
+dev build. Neither is needed now that the whole working tree sits outside
+OneDrive.
+
+`setup.ps1` creates all of it and verifies the toolchain.
+
+`.gitignore` covers the same ground as a safety net. **It is the net, not the
+mechanism** - if something large slips past a redirect it should still never be
+committed, but the redirect is what actually keeps it out of OneDrive.
+
+If you add a dependency that writes something large, redirect it before
+committing.
+
+---
+
+## Correction: the working tree is not in OneDrive
+
+The section above described a split where source lived in OneDrive and only heavy
+output went to NoCloudZone, joined by a `node_modules` junction. **That does not
+work and was abandoned the same day.**
+
+OneDrive does not tolerate directory junctions inside a synced folder. It
+replaced the junction with a real directory - reparse tag `0x9000e01a`, its own
+cloud-files tag - and began syncing 182 npm packages (239MB). It also holds those
+files locked while uploading, so they cannot be removed until the sync client is
+stopped.
+
+**Current layout:**
+
+| | Path | What |
+|---|---|---|
+| Work | `C:\Users\you\NoCloudZone\Argentum` | Everything - source, node_modules, target, app data |
+| Backup | `...\OneDrive\...\Personal\Argentum.git` | Bare git repo, ~7MB, source history only |
+
+The split moved up a level. Instead of separating files *within* one folder, the
+working tree sits entirely outside OneDrive and OneDrive holds the git history.
+Every version of every source file is still backed up, in far less space, and a
+binary can never arrive because git never tracks one.
+
+`git push` is the backup. `.gitignore` still keeps build output out of history.
+
+Note: the bare repo needs `receive.shallowUpdate true`, because this repo is
+shallow at RapidRAW's root (see the upstream section).
+
+### And the target-dir redirect had to go too
+
+The same cleanup missed one thing. `.cargo/config.toml` still pointed Rust's
+`target-dir` at `NoCloudZone\Argentum\target`. That was correct while the source was
+in OneDrive - but once the project itself moved to NoCloudZone, that path became
+the **repo root**, so `target/` landed inside the source tree.
+
+Vite watches the project directory and only ignores `**/src-tauri/**`. It tried
+to watch 819 crates worth of build artifacts, hit a build script `.exe` that
+cargo had open, and crashed with `EBUSY` - which killed the whole dev command.
+
+Removed. Tauri's default `src-tauri/target` is already inside Vite's ignore list
+and already covered by `.gitignore`.
+
+**General lesson:** with the working tree outside OneDrive, no redirect is needed
+for anything. Default tool behaviour is correct now. Adding one back is how both
+of these breakages happened.

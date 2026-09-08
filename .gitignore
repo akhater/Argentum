@@ -1,3 +1,57 @@
+# ── Nothing heavy in OneDrive ────────────────────────────────────────────
+# Build output and runtimes live in C:\Users\you\NoCloudZone\Alloy
+# See docs/ARCHITECTURE.md → "Where things live"
+
+# Rust build output — redirected by .cargo/config.toml, ignored as a safety net
+target/
+**/target/
+
+# Node — redirected by a junction, ignored as a safety net
+node_modules/
+**/node_modules/
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# Frontend build output
+dist/
+dist-ssr/
+build/
+.vite/
+
+# ── Binaries and models ──────────────────────────────────────────────────
+*.exe
+*.dll
+*.so
+*.dylib
+*.msi
+*.nsis
+*.onnx
+*.safetensors
+*.pt
+*.bin
+ai-models/
+
+# ── Local runtime data ───────────────────────────────────────────────────
+catalog.db
+catalog.db-*
+thumbnails/
+*.rrdata
+
+# ── Editors and OS ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ── OneDrive junk ────────────────────────────────────────────────────────
+*.tmp
+~$*
+
+# ══ Inherited from RapidRAW upstream ══════════════════════════════════
 # Logs
 logs
 *.log

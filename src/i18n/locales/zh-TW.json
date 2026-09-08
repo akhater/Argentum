@@ -1054,7 +1054,7 @@
     },
     "splash": {
       "addFolder": "新增資料夾",
-      "brand": "RapidRAW",
+      "brand": "Argentum",
       "continueSession": "繼續會話",
       "contribute": "在 GitHub 上貢獻",
       "descriptionAndroid": "一款極速、GPU 加速的 RAW 影像編輯器。開啟相簿以開始。",
@@ -1553,7 +1553,7 @@
       "font": "字型",
       "fontDesc": "更改應用程式字型。",
       "nativeTitlebar": "原生標題欄",
-      "nativeTitlebarDesc": "使用系統預設的視窗標題欄，而非 RapidRAW 的自定義標題欄。",
+      "nativeTitlebarDesc": "使用系統預設的視窗標題欄，而非 Argentum 的自定義標題欄。",
       "poppins": "Poppins",
       "showImageCounts": "顯示影像計數",
       "system": "系統預設",
@@ -1666,7 +1666,7 @@
         "connector": {
           "address": "AI 聯結器地址",
           "addressDesc": "輸入您正在執行的 AI 聯結器實例的地址和連接埠。這是使用生成式 AI 功能所必需的。",
-          "description": "對於擁有強大 GPU 且希望最大程度控制的使用者，可以將 RapidRAW 連線到您自己的聯結器伺服器。這為您提供了技術工作流的完全控制。",
+          "description": "對於擁有強大 GPU 且希望最大程度控制的使用者，可以將 Argentum 連線到您自己的聯結器伺服器。這為您提供了技術工作流的完全控制。",
           "failed": "連線失敗。",
           "feature1": "使用您自己的 ComfyUI 實例",
           "feature2": "免費的進階生成式編輯",
@@ -1674,16 +1674,16 @@
           "success": "連線成功！",
           "test": "測試",
           "testing": "測試中...",
-          "title": "自託管（RapidRAW AI 聯結器）"
+          "title": "自託管（Argentum AI 聯結器）"
         },
         "cpu": {
-          "description": "直接整合到 RapidRAW 中，這些功能完全在您的計算機上執行。它們快速、免費且無需設定，非常適合日常加速工作流程。",
+          "description": "直接整合到 Argentum 中，這些功能完全在您的計算機上執行。它們快速、免費且無需設定，非常適合日常加速工作流程。",
           "feature1": "AI 遮色片（主體、天空、前景）",
           "feature2": "自動影像標籤",
           "feature3": "簡單的 CPU 生成式替換",
           "title": "內建 AI（CPU）"
         },
-        "description": "RapidRAW 的 AI 專為靈活性而設計。選擇您理想的工作流程，從快速的本地工具到強大的自託管。",
+        "description": "Argentum 的 AI 專為靈活性而設計。選擇您理想的工作流程，從快速的本地工具到強大的自託管。",
         "providers": {
           "aiConnector": "AI 聯結器",
           "cloud": "雲端",
@@ -1802,7 +1802,7 @@
       "clearCustomTooltip": "清除 AI 標籤列表",
       "clearShortcutsTooltip": "清除快捷方式標籤列表",
       "customList": "自定義 AI 標籤列表",
-      "customListDesc": "如果提供，AI 將僅使用此列表中的標籤，覆蓋 RapidRAW 內建的標籤列表。標籤功能僅支援英文。",
+      "customListDesc": "如果提供，AI 將僅使用此列表中的標籤，覆蓋 Argentum 內建的標籤列表。標籤功能僅支援英文。",
       "maxAiTags": "最大 AI 標籤數",
       "maxAiTagsDesc": "每張影像生成的最大標籤數量。",
       "noCustomTags": "無自定義 AI 標籤（使用內建列表）",
@@ -1814,7 +1814,7 @@
       "title": "標籤"
     },
     "thanks": {
-      "description": "衷心感謝以下專案，它們在 RapidRAW 的開發過程中非常重要：",
+      "description": "衷心感謝以下專案，它們在 Argentum 的開發過程中非常重要：",
       "list": {
         "darktable": "為部分參考實現提供了指導。",
         "depth": "為強大的單目深度估計模型提供支援，實現了 AI 深度遮色片功能。",

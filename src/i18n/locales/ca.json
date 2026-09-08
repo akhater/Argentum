@@ -1056,7 +1056,7 @@
     },
     "splash": {
       "addFolder": "Afegir carpeta",
-      "brand": "RapidRAW",
+      "brand": "Argentum",
       "continueSession": "Continuar sessió",
       "contribute": "Contribuir a GitHub",
       "descriptionAndroid": "Un editor d'imatges RAW increïblement ràpid i accelerat per GPU. Obriu la biblioteca per començar.",
@@ -1555,7 +1555,7 @@
       "font": "Tipus de lletra",
       "fontDesc": "Canvia el tipus de lletra de l'aplicació.",
       "nativeTitlebar": "Barra de títol nativa",
-      "nativeTitlebarDesc": "Utilitzar la barra de títol de la finestra predeterminada del sistema en lloc de la personalitzada de RapidRAW.",
+      "nativeTitlebarDesc": "Utilitzar la barra de títol de la finestra predeterminada del sistema en lloc de la personalitzada de Argentum.",
       "poppins": "Poppins",
       "showImageCounts": "Mostrar recomptes d'imatges",
       "system": "Predeterminat del sistema",
@@ -1668,7 +1668,7 @@
         "connector": {
           "address": "Adreça de l'AI Connector",
           "addressDesc": "Introduïu l'adreça i el port de la vostra instància d'AI Connector en execució. Requerit per a les funcions d'IA generativa.",
-          "description": "Per a usuaris amb una GPU potent que vulguin el màxim control, connecteu RapidRAW al vostre propi servidor Connector. Això us dona un control total per als fluxos de treball tècnics.",
+          "description": "Per a usuaris amb una GPU potent que vulguin el màxim control, connecteu Argentum al vostre propi servidor Connector. Això us dona un control total per als fluxos de treball tècnics.",
           "failed": "La connexió ha fallat.",
           "feature1": "Utilitzeu la vostra pròpia instància de ComfyUI",
           "feature2": "Edicions generatives avançades gratuïtes",
@@ -1676,16 +1676,16 @@
           "success": "Connexió correcta!",
           "test": "Prova",
           "testing": "S'està provant...",
-          "title": "Autoallotjat (RapidRAW AI Connector)"
+          "title": "Autoallotjat (Argentum AI Connector)"
         },
         "cpu": {
-          "description": "Integrades directament a RapidRAW, aquestes funcions s'executen completament al vostre ordinador. Són ràpides, gratuïtes i no requereixen cap configuració, cosa que les fa ideals per accelerar el flux de treball diari.",
+          "description": "Integrades directament a Argentum, aquestes funcions s'executen completament al vostre ordinador. Són ràpides, gratuïtes i no requereixen cap configuració, cosa que les fa ideals per accelerar el flux de treball diari.",
           "feature1": "Emmascarament d'IA (Subjecte, Cel, Primer pla)",
           "feature2": "Etiquetatge automàtic d'imatges",
           "feature3": "Substitució generativa simple per CPU",
           "title": "IA integrada (CPU)"
         },
-        "description": "L'IA de RapidRAW està dissenyada per ser flexible. Trieu el vostre flux de treball ideal, des d'eines locals ràpides fins a un autoallotjament potent.",
+        "description": "L'IA de Argentum està dissenyada per ser flexible. Trieu el vostre flux de treball ideal, des d'eines locals ràpides fins a un autoallotjament potent.",
         "providers": {
           "aiConnector": "AI Connector",
           "cloud": "Núvol",
@@ -1804,7 +1804,7 @@
       "clearCustomTooltip": "Esborrar la llista d'etiquetes d'IA",
       "clearShortcutsTooltip": "Esborrar la llista d'etiquetes de drecera",
       "customList": "Llista d'etiquetes d'IA personalitzada",
-      "customListDesc": "Si s'especifica, la IA NOMÉS utilitzarà les etiquetes d'aquesta llista, ignorant la llista integrada a RapidRAW. L'etiquetatge només funciona en anglès.",
+      "customListDesc": "Si s'especifica, la IA NOMÉS utilitzarà les etiquetes d'aquesta llista, ignorant la llista integrada a Argentum. L'etiquetatge només funciona en anglès.",
       "maxAiTags": "Màxim d'etiquetes d'IA",
       "maxAiTagsDesc": "El nombre màxim d'etiquetes que es generaran per imatge.",
       "noCustomTags": "Cap etiqueta d'IA personalitzada (S'utilitza la llista integrada)",
@@ -1816,7 +1816,7 @@
       "title": "Etiquetatge"
     },
     "thanks": {
-      "description": "Un enorme agraïment als projectes següents que van ser molt importants per al desenvolupament de RapidRAW:",
+      "description": "Un enorme agraïment als projectes següents que van ser molt importants per al desenvolupament de Argentum:",
       "list": {
         "darktable": "Per algunes implementacions de referència que van guiar certes parts d'aquest treball.",
         "depth": "Per al potent model d'estimació de profunditat monocular que permet les capacitats d'emmascarament de profunditat d'IA.",
