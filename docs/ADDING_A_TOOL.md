@@ -15,12 +15,18 @@ kernel for it, the math is in `src/iop/<name>.c`.
 Translate it to WGSL and add it to our file. Wrap it in the color conversion:
 
 ```wgsl
-fn dt_white_balance(color: vec3<f32>, temp: f32, tint: f32) -> vec3<f32> {
-    var c = srgb_to_rec2020(color);
+// from darktable src/iop/<name>.c @ <commit>
+fn dt_something(color: vec3<f32>, ...) -> vec3<f32> {
+    let xyz = AG_SRGB_TO_XYZ * color;    // in
     // darktable's math here
-    return rec2020_to_srgb(c);
+    return AG_XYZ_TO_SRGB * xyz;         // out
 }
 ```
+
+The matrices already exist in `modules.wgsl`: sRGB ↔ XYZ, and XYZ ↔ Bradford
+cone space (`AG_XYZ_TO_LMS` / `AG_LMS_TO_XYZ`) for anything that adapts between
+illuminants. If a module needs a space we don't have yet, add the matrix pair
+there — don't convert inline.
 
 OpenCL → WGSL is mostly mechanical:
 

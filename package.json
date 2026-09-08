@@ -1,12 +1,13 @@
 {
-  "name": "rapidraw",
+  "name": "argentum",
   "author": "Timon Käch",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "tauri": "tauri",
-    "start": "node scripts/check-identity.mjs && tauri dev",
+    "start": "node scripts/check-identity.mjs && node scripts/check-mergeability.mjs && tauri dev",
+    "check:merge": "node scripts/check-mergeability.mjs",
     "start:tethering": "node scripts/check-identity.mjs && tauri dev -- --features tethering",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

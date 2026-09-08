@@ -61,6 +61,7 @@
       "tint": "Zabarwienie",
       "toggleSliders": "Przełącz suwaki",
       "vibrance": "Jaskrawość",
+      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Próbnik balansu bieli",
       "wbPickerWgpuDisabled": "Próbnik BB: Wyłącz WGPU w Ustawieniach.",
       "whiteBalance": "Balans bieli"
@@ -1549,7 +1550,7 @@
     "data": {
       "clearSidecars": "Wyczyść wszystkie pliki poboczne (Sidecar)",
       "clearSidecarsButton": "Wyczyść",
-      "clearSidecarsDesc": "Ta opcja usunie wszystkie pliki .rrdata (zawierające twoje zmiany) wewnątrz twoich folderów głównych:",
+      "clearSidecarsDesc": "Ta opcja usunie wszystkie pliki .agdata (zawierające twoje zmiany) wewnątrz twoich folderów głównych:",
       "clearThumbnail": "Wyczyść pamięć podręczną miniatur",
       "clearThumbnailButton": "Wyczyść",
       "clearThumbnailDesc": "Zostaną usunięte wszystkie zbuforowane miniatury. Zostaną wygenerowane na nowo w trakcie przeglądania biblioteki.",
@@ -1865,9 +1866,9 @@
       "amount": "Ilość",
       "automaticAiTagging": "Automatyczne tagowanie AI",
       "clearAiTagsButton": "Wyczyść",
-      "clearAiTagsDesc": "Ta opcja usunie wszystkie tagi wygenerowane przez AI z plików .rrdata ze wszystkich aktywnych katalogów głównych. Ręczne tagi użytkownika zostaną zachowane.",
+      "clearAiTagsDesc": "Ta opcja usunie wszystkie tagi wygenerowane przez AI z plików .agdata ze wszystkich aktywnych katalogów głównych. Ręczne tagi użytkownika zostaną zachowane.",
       "clearAiTagsTitle": "Wyczyść tagi AI",
-      "clearAllTagsDesc": "To usunie wszystkie tagi dodane przez użytkownika i wygenerowane przez AI z plików .rrdata w aktywnych katalogach głównych. Etykiety kolorów zostaną zachowane.",
+      "clearAllTagsDesc": "To usunie wszystkie tagi dodane przez użytkownika i wygenerowane przez AI z plików .agdata w aktywnych katalogach głównych. Etykiety kolorów zostaną zachowane.",
       "clearAllTagsTitle": "Wyczyść wszystkie tagi",
       "clearCustomTooltip": "Wyczyść listę tagów AI",
       "clearShortcutsTooltip": "Wyczyść listę skrótów do tagów",

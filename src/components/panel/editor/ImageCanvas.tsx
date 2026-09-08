@@ -10,6 +10,7 @@ import { Mask, SubMask, SubMaskMode, ToolType } from '../right/Masks';
 import { AppSettings, BrushSettings, SelectedImage } from '../../ui/AppProperties';
 import { RenderSize } from '../../../hooks/useImageRenderSize';
 import { useOsPlatform } from '../../../hooks/useOsPlatform';
+import { applyPickedWhiteBalance } from '../../../argentum/whiteBalance';
 import { useTranslation } from 'react-i18next';
 import { useEditorStore } from '../../../store/useEditorStore';
 import type { OverlayMode } from '../right/CropPanel';
@@ -2110,22 +2111,9 @@ const ImageCanvas = memo(
           const avgG = gTotal / count;
           const avgB = bTotal / count;
 
-          const linR = Math.pow(avgR / 255.0, 2.2);
-          const linG = Math.pow(avgG / 255.0, 2.2);
-          const linB = Math.pow(avgB / 255.0, 2.2);
-
-          const sumRB = linR + linB;
-          const deltaTemp = sumRB > 0.0001 ? ((linB - linR) / sumRB) * 125.0 : 0;
-
-          const linM = sumRB / 2.0;
-          const sumGM = linG + linM;
-          const deltaTint = sumGM > 0.0001 ? ((linG - linM) / sumGM) * 400.0 : 0;
-
-          setAdjustments((prev: Adjustments) => ({
-            ...prev,
-            temperature: Math.max(-100, Math.min(100, deltaTemp)),
-            tint: Math.max(-100, Math.min(100, deltaTint)),
-          }));
+          // Argentum: solved in Rust, so the picker and auto-WB share one idea
+          // of what a temperature means. See src/argentum/whiteBalance.ts.
+          applyPickedWhiteBalance(x / imgLogicalWidth, y / imgLogicalHeight, setAdjustments);
 
           onWbPicked();
         };

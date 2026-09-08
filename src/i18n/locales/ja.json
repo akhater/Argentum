@@ -61,6 +61,7 @@
       "tint": "色かぶり補正",
       "toggleSliders": "スライダー切り替え",
       "vibrance": "自然な彩度",
+      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "ホワイトバランススポイト",
       "wbPickerWgpuDisabled": "WBスポイト: 設定でWGPUを無効にしてください。",
       "whiteBalance": "ホワイトバランス"
@@ -1485,7 +1486,7 @@
     "data": {
       "clearSidecars": "すべてのサイドカーファイルを削除",
       "clearSidecarsButton": "削除",
-      "clearSidecarsDesc": "ルートフォルダ内のすべての .rrdata ファイル（編集内容が含まれるファイル）を削除します:",
+      "clearSidecarsDesc": "ルートフォルダ内のすべての .agdata ファイル（編集内容が含まれるファイル）を削除します:",
       "clearThumbnail": "サムネイルキャッシュを削除",
       "clearThumbnailButton": "削除",
       "clearThumbnailDesc": "キャッシュされたすべてのサムネイル画像を削除します。ライブラリを閲覧する際に自動的に再生成されます。",
@@ -1795,9 +1796,9 @@
       "amount": "適用度",
       "automaticAiTagging": "自動AIタグ付け",
       "clearAiTagsButton": "クリア",
-      "clearAiTagsDesc": "アクティブなすべてのルートフォルダ内にある .rrdata ファイルから、AI生成されたタグを削除します。手動で追加したタグは維持されます。",
+      "clearAiTagsDesc": "アクティブなすべてのルートフォルダ内にある .agdata ファイルから、AI生成されたタグを削除します。手動で追加したタグは維持されます。",
       "clearAiTagsTitle": "AIタグをクリア",
-      "clearAllTagsDesc": "アクティブなすべてのルートフォルダ内にある .rrdata ファイルから、すべてのタグ（AI生成および手動）を削除します。カラーラベルは維持されます。",
+      "clearAllTagsDesc": "アクティブなすべてのルートフォルダ内にある .agdata ファイルから、すべてのタグ（AI生成および手動）を削除します。カラーラベルは維持されます。",
       "clearAllTagsTitle": "すべてのタグをクリア",
       "clearCustomTooltip": "AIタグリストをクリア",
       "clearShortcutsTooltip": "ショートカットリストをクリア",

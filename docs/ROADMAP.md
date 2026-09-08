@@ -11,7 +11,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 | | What | Why now | Effort |
 |---|---|---|---|
-| ⬜ | Fork, build, confirm it runs | Nothing else can start | 1 day |
+| ✅ | Fork, build, confirm it runs | Nothing else can start | 1 day |
 | ⬜ | One-folder data location | Cheap now, annoying to retrofit | ½ day |
 | ⬜ | Portable build (no installer) | Same reason | ½ day |
 
@@ -22,7 +22,7 @@ the pipeline, so doing them together means understanding it once.
 
 | | What | Source | Why | Effort |
 |---|---|---|---|---|
-| ⬜ | **White balance** | darktable | The one that started this. Also builds the sRGB↔Rec2020 conversion every later tool reuses | 3–4 days |
+| ✅ | **White balance** | darktable | Done 2026.37.2, plus auto-WB. Built the sRGB↔XYZ↔Bradford conversion every later tool reuses | 3–4 days |
 | ⬜ | **DCP camera profiles** | RawTherapee | Per-camera colour calibration — makes the 5D Mark II render *as itself*, not generically. Neither RapidRAW nor darktable has this | 3–4 days |
 | ⬜ | **Highlight recovery** | darktable | Biggest visible rescue on real photos | 2 days |
 
@@ -59,7 +59,7 @@ Largest single piece. Also the only part we build rather than copy.
 
 Not building history — RapidRAW already has a 50-step stack with undo/redo and a
 right-click History panel. But it lives in the frontend store only
-(`useEditorStore.ts`) and is never written to `.rrdata`, so closing the photo
+(`useEditorStore.ts`) and is never written to the sidecar, so closing the photo
 loses it. This is about making it survive.
 
 Open question when we build it: 50 full snapshots per photo bloats the sidecar.
@@ -129,7 +129,7 @@ release is actually on the table. Listed so it stays a choice, not an oversight.
 
 ## Open questions
 
-- **`.rrdata` next to photos, or in the data folder?** Next to photos = edits
+- **`.agdata` next to photos, or in the data folder?** Next to photos = edits
   travel with the pictures. In the folder = nothing left behind if you bin the project.
 - **History depth in the sidecar** — full snapshots bloat the file. Cap it,
   store deltas, or both. Decide when building it.

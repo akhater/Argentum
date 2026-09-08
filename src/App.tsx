@@ -1,3 +1,4 @@
+import Argentum from './argentum/Argentum';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -1074,6 +1075,7 @@ const AppWrapper = () => (
   <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} routerPush={(to) => {}} routerReplace={(to) => {}}>
     <ContextMenuProvider>
       <App />
+      <Argentum />
       <GlobalTooltip />
     </ContextMenuProvider>
   </ClerkProvider>

@@ -7,7 +7,7 @@ with image-processing modules harvested from
 [darktable](https://github.com/darktable-org/darktable) one at a time —
 and later RawTherapee, GIMP, or anywhere else worth raiding.
 
-**Status:** research complete, go decision made, nothing built yet.
+**Status:** builds and runs. First harvested module (white balance, plus auto-WB) shipped in `2026.37.2`.
 
 ---
 
@@ -49,7 +49,7 @@ git push
 | [CHANGELOG.md](CHANGELOG.md) | Every module, with its upstream source and commit |
 
 Full project brain — decisions, scope, research — lives in OpenViking at
-`viking://resources/projects/Argentum/`.
+`viking://resources/personal/photography/Argentum/`.
 
 ---
 
@@ -124,5 +124,5 @@ data\
 
 Deleting that folder removes the app's state completely. No registry, no AppData.
 
-The only thing outside it: `.rrdata` edit files sit next to your photos, so
+The only thing outside it: `.agdata` edit files sit next to your photos, so
 edits travel with the pictures.

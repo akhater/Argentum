@@ -61,6 +61,7 @@
       "tint": "Matís",
       "toggleSliders": "Alternar controls",
       "vibrance": "Intensitat",
+      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Comptagotes de balanç de blancs",
       "wbPickerWgpuDisabled": "Comptagotes BB: Desactiva WGPU a Configuració.",
       "whiteBalance": "Balanç de blancs"
@@ -1487,7 +1488,7 @@
     "data": {
       "clearSidecars": "Esborrar tots els fitxers sidecar",
       "clearSidecarsButton": "Esborrar",
-      "clearSidecarsDesc": "Això suprimirà tots els fitxers .rrdata (que contenen les vostres edicions) dins de les carpetes arrel:",
+      "clearSidecarsDesc": "Això suprimirà tots els fitxers .agdata (que contenen les vostres edicions) dins de les carpetes arrel:",
       "clearThumbnail": "Esborrar memòria cau de miniatures",
       "clearThumbnailButton": "Esborrar",
       "clearThumbnailDesc": "Això eliminarà totes les imatges en miniatura de la memòria cau. Es regeneraran automàticament mentre navegueu per la biblioteca.",
@@ -1797,9 +1798,9 @@
       "amount": "Quantitat",
       "automaticAiTagging": "Etiquetatge automàtic per IA",
       "clearAiTagsButton": "Esborrar",
-      "clearAiTagsDesc": "Això eliminarà totes les etiquetes generades per IA dels vostres fitxers .rrdata a totes les carpetes arrel actives. Es mantindran les etiquetes afegides pels usuaris.",
+      "clearAiTagsDesc": "Això eliminarà totes les etiquetes generades per IA dels vostres fitxers .agdata a totes les carpetes arrel actives. Es mantindran les etiquetes afegides pels usuaris.",
       "clearAiTagsTitle": "Esborrar etiquetes d'IA",
-      "clearAllTagsDesc": "Això eliminarà totes les etiquetes generades per IA i les afegides pels usuaris dels vostres fitxers .rrdata a totes les carpetes arrel actives. Es mantindran les etiquetes de color.",
+      "clearAllTagsDesc": "Això eliminarà totes les etiquetes generades per IA i les afegides pels usuaris dels vostres fitxers .agdata a totes les carpetes arrel actives. Es mantindran les etiquetes de color.",
       "clearAllTagsTitle": "Esborrar totes les etiquetes",
       "clearCustomTooltip": "Esborrar la llista d'etiquetes d'IA",
       "clearShortcutsTooltip": "Esborrar la llista d'etiquetes de drecera",

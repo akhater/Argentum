@@ -1532,7 +1532,7 @@ pub fn write_image_with_metadata(
 
 pub fn get_primary_sidecar_path(image_path: &Path) -> PathBuf {
     let mut filename = image_path.file_name().unwrap_or_default().to_os_string();
-    filename.push(".rrdata");
+    filename.push(".agdata");
     image_path.with_file_name(filename)
 }
 

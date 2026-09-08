@@ -61,6 +61,7 @@
       "tint": "Tonalidade",
       "toggleSliders": "Alternar Controles",
       "vibrance": "Vibração",
+      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Seletor de Balanço de Branco",
       "wbPickerWgpuDisabled": "Seletor de BB: Desative o WGPU nas Configurações.",
       "whiteBalance": "Balanço de Branco"
@@ -1518,7 +1519,7 @@
     "data": {
       "clearSidecars": "Limpar Todos os Arquivos Sidecar",
       "clearSidecarsButton": "Limpar",
-      "clearSidecarsDesc": "Isso excluirá todos os arquivos .rrdata (contendo suas edições) em suas pastas raiz:",
+      "clearSidecarsDesc": "Isso excluirá todos os arquivos .agdata (contendo suas edições) em suas pastas raiz:",
       "clearThumbnail": "Limpar Cache de Miniaturas",
       "clearThumbnailButton": "Limpar",
       "clearThumbnailDesc": "Isso excluirá todas as imagens em miniatura em cache. Elas serão regeneradas automaticamente conforme você navega em sua biblioteca.",
@@ -1831,9 +1832,9 @@
       "amount": "Quantidade",
       "automaticAiTagging": "Tagging Automático por IA",
       "clearAiTagsButton": "Limpar",
-      "clearAiTagsDesc": "Isso removerá todas as etiquetas geradas por IA de seus arquivos .rrdata em todas as pastas raiz ativas. As etiquetas adicionadas pelo usuário serão mantidas.",
+      "clearAiTagsDesc": "Isso removerá todas as etiquetas geradas por IA de seus arquivos .agdata em todas as pastas raiz ativas. As etiquetas adicionadas pelo usuário serão mantidas.",
       "clearAiTagsTitle": "Limpar Etiquetas de IA",
-      "clearAllTagsDesc": "Isso removerá todas as etiquetas geradas por IA e adicionadas pelo usuário de seus arquivos .rrdata em todas as pastas raiz ativas. Os rótulos de cores serão mantidos.",
+      "clearAllTagsDesc": "Isso removerá todas as etiquetas geradas por IA e adicionadas pelo usuário de seus arquivos .agdata em todas as pastas raiz ativas. Os rótulos de cores serão mantidos.",
       "clearAllTagsTitle": "Limpar Todas as Etiquetas",
       "clearCustomTooltip": "Limpar Lista de Etiquetas de IA",
       "clearShortcutsTooltip": "Limpar Lista de Etiquetas de Atalho",

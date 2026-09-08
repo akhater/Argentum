@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Pipette, Sliders } from 'lucide-react';
+import AutoWhiteBalanceButton from '../../argentum/AutoWhiteBalanceButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import Slider from '../ui/Slider';
@@ -473,19 +474,22 @@ export default function ColorPanel({
       <div className="p-2 bg-bg-tertiary rounded-md">
         <div className="flex justify-between items-center mb-2">
           <Text variant={TextVariants.heading}>{t('adjustments.color.whiteBalance')}</Text>
-          {!isForMask && toggleWbPicker && (
-            <button
-              onClick={toggleWbPicker}
-              className={`p-1.5 rounded-md transition-colors ${
-                isWbPickerActive
-                  ? 'bg-accent text-button-text'
-                  : 'hover:bg-bg-secondary text-text-secondary'
-              }`}
-              data-tooltip={t('adjustments.color.wbPickerTooltip')}
-            >
-              <Pipette size={16} />
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {!isForMask && <AutoWhiteBalanceButton adjustments={adjustments} setAdjustments={setAdjustments} />}
+            {!isForMask && toggleWbPicker && (
+              <button
+                onClick={toggleWbPicker}
+                className={`p-1.5 rounded-md transition-colors ${
+                  isWbPickerActive
+                    ? 'bg-accent text-button-text'
+                    : 'hover:bg-bg-secondary text-text-secondary'
+                }`}
+                data-tooltip={t('adjustments.color.wbPickerTooltip')}
+              >
+                <Pipette size={16} />
+              </button>
+            )}
+          </div>
         </div>
         <Slider
           label={t('adjustments.color.temperature')}

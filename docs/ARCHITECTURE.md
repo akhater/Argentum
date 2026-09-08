@@ -81,21 +81,34 @@ you should be adding a handful of lines, not restructuring.
 
 ## The color space thing
 
-RapidRAW works in linear sRGB. darktable's modules assume a wider space
-(linear Rec2020). Transplanted math needs converting in and back out.
+RapidRAW works in linear sRGB. darktable's modules assume something wider or
+more perceptual. Transplanted math needs converting in and back out.
 
-That's `mods/color.rs` plus a matrix pair in `modules.wgsl`. **Written once
-during the first tool, reused by every tool after.** It is not a per-tool cost.
+That conversion lives in `modules.wgsl` and is **written once, reused by every
+tool after** — not a per-tool cost.
 
-Every darktable function follows the same shape:
+**What actually got built, in `2026.37.2`:** linear sRGB ↔ CIE XYZ, plus XYZ ↔
+Bradford cone space (LMS). White balance needed a colorimetric space and a cone
+space, not a wider RGB one, so that is what exists:
+
+```wgsl
+const AG_SRGB_TO_XYZ  // and AG_XYZ_TO_SRGB
+const AG_XYZ_TO_LMS   // and AG_LMS_TO_XYZ  — Bradford
+```
 
 ```wgsl
 fn dt_something(color: vec3<f32>, ...) -> vec3<f32> {
-    var c = srgb_to_rec2020(color);     // in
+    let xyz = AG_SRGB_TO_XYZ * color;    // in
     // ... darktable's math, largely as-is ...
-    return rec2020_to_srgb(c);          // out
+    return AG_XYZ_TO_SRGB * xyz;         // out
 }
 ```
+
+There is **no `srgb_to_rec2020` and no `mods/color.rs`** — earlier drafts of
+this document promised both. If a later harvested module genuinely needs linear
+Rec2020, add that matrix pair to `modules.wgsl` alongside the others. Going
+through XYZ is the general route; a wide-RGB working space is one destination,
+not the only one.
 
 ---
 

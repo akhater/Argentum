@@ -32,6 +32,7 @@ mod lens_blur;
 mod lens_correction;
 mod lut_processing;
 mod mask_generation;
+mod mods;
 mod multi_exposure;
 mod negative_conversion;
 mod panorama_stitching;
@@ -2119,6 +2120,9 @@ pub fn run() {
             app_settings::save_settings,
             app_settings::is_tethering_supported,
             ai_commands::generate_ai_subject_mask,
+            mods::commands::detect_auto_white_balance,
+            mods::commands::solve_white_balance_at_point,
+            mods::commands::sample_processed_pixel,
             ai_commands::precompute_ai_subject_mask,
             ai_commands::generate_ai_foreground_mask,
             ai_commands::generate_ai_sky_mask,

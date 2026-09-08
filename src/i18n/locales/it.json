@@ -61,6 +61,7 @@
       "tint": "Tinta",
       "toggleSliders": "Attiva/Disattiva Cursori",
       "vibrance": "Vividezza",
+      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Selettore Bilanciamento del Bianco",
       "wbPickerWgpuDisabled": "Selettore BB: Disabilita WGPU nelle Impostazioni.",
       "whiteBalance": "Bilanciamento del Bianco"
@@ -1517,7 +1518,7 @@
     "data": {
       "clearSidecars": "Cancella Tutti i File Sidecar",
       "clearSidecarsButton": "Cancella",
-      "clearSidecarsDesc": "Questo eliminerà tutti i file .rrdata (contenenti le tue modifiche) all'interno delle cartelle principali:",
+      "clearSidecarsDesc": "Questo eliminerà tutti i file .agdata (contenenti le tue modifiche) all'interno delle cartelle principali:",
       "clearThumbnail": "Cancella Cache Miniature",
       "clearThumbnailButton": "Cancella",
       "clearThumbnailDesc": "Questo eliminerà tutte le immagini miniatura memorizzate nella cache. Verranno rigenerate automaticamente sfogliando la libreria.",
@@ -1830,9 +1831,9 @@
       "amount": "Quantità",
       "automaticAiTagging": "Tagging AI Automatico",
       "clearAiTagsButton": "Cancella",
-      "clearAiTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI dai file .rrdata in tutte le cartelle principali attive. I tag aggiunti dall'utente verranno mantenuti.",
+      "clearAiTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI dai file .agdata in tutte le cartelle principali attive. I tag aggiunti dall'utente verranno mantenuti.",
       "clearAiTagsTitle": "Cancella Tag AI",
-      "clearAllTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI e aggiunti dall'utente dai file .rrdata in tutte le cartelle principali attive. Le etichette di colore verranno mantenute.",
+      "clearAllTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI e aggiunti dall'utente dai file .agdata in tutte le cartelle principali attive. Le etichette di colore verranno mantenute.",
       "clearAllTagsTitle": "Cancella Tutti i Tag",
       "clearCustomTooltip": "Cancella Lista Tag AI",
       "clearShortcutsTooltip": "Cancella Lista Tag Scorciatoie",

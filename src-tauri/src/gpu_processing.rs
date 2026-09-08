@@ -788,7 +788,13 @@ impl GpuProcessor {
 
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Image Processing Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                concat!(
+                    include_str!("shaders/modules.wgsl"), // ours, harvested maths
+                    include_str!("shaders/shader.wgsl"),  // theirs, untouched
+                )
+                .into(),
+            ),
         });
 
         let mut bind_group_layout_entries = vec![

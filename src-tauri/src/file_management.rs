@@ -395,7 +395,7 @@ pub fn parse_virtual_path(virtual_path: &str) -> (PathBuf, PathBuf) {
 
     let sidecar_filename = if let Some(id) = copy_id {
         format!(
-            "{}.{}.rrdata",
+            "{}.{}.agdata",
             source_path
                 .file_name()
                 .unwrap_or_default()
@@ -404,7 +404,7 @@ pub fn parse_virtual_path(virtual_path: &str) -> (PathBuf, PathBuf) {
         )
     } else {
         format!(
-            "{}.rrdata",
+            "{}.agdata",
             source_path
                 .file_name()
                 .unwrap_or_default()
@@ -579,7 +579,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
             .into_string()
             .unwrap_or_else(|os| os.to_string_lossy().into_owned());
 
-        if file_name.ends_with(".rrdata") {
+        if file_name.ends_with(".agdata") {
             let base = &file_name[..file_name.len() - 7];
 
             let (source_filename, copy_id) =
@@ -633,9 +633,9 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                     Some(id) => (
                         format!("{}?vc={}", path_str, id),
                         true,
-                        format!("{}.{}.rrdata", file_name, id),
+                        format!("{}.{}.agdata", file_name, id),
                     ),
-                    None => (path_str.clone(), false, format!("{}.rrdata", file_name)),
+                    None => (path_str.clone(), false, format!("{}.agdata", file_name)),
                 };
 
                 let sidecar_path = path_buf.with_file_name(sidecar_filename);
@@ -707,7 +707,7 @@ pub fn list_images_recursive(
         }
 
         let file_name = entry_path.file_name().unwrap_or_default().to_string_lossy();
-        if let Some(base) = file_name.strip_suffix(".rrdata") {
+        if let Some(base) = file_name.strip_suffix(".agdata") {
             let (source_filename, copy_id) =
                 if base.len() >= 7 && base.as_bytes()[base.len() - 7] == b'.' {
                     let id = &base[base.len() - 6..];
@@ -766,9 +766,9 @@ pub fn list_images_recursive(
                     Some(id) => (
                         format!("{}?vc={}", path_str, id),
                         true,
-                        format!("{}.{}.rrdata", file_name, id),
+                        format!("{}.{}.agdata", file_name, id),
                     ),
-                    None => (path_str.clone(), false, format!("{}.rrdata", file_name)),
+                    None => (path_str.clone(), false, format!("{}.agdata", file_name)),
                 };
 
                 let sidecar_path = path_buf.with_file_name(sidecar_filename);
@@ -2338,7 +2338,7 @@ fn find_all_associated_files(source_image_path: &Path) -> Result<Vec<PathBuf>, S
         .ok_or("Could not get source filename")?
         .to_string_lossy();
 
-    let primary_sidecar_name = format!("{}.rrdata", source_filename);
+    let primary_sidecar_name = format!("{}.agdata", source_filename);
     let virtual_copy_prefix = format!("{}.", source_filename);
 
     if let Ok(entries) = fs::read_dir(parent_dir) {
@@ -2353,7 +2353,7 @@ fn find_all_associated_files(source_image_path: &Path) -> Result<Vec<PathBuf>, S
 
             if entry_filename == primary_sidecar_name
                 || (entry_filename.starts_with(&virtual_copy_prefix)
-                    && entry_filename.ends_with(".rrdata"))
+                    && entry_filename.ends_with(".agdata"))
             {
                 associated_files.push(entry_path);
             }
@@ -3376,7 +3376,7 @@ pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
         let path = entry.path();
         if path.is_file()
             && let Some(extension) = path.extension()
-            && (extension == "rrdata" || extension == "rrexif")
+            && (extension == "agdata" || extension == "rrexif")
         {
             if fs::remove_file(path).is_ok() {
                 deleted_count += 1;
@@ -3532,17 +3532,17 @@ pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Resu
 }
 
 fn deletion_stem_for(filename: &str) -> Option<&str> {
-    let image_filename = if filename.ends_with(".rrdata") {
-        let without_rrdata = filename.trim_end_matches(".rrdata");
-        if let Some(dot_pos) = without_rrdata.rfind('.') {
-            let suffix = &without_rrdata[dot_pos + 1..];
+    let image_filename = if filename.ends_with(".agdata") {
+        let without_agdata = filename.trim_end_matches(".agdata");
+        if let Some(dot_pos) = without_agdata.rfind('.') {
+            let suffix = &without_agdata[dot_pos + 1..];
             if suffix.len() == 6 && suffix.chars().all(|c| c.is_ascii_hexdigit()) {
-                &without_rrdata[..dot_pos]
+                &without_agdata[..dot_pos]
             } else {
-                without_rrdata
+                without_agdata
             }
         } else {
-            without_rrdata
+            without_agdata
         }
     } else if filename.ends_with(".rrexif") {
         filename.trim_end_matches(".rrexif")
@@ -4003,15 +4003,15 @@ pub fn rename_files(
                 let entry_filename = entry_os_filename.to_string_lossy();
 
                 if entry_filename.starts_with(&format!("{}.", original_filename_str))
-                    && entry_filename.ends_with(".rrdata")
+                    && entry_filename.ends_with(".agdata")
                 {
                     let new_sidecar_filename =
                         entry_filename.replacen(&*original_filename_str, &new_filename_str, 1);
                     let new_sidecar_path = parent.join(new_sidecar_filename);
                     sidecar_operations.push((entry_path, new_sidecar_path));
-                } else if entry_filename == format!("{}.rrdata", original_filename_str) {
+                } else if entry_filename == format!("{}.agdata", original_filename_str) {
                     let mut new_sidecar_name = new_path.file_name().unwrap().to_os_string();
-                    new_sidecar_name.push(".rrdata");
+                    new_sidecar_name.push(".agdata");
                     let new_sidecar_path = new_path.with_file_name(new_sidecar_name);
 
                     sidecar_operations.push((entry_path, new_sidecar_path));

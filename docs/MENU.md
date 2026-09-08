@@ -62,10 +62,10 @@ JSON sidecar next to each photo. Original RAW never modified.
 
 ```
 IMG_1234.CR3          ← untouched
-IMG_1234.CR3.rrdata   ← your edits, readable text
+IMG_1234.CR3.agdata   ← your edits, readable text
 ```
 
-Supports multiple versions of the same photo (`IMG_1234.CR3.2.rrdata`).
+Supports multiple versions of the same photo (`IMG_1234.CR3.2.agdata`).
 
 Every tool you add writes into the same file. Doesn't matter whether a setting
 came from darktable or RapidRAW — one list, one format. That's what kills the
