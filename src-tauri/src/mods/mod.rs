@@ -9,4 +9,11 @@
 //! `docs/ADDING_A_TOOL.md` for the recipe.
 
 pub mod auto_wb;
+pub mod cache_version;
+pub mod colour_compare;
+pub mod lens_crop;
+pub mod makernote_lens;
+pub mod preview_encode;
+pub mod sigmoid;
+pub mod sraw_levels;
 pub mod commands;

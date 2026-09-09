@@ -2297,12 +2297,12 @@ pub fn duplicate_file(
     }
 
     let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
-    source_rrexif_name.push(".rrexif");
+    source_rrexif_name.push(".agexif");
     let source_rrexif = source_path.with_file_name(source_rrexif_name);
 
     if source_rrexif.exists() {
         let mut dest_rrexif_name = dest_path.file_name().unwrap().to_os_string();
-        dest_rrexif_name.push(".rrexif");
+        dest_rrexif_name.push(".agexif");
         let dest_rrexif = dest_path.with_file_name(dest_rrexif_name);
         let _ = fs::copy(&source_rrexif, &dest_rrexif);
     }
@@ -2323,7 +2323,7 @@ fn find_all_associated_files(source_image_path: &Path) -> Result<Vec<PathBuf>, S
         .file_name()
         .unwrap_or_default()
         .to_os_string();
-    rrexif_name.push(".rrexif");
+    rrexif_name.push(".agexif");
     let rrexif_path = source_image_path.with_file_name(rrexif_name);
 
     if rrexif_path.exists() {
@@ -3376,7 +3376,7 @@ pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
         let path = entry.path();
         if path.is_file()
             && let Some(extension) = path.extension()
-            && (extension == "agdata" || extension == "rrexif")
+            && (extension == "agdata" || extension == "agexif")
         {
             if fs::remove_file(path).is_ok() {
                 deleted_count += 1;
@@ -3544,8 +3544,8 @@ fn deletion_stem_for(filename: &str) -> Option<&str> {
         } else {
             without_agdata
         }
-    } else if filename.ends_with(".rrexif") {
-        filename.trim_end_matches(".rrexif")
+    } else if filename.ends_with(".agexif") {
+        filename.trim_end_matches(".agexif")
     } else if is_supported_image_file(filename) {
         filename
     } else {
@@ -3839,12 +3839,12 @@ pub async fn import_files(
                 }
 
                 let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
-                source_rrexif_name.push(".rrexif");
+                source_rrexif_name.push(".agexif");
                 let source_rrexif = source_path.with_file_name(source_rrexif_name);
 
                 if source_rrexif.exists() {
                     let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
-                    dest_rrexif_name.push(".rrexif");
+                    dest_rrexif_name.push(".agexif");
                     let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
                     let _ = fs::copy(&source_rrexif, &dest_rrexif);
                 }
@@ -4020,12 +4020,12 @@ pub fn rename_files(
         }
 
         let mut old_rrexif_name = original_path.file_name().unwrap().to_os_string();
-        old_rrexif_name.push(".rrexif");
+        old_rrexif_name.push(".agexif");
         let old_rrexif = original_path.with_file_name(old_rrexif_name);
 
         if old_rrexif.exists() {
             let mut new_rrexif_name = new_path.file_name().unwrap().to_os_string();
-            new_rrexif_name.push(".rrexif");
+            new_rrexif_name.push(".agexif");
             let new_rrexif = new_path.with_file_name(new_rrexif_name);
             sidecar_operations.push((old_rrexif, new_rrexif));
         }

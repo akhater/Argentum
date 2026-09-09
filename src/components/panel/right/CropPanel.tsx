@@ -1,3 +1,4 @@
+import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Aperture,
@@ -581,6 +582,9 @@ export default function CropPanel() {
       setDetectionStatus('not_found');
     }
   }, [selectedImage?.exif, fetchDistortionParams, setAdjustments]);
+
+  // Argentum: auto-detect on load, not only when the Auto button is clicked.
+  useAutoDetectOnLoad(selectedImage, adjustments, handleAutoDetectLens);
 
   const handleMakerChange = useCallback(
     (maker: string) => {

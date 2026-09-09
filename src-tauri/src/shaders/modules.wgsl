@@ -80,6 +80,57 @@ const AG_LMS_TO_XYZ = mat3x3<f32>(
 // the daylight locus, which is the sane default for photographic use.
 // ---------------------------------------------------------------------------
 
+// The encoding the pipeline works in.
+//
+// mods/preview_encode.rs encodes a RAW before it reaches this shader: gamma
+// 2.38, then a 1.28 contrast slope above a knee, and a quadratic toe below it
+// so shadows reach zero smoothly instead of being clipped. shader.wgsl then
+// treats the result as linear, which is fine for maths that only scales
+// channels and wrong for colour science - so dt_white_balance undoes it,
+// adapts, and puts it back.
+//
+// KEEP IN STEP with mods/preview_encode.rs, which owns this curve. The toe
+// exists because the original straight line, y = 1.28g - 0.14, reaches zero at
+// g = 0.109 and clamped everything below scene-linear 0.00516 to black - 11% of
+// a backlit frame, thrown away before anything could be done about it.
+const AG_RAW_GAMMA: f32 = 2.38;
+const AG_RAW_CONTRAST: f32 = 1.28;
+const AG_KNEE: f32 = 0.25;
+const AG_TOE_A: f32 = 2.24;   // 0.14 / knee^2
+const AG_TOE_B: f32 = 0.16;   // contrast - 2*a*knee
+
+fn ag_encode_channel(linear: f32) -> f32 {
+    let g = pow(max(linear, 0.0), 1.0 / AG_RAW_GAMMA);
+    var y: f32;
+    if (g >= AG_KNEE) {
+        y = (g - 0.5) * AG_RAW_CONTRAST + 0.5;
+    } else {
+        y = AG_TOE_A * g * g + AG_TOE_B * g;
+    }
+    return clamp(y, 0.0, 1.0);
+}
+
+fn ag_decode_channel(encoded: f32) -> f32 {
+    let y = clamp(encoded, 0.0, 1.0);
+    let knee_y = (AG_KNEE - 0.5) * AG_RAW_CONTRAST + 0.5;
+    var g: f32;
+    if (y >= knee_y) {
+        g = (y - 0.5) / AG_RAW_CONTRAST + 0.5;
+    } else {
+        let disc = AG_TOE_B * AG_TOE_B + 4.0 * AG_TOE_A * y;
+        g = (-AG_TOE_B + sqrt(max(disc, 0.0))) / (2.0 * AG_TOE_A);
+    }
+    return pow(max(g, 0.0), AG_RAW_GAMMA);
+}
+
+fn ag_to_scene_linear(c: vec3<f32>) -> vec3<f32> {
+    return vec3<f32>(ag_decode_channel(c.r), ag_decode_channel(c.g), ag_decode_channel(c.b));
+}
+
+fn ag_from_scene_linear(c: vec3<f32>) -> vec3<f32> {
+    return vec3<f32>(ag_encode_channel(c.r), ag_encode_channel(c.g), ag_encode_channel(c.b));
+}
+
 // Slider (-100..100, already divided by SCALES.temperature = 25, so roughly
 // -4..4) to the assumed scene illuminant, in kelvin.
 //
@@ -177,11 +228,43 @@ fn dt_white_balance(color: vec3<f32>, temp: f32, tnt: f32) -> vec3<f32> {
     let kelvin = ag_slider_to_kelvin(temp);
     let illuminant = ag_apply_tint(ag_kelvin_to_xy(kelvin), tnt);
 
-    let xyz = AG_SRGB_TO_XYZ * color;
+    // Adapt in scene-linear, not in whatever space the pipeline hands us.
+    //
+    // For a RAW file this shader is fed the output of
+    // apply_cpu_default_raw_processing — gamma 2.38 then a 1.28 contrast boost —
+    // and treats it as linear anyway (shader.wgsl: `if (is_raw == 0u)` only
+    // linearises for non-RAW). That costs their three-multiplier white balance
+    // nothing, because scaling channels is scale-invariant to a curve. It costs
+    // ours plenty: an sRGB→XYZ matrix and a cone-space adaptation are only
+    // meaningful on linear data.
+    //
+    // Left uncorrected it showed up as a fixed ~3% green residual after picking
+    // a neutral patch — the illuminant is solved in true scene-linear (see
+    // `to_scene_linear` in mods/auto_wb.rs) while the correction was applied in
+    // the encoded space. Solve in one space, correct in another, and the two
+    // never quite meet.
+    // Only RAW arrives encoded. A JPEG has already been through
+    // srgb_to_linear at the top of main(), so it is genuinely linear and
+    // decoding it again would correct twice.
+    let is_raw_input = adjustments.global.is_raw_image != 0u;
+    var lin = color;
+    if (is_raw_input) {
+        lin = ag_to_scene_linear(color);
+    }
+
+    let xyz = AG_SRGB_TO_XYZ * lin;
     let adapted = ag_chromatic_adapt(xyz, illuminant, vec2<f32>(AG_D65_X, AG_D65_Y));
 
     // Negatives are possible when adapting far from the working white — a
     // colour that exists under one illuminant may fall outside sRGB under
     // another. Clip rather than let them poison later stages.
-    return max(AG_XYZ_TO_SRGB * adapted, vec3<f32>(0.0));
+    let out_lin = max(AG_XYZ_TO_SRGB * adapted, vec3<f32>(0.0));
+
+    // Back into the encoding the rest of the pipeline expects, so every tool
+    // after this one still sees what it was tuned for.
+    if (is_raw_input) {
+        return ag_from_scene_linear(out_lin);
+    }
+    return out_lin;
 }
+

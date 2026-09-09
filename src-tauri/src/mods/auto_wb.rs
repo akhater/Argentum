@@ -129,11 +129,11 @@ const RAW_PREPROCESS_CONTRAST: f32 = 1.28;
 
 #[inline]
 fn to_scene_linear(value: f32) -> f32 {
-    // Inverse of contrast, then inverse of gamma. Values clipped at 0/1 by the
-    // forward pass can't be recovered — they were already blown or crushed, and
-    // contribute nothing useful to an illuminant estimate either way.
-    let decontrasted = (value - 0.5) / RAW_PREPROCESS_CONTRAST + 0.5;
-    decontrasted.max(0.0).powf(RAW_PREPROCESS_GAMMA)
+    // Single source of truth: mods::preview_encode owns the curve and its
+    // inverse. It used to be duplicated here as gamma-then-contrast, which was
+    // fine while the encode was a straight line and wrong the moment it gained
+    // a toe.
+    crate::mods::preview_encode::decode(value)
 }
 
 /// Convert the image to D50-relative chromaticity.
@@ -746,5 +746,117 @@ mod picker_point_tests {
     #[test]
     fn a_black_frame_is_declined() {
         assert!(white_balance_at(&flat([0, 0, 0]), 0.5, 0.5).is_none());
+    }
+}
+
+#[cfg(test)]
+mod neutralisation_tests {
+    //! Does the model actually neutralise?
+    //!
+    //! Measured against darktable on a real file, a spot-white-balanced grey
+    //! patch came back `191/196/191` — red and blue equal, so the temperature
+    //! axis is right, but green 5 levels high. About 3%, and the same on a
+    //! second photo under different light, so it is systematic rather than noise.
+    //!
+    //! Two candidates: the model (solving the wrong illuminant), or the pipeline
+    //! (reading the pixel wrong before the solve). These tests pin the model, in
+    //! pure arithmetic with no image and no GPU. If they pass, the residual is
+    //! not in the maths and the pipeline is where to look.
+
+    use super::*;
+
+    const XYZ_TO_LMS: [[f32; 3]; 3] = [
+        [0.8951, 0.2664, -0.1614],
+        [-0.7502, 1.7135, 0.0367],
+        [0.0389, -0.0685, 1.0296],
+    ];
+    const LMS_TO_XYZ: [[f32; 3]; 3] = [
+        [0.9869929, -0.1470543, 0.1599627],
+        [0.4323053, 0.5183603, 0.0492912],
+        [-0.0085287, 0.0400428, 0.9684867],
+    ];
+    const XYZ_TO_SRGB: [[f32; 3]; 3] = [
+        [3.2404542, -1.5371385, -0.4985314],
+        [-0.9692660, 1.8760108, 0.0415560],
+        [0.0556434, -0.2040259, 1.0572252],
+    ];
+
+    fn mul3(m: &[[f32; 3]; 3], v: [f32; 3]) -> [f32; 3] {
+        [
+            m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+            m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
+            m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
+        ]
+    }
+
+    fn xy_to_xyz(xy: (f32, f32)) -> [f32; 3] {
+        let y = xy.1.max(NORM_MIN);
+        [xy.0 / y, 1.0, (1.0 - xy.0 - xy.1) / y]
+    }
+
+    /// Mirrors `ag_chromatic_adapt` in modules.wgsl.
+    fn adapt(xyz: [f32; 3], from: (f32, f32), to: (f32, f32)) -> [f32; 3] {
+        let lf = mul3(&XYZ_TO_LMS, xy_to_xyz(from));
+        let lt = mul3(&XYZ_TO_LMS, xy_to_xyz(to));
+        let l = mul3(&XYZ_TO_LMS, xyz);
+        mul3(
+            &LMS_TO_XYZ,
+            [
+                l[0] * lt[0] / lf[0].max(NORM_MIN),
+                l[1] * lt[1] / lf[1].max(NORM_MIN),
+                l[2] * lt[2] / lf[2].max(NORM_MIN),
+            ],
+        )
+    }
+
+    /// Mirrors `ag_slider_to_kelvin` then `ag_apply_tint`, taking slider units.
+    fn illuminant_from_sliders(temperature: f32, tint: f32) -> (f32, f32) {
+        let t = temperature / SLIDER_SCALE_TEMPERATURE;
+        let n = tint / SLIDER_SCALE_TINT;
+        let kelvin = (6500.0 * (t * 0.28).exp()).clamp(1800.0, 20000.0);
+        let (x, y_locus) = kelvin_to_xy(kelvin);
+        (x, y_locus + n * 0.05)
+    }
+
+    /// The whole claim, end to end and without an image: take a grey card under
+    /// some illuminant, solve the sliders from it, apply what the shader would
+    /// apply, and the result must be neutral.
+    #[test]
+    fn a_grey_card_under_any_illuminant_comes_back_neutral() {
+        // Real illuminants across the range: tungsten, warm, daylight, shade,
+        // plus two deliberately off the locus in either direction.
+        let cases = [
+            (0.4476, 0.4074),
+            (0.4091, 0.3940),
+            (0.3457, 0.3585),
+            (0.3127, 0.3290),
+            (0.2952, 0.3048),
+            (0.3457, 0.3300),
+            (0.3127, 0.3500),
+        ];
+
+        for (ix, iy) in cases {
+            let (temperature, tint) = solve_slider_values(ix, iy);
+
+            // Round as the frontend does before handing values to the shader.
+            let (temperature, tint) = (temperature.round(), tint.round());
+            let assumed = illuminant_from_sliders(temperature, tint);
+
+            // A grey card reflects the illuminant, so the scene pixel is it.
+            let patch = xy_to_xyz((ix, iy));
+            let adapted = adapt(patch, assumed, (D65_X, D65_Y));
+            let rgb = mul3(&XYZ_TO_SRGB, adapted);
+
+            let max = rgb[0].max(rgb[1]).max(rgb[2]);
+            let min = rgb[0].min(rgb[1]).min(rgb[2]);
+            let cast = (max - min) / max.max(NORM_MIN);
+
+            assert!(
+                cast < 0.02,
+                "illuminant ({ix}, {iy}) left a {:.1}% cast: rgb {:?}, sliders temp {temperature} tint {tint}",
+                cast * 100.0,
+                rgb
+            );
+        }
     }
 }

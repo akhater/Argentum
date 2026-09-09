@@ -28,6 +28,236 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.10 — 2026-09-09
+
+The green cast and the crushed shadows were the same bug, and it was neither
+white balance nor the colour matrix. AK shot sRAW for years; sRAW is not
+sensor data.
+
+Three releases went unrecorded while this was being chased — `2026.37.7`
+(D50/D65 matrix correction), `2026.37.8` (darktable's sigmoid as the tone
+curve) and `2026.37.9` (reverting it). Both of those attempts are now gone.
+They were built against a single frame and were compensating for the bug
+below.
+
+### Fixed
+- **Canon sRAW / mRAW black and white levels** — `mods/sraw_levels.rs`. These
+  formats do not store sensor data. They store luma and chroma, already
+  black-subtracted and already white-balanced by the camera. rawler converts
+  that back to RGB correctly and then treats the result as sensor data: it
+  subtracts the sensor black level (1023 on a 5D Mark II) a second time, and
+  takes the white level from its camera table rather than from the file.
+
+  Red sits at roughly half of green at that point, so one subtraction takes
+  ~18% off red and ~8% off green. White balance scales the gap up and the
+  camera matrix amplifies it again — the cast. The darkest values are 100–300
+  counts, so the same subtraction sends them below zero — the crushed shadows.
+  On a backlit frame that was 40% of the picture, black before any tool could
+  reach it.
+
+  rawspeed, which darktable uses, is explicit about this in
+  `Cr2Decoder::decodeMetaDataInternal`: for sRAW the black level is zero and
+  the white point is the file's specular white shifted up two bits.
+
+  Keyed on the format, not the camera — three channels out of a Canon decoder.
+  The white level is read from the file's own ColorData using the version
+  table rawspeed and rawler both carry, which covers every body that shoots
+  sRAW. No camera is named anywhere in it.
+
+  Measured linear against darktable at the same stage, one file:
+
+  ```
+                     R/G     B/G   brightness
+    darktable       0.97    1.03      100%
+    before          0.53    0.80       72%
+    after           1.00    1.06      101%
+  ```
+
+- **The RGB readout stopped showing anything.** It found the photo by taking
+  the largest `<img>` on the page. With the GPU renderer on there is no `<img>`
+  for the photo — it is a native surface composited behind the webview — so
+  what it actually found was the cached `_medium.jpg` thumbnail, present only
+  sometimes. Clear the thumbnail cache and the readout goes silent with no
+  error. On the welcome screen the same code would have picked the 2048px
+  splash background.
+
+  It now anchors on the overlay `<svg>` that `ImageCanvas` positions over the
+  photo: sized in pixels to the drawn image, inside the pan/zoom transform, so
+  its bounding box *is* the photo at any zoom. Verified against the running app
+  over the devtools protocol rather than by eye — aspect 0.6667 against the
+  file's 1872×2808, tracking correctly through a zoom.
+
+- **Stale thumbnails after a decode change** — `mods/cache_version.rs`.
+  `compute_thumbnail_cache_hash` covers the photo's path, its mtime and the
+  adjustments; nothing about how it was decoded. Correct for RapidRAW, whose
+  decode never changes, wrong for us. After the sRAW fix the library kept
+  showing the green cast while the editor showed the correction — the same
+  photo, two colours, depending on where you looked.
+
+  The cache is now stamped with a pipeline number and cleared when it changes.
+  Bump `cache_version::PIPELINE` when anything in `mods/` changes what a photo
+  looks like. The version belongs in the hash, which is one line in
+  `file_management.rs` — already at 30 of its 30 approved lines — so this does
+  the same job from our side rather than raising a budget.
+
+### Removed
+- **The D50→D65 camera matrix correction** (`mods/colour_fix.rs`, added in
+  `2026.37.7`). It closed the gap on the one frame it was built against. With
+  the real bug fixed it made nine of ten test photos worse: mean R/G error 6.8%
+  with it against 4.2% without. rawler's composition matches dcraw and
+  rawspeed's legacy path and was not the error it was taken for.
+
+### Added
+- **A linear regression harness** — `colour_compare::linear_across_a_set`. The
+  earlier comparisons were of finished renders, where a tone curve reshapes
+  channel ratios and mixes "the colour is wrong" with "the curve is different".
+  This compares the decoders themselves against `darktable-cli` exports made
+  with `workflow=none` in linear Rec709, over ten photos from nine shoots and
+  both RAW formats. It is what retired the matrix correction.
+
+  Where that leaves us:
+
+  ```
+    10 photos   mean |R/G| off 4.2%   |B/G| off 5.1%   brightness 100%
+  ```
+
+  Three of the four full RAWs now match darktable exactly.
+
+### Kept
+- The shadow toe from the previous commit (`mods/preview_encode.rs`) stays. It
+  now recovers 0.0–0.8% of a frame rather than 10.9% — almost all of that was
+  the sRAW bug — but their contrast line does still cross zero, so the clip is
+  real and the toe never costs anything.
+
+---
+
+## 2026.37.6 — 2026-09-09
+
+Lens auto-detection works. darktable identified AK's EF 135mm f/2 L instantly
+while Argentum asked him to pick it by hand every time.
+
+### Added
+- **Canon MakerNote lens reading** — `mods/makernote_lens.rs`. The lens name is
+  in the file; nothing in the chain looked where it lives. `kamadak-exif` reads
+  standard EXIF, where Canon does not write `LensModel` on this body, and
+  rawler's CR2 decoder looks for that same tag before falling back to a numeric
+  id which maps to seven candidates: *"unable to determine which lens to use"*.
+
+  darktable succeeds because exiv2 decodes MakerNotes. Rather than take a C++
+  dependency for one string, this parses the block directly — it is a standard
+  TIFF IFD. Canon only for now; other makers use different layouts.
+  *Verified across a folder: 53 files, 53 lenses, none missing.*
+- **Detection runs when a photo loads**, not only when the Auto button is
+  clicked — `argentum/useAutoDetectOnLoad.ts`. Nothing had ever triggered it on
+  load, so it worked on photos where the mode was toggled and silently did not
+  on the rest. That looked random and sent the search after the metadata.
+- **Re-read metadata button** in the Camera Details pane. EXIF is cached inside
+  a photo's `.agdata` sidecar and in a per-folder JSON keyed on mtime and size —
+  neither invalidated when the app changes, only when the photo does. Photos
+  edited before this fix kept a frozen empty lens and went on failing beside
+  neighbours that worked.
+- **Crop-factor-aware lens matching** — `mods/lens_crop.rs`. lensfun holds one
+  entry per lens *per body it was calibrated on*: the EF 50mm f/1.4 USM appears
+  at `cropfactor 1` and at `1.611`. Their matcher scores on the name alone, so
+  both tie and the later one wins — giving *"EF 50mm f/1.4 USM (crop 1.6x)"* on
+  a full-frame 5D Mark II. Correction measured over the middle of an APS-C frame
+  under-corrects full-frame corners, quietly, where it shows most. Now the
+  calibration nearest the camera's own crop factor wins.
+
+### Fixed
+- **The lens name was being corrupted.** A TIFF ASCII field holds NUL-*separated*
+  strings and Canon packs several in; trimming only the trailing NULs glued the
+  next one on, producing `EF 85mm f/1.8 USMUSM`. It looked almost right in the
+  metadata pane, which is why this read as a matching problem for so long.
+- **Mount and focal length are separated** before matching. Canon writes
+  `EF135mm`, lensfun writes `EF 135mm`, and a fuzzy subsequence match on the
+  joined form could score an unrelated lens higher.
+- `.rrexif` renamed `.agexif`, and the last `.rrdata` reference in `tagging.rs`.
+  No `.rr*` anything remains.
+
+### Notes
+- The refresh button first called `window.location.reload()`. It refreshed the
+  data and threw away the session, returning to the welcome screen. It now
+  writes the freshly-read EXIF straight into the store.
+- `MetadataPanel.tsx` carries the one anchor we have added to a file of theirs —
+  a bare `data-argentum` attribute, one line, because there was nothing stable to
+  portal against and matching on translated heading text breaks in 12 locales.
+
+---
+
+## 2026.37.5 — 2026-09-09
+
+### Added
+- **Render indicator** — a small spinner in the toolbar while the preview is
+  still being drawn. RapidRAW's existing spinner is driven by `isViewLoading`,
+  which is *opening* a photo, not re-rendering after a slider moves. That
+  distinction matters when judging colour: a value read mid-render is a value
+  from the previous frame.
+
+  Icon only, no label, and only after 140ms — most renders finish in tens of
+  milliseconds and a spinner that flashes on every slider tick is worse than
+  none. No changes to their files: the pipeline already emits `wgpu-frame-ready`
+  when the native render completes.
+
+### Fixed
+- **The readout showed the previous frame's colour.** Set temperature to −100,
+  pick a neutral patch with the white balance picker, and the numbers stayed at
+  the pre-correction values until the mouse was moved.
+
+  Two causes, both ours. A reading was only ever triggered by mouse movement, so
+  nothing refreshed it when the picture changed under a stationary cursor. And
+  once a refresh *was* triggered, it was dropped if a read happened to be in
+  flight — which is exactly the case after a picker click, since the click's own
+  read was still running when the sliders moved.
+
+  Now: a change to the adjustments re-triggers a read with the *new* values, and
+  a forced refresh that arrives mid-flight is remembered and re-fired rather than
+  discarded.
+
+  Worth noting the shape of this bug — a measuring instrument quietly reporting
+  stale data is the same failure as the `_medium.jpg` sampling in `2026.37.3`,
+  and the same failure the readout exists to catch in the first place.
+
+---
+
+## 2026.37.4 — 2026-09-09
+
+White balance is now correct, not just consistent — measured against darktable
+on a real file rather than asserted.
+
+### Fixed
+- **The adaptation was being done in the wrong colour space.** For a RAW file,
+  `shader.wgsl:1639` treats the input texture as already linear — but that
+  texture has been through `apply_cpu_default_raw_processing`, gamma 2.38 then a
+  1.28 contrast boost. RapidRAW's whole pipeline therefore runs on encoded data
+  it treats as linear.
+
+  That costs their three-multiplier white balance nothing, because scaling
+  channels is invariant to a curve. It costs ours plenty: an sRGB→XYZ matrix and
+  a Bradford cone adaptation are only meaningful on linear data. Meanwhile the
+  picker solved the illuminant in properly linearised space (`to_scene_linear`).
+  Solve in one space, correct in another, and the two never quite meet.
+
+  `dt_white_balance` now decodes to scene-linear, adapts, and re-encodes so
+  every tool after it still sees what it was tuned for. Guarded on `is_raw` —
+  a JPEG has already been linearised at the top of `main()` and would otherwise
+  be corrected twice.
+
+  **Measured on AK's file, spot-white-balancing a neutral patch:** `191·196·191`
+  (3% green) before, `193·196·193` (1.5%, reads neutral) after. darktable on the
+  same patch: `135·135·133`.
+
+### Added (tests)
+- `a_grey_card_under_any_illuminant_comes_back_neutral` — takes a grey card
+  under seven illuminants (tungsten through shade, plus two deliberately off the
+  daylight locus), solves the sliders, applies what the shader applies, and
+  requires the result to be neutral. Pure arithmetic, no image, no GPU.
+
+  This is what localised the bug. It passed, which proved the model was sound
+  and moved the search to the pipeline — where the mismatch actually was.
+
+---
+
 ## 2026.37.3 — 2026-09-09
 
 Mergeability stops being a budget and becomes an architecture, and colour work

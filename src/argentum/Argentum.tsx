@@ -30,6 +30,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import RgbReadout from './RgbReadout';
 import RgbReadoutButton from './RgbReadoutButton';
+import RenderStatus from './RenderStatus';
+import RefreshMetadataButton from './RefreshMetadataButton';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -64,9 +66,23 @@ export default function Argentum() {
   // for its own benchmarks, so it is a stable thing to hang from.
   const toolbar = useAnchor('[data-bench-id="undo"]', (el) => el.parentElement);
 
+  // The Camera Details heading in the metadata pane. This is the one anchor we
+  // added to a file of theirs — a bare data attribute, one line, because there
+  // was nothing stable to hang from and matching on translated heading text
+  // would break in 12 of the 13 locales.
+  const cameraDetails = useAnchor('[data-argentum="camera-details"] > *:first-child');
+
   return (
     <>
-      {toolbar && createPortal(<RgbReadoutButton />, toolbar)}
+      {toolbar &&
+        createPortal(
+          <>
+            <RenderStatus />
+            <RgbReadoutButton />
+          </>,
+          toolbar,
+        )}
+      {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
       <RgbReadout />
     </>
   );

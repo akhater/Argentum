@@ -735,6 +735,11 @@ pub fn find_best_lens_match(
 ) -> Option<(String, String)> {
     let clean_model = model.trim().trim_matches('"');
 
+    if let Some(hit) = crate::mods::lens_crop::match_for_camera(db, maker, clean_model, camera_model)
+    {
+        return Some(hit);
+    }
+
     if !clean_model.is_empty()
         && let Some(hit) = find_lens_by_fuzzy_model(db, maker, clean_model)
     {

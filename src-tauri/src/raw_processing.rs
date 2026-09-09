@@ -68,6 +68,7 @@ fn develop_internal(
 
     check_cancel()?;
     let mut raw_image: RawImage = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
+    crate::mods::sraw_levels::fix(&mut raw_image, file_bytes); // Argentum: sRAW levels, see mods/sraw_levels.rs
 
     let metadata = decoder.raw_metadata(&source, &RawDecodeParams::default())?;
     let orientation = metadata

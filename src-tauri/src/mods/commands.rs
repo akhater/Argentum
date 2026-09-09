@@ -167,3 +167,67 @@ pub async fn sample_processed_pixel(
     let p = rgb.get_pixel(0, 0);
     Ok([p[0], p[1], p[2]])
 }
+
+/// Throw away cached metadata for one photo so it is read from the file again.
+///
+/// WHY THIS IS NEEDED
+///
+/// EXIF is cached in two places, and both outlive a fix. A photo with an
+/// `.agdata` sidecar has its EXIF written *into* that sidecar; everything else
+/// goes into a per-folder JSON keyed on the file's mtime and size. Neither is
+/// invalidated by the app changing, only by the photo changing — which it never
+/// does.
+///
+/// So when lens reading was fixed, photos already edited kept a frozen snapshot
+/// with an empty `LensModel` and went on failing to auto-detect while their
+/// neighbours worked. It looked like an intermittent bug and cost a long time to
+/// pin down. Clearing it by hand is not something to ask of anyone.
+///
+/// Only the cache is removed. Edits, ratings and tags in the sidecar are left
+/// exactly as they are — EXIF is derived data and comes straight back on the
+/// next read.
+#[tauri::command]
+pub fn refresh_image_metadata(
+    path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    use tauri::Manager;
+
+    let image = std::path::Path::new(&path);
+
+    // 1. The sidecar's embedded copy, if there is one.
+    let mut sidecar_name = image.file_name().unwrap_or_default().to_os_string();
+    sidecar_name.push(".agdata");
+    let sidecar = image.with_file_name(sidecar_name);
+
+    if sidecar.exists()
+        && let Ok(text) = std::fs::read_to_string(&sidecar)
+        && let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&text)
+        && let Some(obj) = json.as_object_mut()
+        && obj.remove("exif").is_some()
+        && let Ok(out) = serde_json::to_string_pretty(&json)
+    {
+        std::fs::write(&sidecar, out).map_err(|e| e.to_string())?;
+        log::info!("[refresh] cleared cached exif from {}", sidecar.display());
+    }
+
+    // 2. The per-folder cache, named by a hash of the folder path.
+    if let Some(folder) = image.parent()
+        && let Ok(cache_dir) = app_handle.path().app_cache_dir()
+    {
+        let hash = blake3::hash(folder.to_string_lossy().as_bytes())
+            .to_hex()
+            .to_string();
+        let cache_file = cache_dir.join("exif").join(format!("{hash}.json"));
+        if cache_file.exists() {
+            let _ = std::fs::remove_file(&cache_file);
+            log::info!("[refresh] cleared folder exif cache for {}", folder.display());
+        }
+    }
+
+    // Read it straight back and hand it to the caller. Reloading the window
+    // would also work and was the first attempt, but it drops the session and
+    // returns to the welcome screen - a heavy price for refreshing one field.
+    let bytes = std::fs::read(image).map_err(|e| e.to_string())?;
+    Ok(crate::exif_processing::read_exif_data(&path, &bytes))
+}

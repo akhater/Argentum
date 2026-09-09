@@ -1773,6 +1773,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
+                mods::cache_version::clear_thumbnails_if_pipeline_changed(&cache_dir);
                 crate::exif_processing::initialize_cache_dir(cache_dir);
             }
 
@@ -2123,6 +2124,7 @@ pub fn run() {
             mods::commands::detect_auto_white_balance,
             mods::commands::solve_white_balance_at_point,
             mods::commands::sample_processed_pixel,
+            mods::commands::refresh_image_metadata,
             ai_commands::precompute_ai_subject_mask,
             ai_commands::generate_ai_foreground_mask,
             ai_commands::generate_ai_sky_mask,

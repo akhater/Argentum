@@ -485,7 +485,7 @@ pub fn remove_tag_for_paths(
 
 fn rrdata_source_path(rrdata: &Path) -> Option<PathBuf> {
     let name = rrdata.file_name()?.to_str()?;
-    let base = name.strip_suffix(".rrdata")?;
+    let base = name.strip_suffix(".agdata")?;
 
     let source_filename = if base.len() >= 7 && base.as_bytes()[base.len() - 7] == b'.' {
         let id = &base[base.len() - 6..];

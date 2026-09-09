@@ -636,6 +636,7 @@ pub fn extract_metadata(file_bytes: &[u8]) -> Option<HashMap<String, String>> {
         }
     }
 
+    crate::mods::makernote_lens::fill_lens_model(&mut map, file_bytes);
     if !map.is_empty() {
         return Some(map);
     }
@@ -1538,7 +1539,7 @@ pub fn get_primary_sidecar_path(image_path: &Path) -> PathBuf {
 
 pub fn get_rrexif_path(image_path: &Path) -> PathBuf {
     let mut filename = image_path.file_name().unwrap_or_default().to_os_string();
-    filename.push(".rrexif");
+    filename.push(".agexif");
     image_path.with_file_name(filename)
 }
 

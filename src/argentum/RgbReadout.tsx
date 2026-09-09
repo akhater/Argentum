@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from '../store/useEditorStore';
 import { useRgbReadout } from './rgbReadoutStore';
 
@@ -46,20 +47,36 @@ function castStrength({ r, g, b }: Sample): number {
 }
 
 /**
- * The element occupying the photo's place on screen.
+ * The photo's box on screen.
  *
- * Only its geometry is used. It is the largest `<img>` that is not the mask
- * overlay — thumbnails top out around 480px, so the size floor separates them.
+ * This used to hunt for the largest `<img>` in the page. That was never sound:
+ * with the GPU renderer on there is no `<img>` for the photo at all — it is a
+ * native surface composited behind the webview — so what it actually latched
+ * onto was the cached `_medium.jpg` thumbnail, which is in the tree only
+ * sometimes. Clear the thumbnail cache and the readout goes silent, with no
+ * error to explain why.
+ *
+ * What is always present is the overlay `<svg>` the editor lays over the photo
+ * for masks and crop handles. `ImageCanvas` sizes it in pixels to the drawn
+ * image, and it sits inside the pan/zoom transform, so its bounding box *is*
+ * the photo at the current zoom and pan. Every other svg in the tree is sized
+ * in percentages or not at all, which is what tells them apart.
+ *
+ * Its rect is the drawn image exactly, so there is no letterboxing to undo.
  */
-function findPhotoBox(): HTMLImageElement | null {
-  let best: HTMLImageElement | null = null;
-  for (const img of Array.from(document.querySelectorAll('img'))) {
-    const el = img as HTMLImageElement;
-    if (el.alt === 'Mask Overlay' || el.naturalWidth < 600 || !el.complete) {
+function findPhotoBox(): DOMRect | null {
+  let best: DOMRect | null = null;
+  for (const el of Array.from(document.querySelectorAll('svg'))) {
+    const { position, width, height } = el.style;
+    if (position !== 'absolute' || !width.endsWith('px') || !height.endsWith('px')) {
       continue;
     }
-    if (!best || el.naturalWidth > best.naturalWidth) {
-      best = el;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) {
+      continue;
+    }
+    if (!best || rect.width * rect.height > best.width * best.height) {
+      best = rect;
     }
   }
   return best;
@@ -70,6 +87,9 @@ export default function RgbReadout() {
   const [sample, setSample] = useState<Sample | null>(null);
   const pending = useRef(false);
   const lastSent = useRef(0);
+  // A forced refresh that arrived while a read was in flight, to be re-fired
+  // as soon as that one lands.
+  const queued = useRef(false);
   const onRef = useRef(false);
 
   useEffect(() => {
@@ -80,38 +100,27 @@ export default function RgbReadout() {
   }, [on]);
 
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    // Last cursor position, so the reading can be refreshed when a new frame
+    // lands rather than only when the mouse moves. Without this the value shown
+    // after an adjustment is from the *previous* render - the exact class of
+    // stale-data bug this readout exists to catch.
+    let lastX = 0;
+    let lastY = 0;
+
+    const sampleAt = (clientX: number, clientY: number, force = false) => {
       if (!onRef.current) {
         return;
       }
 
-      const box = findPhotoBox();
-      if (!box) {
+      const rect = findPhotoBox();
+      if (!rect) {
         setSample(null);
         return;
       }
 
-      const rect = box.getBoundingClientRect();
-      if (
-        rect.width === 0 ||
-        rect.height === 0 ||
-        e.clientX < rect.left ||
-        e.clientX > rect.right ||
-        e.clientY < rect.top ||
-        e.clientY > rect.bottom
-      ) {
-        setSample(null);
-        return;
-      }
-
-      // object-contain letterboxes the picture inside the element, so map
-      // against the drawn box rather than the element box.
-      const scale = Math.min(rect.width / box.naturalWidth, rect.height / box.naturalHeight);
-      const drawnW = box.naturalWidth * scale;
-      const drawnH = box.naturalHeight * scale;
-      const localX = e.clientX - rect.left - (rect.width - drawnW) / 2;
-      const localY = e.clientY - rect.top - (rect.height - drawnH) / 2;
-      if (localX < 0 || localY < 0 || localX >= drawnW || localY >= drawnH) {
+      const localX = clientX - rect.left;
+      const localY = clientY - rect.top;
+      if (localX < 0 || localY < 0 || localX >= rect.width || localY >= rect.height) {
         setSample(null);
         return;
       }
@@ -119,15 +128,31 @@ export default function RgbReadout() {
       // Each reading is a GPU render, so do not fire one per mouse event. One
       // in flight at a time, and no faster than ~12/second - fast enough to
       // feel live, slow enough not to compete with the preview.
+      //
+      // `force` marks a refresh that must actually happen — the picture changed
+      // under a stationary cursor, so the displayed value is now wrong.
+      //
+      // It is not enough for it to skip the rate limit. If a read is already in
+      // flight the forced one was simply dropped and nothing retried it, which
+      // is why the readout still showed the pre-correction colour after using
+      // the white balance picker: the click's own read was mid-flight when the
+      // sliders moved. Remember it instead, and re-fire when the current one
+      // lands.
       const now = Date.now();
-      if (pending.current || now - lastSent.current < 80) {
+      if (pending.current) {
+        if (force) {
+          queued.current = true;
+        }
+        return;
+      }
+      if (!force && now - lastSent.current < 80) {
         return;
       }
       pending.current = true;
       lastSent.current = now;
 
-      const x = localX / drawnW;
-      const y = localY / drawnH;
+      const x = localX / rect.width;
+      const y = localY / rect.height;
 
       invoke<[number, number, number]>('sample_processed_pixel', {
         x,
@@ -138,11 +163,59 @@ export default function RgbReadout() {
         .catch(() => setSample(null))
         .finally(() => {
           pending.current = false;
+          if (queued.current) {
+            queued.current = false;
+            sampleAt(lastX, lastY, true);
+          }
         });
     };
 
+    const onMove = (e: MouseEvent) => {
+      lastX = e.clientX;
+      lastY = e.clientY;
+      sampleAt(e.clientX, e.clientY);
+    };
+
+    // Anything that changes the picture under a stationary cursor has to
+    // re-trigger a read, or the readout keeps showing the previous render.
+    //
+    // Two triggers, because neither alone is enough. `wgpu-frame-ready` does not
+    // fire on every path — notably not after the white balance picker, which is
+    // exactly when a fresh reading matters most. Subscribing to the adjustments
+    // does fire there, and has the further advantage that the values we send to
+    // Rust are the new ones rather than whatever the store held a tick ago.
+    let settle: number | null = null;
+    const resampleSoon = () => {
+      if (settle !== null) {
+        window.clearTimeout(settle);
+      }
+      // Wait for the render to land, otherwise we ask for a pixel from a frame
+      // that is still being drawn.
+      settle = window.setTimeout(() => {
+        settle = null;
+        sampleAt(lastX, lastY, true);
+      }, 120);
+    };
+
+    const unsubscribe = useEditorStore.subscribe((state: any, prev: any) => {
+      if (state.adjustments !== prev.adjustments) {
+        resampleSoon();
+      }
+    });
+
+    const unlisten = listen('wgpu-frame-ready', () => {
+      sampleAt(lastX, lastY, true);
+    });
+
     window.addEventListener('mousemove', onMove);
-    return () => window.removeEventListener('mousemove', onMove);
+    return () => {
+      if (settle !== null) {
+        window.clearTimeout(settle);
+      }
+      window.removeEventListener('mousemove', onMove);
+      unsubscribe();
+      unlisten.then((f) => f()).catch(() => {});
+    };
   }, []);
 
   if (!on || !sample) {

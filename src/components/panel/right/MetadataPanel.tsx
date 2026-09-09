@@ -454,7 +454,7 @@ export default function MetadataPanel() {
               </div>
             </div>
 
-            <div>
+            <div data-argentum="camera-details">
               <Text variant={TextVariants.heading} className="mb-3">
                 {t('editor.metadata.camera.title')}
               </Text>

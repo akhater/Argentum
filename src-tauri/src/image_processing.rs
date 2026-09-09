@@ -1159,6 +1159,9 @@ pub fn inverse_transform_point(
 }
 
 pub fn apply_cpu_default_raw_processing(image: &mut DynamicImage) {
+    // Argentum: same curve with a toe instead of a cliff. See mods/preview_encode.rs.
+    return crate::mods::preview_encode::apply(image);
+    #[allow(unreachable_code)]
     let mut f32_image = image.to_rgb32f();
 
     const GAMMA: f32 = 2.38;
