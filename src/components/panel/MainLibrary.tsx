@@ -478,15 +478,6 @@ export default function MainLibrary(props: MainLibraryProps) {
                         <span>-</span>
                         <p>
                           <a
-                            href="https://ko-fi.com/cybertimon"
-                            className="hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {t('library.splash.donate')}
-                          </a>
-                          <span className="mx-1">{t('library.splash.or')}</span>
-                          <a
                             href="https://github.com/CyberTimon/RapidRAW"
                             className="hover:underline"
                             target="_blank"

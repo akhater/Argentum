@@ -19,14 +19,13 @@
  * So the pixel is rendered on demand by `sample_processed_pixel`, over a
  * one-texel ROI.
  *
- * That stale thumbnail is still useful for one thing: it is positioned exactly
- * where the photo is drawn, so its bounding box maps the cursor to a point in
- * the image. Geometry from the DOM, colour from the GPU.
+ * The geometry still has to come from the DOM, though — see `findPhotoBox`.
+ * Colour from the GPU, position from the page.
  */
 
+import { ag } from './ag';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from '../store/useEditorStore';
 import { useRgbReadout } from './rgbReadoutStore';
@@ -154,7 +153,7 @@ export default function RgbReadout() {
       const x = localX / rect.width;
       const y = localY / rect.height;
 
-      invoke<[number, number, number]>('sample_processed_pixel', {
+      ag<[number, number, number]>('sample_processed_pixel', {
         x,
         y,
         jsAdjustments: useEditorStore.getState().adjustments,

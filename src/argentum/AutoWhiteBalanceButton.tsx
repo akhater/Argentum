@@ -7,10 +7,12 @@
  * Detection is harvested from darktable — see src-tauri/src/mods/auto_wb.rs.
  */
 
+import { ag } from './ag';
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { Wand2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useAgTranslation } from './locales';
+import { useEditorStore } from '../store/useEditorStore';
+import { useEditorActions } from '../hooks/useEditorActions';
 import { Adjustments } from '../utils/adjustments';
 
 /** Which neutrality assumption to use when detecting the illuminant. */
@@ -24,16 +26,12 @@ interface AutoWhiteBalanceResult {
   tint: number;
 }
 
-interface AutoWhiteBalanceButtonProps {
-  adjustments: Adjustments;
-  setAdjustments: (updater: (prev: Partial<Adjustments>) => Partial<Adjustments>) => void;
-}
-
-export default function AutoWhiteBalanceButton({
-  adjustments,
-  setAdjustments,
-}: AutoWhiteBalanceButtonProps) {
-  const { t } = useTranslation();
+export default function AutoWhiteBalanceButton() {
+  // From the store rather than props: this is mounted through a portal, so
+  // there is no parent to pass anything down. See Argentum.tsx.
+  const adjustments = useEditorStore((s: any) => s.adjustments) as Adjustments;
+  const { setAdjustments } = useEditorActions();
+  const t = useAgTranslation();
   const [isRunning, setIsRunning] = useState(false);
 
   /**
@@ -48,7 +46,7 @@ export default function AutoWhiteBalanceButton({
     }
     setIsRunning(true);
     try {
-      const result: AutoWhiteBalanceResult = await invoke('detect_auto_white_balance', {
+      const result: AutoWhiteBalanceResult = await ag('detect_auto_white_balance', {
         jsAdjustments: adjustments,
         mode,
       });
@@ -73,7 +71,7 @@ export default function AutoWhiteBalanceButton({
       className={`p-1.5 rounded-md transition-colors ${
         isRunning ? 'text-text-secondary opacity-50' : 'hover:bg-bg-secondary text-text-secondary'
       }`}
-      data-tooltip={t('adjustments.color.autoWbTooltip')}
+      data-tooltip={t('autoWbTooltip')}
     >
       <Wand2 size={16} className={isRunning ? 'animate-pulse' : ''} />
     </button>

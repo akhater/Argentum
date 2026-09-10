@@ -268,3 +268,52 @@ fn dt_white_balance(color: vec3<f32>, temp: f32, tnt: f32) -> vec3<f32> {
     return out_lin;
 }
 
+
+// ============================================================================
+// THE PIPELINE ANCHOR
+//
+// One call into shader.wgsl, forever.
+//
+// Every harvested tool used to cost a line of their shader: one call, one more
+// line, one more place an upstream release can collide with us. Ten tools is
+// ten lines and looks harmless. A hundred is a hundred lines in the file that
+// *is* RapidRAW's image engine, and the merge stops being worth doing.
+//
+// So their shader calls this and nothing else. Adding a tool means adding a
+// line *here*, in our file, which costs their side nothing.
+//
+// STAGES
+//
+// Two of them, because tools genuinely belong at different points and pretending
+// otherwise would be worse than the line it saves:
+//
+//   ag_stage_scene_linear  before the tone curve, on linear data. Colour work
+//                          lives here: white balance, calibration, anything
+//                          involving a matrix.
+//   ag_stage_display       after tone mapping, on display-referred data.
+//
+// Only the first is wired today. The second exists so that adding the first
+// display-referred tool does not have to touch their file to do it, which is the
+// whole point.
+//
+// ORDER IS THE CONTRACT
+//
+// Tools run top to bottom as written. A tool that needs another's output goes
+// below it. Keep that explicit rather than relying on where a call happens to
+// have been inserted.
+// ============================================================================
+
+/// Scene-linear stage: everything Argentum does before the tone curve.
+fn ag_stage_scene_linear(color: vec3<f32>, temp: f32, tnt: f32) -> vec3<f32> {
+    var c = color;
+    c = dt_white_balance(c, temp, tnt);
+    return c;
+}
+
+/// Display-referred stage: everything Argentum does after tone mapping.
+///
+/// Empty on purpose. It is the anchor for the first tool that needs to run
+/// here, so that tool costs nothing upstream.
+fn ag_stage_display(color: vec3<f32>) -> vec3<f32> {
+    return color;
+}

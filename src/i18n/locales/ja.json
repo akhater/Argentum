@@ -61,7 +61,6 @@
       "tint": "色かぶり補正",
       "toggleSliders": "スライダー切り替え",
       "vibrance": "自然な彩度",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "ホワイトバランススポイト",
       "wbPickerWgpuDisabled": "WBスポイト: 設定でWGPUを無効にしてください。",
       "whiteBalance": "ホワイトバランス"
@@ -1815,7 +1814,7 @@
       "title": "タグ付け"
     },
     "thanks": {
-      "description": "Argentumの開発において、非常に重要な役割を果たしてくれた以下のプロジェクトに心より感謝いたします:",
+      "description": "RapidRAWの開発において、非常に重要な役割を果たしてくれた以下のプロジェクトに心より感謝いたします:",
       "list": {
         "darktable": "一部の実装において参考にさせていただきました。",
         "depth": "AI奥行きマスクを可能にする、単眼深度推定モデルを提供しています。",

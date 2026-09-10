@@ -61,7 +61,6 @@
       "tint": "Matiz",
       "toggleSliders": "Alternar controles",
       "vibrance": "Intensidad",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Selector de balance de blancos",
       "wbPickerWgpuDisabled": "Selector BB: Desactiva WGPU en los Ajustes.",
       "whiteBalance": "Balance de blancos"
@@ -1850,7 +1849,7 @@
       "title": "Etiquetado"
     },
     "thanks": {
-      "description": "Un enorme agradecimiento a los siguientes proyectos que fueron muy importantes en el desarrollo de Argentum:",
+      "description": "Un enorme agradecimiento a los siguientes proyectos que fueron muy importantes en el desarrollo de RapidRAW:",
       "list": {
         "darktable": "Por algunas implementaciones de referencia que guiaron partes de este trabajo.",
         "depth": "Por el potente modelo de estimación de profundidad monocular que hace posible las capacidades de enmascaramiento de profundidad por IA.",

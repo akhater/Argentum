@@ -28,6 +28,61 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.11 — 2026-09-10
+
+Housekeeping, and the architecture work that makes the rest of it cheap.
+
+### Added
+- **An About tab**, `src/argentum/AboutPanel.tsx`. The acknowledgements used to
+  sit at the bottom of the General tab, under the tag-clearing controls, and
+  they read as RapidRAW's own credits — wrong in both directions now. Argentum
+  owes RapidRAW the entire application and darktable the colour science it is
+  built to harvest, and neither was said plainly.
+
+  Only those two are named. The list of models and libraries that came with
+  RapidRAW is RapidRAW's to credit, and it does; repeating it under Argentum's
+  name would be taking credit for assembling something we inherited. Their
+  strings for it are restored to upstream text, which removed 13 lines of
+  divergence.
+
+- **A Changelog tab**, `src/argentum/ChangelogPanel.tsx`. There is no public
+  repository yet, so this file was the only record and it lived nowhere a user
+  could reach. It is imported at build time, so what the app shows is exactly
+  the changelog that built it — confirmed present in the production bundle.
+
+  The markdown renderer is written out rather than pulled in: no markdown
+  library was in the dependency list, and adding one to render a file we write
+  ourselves is a poor trade. It covers what the changelog uses and lets anything
+  else through as plain text.
+
+### Changed
+- **Every per-feature cost into their files is now zero.** A budget answers how
+  much of their code we have touched; it does not answer what feature number one
+  hundred costs, which is the question that decides whether the fork survives.
+  Measured before this: a command cost a line of `lib.rs`, a shader tool a line
+  of `shader.wgsl`, a UI string thirteen lines across their locale files.
+
+  | | before | now |
+  |---|---|---|
+  | Tauri command | 1 line | 0 — a match arm in `mods/dispatch.rs` |
+  | Shader tool | 1 line | 0 — inside `ag_stage_scene_linear` |
+  | Decode fix | 1 line | 0 — a step in `mods/decode.rs` |
+  | UI string | 13 lines | 0 — our own i18next namespace |
+  | UI control | 3–4 lines | 0 — a portal into an existing marker |
+
+  `check-mergeability.mjs` enforces it: it separates a hook — their code calling
+  ours — from the one-time rebrand, and fails the build when a file gains one,
+  naming the anchor and what to do instead. Verified by trying both, and writing
+  it exposed a real bug in the checker itself: literal backspace bytes where
+  `` was meant, which had been hiding two undeclared anchors.
+
+### Removed
+- **The Ko-Fi donate link** from the splash. It funds RapidRAW, which Argentum
+  is not, and asking for money on someone else's behalf from a fork's welcome
+  screen is the wrong place for it. The link to contribute to RapidRAW stays.
+
+---
+
 ## 2026.37.10 — 2026-09-09
 
 The green cast and the crushed shadows were the same bug, and it was neither

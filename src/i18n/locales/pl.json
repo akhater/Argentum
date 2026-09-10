@@ -61,7 +61,6 @@
       "tint": "Zabarwienie",
       "toggleSliders": "Przełącz suwaki",
       "vibrance": "Jaskrawość",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Próbnik balansu bieli",
       "wbPickerWgpuDisabled": "Próbnik BB: Wyłącz WGPU w Ustawieniach.",
       "whiteBalance": "Balans bieli"
@@ -1885,7 +1884,7 @@
       "title": "Tagowanie"
     },
     "thanks": {
-      "description": "Ogromne podziękowania dla następujących projektów, które były niezwykle ważne przy tworzeniu Argentum:",
+      "description": "Ogromne podziękowania dla następujących projektów, które były niezwykle ważne przy tworzeniu RapidRAW:",
       "list": {
         "darktable": "Za kilka referencyjnych implementacji, które posłużyły za wskazówki.",
         "depth": "Za zaawansowany model szacowania głębi, który włącza maskowanie oparte na głębi za pomocą AI.",

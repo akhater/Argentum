@@ -61,7 +61,6 @@
       "tint": "틴트",
       "toggleSliders": "슬라이더 전환",
       "vibrance": "생동감",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "화이트 밸런스 피커",
       "wbPickerWgpuDisabled": "WB 피커: 설정에서 WGPU를 비활성화하세요.",
       "whiteBalance": "화이트 밸런스"
@@ -1815,7 +1814,7 @@
       "title": "태그 지정"
     },
     "thanks": {
-      "description": "Argentum 개발에 매우 중요한 역할을 한 다음 프로젝트들에 깊은 감사를 드립니다:",
+      "description": "RapidRAW 개발에 매우 중요한 역할을 한 다음 프로젝트들에 깊은 감사를 드립니다:",
       "list": {
         "darktable": "이 작업의 일부에 길잡이가 되어 준 참조 구현을 제공해 주었습니다.",
         "depth": "AI 심도 마스킹 기능을 가능하게 하는 강력한 단안 심도 추정 모델을 제공해 주었습니다.",

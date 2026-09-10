@@ -125,6 +125,54 @@ All of it in one user-chosen folder. See [README](README.md#everything-in-one-fo
 
 ---
 
+## What the next feature costs
+
+The question that decides whether this fork is alive in two years is not "how
+much of their code have we touched". It is **what does feature number one
+hundred cost?**
+
+If every feature adds a line to one of their files, the answer is a hundred
+lines in the files upstream also edits, and the merge stops being worth doing.
+Four features looks free. That is the trap.
+
+So each of their files gets a **fixed** number of hooks into our code — an
+anchor — and everything after that routes through it on our side. An anchor is
+not a budget to spend. It does not go up when a feature is added, because a
+feature must not need it to.
+
+| Their file | Anchor | A new feature instead |
+|---|---|---|
+| `lib.rs` | `mod mods`, the cache check, one `ag` command | add a match arm in `mods/dispatch.rs` |
+| `shader.wgsl` | one call to `ag_stage_scene_linear` | add your tool inside that function in `modules.wgsl` |
+| `raw_processing.rs` | one call to `mods::decode::on_raw_decoded` | add a step in `mods/decode.rs` |
+| `image_processing.rs` | the CPU preview encode interception | change `mods/preview_encode.rs` |
+| `App.tsx` | one `<Argentum />` | add a portal in `argentum/Argentum.tsx` |
+| `Color.tsx`, `MetadataPanel.tsx` | one `data-argentum` marker each | portal into the existing marker |
+| 13 locale files | nothing | add a string to `argentum/locales/en.json` |
+
+`scripts/check-mergeability.mjs` enforces this. It knows the difference between
+a hook (a call, an import, a mount point — their code depending on ours) and the
+rebrand (`.agdata`, "Argentum" inside a sentence they already had). The rebrand
+happened once and does not grow, so it is not counted.
+
+Add a hook to one of their files and the build fails, naming the anchor and what
+to do instead.
+
+### The one category that is not free
+
+Portals add UI. They cannot change what happens when the user clicks something
+of *theirs*. Three anchors exist for that: the white balance picker
+(`ImageCanvas.tsx`), lens auto-detection on load (`CropPanel.tsx`), and reading
+the lens from the maker note (`exif_processing.rs`), plus the lens profile match
+in `lens_correction.rs`.
+
+Each replaces the body of an existing handler, so each was a one-time
+replacement rather than something a later feature adds to. **If one of these
+ever needs a second hook, the injection is in the wrong place** — it should
+become an event our code listens for, not another line of theirs.
+
+---
+
 ## Staying mergeable
 
 ```bash

@@ -95,6 +95,141 @@ const EXCEPTIONS = [
   },
 ];
 
+
+/**
+ * THE ANCHORS — the real rule, of which the budgets above are only a backstop.
+ *
+ * A line budget answers "how much of their code have we touched". It does not
+ * answer the question that decides whether this fork is still alive in two
+ * years: **what does the next feature cost?**
+ *
+ * If every feature adds a line to one of their files, the budget is a countdown.
+ * Four commands is four lines of `lib.rs` and looks free; a hundred is a hundred
+ * lines in the file upstream also edits every release.
+ *
+ * So each of their files gets a *fixed* number of hooks into our code — an
+ * anchor — and everything after that is routed through it on our side. The
+ * count below is the number of lines in that file that may mention Argentum.
+ * It is not a budget to spend. It does not go up when a feature is added,
+ * because a feature must not need it to.
+ *
+ * Rebrand lines (`.agdata`, "Argentum" inside their own sentences) are counted
+ * separately and ignored here: they happened once and do not grow.
+ */
+const ANCHORS = [
+  {
+    file: 'src-tauri/src/lib.rs',
+    hooks: 3,
+    what: '`mod mods`, the cache-version check, and the single `ag` command',
+    instead: 'add a match arm to mods/dispatch.rs — commands cost nothing here',
+  },
+  {
+    file: 'src-tauri/src/shaders/shader.wgsl',
+    hooks: 1,
+    what: 'one call to ag_stage_scene_linear',
+    instead: 'add your tool inside ag_stage_scene_linear in shaders/modules.wgsl',
+  },
+  {
+    file: 'src-tauri/src/raw_processing.rs',
+    hooks: 1,
+    what: 'one call to mods::decode::on_raw_decoded',
+    instead: 'add a step to mods/decode.rs',
+  },
+  {
+    file: 'src-tauri/src/image_processing.rs',
+    hooks: 3,
+    what: 'the CPU preview encode interception',
+    instead: 'change mods/preview_encode.rs',
+  },
+  {
+    file: 'src/App.tsx',
+    hooks: 2,
+    what: 'the single <Argentum /> mount',
+    instead: 'add a portal in src/argentum/Argentum.tsx',
+  },
+  // UI markers. One per panel, never one per feature: everything Argentum shows
+  // in that panel portals into the same marker.
+  {
+    file: 'src/components/panel/right/MetadataPanel.tsx',
+    hooks: 1,
+    what: 'the data-argentum="camera-details" marker',
+    instead: 'portal into [data-argentum="camera-details"] from Argentum.tsx',
+  },
+  {
+    file: 'src/components/adjustments/Color.tsx',
+    hooks: 1,
+    what: 'the data-argentum="color-tools" marker',
+    instead: 'portal into [data-argentum="color-tools"] from Argentum.tsx',
+  },
+  {
+    file: 'src/components/panel/SettingsPanel.tsx',
+    hooks: 1,
+    what: 'the About tab, an empty div Argentum fills',
+    instead: 'add a section to src/argentum/AboutPanel.tsx — or a card of its own '
+      + 'inside [data-argentum="settings-about"]',
+  },
+  // Behaviour, not UI. A portal can add a control; it cannot change what
+  // happens when the user clicks one of theirs. These replace the body of an
+  // existing handler, so they are one-time replacements rather than additions —
+  // if one of these ever needs a *second* hook, the injection is in the wrong
+  // place and should become an event our code listens for.
+  {
+    file: 'src/components/panel/editor/ImageCanvas.tsx',
+    hooks: 2,
+    what: 'the white balance picker solving in Rust',
+    instead: 'change src/argentum/whiteBalance.ts',
+  },
+  {
+    file: 'src/components/panel/right/CropPanel.tsx',
+    hooks: 1,
+    what: 'lens auto-detection running on load, not only on click',
+    instead: 'change src/argentum/useAutoDetectOnLoad.ts',
+  },
+  {
+    file: 'src-tauri/src/exif_processing.rs',
+    hooks: 1,
+    what: 'reading the lens name out of the maker note',
+    instead: 'change mods/makernote_lens.rs',
+  },
+  {
+    file: 'src-tauri/src/lens_correction.rs',
+    hooks: 1,
+    what: 'matching a lens profile for the body that shot the frame',
+    instead: 'change mods/lens_crop.rs',
+  },
+];
+
+/**
+ * Files that carry the fork's identity rather than its features.
+ *
+ * The name, the bundle id, the crate. These say "this is Argentum, not
+ * RapidRAW" — they were written once, they will fight an upstream merge once,
+ * and no feature will ever add to them. Counting them as anchors would make the
+ * number meaningless.
+ */
+const IDENTITY = [
+  'package.json',
+  'src-tauri/Cargo.toml',
+  'src-tauri/tauri.conf.json',
+  'src-tauri/.identity',
+  'src-tauri/src/main.rs',
+];
+
+/**
+ * Does this added line reach into Argentum's code?
+ *
+ * A hook is a call, an import or a mount point — a place their code depends on
+ * ours. The rebrand is not: `.agdata`, or "Argentum" appearing inside a
+ * sentence they already had. Those are edits to text, and text does not grow
+ * with the number of features.
+ */
+const isHook = (line) => {
+  if (/\.agdata|\.agexif/.test(line)) return false;
+  return /\bmods::|^\s*mod mods;|\bag_stage_|argentum\/|'\.\/argentum|data-argentum|<Argentum\b|\bArgentum from\b/.test(line);
+};
+
+const anchorFor = (file) => ANCHORS.find((a) => a.file === file);
+
 const isOurs = (file) => OURS.some((prefix) => file.startsWith(prefix));
 const exceptionFor = (file) => EXCEPTIONS.find((e) => e.file === file);
 const budgetFor = (file) => {
@@ -128,6 +263,31 @@ const numstat = execSync(`git diff -w --numstat ${base} -- .`, {
   maxBuffer: 32 * 1024 * 1024,
 });
 
+/** Added lines that call into our code, per upstream file. */
+const hooksByFile = (() => {
+  const diff = execSync(`git diff -w ${base} -- .`, {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const found = new Map();
+  let current = null;
+  for (const line of diff.split('\n')) {
+    const header = line.match(/^\+\+\+ b\/(.+)$/);
+    if (header) {
+      current = header[1];
+      continue;
+    }
+    if (!current || !line.startsWith('+') || line.startsWith('+++')) continue;
+    if (isOurs(current) || IDENTITY.includes(current)) continue;
+    const text = line.slice(1);
+    if (!isHook(text)) continue;
+    if (!found.has(current)) found.set(current, []);
+    found.get(current).push(text.trim());
+  }
+  return found;
+})();
+
 const violations = [];
 const touched = [];
 
@@ -144,11 +304,46 @@ for (const line of numstat.split('\n').filter(Boolean)) {
   if (added > limit) violations.push({ file, added, limit });
 }
 
+// The anchor check: a file may only reach into our code a fixed number of
+// times, and adding a feature must not be one of them.
+const anchorBreaks = [];
+for (const [file, hooks] of hooksByFile) {
+  const anchor = anchorFor(file);
+  const allowed = anchor ? anchor.hooks : 0;
+  if (hooks.length > allowed) {
+    anchorBreaks.push({ file, hooks, allowed, anchor });
+  }
+}
+
+if (anchorBreaks.length > 0) {
+  console.error('\n  ANCHOR ADDED TO AN UPSTREAM FILE\n');
+  for (const { file, hooks, allowed, anchor } of anchorBreaks) {
+    console.error(`    ${file}`);
+    console.error(`      ${hooks.length} calls into our code, the anchor allows ${allowed}`);
+    if (anchor) {
+      console.error(`      anchor: ${anchor.what}`);
+      console.error(`      do this instead: ${anchor.instead}`);
+    } else {
+      console.error('      this file has no anchor at all — it should have none');
+    }
+    for (const h of hooks) console.error(`        + ${h}`);
+    console.error('');
+  }
+  console.error('  An anchor is a fixed cost, not a budget. If a feature needs a');
+  console.error('  new one, that is the design being wrong, not the number.\n');
+  console.error('  See docs/ARCHITECTURE.md, \"What the next feature costs\".\n');
+  process.exit(1);
+}
+
 if (violations.length === 0) {
   if (touched.length > 0) {
     const total = touched.reduce((sum, t) => sum + t.added, 0);
+    const hookCount = [...hooksByFile.values()].reduce((n, h) => n + h.length, 0);
     console.log(
       `  mergeability: ${touched.length} upstream files touched, ${total} lines, all within budget`,
+    );
+    console.log(
+      `  anchors: ${hookCount} calls into our code across ${hooksByFile.size} of their files — a new feature should add none`,
     );
   }
 

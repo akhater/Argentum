@@ -18,7 +18,7 @@
  * the wrong curve for that data anyway. Moot now — Rust decodes what it samples.)
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { ag } from './ag';
 import { useEditorStore } from '../store/useEditorStore';
 
 interface SolvedWhiteBalance {
@@ -45,7 +45,7 @@ export async function applyPickedWhiteBalance(
     // to find the right entry — crop and rotation, not colour.
     const adjustments = useEditorStore.getState().adjustments;
 
-    const result: SolvedWhiteBalance = await invoke('solve_white_balance_at_point', {
+    const result: SolvedWhiteBalance = await ag('solve_white_balance_at_point', {
       x,
       y,
       jsAdjustments: adjustments,

@@ -61,7 +61,6 @@
       "tint": "Tint",
       "toggleSliders": "Toggle Sliders",
       "vibrance": "Vibrance",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "White Balance Picker",
       "wbPickerWgpuDisabled": "WB Picker: Disable WGPU in Settings.",
       "whiteBalance": "White Balance"
@@ -1817,10 +1816,9 @@
       "title": "Tagging"
     },
     "thanks": {
-      "description": "A huge thank you to the following projects that were very important in the development of Argentum:",
+      "description": "A huge thank you to the following projects that were very important in the development of RapidRAW:",
       "list": {
-        "darktable": "For reference implementations that guided parts of this work, and for the colour science Argentum harvests from.",
-        "rapidraw": "For being the entire foundation Argentum is built on. Argentum is a fork of RapidRAW by Timon Kaech - the interface, the GPU pipeline and nearly all of the application are his work.",
+        "darktable": "For some reference implementations that guided parts of this work.",
         "depth": "For the powerful monocular depth estimation model that enables the AI depth masking capabilities.",
         "lama": "For the powerful & simple image inpainting model, which enables content-aware fill and object removal.",
         "lensfun": "For its invaluable open-source library and comprehensive database for automatic lens correction.",
@@ -1831,7 +1829,7 @@
         "sam2": "For providing the foundation model used for the AI subject detection capabilities.",
         "spektrafilm": "For the spectrally-based film emulation LUTs by Andrea Volpato, used to power RapidRAW's built-in film emulations. Licensed CC BY-SA 4.0.",
         "u2net": "For providing the robust architecture used for the AI sky and foreground detection capabilities.",
-        "you": "For using and supporting Argentum, and RapidRAW before it.",
+        "you": "For using and supporting RapidRAW. Your interest keeps this project alive and evolving.",
         "youLabel": "You"
       },
       "title": "Special Thanks"

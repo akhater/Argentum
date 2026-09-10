@@ -1,0 +1,8 @@
+{
+  "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
+  "aboutVersion": "Version",
+  "aboutWhat": "A RAW photo editor. Argentum takes RapidRAW's application and moves darktable's colour science into it, one module at a time.",
+  "aboutWhy": "The reason for the fork is narrow: RapidRAW's interface and speed are excellent, and its colour maths is a placeholder — its white balance is three fixed multipliers, with no Kelvin and no camera profile. Everything Argentum changes is downstream of that.",
+  "aboutBuiltOn": "Built on",
+  "aboutBuiltOnDesc": "Argentum is not written from scratch. These two are the reason it exists at all."
+}

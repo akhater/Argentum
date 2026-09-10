@@ -19,9 +19,9 @@
  * Edits, ratings and tags are untouched. Only the derived EXIF copy goes.
  */
 
+import { ag } from './ag';
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/useEditorStore';
 
 export default function RefreshMetadataButton() {
@@ -36,7 +36,7 @@ export default function RefreshMetadataButton() {
 
     setBusy(true);
     try {
-      const exif: Record<string, string> = await invoke('refresh_image_metadata', {
+      const exif: Record<string, string> = await ag('refresh_image_metadata', {
         path: selected.path,
       });
 

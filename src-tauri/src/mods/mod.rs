@@ -17,3 +17,5 @@ pub mod preview_encode;
 pub mod sigmoid;
 pub mod sraw_levels;
 pub mod commands;
+pub mod decode;
+pub mod dispatch;

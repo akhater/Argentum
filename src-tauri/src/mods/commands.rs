@@ -18,7 +18,6 @@ use crate::mods::auto_wb::{self, AutoWhiteBalance, DetectMode};
 /// Sampling here uses the geometry-only cache, keyed on crop and rotation, which
 /// no colour slider can move. Same point, same answer. It is also the exact
 /// image auto-WB analyses, so the wand and the picker finally agree.
-#[tauri::command]
 pub async fn solve_white_balance_at_point(
     x: f32,
     y: f32,
@@ -48,7 +47,6 @@ pub async fn solve_white_balance_at_point(
 ///
 /// Runs on the geometry-corrected image already cached for the editor, so it
 /// sees the same pixels you do — crop and rotation included.
-#[tauri::command]
 pub async fn detect_auto_white_balance(
     js_adjustments: serde_json::Value,
     mode: DetectMode,
@@ -96,7 +94,6 @@ pub async fn detect_auto_white_balance(
 /// is a measuring instrument for global colour — white balance, and later DCP,
 /// highlight recovery and filmic. If a masked reading is ever wanted, that is
 /// where to start.
-#[tauri::command]
 pub async fn sample_processed_pixel(
     x: f32,
     y: f32,
@@ -186,7 +183,6 @@ pub async fn sample_processed_pixel(
 /// Only the cache is removed. Edits, ratings and tags in the sidecar are left
 /// exactly as they are — EXIF is derived data and comes straight back on the
 /// next read.
-#[tauri::command]
 pub fn refresh_image_metadata(
     path: String,
     app_handle: tauri::AppHandle,

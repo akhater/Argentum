@@ -61,7 +61,6 @@
       "tint": "色调",
       "toggleSliders": "切换滑块",
       "vibrance": "鲜艳度",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "白平衡选取器",
       "wbPickerWgpuDisabled": "白平衡选取器：请在设置中禁用 WGPU。",
       "whiteBalance": "白平衡"
@@ -1815,7 +1814,7 @@
       "title": "标签"
     },
     "thanks": {
-      "description": "衷心感谢以下项目，它们在 Argentum 的开发过程中非常重要：",
+      "description": "衷心感谢以下项目，它们在 RapidRAW 的开发过程中非常重要：",
       "list": {
         "darktable": "为部分参考实现提供了指导。",
         "depth": "为强大的单目深度估计模型提供支持，实现了 AI 深度蒙版功能。",

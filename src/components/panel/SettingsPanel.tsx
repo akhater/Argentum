@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   Keyboard,
   Bookmark,
+  ScrollText,
   Scaling,
   Image as ImageIcon,
   Mouse,
@@ -572,6 +573,8 @@ export default function SettingsPanel({
       { id: 'general', label: t('settings.categories.general'), icon: SlidersHorizontal },
       { id: 'processing', label: t('settings.categories.processing'), icon: Cpu },
       { id: 'shortcuts', label: t('settings.categories.shortcuts'), icon: Keyboard },
+      { id: 'about', label: 'About', icon: Info },
+      { id: 'changelog', label: 'Changelog', icon: ScrollText },
     ],
     [t],
   );
@@ -1608,142 +1611,9 @@ export default function SettingsPanel({
                       </div>
                     </div>
                   </div>
-
-                  <div className="p-6 bg-surface rounded-xl shadow-md">
-                    <Text variant={TextVariants.title} color={TextColors.accent} className="mb-6">
-                      {t('settings.thanks.title')}
-                    </Text>
-                    <Text className="mb-4">{t('settings.thanks.description')}</Text>
-                    <Text as="ul" className="space-y-3 list-disc ml-5 pl-1">
-                      <li>
-                        <a
-                          href="https://github.com/dnglab/dnglab/tree/main/rawler"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          rawler
-                        </a>
-                        : {t('settings.thanks.list.rawler')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://lensfun.github.io/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          lensfun
-                        </a>
-                        : {t('settings.thanks.list.lensfun')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/andreavolpato/spektrafilm"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          spektrafilm
-                        </a>
-                        : {t('settings.thanks.list.spektrafilm')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/marcinz606/NegPy"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          NegPy
-                        </a>
-                        : {t('settings.thanks.list.negpy')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/advimman/lama"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          LaMa
-                        </a>
-                        : {t('settings.thanks.list.lama')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/facebookresearch/sam2"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          SAM 2
-                        </a>
-                        : {t('settings.thanks.list.sam2')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/xuebinqin/U-2-Net"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          U-2-Net
-                        </a>
-                        : {t('settings.thanks.list.u2net')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/DepthAnything/Depth-Anything-V2"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          Depth Anything V2
-                        </a>
-                        : {t('settings.thanks.list.depth')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/trougnouf/nind-denoise"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          nind-denoise
-                        </a>
-                        : {t('settings.thanks.list.nind')}
-                      </li>
-                      <li>
-                        <a
-                          href="http://gphoto.org/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          libgphoto2
-                        </a>
-                        : {t('settings.thanks.list.libgphoto2')}
-                      </li>
-                      <li>
-                        <a
-                          href="https://github.com/darktable-org/darktable"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-accent hover:underline"
-                        >
-                          darktable & co.
-                        </a>
-                        : {t('settings.thanks.list.darktable')}
-                      </li>
-                      <li>
-                        <span className="font-semibold text-accent">{t('settings.thanks.list.youLabel')}</span>:{' '}
-                        {t('settings.thanks.list.you')}
-                      </li>
-                    </Text>
-                  </div>
                 </motion.div>
               )}
+              {(activeCategory === 'about' || activeCategory === 'changelog') && <div data-argentum={activeCategory} />}
               {activeCategory === 'processing' && (
                 <motion.div
                   key="processing"

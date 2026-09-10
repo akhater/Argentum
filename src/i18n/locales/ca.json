@@ -61,7 +61,6 @@
       "tint": "Matís",
       "toggleSliders": "Alternar controls",
       "vibrance": "Intensitat",
-      "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
       "wbPickerTooltip": "Comptagotes de balanç de blancs",
       "wbPickerWgpuDisabled": "Comptagotes BB: Desactiva WGPU a Configuració.",
       "whiteBalance": "Balanç de blancs"
@@ -1817,7 +1816,7 @@
       "title": "Etiquetatge"
     },
     "thanks": {
-      "description": "Un enorme agraïment als projectes següents que van ser molt importants per al desenvolupament de Argentum:",
+      "description": "Un enorme agraïment als projectes següents que van ser molt importants per al desenvolupament de RapidRAW:",
       "list": {
         "darktable": "Per algunes implementacions de referència que van guiar certes parts d'aquest treball.",
         "depth": "Per al potent model d'estimació de profunditat monocular que permet les capacitats d'emmascarament de profunditat d'IA.",

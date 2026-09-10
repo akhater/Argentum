@@ -32,6 +32,10 @@ import RgbReadout from './RgbReadout';
 import RgbReadoutButton from './RgbReadoutButton';
 import RenderStatus from './RenderStatus';
 import RefreshMetadataButton from './RefreshMetadataButton';
+import AutoWhiteBalanceButton from './AutoWhiteBalanceButton';
+import AboutPanel from './AboutPanel';
+import ChangelogPanel from './ChangelogPanel';
+import { registerArgentumTranslations } from './locales';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -62,6 +66,11 @@ function useAnchor(selector: string, pick: (el: Element) => Element | null = (el
 }
 
 export default function Argentum() {
+  // Our strings live in our own i18next namespace, so a new one costs nothing
+  // in their thirteen locale files. Registered here rather than at module
+  // scope: i18next is only ready for it after its own init has run.
+  useEffect(registerArgentumTranslations, []);
+
   // The toolbar's undo button, whose parent is the button row. Upstream tags it
   // for its own benchmarks, so it is a stable thing to hang from.
   const toolbar = useAnchor('[data-bench-id="undo"]', (el) => el.parentElement);
@@ -71,6 +80,18 @@ export default function Argentum() {
   // was nothing stable to hang from and matching on translated heading text
   // would break in 12 of the 13 locales.
   const cameraDetails = useAnchor('[data-argentum="camera-details"] > *:first-child');
+
+  // The white balance row in the Color panel. Same reasoning as above, and the
+  // slot every future Argentum colour control mounts into — which is the point
+  // of a marker rather than a direct tag: the first one costs a line of theirs,
+  // the next ten cost nothing.
+  const colorTools = useAnchor('[data-argentum="color-tools"]');
+
+  // The About and Changelog tabs in Settings, both ours entirely. Their file
+  // gets one empty div whose data-argentum value is the active tab, so two tabs
+  // — and any later ones — cost a single hook between them.
+  const about = useAnchor('[data-argentum="about"]');
+  const changelog = useAnchor('[data-argentum="changelog"]');
 
   return (
     <>
@@ -83,6 +104,9 @@ export default function Argentum() {
           toolbar,
         )}
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
+      {colorTools && createPortal(<AutoWhiteBalanceButton />, colorTools)}
+      {about && createPortal(<AboutPanel />, about)}
+      {changelog && createPortal(<ChangelogPanel />, changelog)}
       <RgbReadout />
     </>
   );
