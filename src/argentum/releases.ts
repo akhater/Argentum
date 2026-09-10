@@ -32,6 +32,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2026.37.13',
+    date: '2026-09-10',
+    notes: [
+      'Hover any name the layout has cut short — a file on a library card, a '
+      + 'folder, a preset — and the full text now appears.',
+      'Fixed "Find one" failing to reach RawTherapee on some networks, and it no '
+      + 'longer offers to fetch a profile you already have.',
+      'The roadmap now shows finished work last, with the release each one '
+      + 'shipped in.',
+    ],
+  },
+  {
     version: '2026.37.12',
     date: '2026-09-10',
     notes: [

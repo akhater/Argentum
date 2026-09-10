@@ -246,65 +246,7 @@ mod tests {
     /// on disk: it pins the format this claims to understand, and it fails if
     /// the offset arithmetic is wrong.
     fn synthetic() -> Vec<u8> {
-        let matrix: [(i32, i32); 9] = [
-            (4716, 10000),
-            (603, 10000),
-            (-830, 10000),
-            (-7798, 10000),
-            (15474, 10000),
-            (2480, 10000),
-            (-1496, 10000),
-            (1937, 10000),
-            (6651, 10000),
-        ];
-        let name = b"Canon EOS 5D Mark II Test\0";
-
-        let entries: Vec<(u16, u16, u32)> = vec![
-            (tag::PROFILE_NAME, 2, name.len() as u32),
-            (tag::UNIQUE_CAMERA_MODEL, 2, name.len() as u32),
-            (tag::CALIBRATION_ILLUMINANT_1, 3, 1),
-            (tag::COLOR_MATRIX_1, 10, 9),
-        ];
-
-        let ifd_at = 8usize;
-        let heap_at = ifd_at + 2 + entries.len() * 12 + 4;
-
-        let mut heap: Vec<u8> = Vec::new();
-        let mut offsets: Vec<u32> = Vec::new();
-        for (t, _, _) in &entries {
-            offsets.push((heap_at + heap.len()) as u32);
-            match *t {
-                tag::PROFILE_NAME | tag::UNIQUE_CAMERA_MODEL => heap.extend_from_slice(name),
-                tag::COLOR_MATRIX_1 => {
-                    for (n, d) in matrix {
-                        heap.extend_from_slice(&n.to_le_bytes());
-                        heap.extend_from_slice(&d.to_le_bytes());
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let mut out = Vec::new();
-        out.extend_from_slice(b"II");
-        out.extend_from_slice(&42u16.to_le_bytes());
-        out.extend_from_slice(&(ifd_at as u32).to_le_bytes());
-        out.extend_from_slice(&(entries.len() as u16).to_le_bytes());
-
-        for (i, (t, kind, count)) in entries.iter().enumerate() {
-            out.extend_from_slice(&t.to_le_bytes());
-            out.extend_from_slice(&kind.to_le_bytes());
-            out.extend_from_slice(&count.to_le_bytes());
-            if *t == tag::CALIBRATION_ILLUMINANT_1 {
-                out.extend_from_slice(&21u16.to_le_bytes()); // D65, inline
-                out.extend_from_slice(&0u16.to_le_bytes());
-            } else {
-                out.extend_from_slice(&offsets[i].to_le_bytes());
-            }
-        }
-        out.extend_from_slice(&0u32.to_le_bytes()); // no next IFD
-        out.extend_from_slice(&heap);
-        out
+        super::fixture::profile_for("Canon EOS 5D Mark II Test")
     }
 
     #[test]
@@ -514,3 +456,83 @@ mod make_a_test_profile {
         println!("  forward {:?}", parsed.forward_matrix1.unwrap());
     }
 }
+
+/// A minimal little-endian DCP, built in memory, for tests here and in
+/// `profiles`.
+///
+/// Writing one is the only honest way to test the reader without a profile on
+/// disk: it pins the format this claims to understand, and it fails if the
+/// offset arithmetic is wrong. It takes the camera name because `profiles`
+/// matches on that, so its tests need profiles for two different bodies.
+#[cfg(test)]
+pub(crate) mod fixture {
+    use super::tag;
+
+    pub fn profile_for(camera: &str) -> Vec<u8> {
+        let matrix: [(i32, i32); 9] = [
+            (4716, 10000),
+            (603, 10000),
+            (-830, 10000),
+            (-7798, 10000),
+            (15474, 10000),
+            (2480, 10000),
+            (-1496, 10000),
+            (1937, 10000),
+            (6651, 10000),
+        ];
+        // TIFF ASCII values are NUL-terminated. Built by hand rather than
+        // with an escape, because a literal NUL in this file is easy to write
+        // by accident and impossible to see.
+        let mut name = camera.as_bytes().to_vec();
+        name.push(0);
+        let name = name.as_slice();
+
+        let entries: Vec<(u16, u16, u32)> = vec![
+            (tag::PROFILE_NAME, 2, name.len() as u32),
+            (tag::UNIQUE_CAMERA_MODEL, 2, name.len() as u32),
+            (tag::CALIBRATION_ILLUMINANT_1, 3, 1),
+            (tag::COLOR_MATRIX_1, 10, 9),
+        ];
+
+        let ifd_at = 8usize;
+        let heap_at = ifd_at + 2 + entries.len() * 12 + 4;
+
+        let mut heap: Vec<u8> = Vec::new();
+        let mut offsets: Vec<u32> = Vec::new();
+        for (t, _, _) in &entries {
+            offsets.push((heap_at + heap.len()) as u32);
+            match *t {
+                tag::PROFILE_NAME | tag::UNIQUE_CAMERA_MODEL => heap.extend_from_slice(name),
+                tag::COLOR_MATRIX_1 => {
+                    for (n, d) in matrix {
+                        heap.extend_from_slice(&n.to_le_bytes());
+                        heap.extend_from_slice(&d.to_le_bytes());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut out = Vec::new();
+        out.extend_from_slice(b"II");
+        out.extend_from_slice(&42u16.to_le_bytes());
+        out.extend_from_slice(&(ifd_at as u32).to_le_bytes());
+        out.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+
+        for (i, (t, kind, count)) in entries.iter().enumerate() {
+            out.extend_from_slice(&t.to_le_bytes());
+            out.extend_from_slice(&kind.to_le_bytes());
+            out.extend_from_slice(&count.to_le_bytes());
+            if *t == tag::CALIBRATION_ILLUMINANT_1 {
+                out.extend_from_slice(&21u16.to_le_bytes()); // D65, inline
+                out.extend_from_slice(&0u16.to_le_bytes());
+            } else {
+                out.extend_from_slice(&offsets[i].to_le_bytes());
+            }
+        }
+        out.extend_from_slice(&0u32.to_le_bytes()); // no next IFD
+        out.extend_from_slice(&heap);
+        out
+    }
+}
+

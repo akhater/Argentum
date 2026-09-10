@@ -11,6 +11,18 @@
  * It is short on purpose. A roadmap nobody can read in ten seconds is a wish
  * list, and every line here is a promise that has to be kept or removed.
  *
+ * WHY DONE ITEMS STAY, AND STAY AT THE BOTTOM
+ *
+ * A roadmap that deletes what it delivered reads as though nothing has been
+ * delivered. Keeping them, each stamped with the release it shipped in, turns
+ * the list into a record as well as a plan — and puts a date against a promise,
+ * which is the part that costs something to get wrong.
+ *
+ * They sort to the bottom because the interesting half of a roadmap is the part
+ * that has not happened yet. `MILESTONES` below is written in the order the work
+ * is meant to happen; `ROADMAP` is that list with the finished ones moved down,
+ * so marking something done needs one word changed and nothing moved.
+ *
  * Keep it in step with `docs/ROADMAP.md` when that changes.
  */
 
@@ -20,12 +32,15 @@ export interface Milestone {
   stage: Stage;
   what: string;
   why: string;
+  /** The release it shipped in. Only meaningful once `stage` is `done`. */
+  release?: string;
 }
 
-export const ROADMAP: Milestone[] = [
+const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'White balance',
+    release: '2026.37.2',
     why:
       'Real chromatic adaptation from darktable, in Kelvin, with an auto mode and '
       + 'a picker — replacing three fixed multipliers.',
@@ -33,16 +48,18 @@ export const ROADMAP: Milestone[] = [
   {
     stage: 'done',
     what: 'Correct RAW decoding',
+    release: '2026.37.10',
     why:
       'Canon sRAW and mRAW were being black-subtracted twice, which caused both a '
       + 'green cast and crushed shadows.',
   },
   {
-    stage: 'building',
+    stage: 'done',
     what: 'Camera colour profiles',
+    release: '2026.37.12',
     why:
-      'Per-camera calibration, so a body renders as itself rather than generically. '
-      + 'The largest remaining gap against darktable.',
+      'Pick a profile per photo under Color, or leave it on the built-in matrix. '
+      + 'Profiles are found online or imported, and applied while the photo is drawn.',
   },
   {
     stage: 'planned',
@@ -67,4 +84,13 @@ export const ROADMAP: Milestone[] = [
     what: 'Filmic tone mapping',
     why: 'A modern tone curve for high-contrast scenes, once the colour work underneath it is right.',
   },
+];
+
+/**
+ * The same list with everything finished moved to the end, each side keeping
+ * the order it was written in.
+ */
+export const ROADMAP: Milestone[] = [
+  ...MILESTONES.filter((m) => m.stage !== 'done'),
+  ...MILESTONES.filter((m) => m.stage === 'done'),
 ];

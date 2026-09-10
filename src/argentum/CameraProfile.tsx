@@ -40,6 +40,8 @@ interface Status {
   camera: string | null;
   make: string | null;
   available: Installed[];
+  /** RawTherapee's own file for this body is already here. */
+  publishedInstalled: boolean;
 }
 
 export default function CameraProfile() {
@@ -119,7 +121,12 @@ export default function CameraProfile() {
     <div className="p-2 bg-bg-tertiary rounded-md">
       <div className="flex justify-between items-center mb-2">
         <span className="text-sm font-semibold text-text-primary">{t('profileLabel')}</span>
-        {status.available.length === 0 && (
+        {/*
+          RawTherapee publishes one profile per camera, so the offer to fetch it
+          stands until that file is here — an imported profile does not answer
+          it, and owning none is a different question.
+        */}
+        {!status.publishedInstalled && (
           <button
             onClick={findOnline}
             disabled={busy}

@@ -33,10 +33,16 @@ interface Installed {
   name: string | null;
 }
 
+interface ForCamera {
+  profiles: Installed[];
+  /** RawTherapee's own file for this body is already here. */
+  publishedInstalled: boolean;
+}
+
 export default function MyCameras() {
   const t = useAgTranslation();
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, Installed[]>>({});
+  const [profiles, setProfiles] = useState<Record<string, ForCamera>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ model: string; text: string } | null>(null);
 
@@ -50,16 +56,16 @@ export default function MyCameras() {
     }
     setCameras(listed);
 
-    const found: Record<string, Installed[]> = {};
+    const found: Record<string, ForCamera> = {};
     await Promise.all(
       listed.map(async (c) => {
         try {
-          found[c.model] = await ag<Installed[]>('profiles_for_camera', {
+          found[c.model] = await ag<ForCamera>('profiles_for_camera', {
             make: c.make,
             model: c.model,
           });
         } catch {
-          found[c.model] = [];
+          found[c.model] = { profiles: [], publishedInstalled: false };
         }
       }),
     );
@@ -139,13 +145,20 @@ export default function MyCameras() {
                   <p className="text-xs text-text-secondary truncate">{c.make}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => findOnline(c)}
-                    disabled={busy === c.model}
-                    className="px-3 py-1.5 rounded-md bg-bg-secondary hover:bg-surface text-sm disabled:opacity-50"
-                  >
-                    {busy === c.model ? t('gearLooking') : t('gearFind')}
-                  </button>
+                  {/*
+                    RawTherapee publishes one profile per camera, so once it is
+                    here there is nothing left to find — the button would fetch
+                    the same bytes and save them beside themselves.
+                  */}
+                  {!profiles[c.model]?.publishedInstalled && (
+                    <button
+                      onClick={() => findOnline(c)}
+                      disabled={busy === c.model}
+                      className="px-3 py-1.5 rounded-md bg-bg-secondary hover:bg-surface text-sm disabled:opacity-50"
+                    >
+                      {busy === c.model ? t('gearLooking') : t('gearFind')}
+                    </button>
+                  )}
                   <button
                     onClick={() => addFile(c)}
                     disabled={busy === c.model}
@@ -164,11 +177,11 @@ export default function MyCameras() {
               </div>
 
               <div className="mt-2 pt-2 border-t border-surface/50">
-                {(profiles[c.model]?.length ?? 0) === 0 ? (
+                {(profiles[c.model]?.profiles.length ?? 0) === 0 ? (
                   <p className="text-xs italic text-text-secondary">{t('gearNoProfilesFor')}</p>
                 ) : (
                   <ul className="space-y-1">
-                    {profiles[c.model].map((p) => (
+                    {profiles[c.model].profiles.map((p) => (
                       <li key={p.file} className="flex items-center justify-between gap-2">
                         <span className="text-xs text-text-secondary truncate" title={p.file}>
                           {p.name ?? p.file}

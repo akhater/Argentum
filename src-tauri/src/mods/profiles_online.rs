@@ -65,6 +65,87 @@ struct Item {
 /// us a favour.
 static CACHE: Mutex<Option<Vec<Item>>> = Mutex::new(None);
 
+/// What actually went wrong, not just where.
+///
+/// reqwest's own `Display` for a transport failure is "error sending request
+/// for url (…)", which names the URL and says nothing about the cause — a DNS
+/// failure, a refused connection, a proxy, an expired certificate and a
+/// timeout all print the same sentence. The cause is one level down, in
+/// `source()`, and hyper puts the useful part one level below that. So the
+/// chain is walked and joined: "connection timed out" and "dns error" send a
+/// person to different places, and the message they are shown should say which
+/// one it was.
+fn why(e: &dyn std::error::Error) -> String {
+    let mut parts = vec![e.to_string()];
+    let mut cause = e.source();
+    while let Some(c) = cause {
+        let text = c.to_string();
+        if !parts.iter().any(|p| p == &text) {
+            parts.push(text);
+        }
+        cause = c.source();
+    }
+    parts.join(": ")
+}
+
+/// One GET, over HTTP/2 if that works and HTTP/1.1 if it does not.
+///
+/// WHY THE SECOND ATTEMPT EXISTS
+///
+/// On the machine this was written on, every request to api.github.com from
+/// reqwest failed after about ten seconds with rustls reporting "peer closed
+/// connection without sending TLS close_notify", four times out of four, while
+/// `curl` fetched the same URL in under half a second. The difference was not
+/// the network and not the certificate: that build of curl cannot do HTTP/2 and
+/// so never offers it, and reqwest offers it in the TLS handshake by default.
+/// Something between this machine and GitHub accepts the connection, agrees to
+/// HTTP/2 and then abandons it.
+///
+/// That is not ours to fix and not the user's to diagnose. It is also not rare:
+/// HTTP/2 is what corporate inspection proxies and older firewalls mishandle
+/// most, on every platform. HTTP/1.1 is understood by everything.
+///
+/// So the ordinary request is tried first, and a *transport* failure — not a
+/// 404, not a rate limit, which are perfectly good responses — is retried once
+/// on a client that cannot offer HTTP/2. Two small requests in the worst case,
+/// for one that a person asked for and is waiting on.
+///
+/// Once HTTP/2 has failed here it is not tried again this session: the fault is
+/// a property of the network, not of the request, and paying ten seconds for it
+/// on every download would be worse than not offering HTTP/2 at all.
+async fn get(url: &str, seconds: u64) -> Result<reqwest::Response, String> {
+    /// Set the first time HTTP/2 fails, and never unset.
+    static HTTP2_IS_BROKEN: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+    use std::sync::atomic::Ordering::Relaxed;
+
+    fn client(http1_only: bool, seconds: u64) -> Result<reqwest::Client, String> {
+        let builder = reqwest::Client::builder()
+            .user_agent(AGENT)
+            .timeout(std::time::Duration::from_secs(seconds));
+        let builder = if http1_only { builder.http1_only() } else { builder };
+        builder.build().map_err(|e| why(&e))
+    }
+
+    if HTTP2_IS_BROKEN.load(Relaxed) {
+        return client(true, seconds)?.get(url).send().await.map_err(|e| why(&e));
+    }
+
+    let first = client(false, seconds)?.get(url).send().await;
+    let Err(e) = first else {
+        return first.map_err(|e| why(&e));
+    };
+    HTTP2_IS_BROKEN.store(true, Relaxed);
+
+    client(true, seconds)?
+        .get(url)
+        .send()
+        .await
+        // The first failure is the one that describes the problem; the second
+        // is only the confirmation that plain HTTP/1.1 could not save it.
+        .map_err(|_| why(&e))
+}
+
 async fn listing() -> Result<Vec<Item>, String> {
     if let Ok(guard) = CACHE.lock()
         && let Some(items) = guard.as_ref()
@@ -75,20 +156,12 @@ async fn listing() -> Result<Vec<Item>, String> {
             .collect());
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent(AGENT)
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let items: Vec<Item> = client
-        .get(LISTING)
-        .send()
+    let items: Vec<Item> = get(LISTING, 20)
         .await
-        .map_err(|e| format!("could not reach RawTherapee's profile list: {e}"))?
+        .map_err(|e| format!("could not reach RawTherapee's profile list — {e}"))?
         .json()
         .await
-        .map_err(|e| format!("could not read the profile list: {e}"))?;
+        .map_err(|e| format!("could not read the profile list — {}", why(&e)))?;
 
     if let Ok(mut guard) = CACHE.lock() {
         *guard = Some(
@@ -122,20 +195,12 @@ pub async fn fetch_into(library: &std::path::Path, found: &Found) -> Result<(), 
         return Err("that profile has no download link".to_string());
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent(AGENT)
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let bytes = client
-        .get(&found.url)
-        .send()
+    let bytes = get(&found.url, 60)
         .await
-        .map_err(|e| format!("download failed: {e}"))?
+        .map_err(|e| format!("download failed — {e}"))?
         .bytes()
         .await
-        .map_err(|e| format!("download failed: {e}"))?;
+        .map_err(|e| format!("download failed — {}", why(&e)))?;
 
     // Parsed before it is written, so a truncated or moved file is refused
     // rather than sitting in the library looking installed.
@@ -158,6 +223,52 @@ mod tests {
         // for the whole camera.
         assert!(profiles::matches("Canon EOS 5D Mark II", "Canon", "EOS 5D Mark II"));
         assert!(!profiles::matches("Canon EOS 7D", "Canon", "EOS 7D Mark II"));
+    }
+
+    /// A failure has to say what failed. This is the whole point of `why`:
+    /// reqwest prints the URL and stops, so the chain below it is where the
+    /// difference between "no network" and "certificate" lives.
+    #[test]
+    fn a_cause_is_carried_through_to_the_message() {
+        #[derive(Debug)]
+        struct Layer(&'static str, Option<Box<Layer>>);
+        impl std::fmt::Display for Layer {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(self.0)
+            }
+        }
+        impl std::error::Error for Layer {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                self.1.as_deref().map(|l| l as &(dyn std::error::Error + 'static))
+            }
+        }
+
+        let e = Layer(
+            "error sending request for url (https://api.github.com/...)",
+            Some(Box::new(Layer("client error", Some(Box::new(Layer("connection timed out", None)))))),
+        );
+        let text = why(&e);
+        assert!(text.contains("connection timed out"), "{text}");
+        assert!(text.starts_with("error sending request"), "{text}");
+    }
+
+    /// The same cause repeated at two levels — which reqwest and hyper do —
+    /// must not be printed twice.
+    #[test]
+    fn a_repeated_cause_is_said_once() {
+        #[derive(Debug)]
+        struct Same(Option<Box<Same>>);
+        impl std::fmt::Display for Same {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("dns error")
+            }
+        }
+        impl std::error::Error for Same {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                self.0.as_deref().map(|s| s as &(dyn std::error::Error + 'static))
+            }
+        }
+        assert_eq!(why(&Same(Some(Box::new(Same(None))))), "dns error");
     }
 
     /// A malformed entry must be refused before any network call.

@@ -200,6 +200,29 @@ pub fn matching(library: &Path, make: &str, model: &str) -> Vec<Installed> {
 
 
 
+/// Is the profile RawTherapee publishes for this body already here?
+///
+/// RawTherapee ships exactly one profile per camera, so "Find one" has nothing
+/// left to find once that file is in the library — it would fetch the same
+/// bytes and land beside themselves as a numbered duplicate. The button is
+/// hidden rather than left to fail politely.
+///
+/// The test is on the *file name*, deliberately, because that is what the
+/// online search matches on: `profiles_online::search` runs `matches` against
+/// each published file's stem, so a local file whose stem also matches is the
+/// same file under the same rule. A profile that belongs to this camera by its
+/// internal `UniqueCameraModel` but is named something else — an imported
+/// calibration, a test profile — is not what RawTherapee would hand back, and
+/// must not make the button disappear.
+pub fn published_is_installed(library: &Path, make: &str, model: &str) -> bool {
+    installed(library).iter().any(|i| {
+        Path::new(&i.file)
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .is_some_and(|stem| matches(&stem, make, model))
+    })
+}
+
 /// Copy a profile into the library.
 ///
 /// Parsed before it is copied, so an unusable file is refused at the point the
@@ -305,6 +328,43 @@ mod tests {
         assert!(!matches("Canon EOS R5", "Canon", "EOS R"));
     }
 
+    /// "Find one" has nothing to find once RawTherapee's own file is here.
+    #[test]
+    fn the_published_profile_is_recognised_by_its_file_name() {
+        let dir = std::env::temp_dir().join("argentum-profiles-published");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch");
+        assert!(!published_is_installed(&dir, "Canon", "EOS 5D Mark II"));
+
+        std::fs::write(
+            dir.join("Canon EOS 5D Mark II.dcp"),
+            dcp::fixture::profile_for("Canon EOS 5D Mark II"),
+        )
+        .expect("write");
+        assert!(published_is_installed(&dir, "Canon", "EOS 5D Mark II"));
+        assert!(!published_is_installed(&dir, "Canon", "EOS 5D Mark III"));
+    }
+
+    /// The half that matters. A profile can belong to this camera by what is
+    /// written inside it while not being the file RawTherapee publishes — an
+    /// imported calibration, a test profile — and that must leave the button
+    /// alone, or a camera with one borrowed profile could never fetch the real
+    /// one.
+    #[test]
+    fn an_imported_profile_is_not_the_published_one() {
+        let dir = std::env::temp_dir().join("argentum-profiles-imported");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch");
+        std::fs::write(
+            dir.join("TEST - red and blue swapped.dcp"),
+            dcp::fixture::profile_for("Canon EOS 5D Mark II"),
+        )
+        .expect("write");
+
+        assert_eq!(matching(&dir, "Canon", "EOS 5D Mark II").len(), 1, "it belongs to the camera");
+        assert!(!published_is_installed(&dir, "Canon", "EOS 5D Mark II"), "but it is not theirs");
+    }
+
     #[test]
     fn an_empty_library_yields_nothing() {
         let dir = std::env::temp_dir().join("argentum-profiles-empty");
@@ -351,6 +411,7 @@ mod tests {
 /// What the UI needs to show for one photo: which camera, and whether the
 /// library has a profile for it.
 #[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Status {
     /// The body, as the file reports it. `None` if the file cannot be read.
     pub camera: Option<String>,
@@ -358,6 +419,9 @@ pub struct Status {
     pub make: Option<String>,
     /// Every profile the library holds for this body.
     pub available: Vec<Installed>,
+    /// Whether RawTherapee's own file for this body is already here, so the
+    /// panel knows there is nothing left for "Find one" to fetch.
+    pub published_installed: bool,
 }
 
 /// Read the camera maker and model from a photo without decoding its pixels.
@@ -390,10 +454,15 @@ pub fn status_for(library: &Path, path: &Path) -> Status {
         .map(|(make, model)| matching(library, make, model))
         .unwrap_or_default();
 
+    let published_installed = found
+        .as_ref()
+        .is_some_and(|(make, model)| published_is_installed(library, make, model));
+
     Status {
         make: found.as_ref().map(|(make, _)| make.clone()),
         camera: found.map(|(_, model)| model),
         available,
+        published_installed,
     }
 }
 

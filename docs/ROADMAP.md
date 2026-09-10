@@ -23,12 +23,13 @@ the pipeline, so doing them together means understanding it once.
 | | What | Source | Why | Effort |
 |---|---|---|---|---|
 | ✅ | **White balance** | darktable | Done 2026.37.2, plus auto-WB. Built the sRGB↔XYZ↔Bradford conversion every later tool reuses | 3–4 days |
-| ⬜ | **DCP camera profiles** | RawTherapee | Per-camera colour calibration — makes the 5D Mark II render *as itself*, not generically. Neither RapidRAW nor darktable has this | 3–4 days |
+| ✅ | **DCP camera profiles** | RawTherapee | Done 2026.37.12. Per photo, found online or imported, applied on the GPU per frame. It did **not** close the 4.2% gap against darktable, and could not have: darktable renders through the same Adobe matrix rawler already carries, so that measurement scores agreement with Adobe, not accuracy. The reasoning in the line above was wrong | 3–4 days |
 | ⬜ | **Highlight recovery** | darktable | Biggest visible rescue on real photos | 2 days |
 
 **Order matters here:** white balance first (it builds the colour conversion),
 then DCP (same pipeline stage, and it changes what "correct" white balance even
-looks like), then highlight recovery.
+looks like), then highlight recovery. That ordering held; the reason given for
+DCP did not — see the row above.
 
 **After these three, it's an editor worth using.** Reasonable place to stop and
 just take pictures for a while.

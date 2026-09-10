@@ -42,6 +42,94 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.13 — 2026-09-10
+
+Two things that were wrong in the same way: a message that named the URL and
+not the fault, and a label cut short with no way to see the rest.
+
+### Fixed
+- **"Find one" could not reach GitHub** — `mods/profiles_online.rs`. It reported
+  "error sending request for url (…)", which is the whole of reqwest's message
+  for any transport failure: a DNS failure, a refused connection, a proxy, an
+  expired certificate and a timeout all print that same sentence. The cause is
+  one level down in `source()`, and hyper puts the useful part one below that.
+  Walking the chain turned it into "peer closed connection without sending TLS
+  close_notify", which is a different problem and points somewhere.
+
+  With that visible: every request to api.github.com failed after about ten
+  seconds, four times out of four, while `curl` fetched the same URL in under
+  half a second. Not the network and not the certificate — that build of curl
+  cannot do HTTP/2 and so never offers it, while reqwest offers it in the
+  handshake. Something between this machine and GitHub agrees to HTTP/2 and then
+  abandons the connection.
+
+  So a *transport* failure — not a 404 or a rate limit, which are perfectly good
+  responses — is retried once on a client that cannot offer HTTP/2, and once
+  that has happened HTTP/2 is not offered again for the session. HTTP/2 is what
+  inspection proxies and older firewalls mishandle most, on every platform, and
+  HTTP/1.1 is understood by everything; this is one small request either way.
+
+  Verified against the real listing and a real download, both of which had been
+  failing consistently and now succeed.
+
+### Added
+- **Full text on hover for anything the layout cut short** —
+  `argentum/useTruncatedTooltips.ts`. A library card is narrower than most file
+  names, so what you see is "2026-09-06_Canon EOS 5D Mark II…" and the part that
+  tells one frame from another is the part that got cut.
+
+  Not a tooltip on the file name: that costs a line in a file of theirs, and
+  next week the folder path costs another. Their `GlobalTooltip` already shows a
+  tooltip for any element carrying `data-tooltip`; it simply has no way to know
+  an element is clipped, because that is a fact about layout and only true at
+  the moment you point at it. So this fills it in from the capture phase, before
+  their listener on `document` runs — ask the browser whether the text is
+  actually ellipsised, write the full text into `data-tooltip`, and their
+  tooltip does the rest.
+
+  Every clipped label in the app gets it at once, including ones that do not
+  exist yet. It never overrides a tooltip written on purpose, and it fires only
+  on genuinely ellipsised text rather than on anything that merely overflows.
+
+  Not exercised in the running app — verified by build and by the DOM contract
+  it depends on.
+
+### Changed
+- **"Find one" is hidden once RawTherapee's own file for that body is here.**
+  They publish exactly one profile per camera, so the button had nothing left to
+  fetch and would have saved the same bytes beside themselves as a numbered
+  duplicate. The test is on the file *name*, which is what the online search
+  matches on, so an imported calibration or a hand-made profile does not answer
+  the offer — a camera with one borrowed profile can still fetch the real one.
+
+- **The roadmap shows finished work last, each stamped with its release** —
+  `argentum/roadmap.ts`, `docs/ROADMAP.md`. A roadmap that deletes what it
+  delivered reads as though nothing has been delivered; the interesting half is
+  still the part that has not happened. The sort happens on export, so marking
+  something done is one word changed and nothing moved.
+
+  Camera profiles are marked done rather than removed. The docs row keeps the
+  reason that was given for building them and says plainly that it was wrong: it
+  claimed they would close the remaining 4.2% against darktable, and they cannot,
+  because darktable renders through the same Adobe matrix rawler already carries.
+
+### Measured
+- The one outlier in the ten-photo set is
+  `2026-09-06_Canon EOS 5D Mark II_104-6382` — R/G +8.9%, B/G −23.1%, brightness
+  91%. It carries a darktable sidecar with five `temperature` and four
+  `channelmixerrgb` entries, so the reference was rendered with a hand-set white
+  balance. The three frames either side of it, from the same shoot and with no
+  sidecar, match us to 0.0%. Not a decoder fault; the yardstick was edited.
+
+### Internal
+- The in-memory DCP used by tests takes a camera name, so `profiles` can build
+  profiles for two different bodies. Its NUL terminator is appended as a byte
+  rather than written as an escape — a literal NUL had already got into the file
+  once, which is easy to do and impossible to see. Same class of bug as the
+  literal backspaces in `check-mergeability.mjs`.
+
+---
+
 ## 2026.37.12 — 2026-09-10
 
 Camera profiles. The last piece of the colour work the fork was started for,
@@ -85,6 +173,13 @@ and the one that taught the most by not working.
   Identity when no profile is chosen, in the literal sense — the matrix is the
   identity and the shader multiplies by it, so every existing edit renders
   exactly as before.
+
+- **Camera profiles are off the roadmap** — `src/argentum/roadmap.ts` and
+  `docs/ROADMAP.md`. Marked done rather than deleted, so the app's roadmap still
+  shows what the colour work has covered. The docs row keeps the reason that was
+  given for building it and says plainly that it was wrong: it claimed profiles
+  would close the gap against darktable, and they cannot, because darktable
+  renders through the same Adobe matrix. See **Measured** below.
 
 ### Measured
 - A camera profile is a small correction, not a new look:

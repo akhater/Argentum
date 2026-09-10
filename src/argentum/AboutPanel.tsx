@@ -133,6 +133,9 @@ function RoadmapSection({ t }: { t: Translate }) {
             </span>
             <span>
               <span className="font-semibold text-text-primary">{m.what}</span>
+              {m.release && (
+                <span className="ml-2 text-xs text-text-secondary">{m.release}</span>
+              )}
               <p className="mt-0.5 text-text-secondary leading-relaxed">{m.why}</p>
             </span>
           </li>

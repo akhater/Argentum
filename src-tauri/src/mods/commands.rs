@@ -309,11 +309,22 @@ pub async fn get_profile_online(make: String, model: String) -> Result<Option<St
 }
 
 
+/// What My Gear needs to draw one camera's row.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CameraProfiles {
+    pub profiles: Vec<crate::mods::profiles::Installed>,
+    /// Whether RawTherapee's own file for this body is already here, so the
+    /// row knows there is nothing left for "Find one" to fetch.
+    pub published_installed: bool,
+}
+
 /// Every profile in the library that fits this camera.
-pub fn profiles_for_camera(
-    make: String,
-    model: String,
-) -> Result<Vec<crate::mods::profiles::Installed>, String> {
-    Ok(crate::mods::profiles::matching(profile_library()?, &make, &model))
+pub fn profiles_for_camera(make: String, model: String) -> Result<CameraProfiles, String> {
+    let library = profile_library()?;
+    Ok(CameraProfiles {
+        profiles: crate::mods::profiles::matching(library, &make, &model),
+        published_installed: crate::mods::profiles::published_is_installed(library, &make, &model),
+    })
 }
 

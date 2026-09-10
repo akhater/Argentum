@@ -37,6 +37,7 @@ import AboutPanel from './AboutPanel';
 import CameraProfile from './CameraProfile';
 import MyGear from './MyGear';
 import { registerArgentumTranslations } from './locales';
+import { useTruncatedTooltips } from './useTruncatedTooltips';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -71,6 +72,11 @@ export default function Argentum() {
   // in their thirteen locale files. Registered here rather than at module
   // scope: i18next is only ready for it after its own init has run.
   useEffect(registerArgentumTranslations, []);
+
+  // Full text on hover for anything the layout has cut short — a file name on a
+  // library card, a folder path, a preset. Not a portal: it adds behaviour to
+  // their existing tooltip rather than rendering anything of its own.
+  useTruncatedTooltips();
 
   // The toolbar's undo button, whose parent is the button row. Upstream tags it
   // for its own benchmarks, so it is a stable thing to hang from.
