@@ -103,6 +103,7 @@ pub fn load_base_image_from_bytes(
     );
 
     if is_raw_file(path_for_ext_check) {
+        let owned_path = path_for_ext_check.to_string(); // Argentum
         match panic::catch_unwind(move || {
             crate::raw_processing::develop_raw_image(
                 bytes,
@@ -110,6 +111,7 @@ pub fn load_base_image_from_bytes(
                 highlight_compression,
                 linear_mode,
                 cancel_token,
+                Some(&owned_path), // Argentum
             )
         }) {
             Ok(Ok(mut image)) => {

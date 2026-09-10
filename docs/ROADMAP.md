@@ -38,6 +38,12 @@ camera on open, so this is partly about *using* existing profiles rather than
 building anything from scratch. Found by comparing against MeraRAW; see DEC-25
 and DEC-26 in the brain.
 
+## Export
+
+| | What | Why | Effort |
+|---|---|---|---|
+| ⬜ | **16-bit TIFF export** | Export writes 8 bits a channel today — `image::ImageFormat::Tiff` on an 8-bit buffer. That discards most of what a RAW holds, and banding shows in skies as soon as the file is edited again elsewhere. Confirmed missing 2026-09-10 | 1 day |
+
 ## Catalog
 
 Browse-only offline. **No smart previews** — decided.

@@ -18,6 +18,7 @@ pub fn develop_raw_image(
     highlight_compression: f32,
     linear_mode: String,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
+    photo_path: Option<&str>, // Argentum: which photo, so its own profile can be read
 ) -> Result<DynamicImage> {
     let (developed_image, orientation) = develop_internal(
         file_bytes,
@@ -25,6 +26,7 @@ pub fn develop_raw_image(
         highlight_compression,
         linear_mode,
         cancel_token,
+        photo_path,
     )?;
     Ok(apply_orientation(developed_image, orientation))
 }
@@ -51,6 +53,7 @@ fn develop_internal(
     highlight_compression: f32,
     linear_mode: String,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
+    photo_path: Option<&str>, // Argentum
 ) -> Result<(DynamicImage, Orientation)> {
     let check_cancel = || -> Result<()> {
         if let Some((tracker, generation)) = &cancel_token
@@ -68,7 +71,7 @@ fn develop_internal(
 
     check_cancel()?;
     let mut raw_image: RawImage = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
-    crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes); // Argentum: the single decode anchor, see mods/decode.rs
+    crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path); // Argentum: the single decode anchor, see mods/decode.rs
 
     let metadata = decoder.raw_metadata(&source, &RawDecodeParams::default())?;
     let orientation = metadata

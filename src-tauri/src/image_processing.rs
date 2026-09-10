@@ -1557,6 +1557,11 @@ pub struct GlobalAdjustments {
     pub halation_amount: f32,
     pub flare_amount: f32,
     pub sharpness_threshold: f32,
+
+    // Argentum: camera profile, as three padded rows. See mods/profile_correction.rs.
+    pub ag_profile_row0: [f32; 4],
+    pub ag_profile_row1: [f32; 4],
+    pub ag_profile_row2: [f32; 4],
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -2214,6 +2219,8 @@ fn get_global_adjustments_from_json(
         (0, 1.0, 0)
     };
 
+    let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments); // Argentum
+
     GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),
         brightness: get_val("basic", "brightness", SCALES.brightness, None),
@@ -2380,6 +2387,11 @@ fn get_global_adjustments_from_json(
             SCALES.sharpness_threshold,
             Some(15.0),
         ),
+
+        // Argentum: the camera profile for this photo, as a correction.
+        ag_profile_row0: ag_profile.0,
+        ag_profile_row1: ag_profile.1,
+        ag_profile_row2: ag_profile.2,
     }
 }
 

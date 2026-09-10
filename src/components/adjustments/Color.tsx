@@ -470,6 +470,7 @@ export default function ColorPanel({
 
   return (
     <div className="space-y-4">
+      {!isForMask && <div data-argentum="camera-profile" />}
       <div className="p-2 bg-bg-tertiary rounded-md">
         <div className="flex justify-between items-center mb-2">
           <Text variant={TextVariants.heading}>{t('adjustments.color.whiteBalance')}</Text>

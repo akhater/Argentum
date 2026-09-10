@@ -60,6 +60,21 @@ struct PathArgs {
     path: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FileArgs {
+    file: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelArgs {
+    /// Absent for commands that only identify a camera by model.
+    #[serde(default)]
+    make: String,
+    model: String,
+}
+
 /// Every Argentum command, behind one registration.
 ///
 /// Returns JSON rather than a typed value because the arms return different
@@ -92,6 +107,42 @@ pub async fn ag(
             let a: PathArgs = args_for(&name, args)?;
             let r = commands::refresh_image_metadata(a.path, app_handle)?;
             serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "camera_profile_status" => {
+            let a: PathArgs = args_for(&name, args)?;
+            serde_json::to_value(commands::camera_profile_status(a.path)?)
+                .map_err(|e| e.to_string())
+        }
+        "import_camera_profile" => {
+            let a: PathArgs = args_for(&name, args)?;
+            serde_json::to_value(commands::import_camera_profile(a.path)?)
+                .map_err(|e| e.to_string())
+        }
+        "list_camera_profiles" => {
+            serde_json::to_value(commands::list_camera_profiles()?).map_err(|e| e.to_string())
+        }
+        "remove_camera_profile" => {
+            let a: FileArgs = args_for(&name, args)?;
+            commands::remove_camera_profile(a.file)?;
+            Ok(serde_json::Value::Null)
+        }
+        "list_cameras" => {
+            serde_json::to_value(commands::list_cameras()?).map_err(|e| e.to_string())
+        }
+        "forget_camera" => {
+            let a: ModelArgs = args_for(&name, args)?;
+            commands::forget_camera(a.model)?;
+            Ok(serde_json::Value::Null)
+        }
+        "get_profile_online" => {
+            let a: ModelArgs = args_for(&name, args)?;
+            serde_json::to_value(commands::get_profile_online(a.make, a.model).await?)
+                .map_err(|e| e.to_string())
+        }
+        "profiles_for_camera" => {
+            let a: ModelArgs = args_for(&name, args)?;
+            serde_json::to_value(commands::profiles_for_camera(a.make, a.model)?)
+                .map_err(|e| e.to_string())
         }
         other => Err(format!("unknown Argentum command: {other}")),
     }

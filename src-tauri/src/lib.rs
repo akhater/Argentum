@@ -1772,8 +1772,9 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
 
+            mods::startup::init(&app_handle);
+
             if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
-                mods::cache_version::clear_thumbnails_if_pipeline_changed(&cache_dir);
                 crate::exif_processing::initialize_cache_dir(cache_dir);
             }
 

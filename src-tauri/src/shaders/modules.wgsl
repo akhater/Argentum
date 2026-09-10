@@ -303,9 +303,39 @@ fn dt_white_balance(color: vec3<f32>, temp: f32, tnt: f32) -> vec3<f32> {
 // have been inserted.
 // ============================================================================
 
+/// The camera profile, as a correction on already-decoded pixels.
+///
+/// The decode has already turned camera RGB into sRGB using rawler's own matrix
+/// for this body. This is the difference between that and the profile's — see
+/// mods/profile_correction.rs for the derivation — so applying it here gives
+/// the same result as decoding with the profile, without decoding again.
+///
+/// Identity when no profile is chosen, which is not a special case: the matrix
+/// really is the identity and this really does multiply by it, so a photo
+/// without a profile is bit-for-bit what it was.
+fn ag_camera_profile(color: vec3<f32>, r0: vec4<f32>, r1: vec4<f32>, r2: vec4<f32>) -> vec3<f32> {
+    return vec3<f32>(
+        dot(r0.xyz, color),
+        dot(r1.xyz, color),
+        dot(r2.xyz, color),
+    );
+}
+
 /// Scene-linear stage: everything Argentum does before the tone curve.
-fn ag_stage_scene_linear(color: vec3<f32>, temp: f32, tnt: f32) -> vec3<f32> {
+///
+/// Order matters. The profile comes first because it decides what the colours
+/// *are*; white balance then decides what the light was. Doing it the other way
+/// would balance one rendering and then swap the rendering underneath it.
+fn ag_stage_scene_linear(
+    color: vec3<f32>,
+    temp: f32,
+    tnt: f32,
+    profile_r0: vec4<f32>,
+    profile_r1: vec4<f32>,
+    profile_r2: vec4<f32>,
+) -> vec3<f32> {
     var c = color;
+    c = ag_camera_profile(c, profile_r0, profile_r1, profile_r2);
     c = dt_white_balance(c, temp, tnt);
     return c;
 }

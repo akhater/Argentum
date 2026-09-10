@@ -34,7 +34,8 @@ import RenderStatus from './RenderStatus';
 import RefreshMetadataButton from './RefreshMetadataButton';
 import AutoWhiteBalanceButton from './AutoWhiteBalanceButton';
 import AboutPanel from './AboutPanel';
-import ChangelogPanel from './ChangelogPanel';
+import CameraProfile from './CameraProfile';
+import MyGear from './MyGear';
 import { registerArgentumTranslations } from './locales';
 
 /**
@@ -87,11 +88,16 @@ export default function Argentum() {
   // the next ten cost nothing.
   const colorTools = useAnchor('[data-argentum="color-tools"]');
 
-  // The About and Changelog tabs in Settings, both ours entirely. Their file
-  // gets one empty div whose data-argentum value is the active tab, so two tabs
-  // — and any later ones — cost a single hook between them.
+  // The About tab in Settings, which is ours entirely — About, Roadmap and
+  // Releases are sections inside it, so more of them cost their file nothing.
   const about = useAnchor('[data-argentum="about"]');
-  const changelog = useAnchor('[data-argentum="changelog"]');
+
+  // Below the white balance sliders: which camera profile this photo is using,
+  // and an import when there is none.
+  const cameraProfile = useAnchor('[data-argentum="camera-profile"]');
+
+  // The My Gear tab in Settings: cameras and lenses, both filling themselves.
+  const gear = useAnchor('[data-argentum="gear"]');
 
   return (
     <>
@@ -106,7 +112,8 @@ export default function Argentum() {
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
       {colorTools && createPortal(<AutoWhiteBalanceButton />, colorTools)}
       {about && createPortal(<AboutPanel />, about)}
-      {changelog && createPortal(<ChangelogPanel />, changelog)}
+      {cameraProfile && createPortal(<CameraProfile />, cameraProfile)}
+      {gear && createPortal(<MyGear />, gear)}
       <RgbReadout />
     </>
   );

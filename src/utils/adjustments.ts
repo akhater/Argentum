@@ -214,6 +214,7 @@ export interface Adjustments {
   lensBlurMinDepth: number;
   lensBlurMinFade: number;
   lensCorrectionMode: 'auto' | 'manual';
+  cameraProfile: string | null; // Argentum: a .dcp in the profile library, or null for the built-in matrix
   lensDistortionAmount: number;
   lensVignetteAmount: number;
   lensTcaAmount: number;
@@ -562,6 +563,7 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   lensBlurMinDepth: 20,
   lensBlurMinFade: 20,
   lensCorrectionMode: 'manual',
+  cameraProfile: null, // Argentum
   lensDistortionAmount: 100,
   lensVignetteAmount: 100,
   lensTcaAmount: 100,
@@ -728,6 +730,7 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     lensBlurMinDepth: loadedAdjustments.lensBlurMinDepth ?? INITIAL_ADJUSTMENTS.lensBlurMinDepth,
     lensBlurMinFade: loadedAdjustments.lensBlurMinFade ?? INITIAL_ADJUSTMENTS.lensBlurMinFade,
     lensCorrectionMode: loadedAdjustments.lensCorrectionMode || 'manual',
+    cameraProfile: loadedAdjustments.cameraProfile ?? null, // Argentum
     lensMaker: loadedAdjustments.lensMaker ?? INITIAL_ADJUSTMENTS.lensMaker,
     lensModel: loadedAdjustments.lensModel ?? INITIAL_ADJUSTMENTS.lensModel,
     lensDistortionAmount: loadedAdjustments.lensDistortionAmount ?? INITIAL_ADJUSTMENTS.lensDistortionAmount,

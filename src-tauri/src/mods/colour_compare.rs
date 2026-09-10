@@ -93,7 +93,7 @@ mod tests {
         let dt = image::open(dt_path).expect("open darktable render");
 
         let bytes = std::fs::read(RAW).expect("read raw");
-        let ours = crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None)
+        let ours = crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
             .expect("develop raw");
 
         // EXPERIMENT: how much of the gap is the white balance coefficients?
@@ -319,7 +319,7 @@ mod across_a_set {
 
             let Ok(bytes) = std::fs::read(&raw) else { continue };
             let Ok(mut ours) =
-                crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None)
+                crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
             else {
                 continue;
             };
@@ -398,7 +398,7 @@ mod distribution {
         let dt = image::open(DT).expect("darktable render");
         let bytes = std::fs::read(RAW).expect("raw");
         let mut ours =
-            crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None)
+            crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
                 .expect("develop");
         crate::mods::preview_encode::apply(&mut ours);
 
@@ -450,7 +450,7 @@ mod crush {
 file {raw_path}");
         let bytes = std::fs::read(&raw_path).expect("raw");
         let before =
-            crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None)
+            crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
                 .expect("develop");
 
         let mut after = before.clone();
@@ -573,7 +573,7 @@ mod linear_stage {
     }
 
     fn develop(bytes: &[u8]) -> image::DynamicImage {
-        crate::raw_processing::develop_raw_image(bytes, false, 2.5, "off".to_string(), None)
+        crate::raw_processing::develop_raw_image(bytes, false, 2.5, "off".to_string(), None, None)
             .expect("develop raw")
     }
 
@@ -763,6 +763,17 @@ mod linear_across_a_set {
     #[test]
     #[ignore = "reads AK's files and darktable renders; run by hand"]
     fn how_close_are_we_across_the_set() {
+        // The decode only reaches for a camera profile once startup has told it
+        // where the library is, and startup does not run in a test. Point it at
+        // one with AG_PROFILES to measure with profiles, or leave it unset to
+        // measure without — the same binary, the same photos, one variable.
+        if let Ok(dir) = std::env::var("AG_PROFILES") {
+            crate::mods::profiles::set_library(std::path::PathBuf::from(&dir));
+            println!("profiles: {dir}");
+        } else {
+            println!("profiles: none");
+        }
+
         let mut rows: Vec<(String, bool, [f64; 3])> = Vec::new();
 
         for entry in std::fs::read_dir(DT_DIR).expect("render the linear set first") {
@@ -779,7 +790,7 @@ mod linear_across_a_set {
 
             let measure = || -> Option<[f64; 3]> {
                 let ours = crate::raw_processing::develop_raw_image(
-                    &bytes, false, 2.5, "off".to_string(), None,
+                    &bytes, false, 2.5, "off".to_string(), None, None,
                 )
                 .ok()?;
                 let dt = image::open(&dt_path).ok()?;
@@ -826,5 +837,145 @@ mod linear_across_a_set {
             "\n{} photos   mean |R/G| off {:.1}%   mean |B/G| off {:.1}%   brightness {:.0}% of darktable\n",
             rows.len(), mag(0), mag(1), bright
         );
+    }
+}
+
+/// Render a photo the way the app does, to a file, so a person can look at it.
+///
+/// The measurement can only say "further from darktable", and darktable is not
+/// a verdict on whether a camera profile is *better* — it renders with Adobe's
+/// matrix, so it agrees with the thing the profile is replacing. What is left
+/// is judgement, and judgement needs the two pictures side by side.
+#[cfg(test)]
+mod render_both_ways {
+    #[test]
+    #[ignore = "writes a preview; run by hand"]
+    fn render_one_photo() {
+        let raw = std::env::var("AG_RAW").expect("set AG_RAW");
+        let out = std::env::var("AG_OUT").expect("set AG_OUT");
+
+        if let Ok(dir) = std::env::var("AG_PROFILES") {
+            crate::mods::profiles::set_library(std::path::PathBuf::from(&dir));
+            println!("profile: on");
+        } else {
+            println!("profile: off");
+        }
+
+        let bytes = std::fs::read(&raw).expect("read raw");
+        // The path matters: the profile a photo uses is read from its sidecar,
+        // so passing None here renders as if nothing were chosen — which is how
+        // this tool once reported a difference of exactly zero.
+        let mut image = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "off".to_string(),
+            None,
+            Some(&raw),
+        )
+        .expect("develop");
+
+        // The same encode the app applies at default settings, so this is what
+        // the editor would show rather than raw linear data.
+        crate::mods::preview_encode::apply(&mut image);
+
+        let width = 1400;
+        let height = image.height() * width / image.width();
+        image
+            .resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+            .to_rgb8()
+            .save(&out)
+            .expect("save");
+        println!("wrote {out}");
+    }
+}
+
+/// How much does a camera profile change the picture at all?
+///
+/// "Further from darktable" was the wrong question, because darktable renders
+/// with the matrix the profile replaces. The question a person actually has is
+/// whether it changes anything they would notice. This answers that in the
+/// units they see: 8-bit levels, over whole images.
+#[cfg(test)]
+mod how_different {
+    /// Rendered pairs, written by two runs of `render_one_photo`.
+    #[test]
+    #[ignore = "compares rendered pairs; run by hand"]
+    fn compare_rendered_pairs() {
+        let dir = std::env::var("AG_PAIRS").expect("set AG_PAIRS to the folder of renders");
+        let dir = std::path::Path::new(&dir);
+
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .expect("read dir")
+            .flatten()
+            .filter_map(|e| {
+                let n = e.file_name().to_string_lossy().to_string();
+                n.strip_suffix("__off.png").map(|s| s.to_string())
+            })
+            .collect();
+        names.sort();
+
+        println!("\n{:<44} {:>9} {:>9} {:>9}", "photo", "mean", "p99", "max");
+        let (mut all_mean, mut all_max) = (0.0f64, 0u32);
+
+        for name in &names {
+            let off = image::open(dir.join(format!("{name}__off.png"))).expect("off");
+            let on = image::open(dir.join(format!("{name}__on.png"))).expect("on");
+            let (a, b) = (off.to_rgb8(), on.to_rgb8());
+
+            let mut diffs: Vec<u32> = Vec::with_capacity(a.len());
+            for (pa, pb) in a.pixels().zip(b.pixels()) {
+                for c in 0..3 {
+                    diffs.push(pa[c].abs_diff(pb[c]) as u32);
+                }
+            }
+            diffs.sort_unstable();
+            let mean = diffs.iter().sum::<u32>() as f64 / diffs.len() as f64;
+            let p99 = diffs[diffs.len() * 99 / 100];
+            let max = *diffs.last().unwrap_or(&0);
+
+            println!("{:<44} {mean:>9.2} {p99:>9} {max:>9}", name.get(..44).unwrap_or(name));
+            all_mean += mean;
+            all_max = all_max.max(max);
+        }
+
+        let n = names.len().max(1) as f64;
+        println!(
+            "\n{} photos   mean difference {:.2} of 255 levels   worst pixel {}\n",
+            names.len(),
+            all_mean / n,
+            all_max
+        );
+        println!("A difference under about 1 level is below what a screen shows.");
+    }
+}
+
+/// Write the difference between two renders, amplified so it can be seen.
+///
+/// A camera profile moves the average pixel a couple of levels out of 255.
+/// That is real and it is invisible, which makes "is it even applied?" an
+/// entirely reasonable thing to keep asking. A picture of the difference
+/// answers it in a way a number does not.
+#[cfg(test)]
+mod difference_image {
+    #[test]
+    #[ignore = "writes a preview; run by hand"]
+    fn amplified_difference() {
+        let dir = std::env::var("AG_PAIRS").expect("set AG_PAIRS");
+        let dir = std::path::Path::new(&dir);
+        let gain: f32 = std::env::var("AG_GAIN").ok().and_then(|g| g.parse().ok()).unwrap_or(10.0);
+
+        let a = image::open(dir.join("x__off.png")).expect("off").to_rgb8();
+        let b = image::open(dir.join("x__on.png")).expect("on").to_rgb8();
+
+        let mut out = image::RgbImage::new(a.width(), a.height());
+        for (dst, (pa, pb)) in out.pixels_mut().zip(a.pixels().zip(b.pixels())) {
+            for c in 0..3 {
+                dst[c] = ((pa[c].abs_diff(pb[c]) as f32) * gain).min(255.0) as u8;
+            }
+        }
+        let path = dir.join("difference.png");
+        out.save(&path).expect("save");
+        println!("wrote {} at {gain}x", path.display());
     }
 }

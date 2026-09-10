@@ -156,10 +156,15 @@ const ANCHORS = [
     instead: 'portal into [data-argentum="camera-details"] from Argentum.tsx',
   },
   {
+    // Two, and two is the ceiling: a panel has an inline slot (in a heading
+    // row, for buttons) and a block slot (below the controls, for a section).
+    // Those are positions, not features — every Argentum colour control mounts
+    // into one of them. A third would mean a feature bought its own, which is
+    // the growth this whole file exists to prevent.
     file: 'src/components/adjustments/Color.tsx',
-    hooks: 1,
-    what: 'the data-argentum="color-tools" marker',
-    instead: 'portal into [data-argentum="color-tools"] from Argentum.tsx',
+    hooks: 2,
+    what: 'the color-tools (inline) and camera-profile (block) markers',
+    instead: 'portal into one of the two existing markers from Argentum.tsx',
   },
   {
     file: 'src/components/panel/SettingsPanel.tsx',

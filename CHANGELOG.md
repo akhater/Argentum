@@ -22,9 +22,104 @@ Current week:
 date +%G.%V
 ```
 
+**This file is the engineering record. The app does not show it.** What a user
+sees is written separately, in plain language, in `src/argentum/releases.ts` —
+one line per release answering "what changed for me?", with no file names.
+Rendering this file in the app was tried and abandoned: filtering an engineering
+log into user-facing notes does not work, because the split is not structural.
+
+So a release touches two files. Everything here, and — only if a person would
+notice the difference — a line there. Likewise `src/argentum/knownIssues.ts`
+holds what is broken *now*, and `roadmap.ts` what is planned; a `### Known
+issues` list in a release entry goes stale the moment it is fixed.
+
+`### Internal` marks build tooling, dev environment and repository housekeeping.
+Worth keeping, never user-facing.
+
 **Every harvested module gets an entry naming its source file and upstream
 commit hash.** That line is the only thing connecting our code back to where it
 came from — without it there's no way to tell later whether upstream moved on.
+
+---
+
+## 2026.37.12 — 2026-09-10
+
+Camera profiles. The last piece of the colour work the fork was started for,
+and the one that taught the most by not working.
+
+### Added
+- **Camera profiles** — `mods/dcp.rs`, `profiles.rs`, `profile_matrix.rs`,
+  `profile_correction.rs`. A `.dcp` describes how one camera body renders
+  colour, measured rather than published. Read, matched to the camera, chosen
+  per photo, applied on the GPU.
+
+  Argentum ships none and cannot: the free collections are published with each
+  author's individual permission, not a licence that lets anyone else
+  redistribute them. So it fetches one on request from RawTherapee — the file
+  going from the project that published it to the user's machine, which is what
+  a package manager does — or imports one you already have. That request happens
+  on a click and never on its own.
+
+- **My Gear**, a settings tab of its own: the cameras you shoot with and the
+  profiles you keep for each. Both lists fill themselves — every photo records
+  its body, and a detected lens is added to My Lenses. Lenses moved here out of
+  General, which was too broad to be a home for anything.
+
+- **16-bit TIFF export** to the roadmap. Export writes 8 bits a channel today,
+  which discards most of what a RAW holds.
+
+### Changed
+- **The profile is applied per frame, not at decode.** This was the whole
+  lesson. Applying it during the decode is the obvious place and it is the
+  wrong one: every other adjustment in this app is applied on the GPU, so there
+  is no notion of a setting that needs the file read again. Four attempts to add
+  one each broke something else — a black flash on every switch, a debounced
+  save racing the choice and reverting it, a preview worker finding no image
+  because the decode had cleared it, and a picture stuck blue because the stale
+  writer kept winning. None of those were colour bugs.
+
+  darktable applies the input profile as a pixelpipe module and RawTherapee
+  applies DCP in its processing pipeline. Per frame is the ordinary
+  arrangement; the original was the oddity.
+
+  Identity when no profile is chosen, in the literal sense — the matrix is the
+  identity and the shader multiplies by it, so every existing edit renders
+  exactly as before.
+
+### Measured
+- A camera profile is a small correction, not a new look:
+
+  ```
+                       mean      99th    worst
+    real profile       2.3       10       18     of 255 levels
+    a deliberately
+    broken one         8.4       53      104
+  ```
+
+  The second was written on purpose — red and blue swapped, white left alone —
+  because "is it even applied?" is unanswerable while the honest answer is
+  "yes, by two levels".
+
+- Against darktable, a profile scores *worse*: R/G off 4.2% without, 10.0% with.
+  That is expected and says the yardstick is wrong rather than the profile:
+  darktable renders with Adobe's published matrix, the same one rawler carries,
+  so "closer to darktable" measures agreement with Adobe. Only a colour target
+  shot on the actual body could say which is more accurate.
+
+  So camera profiles do not close the remaining 4.2%, and were never going to.
+  The roadmap said they would; that reasoning was mine and it did not survive
+  contact.
+
+### Fixed
+- Profile matching, twice. rawler reports the model alone — "EOS 5D Mark II" —
+  while a profile is named for the whole camera, so "Find one" reported that a
+  profile it was looking straight at did not exist. The second fix depended on a
+  maker that older gear lists do not have; the third reading strips the maker off
+  the profile's own name and depends on nothing.
+- Importing a profile no longer overwrites a different one that shares a file
+  name — two people's calibrations of the same body are both called the same
+  thing.
+- The RawTherapee listing URL was a redirect; that repository was renamed.
 
 ---
 
@@ -33,27 +128,39 @@ came from — without it there's no way to tell later whether upstream moved on.
 Housekeeping, and the architecture work that makes the rest of it cheap.
 
 ### Added
-- **An About tab**, `src/argentum/AboutPanel.tsx`. The acknowledgements used to
-  sit at the bottom of the General tab, under the tag-clearing controls, and
-  they read as RapidRAW's own credits — wrong in both directions now. Argentum
-  owes RapidRAW the entire application and darktable the colour science it is
-  built to harvest, and neither was said plainly.
+- **An About tab**, one tab of theirs with five sections of ours: About,
+  Credits, Roadmap, Known issues, Releases. Two tabs were tried first and did
+  not fit — their settings header has a fixed width and the fifth rendered
+  clipped, as "Chang…". Their layout is not ours to rebuild, so this stops
+  asking it for more room: one empty div in `SettingsPanel.tsx`, our own
+  switcher inside it, and a sixth section would cost nothing.
 
-  Only those two are named. The list of models and libraries that came with
-  RapidRAW is RapidRAW's to credit, and it does; repeating it under Argentum's
-  name would be taking credit for assembling something we inherited. Their
-  strings for it are restored to upstream text, which removed 13 lines of
-  divergence.
+  The acknowledgements used to sit at the bottom of the General tab, under the
+  tag-clearing controls, reading as RapidRAW's own credits — wrong in both
+  directions now. Only RapidRAW and darktable are named. The models and
+  libraries that came with RapidRAW are RapidRAW's to credit and it does;
+  repeating them under Argentum's name would be taking credit for assembling
+  something we inherited. Their strings for it are restored to upstream text,
+  which removed 13 lines of divergence rather than adding any.
 
-- **A Changelog tab**, `src/argentum/ChangelogPanel.tsx`. There is no public
-  repository yet, so this file was the only record and it lived nowhere a user
-  could reach. It is imported at build time, so what the app shows is exactly
-  the changelog that built it — confirmed present in the production bundle.
+- **Release notes people will read**, `src/argentum/releases.ts`. Rendering
+  this file in the app was built, then deleted. It is an engineering record —
+  file paths, module names, mergeability budgets, "removed the Ko-Fi donate
+  link" — and none of that answers the only question a user has, which is
+  whether their photos will look different. Filtering it did not work either:
+  every pass left more of it behind, because the split is not structural and a
+  single sentence can carry both. Two audiences, two documents.
 
-  The markdown renderer is written out rather than pulled in: no markdown
-  library was in the dependency list, and adding one to render a file we write
-  ourselves is a poor trade. It covers what the changelog uses and lets anything
-  else through as plain text.
+- **A current known-issues list**, `src/argentum/knownIssues.ts`. The one in
+  `2026.37.1` still said lens auto-detection was broken long after `2026.37.6`
+  fixed it. A stale warning is worse than none, because it is trusted and the
+  reader stops looking. The rule that comes with the file: an entry is deleted
+  in the same commit as its fix.
+
+- **Mergeability stated in the app**, not just enforced in the build. Sixteen
+  connection points across twelve of RapidRAW's files, and the build fails if a
+  feature adds one. That is the difference between a fork that keeps receiving
+  upstream's work and one that quietly stops, and it is worth a user knowing.
 
 ### Changed
 - **Every per-feature cost into their files is now zero.** A budget answers how
@@ -76,6 +183,11 @@ Housekeeping, and the architecture work that makes the rest of it cheap.
   it exposed a real bug in the checker itself: literal backspace bytes where
   `` was meant, which had been hiding two undeclared anchors.
 
+- **The changelog is no longer personal.** Names, a home directory, file-sync
+  arrangements and three `See DEC-nn` pointers into a private notebook are out.
+  `### Internal` now marks build and repository housekeeping, which is real
+  history and still not something a user has any use for.
+
 ### Removed
 - **The Ko-Fi donate link** from the splash. It funds RapidRAW, which Argentum
   is not, and asking for money on someone else's behalf from a fork's welcome
@@ -86,8 +198,8 @@ Housekeeping, and the architecture work that makes the rest of it cheap.
 ## 2026.37.10 — 2026-09-09
 
 The green cast and the crushed shadows were the same bug, and it was neither
-white balance nor the colour matrix. AK shot sRAW for years; sRAW is not
-sensor data.
+white balance nor the colour matrix. The affected frames were shot as sRAW,
+and sRAW is not sensor data.
 
 Three releases went unrecorded while this was being chased — `2026.37.7`
 (D50/D65 matrix correction), `2026.37.8` (darktable's sigmoid as the tone
@@ -188,8 +300,8 @@ below.
 
 ## 2026.37.6 — 2026-09-09
 
-Lens auto-detection works. darktable identified AK's EF 135mm f/2 L instantly
-while Argentum asked him to pick it by hand every time.
+Lens auto-detection works. darktable identified a Canon EF 135mm f/2 L
+instantly while Argentum asked for it to be picked by hand every time.
 
 ### Added
 - **Canon MakerNote lens reading** — `mods/makernote_lens.rs`. The lens name is
@@ -298,7 +410,7 @@ on a real file rather than asserted.
   a JPEG has already been linearised at the top of `main()` and would otherwise
   be corrected twice.
 
-  **Measured on AK's file, spot-white-balancing a neutral patch:** `191·196·191`
+  **Measured spot-white-balancing a neutral patch:** `191·196·191`
   (3% green) before, `193·196·193` (1.5%, reads neutral) after. darktable on the
   same patch: `135·135·133`.
 
@@ -348,7 +460,7 @@ becomes measurable.
 ### Fixed
 - **The readout was reading a stale file.** It sampled the only large `<img>` in
   the DOM, which is the cached `_medium.jpg` thumbnail — regenerated on save,
-  never while a slider moves. Caught by AK, not by me: the same spot on a nose
+  never while a slider moves. The same spot on a face
   read `207·177·179` at correct white balance and `214·189·192` at temperature
   −100, on a photo that had gone completely blue.
 
@@ -476,27 +588,22 @@ code changed yet** — it renders identically to RapidRAW, by design.
 - `scripts/check-identity.mjs` — clears `src-tauri/gen` automatically when the
   identifier changes, so the asset-protocol scope can't go stale
 - Project docs: architecture, the add-a-tool recipe, harvest menu, roadmap
-- Backup via a bare git repo in OneDrive — `git push`
 
 ### Changed
 - Version scheme to `yyyy.isoWeek.release`, replacing RapidRAW's inherited
   `1.6.3`, which claimed a maturity this doesn't have
 - Crate, lib and binary renamed to Argentum
-- Working tree moved out of OneDrive entirely — see below
 
 ### Fixed
-- **Working tree in OneDrive.** OneDrive doesn't tolerate directory junctions
-  inside a synced folder: it replaced the `node_modules` junction with a real
-  folder and began syncing 182 packages. Moved the tree out; OneDrive now holds
-  a bare git repo instead, ~7MB, which can never pick up a binary because git
-  doesn't track them
-- **Dev build crashing on start.** A leftover `.cargo/config.toml` put `target/`
-  at the repo root, where Vite tried to watch 819 crates of build output and
-  died on a locked `.exe`. Tauri's default `src-tauri/target` is already ignored
 - **Thumbnails silently broken after an identifier change.** Tauri bakes the
   asset scope into generated schemas and they went stale. Full images still
   opened, so it looked like broken RAW decoding rather than a config problem.
   Now handled automatically by the identity check
+
+### Internal
+- **Dev build crashing on start.** A leftover `.cargo/config.toml` put `target/`
+  at the repo root, where Vite tried to watch 819 crates of build output and
+  died on a locked `.exe`. Tauri's default `src-tauri/target` is already ignored
 - `setup.ps1` unparseable — two em-dashes in a UTF-8 file, which PowerShell 5.1
   reads as ANSI
 - `tauri.conf.json` unparseable — a UTF-8 BOM, written by PowerShell's
@@ -506,10 +613,10 @@ code changed yet** — it renders identically to RapidRAW, by design.
 - **Zoom and pan feel sluggish** next to darktable, and the mask overlay moves
   before the image does. Present in released RapidRAW too, so it's inherited
   rather than something we caused. Not yet diagnosed — settings, the overlay, or
-  the render pipeline. See DEC-32
+  the render pipeline.
 - **Lens auto-detection fails** for EF glass — the decoder can't map Canon's lens
   ID, so lensfun is never consulted even though the profile is bundled. Manual
-  selection works. See DEC-27
+  selection works.
 - **Click-to-select masking can't be refined.** Each click makes its own
   sub-mask; SAM supports multiple positive/negative points but only one is ever
-  sent. See DEC-29
+  sent.

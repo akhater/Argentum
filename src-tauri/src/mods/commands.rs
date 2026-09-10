@@ -227,3 +227,93 @@ pub fn refresh_image_metadata(
     let bytes = std::fs::read(image).map_err(|e| e.to_string())?;
     Ok(crate::exif_processing::read_exif_data(&path, &bytes))
 }
+
+// ---------------------------------------------------------------------------
+// Camera profiles
+//
+// Argentum reads `.dcp` profiles and does not ship any — see mods/profiles.rs
+// for why. These four are what the UI needs: what this photo has, add one,
+// list them, remove one.
+// ---------------------------------------------------------------------------
+
+/// The library path, or an error the user can act on.
+fn profile_library() -> Result<&'static std::path::Path, String> {
+    crate::mods::profiles::library()
+        .ok_or_else(|| "the profile library is not ready yet".to_string())
+}
+
+/// Which camera this photo is from, and whether a profile matches it.
+pub fn camera_profile_status(path: String) -> Result<crate::mods::profiles::Status, String> {
+    let library = profile_library()?;
+    Ok(crate::mods::profiles::status_for(library, std::path::Path::new(&path)))
+}
+
+/// Copy a `.dcp` the user picked into the library.
+pub fn import_camera_profile(
+    path: String,
+) -> Result<crate::mods::profiles::Installed, String> {
+    let library = profile_library()?;
+    let installed = crate::mods::profiles::import(library, std::path::Path::new(&path))?;
+    // The profile names the whole camera, so it also supplies the maker for a
+    // gear entry that has none.
+    if let Some(camera) = installed.camera.as_deref() {
+        let model: String = camera.split_whitespace().skip(1).collect::<Vec<_>>().join(" ");
+        crate::mods::profiles::learn_make_from(library, &model, camera);
+    }
+    log::info!(
+        "[profile] imported {} for {}",
+        installed.file,
+        installed.camera.as_deref().unwrap_or("an unnamed camera")
+    );
+    Ok(installed)
+}
+
+/// Everything in the library.
+pub fn list_camera_profiles() -> Result<Vec<crate::mods::profiles::Installed>, String> {
+    Ok(crate::mods::profiles::installed(profile_library()?))
+}
+
+/// Delete a profile file from the library.
+pub fn remove_camera_profile(file: String) -> Result<(), String> {
+    crate::mods::profiles::remove(profile_library()?, &file)
+}
+
+/// Every camera a photo has been opened from, with the profile it would use.
+pub fn list_cameras() -> Result<Vec<crate::mods::profiles::Camera>, String> {
+    Ok(crate::mods::profiles::cameras(profile_library()?))
+}
+
+/// Drop a camera from the gear list.
+pub fn forget_camera(model: String) -> Result<(), String> {
+    crate::mods::profiles::forget_camera(profile_library()?, &model);
+    Ok(())
+}
+
+/// Look for a published profile for this camera and install it.
+///
+/// One step on purpose: "is there one" and "get it" are not a decision the user
+/// needs to make twice. Returns whether anything was found.
+pub async fn get_profile_online(make: String, model: String) -> Result<Option<String>, String> {
+    let library = profile_library()?;
+    let Some(found) = crate::mods::profiles_online::search(&make, &model).await? else {
+        return Ok(None);
+    };
+    crate::mods::profiles_online::fetch_into(library, &found).await?;
+    // The file is named for the whole camera, so it also tells us the maker
+    // when the gear list does not have one.
+    if let Some(stem) = found.file.strip_suffix(".dcp") {
+        crate::mods::profiles::learn_make_from(library, &model, stem);
+    }
+    log::info!("[profile] downloaded {} for {model}", found.file);
+    Ok(Some(found.file))
+}
+
+
+/// Every profile in the library that fits this camera.
+pub fn profiles_for_camera(
+    make: String,
+    model: String,
+) -> Result<Vec<crate::mods::profiles::Installed>, String> {
+    Ok(crate::mods::profiles::matching(profile_library()?, &make, &model))
+}
+

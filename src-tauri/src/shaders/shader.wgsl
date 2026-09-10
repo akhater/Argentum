@@ -115,6 +115,9 @@ struct GlobalAdjustments {
     halation_amount: f32,
     flare_amount: f32,
     sharpness_threshold: f32,
+    ag_profile_row0: vec4<f32>,  // Argentum: camera profile, see modules.wgsl
+    ag_profile_row1: vec4<f32>,
+    ag_profile_row2: vec4<f32>,
 }
 
 struct MaskAdjustments {
@@ -1775,7 +1778,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 
     var composite_rgb_linear = apply_dehaze(processed_rgb, structure_blurred, is_raw, t_dehaze);
-    composite_rgb_linear = ag_stage_scene_linear(composite_rgb_linear, t_temperature, t_tint);  // Argentum: the single anchor, see modules.wgsl
+    composite_rgb_linear = ag_stage_scene_linear(composite_rgb_linear, t_temperature, t_tint, adjustments.global.ag_profile_row0, adjustments.global.ag_profile_row1, adjustments.global.ag_profile_row2);  // Argentum: the single anchor, see modules.wgsl
     composite_rgb_linear = apply_centre_tonal_and_color(composite_rgb_linear, adjustments.global.centre, absolute_coord_i);
     composite_rgb_linear = apply_filmic_exposure(composite_rgb_linear, t_brightness);
     composite_rgb_linear = apply_tonal_adjustments(composite_rgb_linear, tonal_blurred, is_raw, t_contrast, t_shadows, t_whites, t_blacks);

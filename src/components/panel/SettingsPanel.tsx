@@ -14,7 +14,7 @@ import {
   SlidersHorizontal,
   Keyboard,
   Bookmark,
-  ScrollText,
+  Aperture,
   Scaling,
   Image as ImageIcon,
   Mouse,
@@ -571,10 +571,10 @@ export default function SettingsPanel({
   const settingCategories = useMemo(
     () => [
       { id: 'general', label: t('settings.categories.general'), icon: SlidersHorizontal },
+      { id: 'gear', label: 'My Gear', icon: Aperture },
       { id: 'processing', label: t('settings.categories.processing'), icon: Cpu },
       { id: 'shortcuts', label: t('settings.categories.shortcuts'), icon: Keyboard },
       { id: 'about', label: 'About', icon: Info },
-      { id: 'changelog', label: 'Changelog', icon: ScrollText },
     ],
     [t],
   );
@@ -1059,7 +1059,7 @@ export default function SettingsPanel({
               </Text>
             </div>
 
-            <div className="relative flex w-full min-[1200px]:w-112.5 p-2 bg-surface rounded-md">
+            <div className="relative flex w-full min-[1200px]:w-auto p-2 bg-surface rounded-md">
               {settingCategories.map((category) => (
                 <button
                   key={category.id}
@@ -1314,79 +1314,6 @@ export default function SettingsPanel({
                     </div>
                   </div>
 
-                  <div className="p-6 bg-surface rounded-xl shadow-md">
-                    <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                      {t('settings.lenses.title')}
-                    </Text>
-                    <Text className="mb-6">{t('settings.lenses.description')}</Text>
-
-                    <div className="space-y-8">
-                      <div className="bg-bg-primary rounded-lg p-4 border border-border-color">
-                        <Text variant={TextVariants.heading} className="mb-3">
-                          {t('settings.lenses.addNew')}
-                        </Text>
-                        <div className="space-y-4">
-                          <Dropdown
-                            options={lensMakers.map((m) => ({ label: m, value: m }))}
-                            value={tempLensMaker}
-                            onChange={handleTempMakerChange}
-                            placeholder={t('settings.lenses.manufacturerPlaceholder')}
-                          />
-                          <Dropdown
-                            options={lensModels.map((m) => ({ label: m, value: m }))}
-                            value={tempLensModel}
-                            onChange={setTempLensModel}
-                            placeholder={t('settings.lenses.modelPlaceholder')}
-                            disabled={!tempLensMaker}
-                          />
-                          <Button
-                            onClick={handleAddLens}
-                            disabled={!tempLensMaker || !tempLensModel}
-                            className="w-full"
-                          >
-                            <Plus size={16} className="mr-1" />
-                            {t('settings.lenses.addButton')}
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <Text variant={TextVariants.heading} className="mb-2">
-                          {t('settings.lenses.saved')}
-                        </Text>
-                        {(!appSettings?.myLenses || appSettings.myLenses.length === 0) && (
-                          <Text className="italic">{t('settings.lenses.noLenses')}</Text>
-                        )}
-                        <div className="divide-y divide-border-color">
-                          {(appSettings?.myLenses || []).map((lens: MyLens, index: number) => (
-                            <div
-                              key={`${lens.maker}-${lens.model}-${index}`}
-                              className="flex justify-between items-center py-3 first:pt-0 last:pb-0"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-surface rounded-md text-accent">
-                                  <Bookmark size={16} />
-                                </div>
-                                <div>
-                                  <Text color={TextColors.primary} weight={TextWeights.medium}>
-                                    {lens.model}
-                                  </Text>
-                                  <Text variant={TextVariants.small}>{lens.maker}</Text>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleRemoveLens(index)}
-                                className="p-2 text-text-secondary hover:text-red-400 hover:bg-bg-primary rounded-md transition-colors"
-                                data-tooltip={t('settings.lenses.removeTooltip')}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
 
                   <div className="p-6 bg-surface rounded-xl shadow-md">
                     <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
@@ -1613,7 +1540,7 @@ export default function SettingsPanel({
                   </div>
                 </motion.div>
               )}
-              {(activeCategory === 'about' || activeCategory === 'changelog') && <div data-argentum={activeCategory} />}
+              {(activeCategory === 'about' || activeCategory === 'gear') && <div data-argentum={activeCategory} />}
               {activeCategory === 'processing' && (
                 <motion.div
                   key="processing"
