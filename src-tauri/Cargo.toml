@@ -107,6 +107,8 @@ incremental = true
 
 [profile.dev.package."*"]
 opt-level = 3
+# Argentum: nor debug assertions in them — see mods/sraw_levels.rs.
+debug-assertions = false
 
 [profile.release]
 codegen-units = 1

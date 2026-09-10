@@ -42,6 +42,42 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.14 — 2026-09-10
+
+### Fixed
+- **sRAW thumbnails failed in dev builds** — `src-tauri/Cargo.toml`, explained in
+  `mods/sraw_levels.rs`. The library showed placeholders and the log had
+  `PANIC! … pixarray.rs:119 - assertion failed: self.initialized`.
+
+  rawler's CR2 decoder can be asked for a *dummy* image: allocated, never
+  filled, so a caller can read its dimensions without paying for a decode.
+  RapidRAW asks for one to size thumbnails
+  (`raw_processing::get_fast_demosaic_scale_factor`). For sRAW the decoder hands
+  that uninitialised buffer to `convert_to_rgb` anyway, and `pixels_mut()`
+  asserts on exactly that.
+
+  Release builds never saw it — `debug_assert!` is compiled out — so this was a
+  dev-only failure that looked like a broken library.
+
+  Dependencies in this project are already built as release code
+  (`[profile.dev.package."*"] opt-level = 3`); asserting inside them contradicts
+  that, so `debug-assertions = false` now sits beside it. That silences a bug in
+  rawler rather than fixing it, which is the honest description: the bug is
+  theirs, the dimensions it returns are correct, and the alternative is patching
+  their decoder inside a fork of a fork.
+
+### Notes
+- The empty library that led here was mostly not this. Thumbnail hashes cover
+  the photo's adjustments, and `cameraProfile` joined the defaults in
+  `2026.37.12`, so every thumbnail regenerates once on first sight of a folder —
+  134 were written while this was being looked into. Only the sRAW frames stayed
+  empty.
+
+- The rawler bug is worth reporting upstream: `decoders/cr2.rs` calls
+  `pixels_mut()` on lines 167 and 241 without checking `dummy`.
+
+---
+
 ## 2026.37.13 — 2026-09-10
 
 Two things that were wrong in the same way: a message that named the URL and

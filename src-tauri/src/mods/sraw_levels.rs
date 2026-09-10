@@ -52,6 +52,22 @@
 //! carrying a fork of a fork. Overriding two public fields on the decoded image
 //! costs one line in `raw_processing.rs` and is trivially removable if the fix
 //! lands upstream.
+//!
+//! A SECOND sRAW PROBLEM, WHICH IS NOT OURS
+//!
+//! rawler's CR2 decoder can be asked for a *dummy* image: allocated, never
+//! filled, so the caller can read its dimensions without paying for a decode.
+//! RapidRAW asks for one to size thumbnails. For sRAW the decoder hands that
+//! uninitialised buffer to `convert_to_rgb` regardless, and `pixels_mut()`
+//! asserts on exactly that — so every sRAW thumbnail died in a dev build, four
+//! at a time, while release was fine because the assertion is compiled out.
+//!
+//! The fix is `debug-assertions = false` for dependencies in
+//! `src-tauri/Cargo.toml`, beside the `opt-level = 3` that is already there:
+//! dependencies in this project are built as release code, and asserting inside
+//! them contradicts that. It silences a real bug in rawler rather than fixing
+//! it, which is the honest description — the bug is theirs, the dimensions it
+//! returns are right, and the alternative is patching their decoder.
 
 use rawler::rawimage::{BlackLevel, RawImage, WhiteLevel};
 
