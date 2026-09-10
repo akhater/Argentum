@@ -42,6 +42,21 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.15 — 2026-09-10
+
+### Removed
+- **"Colour is close to darktable, not equal to it"** from the known issues.
+  It said camera profiles were the next step in closing the 4–5% gap. They are
+  not and never were: darktable renders through the same Adobe matrix rawler
+  carries, so that measurement scores agreement with Adobe rather than accuracy,
+  and profiles moved it the other way. Listing a gap as a fault while naming the
+  wrong cure is worse than not listing it.
+
+  The gap is still real and still unexplained. It belongs in a measurement, not
+  in a promise to the user.
+
+---
+
 ## 2026.37.14 — 2026-09-10
 
 ### Fixed

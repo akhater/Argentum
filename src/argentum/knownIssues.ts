@@ -38,13 +38,6 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     inherited: true,
   },
   {
-    what: 'Colour is close to darktable, not equal to it',
-    detail:
-      'Across a ten-photo test set the red and blue channels sit within about 4–5% '
-      + 'of darktable, and brightness matches. Full RAW files are closer than sRAW. '
-      + 'Camera colour profiles are the next step in closing this.',
-  },
-  {
     what: 'Tested against one camera',
     detail:
       'Every colour measurement so far comes from a Canon EOS 5D Mark II. The RAW '
