@@ -2297,11 +2297,7 @@ fn get_global_adjustments_from_json(
             SCALES.chromatic_aberration,
             None,
         ),
-        show_clipping: if js_adjustments["showClipping"].as_bool().unwrap_or(false) {
-            1
-        } else {
-            0
-        },
+        show_clipping: crate::mods::clipping::mode(js_adjustments), // Argentum: off / any / per channel
         is_raw_image: if is_raw { 1 } else { 0 },
         _pad_ca1: 0.0,
 

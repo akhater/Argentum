@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2026.37.16',
+    date: '2026-09-10',
+    notes: [
+      'The clipping warning now steps through the channels — off, L, R, G, B. '
+      + 'Red is a blown highlight and blue is a crushed shadow in every mode; '
+      + 'only the channel being watched changes. If a highlight blows in one '
+      + 'channel it can usually be saved, and if it blows in all three it cannot.',
+    ],
+  },
+  {
     version: '2026.37.13',
     date: '2026-09-10',
     notes: [

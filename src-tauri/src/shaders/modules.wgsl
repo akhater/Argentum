@@ -340,10 +340,53 @@ fn ag_stage_scene_linear(
     return c;
 }
 
+/// The clipping view, in whichever mode the button has been cycled to.
+///
+/// Red is a blown highlight and blue is a crushed shadow, in every mode. What
+/// changes is which channels are being asked: mode 1 looks at all three, and
+/// modes 2, 3 and 4 look at red, green and blue on their own.
+///
+/// That matters because a highlight where only green has gone still holds two
+/// channels of real data, and one where all three have gone holds nothing.
+/// Stepping through the channels is how you tell those apart.
+fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
+    if (mode == 0u) {
+        return color;
+    }
+
+    let high = 0.998;
+    let low = 0.002;
+
+    var over = false;
+    var under = false;
+    if (mode == 1u) {
+        over = any(color > vec3<f32>(high));
+        under = any(color < vec3<f32>(low));
+    } else {
+        // 2, 3, 4 select one channel; anything else was never written by us.
+        let v = select(select(color.b, color.g, mode == 3u), color.r, mode == 2u);
+        over = v > high;
+        under = v < low;
+    }
+
+    if (over) {
+        return vec3<f32>(1.0, 0.0, 0.0);
+    }
+    if (under) {
+        return vec3<f32>(0.0, 0.0, 1.0);
+    }
+    return color;
+}
+
 /// Display-referred stage: everything Argentum does after tone mapping.
 ///
-/// Empty on purpose. It is the anchor for the first tool that needs to run
-/// here, so that tool costs nothing upstream.
-fn ag_stage_display(color: vec3<f32>) -> vec3<f32> {
-    return color;
+/// It was empty, held open for the first tool that needed to run here so that
+/// tool would cost nothing upstream. The clipping view is that tool, and the
+/// one line in their file is the whole of what it cost. The next one costs
+/// nothing.
+///
+/// `mode` is their `show_clipping` uniform, which was already a `u32` holding
+/// nothing but 0 and 1 — see mods/clipping.rs.
+fn ag_stage_display(color: vec3<f32>, mode: u32) -> vec3<f32> {
+    return ag_clipping_view(color, mode);
 }

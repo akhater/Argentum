@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 ///
 /// 1. sRAW black and white levels (`mods/sraw_levels.rs`), and the removal of
 ///    the D50/D65 matrix correction that had been compensating for them.
-pub const PIPELINE: u32 = 1;
+pub const PIPELINE: u32 = 2;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

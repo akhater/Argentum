@@ -1025,7 +1025,7 @@ export default function MasksPanel() {
                   onToggleClipping={() => {
                     setAdjustments((prev: Adjustments) => ({
                       ...prev,
-                      showClipping: !prev.showClipping,
+                      showClipping: ((Number(prev.showClipping) || 0) + 1) % 5, // Argentum: cycles off / all / R / G / B
                     }));
                   }}
                 />

@@ -1894,17 +1894,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         final_rgb += vec3<f32>(noise_val) * amount * luma_mask;
     }
 
-    if (adjustments.global.show_clipping == 1u) {
-        let HIGHLIGHT_WARNING_COLOR = vec3<f32>(1.0, 0.0, 0.0);
-        let SHADOW_WARNING_COLOR = vec3<f32>(0.0, 0.0, 1.0);
-        let HIGHLIGHT_CLIP_THRESHOLD = 0.998;
-        let SHADOW_CLIP_THRESHOLD = 0.002;
-        if (any(final_rgb > vec3<f32>(HIGHLIGHT_CLIP_THRESHOLD))) {
-            final_rgb = HIGHLIGHT_WARNING_COLOR;
-        } else if (any(final_rgb < vec3<f32>(SHADOW_CLIP_THRESHOLD))) {
-            final_rgb = SHADOW_WARNING_COLOR;
-        }
-    }
+    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping);  // Argentum: the display-referred anchor, see modules.wgsl
 
     let dither_amount = 1.0 / 255.0;
     final_rgb += dither(id.xy) * dither_amount;

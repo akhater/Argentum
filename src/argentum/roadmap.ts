@@ -62,9 +62,21 @@ const MILESTONES: Milestone[] = [
       + 'Profiles are found online or imported, and applied while the photo is drawn.',
   },
   {
-    stage: 'planned',
+    stage: 'building',
     what: 'Highlight recovery',
-    why: 'Rebuild detail in clipped highlights. The biggest visible rescue on real photos.',
+    why:
+      'When a bright area clips, one channel usually blows before the others — a '
+      + 'sunset goes white, a lit dress goes flat. Rebuild the missing channel from '
+      + 'the two that survived, so colour comes back instead of a hole. The '
+      + 'Highlights slider is not this: it can only move detail that is still there.',
+  },
+  {
+    stage: 'planned',
+    what: 'Clipping preview',
+    why:
+      'Hold a key while dragging Blacks or Whites and see exactly which pixels are '
+      + 'about to lose all detail, the way Lightroom does. Without it, recovering '
+      + 'highlights is guesswork — you cannot fix what you cannot see.',
   },
   {
     stage: 'planned',

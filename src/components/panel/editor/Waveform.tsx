@@ -10,7 +10,7 @@ interface WaveformProps {
   histogram?: any;
   displayMode: string;
   setDisplayMode: (mode: string) => void;
-  showClipping?: boolean;
+  showClipping?: boolean | number; // Argentum: 0 off, 1 all, 2 R, 3 G, 4 B
   onToggleClipping?: () => void;
   theme?: string;
 }
@@ -607,14 +607,12 @@ export default function Waveform({
                 <>
                   <button
                     onClick={onToggleClipping}
-                    data-tooltip={
-                      showClipping ? t('ui.waveform.tooltips.hideClipping') : t('ui.waveform.tooltips.showClipping')
-                    }
+                    data-tooltip={showClipping ? `${['', 'Luminosity', 'Red', 'Green', 'Blue'][Number(showClipping)] ?? 'Luminosity'} clipping — red is blown, blue is crushed` : t('ui.waveform.tooltips.showClipping')}
                     className={`relative flex items-center justify-center w-7 h-7 shrink-0 rounded-lg transition-colors duration-150 ${
                       showClipping ? 'bg-accent text-button-text' : 'text-text-primary hover:bg-bg-tertiary'
                     }`}
                   >
-                    <AlertOctagon size={14} />
+                    {showClipping ? <span className="text-[11px] font-bold leading-none">{('LRGB'[Number(showClipping) - 1] ?? 'L') + '!'}</span> : <AlertOctagon size={14} />}
                   </button>
                   <div className="w-px h-5 bg-white/20 mx-1 shrink-0"></div>
                 </>

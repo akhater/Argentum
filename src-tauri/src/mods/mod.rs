@@ -11,6 +11,8 @@
 pub mod auto_wb;
 pub mod cache_version;
 pub mod colour_compare;
+pub mod clipping;
+pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;
 pub mod photo_profile;

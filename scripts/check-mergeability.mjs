@@ -125,9 +125,9 @@ const ANCHORS = [
   },
   {
     file: 'src-tauri/src/shaders/shader.wgsl',
-    hooks: 1,
-    what: 'one call to ag_stage_scene_linear',
-    instead: 'add your tool inside ag_stage_scene_linear in shaders/modules.wgsl',
+    hooks: 2,
+    what: 'one call to ag_stage_scene_linear, one to ag_stage_display',
+    instead: 'add your tool inside one of those two stages in shaders/modules.wgsl',
   },
   {
     file: 'src-tauri/src/raw_processing.rs',
@@ -137,9 +137,9 @@ const ANCHORS = [
   },
   {
     file: 'src-tauri/src/image_processing.rs',
-    hooks: 3,
-    what: 'the CPU preview encode interception',
-    instead: 'change mods/preview_encode.rs',
+    hooks: 4,
+    what: 'the CPU preview encode interception, and the clipping view mode',
+    instead: 'change mods/preview_encode.rs, or mods/clipping.rs',
   },
   {
     file: 'src/App.tsx',
@@ -227,10 +227,14 @@ const IDENTITY = [
  * ours. The rebrand is not: `.agdata`, or "Argentum" appearing inside a
  * sentence they already had. Those are edits to text, and text does not grow
  * with the number of features.
+ *
+ * The shader pattern used to be `ag_stage_` alone, which meant a call to any
+ * other `ag_` function in their WGSL was not counted at all — a hole found by
+ * walking through it. It matches any `ag_…(` call now.
  */
 const isHook = (line) => {
   if (/\.agdata|\.agexif/.test(line)) return false;
-  return /\bmods::|^\s*mod mods;|\bag_stage_|argentum\/|'\.\/argentum|data-argentum|<Argentum\b|\bArgentum from\b/.test(line);
+  return /\bmods::|^\s*mod mods;|\bag_[a-z0-9_]*\(|argentum\/|'\.\/argentum|data-argentum|<Argentum\b|\bArgentum from\b/.test(line);
 };
 
 const anchorFor = (file) => ANCHORS.find((a) => a.file === file);

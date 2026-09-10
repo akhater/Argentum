@@ -26,6 +26,11 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // Must be first — it decides what every pixel value means.
     super::sraw_levels::fix(raw, file_bytes);
 
+    // Put back the channels the sensor could not record. After the levels,
+    // because it is the levels that say which values are at the ceiling, and
+    // before anything reads a pixel as colour.
+    super::highlights::recover(raw);
+
     // Remember the matrix rawler will use, so the GPU can correct off it.
     apply_camera_profile(raw, photo_path);
 }

@@ -42,6 +42,88 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.16 — 2026-09-10
+
+### Added
+- **The clipping warning steps through the channels** — `mods/clipping.rs`,
+  `argentum/…`, `shaders/modules.wgsl`. The button cycles off, L, R, G, B and
+  shows the letter. Red is a blown highlight and blue is a crushed shadow in
+  every mode; only the channel being watched changes.
+
+  That is the question the single warning could not answer. A highlight where
+  only green has gone still holds two channels of real data; one where all three
+  have gone holds nothing, and no editing brings it back. Stepping through tells
+  them apart.
+
+  The first version colour-coded all three channels into one view. It answered
+  the same question in one look, and AK misread it within seconds — because red
+  already means *blown highlight*, and there it would also have meant *the red
+  channel*. Two meanings on one button. Stepping through the channels was AK's
+  suggestion and is what shipped.
+
+  The mode rides in their existing `showClipping` field. Their button only asks
+  whether it is truthy, so a number works without their code knowing modes
+  exist — and a new key in the saved adjustments is part of the thumbnail cache
+  hash, so adding one would rebuild the whole library once for nothing. Sidecars
+  holding `true`/`false` still mean on and off.
+
+  The tooltip names the channel, and the letter carries a `!`, because the
+  waveform's own channel selector sits beside it showing a bare `L`.
+
+- **Highlight recovery, written but not proven** — `mods/highlights.rs`. Reads
+  the highlight colour out of the photo's own bright unclipped pixels, then
+  rebuilds clipped channels from the ones that survived. Runs from the decode
+  anchor. A pixel with nothing clipped comes back untouched, so a photo with no
+  blown highlights decodes exactly as before.
+
+  It does nothing useful on Canon sRAW, and cannot — see **Measured**. Still
+  unproven on full RAW, which is the case it was written for.
+
+### Measured
+- **How much of a real photo is clipped.** Written before the recovery rather
+  than after it, because camera profiles were built on reasoning that one
+  measurement afterwards demolished.
+
+  ```
+    2026-09-06   53 photos    mean 0.05%   worst 0.12%
+    2023-06-25  217 photos    mean 0.08%   worst 2.6%
+    2026-06-06  126 photos    mean 2.03%   worst 45.5%
+  ```
+
+  AK found the third folder. It is 25x the others and is what any recovery has
+  to be judged on.
+
+- **Highlight recovery cannot work on Canon sRAW.** Not a limit of the method —
+  a property of the format.
+
+  On the worst frame, green clips across 45% of the picture while red and blue
+  never reach their own ceilings. That looks like the ideal case. It is not:
+  inside the blown region red varies by 0.03% of its mean and blue by 0.02%.
+  Flat. Red and blue say the true brightness is 1.00–1.01x where green stopped,
+  for 100.0% of 2.4 million clipped pixels.
+
+  rawler's decoder says why. In the 5D Mark II sRAW path, `r`, `g` and `b` are
+  each built from the same `y`. The format stores one brightness plus colour, so
+  when that brightness saturates all three channels saturate together. There is
+  no per-channel headroom for anyone to exploit — darktable can inpaint
+  plausible detail from neighbours, but it cannot recover what the file does not
+  hold.
+
+### Fixed
+- **The mergeability detector could not see half its own subject.** It matched
+  `ag_stage_` in their WGSL, so a call to any other `ag_` function was invisible.
+  Found by walking through the hole while adding one. It matches any `ag_…(`
+  call now, and the anchor counts for `shader.wgsl` and `image_processing.rs`
+  were understated and are now declared correctly.
+
+### Changed
+- **`ag_stage_display` is wired up.** It was written empty and held open so the
+  first display-referred tool would not have to touch their file. The clipping
+  view is that tool: one line in their shader, replacing the ten it had. The
+  next display-referred tool costs nothing.
+
+---
+
 ## 2026.37.15 — 2026-09-10
 
 ### Removed

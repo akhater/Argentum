@@ -24,7 +24,8 @@ the pipeline, so doing them together means understanding it once.
 |---|---|---|---|---|
 | ✅ | **White balance** | darktable | Done 2026.37.2, plus auto-WB. Built the sRGB↔XYZ↔Bradford conversion every later tool reuses | 3–4 days |
 | ✅ | **DCP camera profiles** | RawTherapee | Done 2026.37.12. Per photo, found online or imported, applied on the GPU per frame. It did **not** close the 4.2% gap against darktable, and could not have: darktable renders through the same Adobe matrix rawler already carries, so that measurement scores agreement with Adobe, not accuracy. The reasoning in the line above was wrong | 3–4 days |
-| ⬜ | **Highlight recovery** | darktable | Biggest visible rescue on real photos | 2 days |
+| 🔨 | **Highlight recovery** | darktable | Biggest visible rescue on real photos. RapidRAW has a Highlights *slider*, which is a different thing — it can only move detail that survived. This rebuilds a channel that clipped from the two that did not. Raw domain, before demosaic, through the decode anchor we already have | 2 days |
+| ⬜ | **Clipping preview** | Lightroom | Hold a key on Blacks/Whites and see which pixels are about to lose everything. Recovering highlights without it is guesswork. Shift and Alt on a slider are taken (fine adjustment), so the key has to be chosen | 1 day |
 
 **Order matters here:** white balance first (it builds the colour conversion),
 then DCP (same pipeline stage, and it changes what "correct" white balance even
