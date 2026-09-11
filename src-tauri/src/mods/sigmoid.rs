@@ -31,6 +31,15 @@
 //! approximated — copying the reasoning and not just the constants, which is
 //! the lesson DEC-46 recorded the hard way.
 
+// Nothing in the app calls this yet.
+//
+// darktable's sigmoid, harvested and shipped as the tone curve in 2026.37.8,
+// then reverted in 2026.37.9 — it had been built against a single frame and was
+// compensating for the sRAW levels bug, which was found straight afterwards.
+// The maths was never the problem and is kept for "Filmic tone mapping" on the
+// roadmap. Its own tests exercise it; the binary does not.
+#![allow(dead_code)]
+
 /// darktable's `MIDDLE_GREY`. The scene value that anchors the curve.
 const MIDDLE_GREY: f32 = 0.1845;
 

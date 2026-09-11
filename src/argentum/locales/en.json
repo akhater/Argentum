@@ -32,5 +32,8 @@
   "profileFindTooltip": "Look for a published profile for this camera",
   "gearAddProfile": "Add profile…",
   "gearRemoveProfile": "Delete this profile",
-  "gearNoProfilesFor": "No profiles yet"
+  "gearNoProfilesFor": "No profiles yet",
+  "recoveryLabel": "Highlight recovery",
+  "recoveryHelp": "Rebuilds a colour channel that blew out from the two that survived. Applies to the next photo you open.",
+  "thresholdHint": "Hold Ctrl while dragging to see what is about to clip"
 }

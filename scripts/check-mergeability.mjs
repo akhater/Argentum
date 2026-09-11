@@ -24,6 +24,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OURS = [
   'src-tauri/src/mods/',
   'src-tauri/src/shaders/modules.wgsl',
+  'src-tauri/src/shaders/ag_display.wgsl',
   'src/argentum/',
   'scripts/',
   'docs/',
@@ -78,13 +79,34 @@ const BUDGETS = [
  */
 const EXCEPTIONS = [
   {
+    file: 'src-tauri/src/lib.rs',
+    allow: 14,
+    date: '2026-09-11',
+    why: 'Twelve lines of structure — `mod mods`, startup, the single command, '
+      + 'and the photo each render names — plus one on 2026-09-11: the display '
+      + 'conversion for the screen the window is on. The native preview handed '
+      + 'sRGB numbers straight to the panel, which is right only if the panel is '
+      + 'sRGB; on a wide-gamut display every photo was shown over-saturated. '
+      + 'This is where the transform reaches the GPU, so it is where the screen '
+      + 'has to be named. A second line refreshes that conversion when the window '
+      + 'moves: the frontend only sends a transform when its own idea of one '
+      + 'changes, which does not include which monitor the window is on.',
+  },
+  {
     file: 'src-tauri/src/file_management.rs',
-    allow: 30,
-    date: '2026-09-08',
-    why: 'Sidecar rename .rrdata -> .agdata. An extension permeates their code '
-      + 'by nature; no amount of moving logic to mods/ avoids it. Taken so '
-      + 'RapidRAW cannot open an Argentum edit and silently render it wrong '
-      + 'once our colour maths diverges.',
+    allow: 31,
+    date: '2026-09-10',
+    why: 'Sidecar rename .rrdata -> .agdata (30 lines, agreed 2026-09-08). An '
+      + 'extension permeates their code by nature; no amount of moving logic to '
+      + 'mods/ avoids it. Taken so RapidRAW cannot open an Argentum edit and '
+      + 'silently render it wrong once our colour maths diverges. '
+      + 'One more line on 2026-09-10: the photo argument on the render call. '
+      + 'Rendering has to know which photo it is holding, because the camera '
+      + 'profile correction is derived from the matrix that photo was decoded '
+      + 'with. It is an argument rather than something inferred so the compiler '
+      + 'asks the question at every call site — an earlier version guessed from '
+      + 'thread history and was silently wrong wherever a render reused pixels '
+      + 'somebody else had decoded.',
   },
   {
     file: 'src-tauri/src/exif_processing.rs',
@@ -119,9 +141,18 @@ const EXCEPTIONS = [
 const ANCHORS = [
   {
     file: 'src-tauri/src/lib.rs',
-    hooks: 3,
-    what: '`mod mods`, the cache-version check, and the single `ag` command',
+    hooks: 5,
+    what:
+      '`mod mods`, the cache-version check, the single `ag` command, the display '
+      + 'conversion for the screen the window is on, and the refresh when the window '
+      + 'moves to another screen',
     instead: 'add a match arm to mods/dispatch.rs — commands cost nothing here',
+  },
+  {
+    file: 'src-tauri/src/shaders/display.wgsl',
+    hooks: 1,
+    what: 'one call to ag_stage_present, the presentation stage',
+    instead: 'add your tool inside ag_stage_present in shaders/ag_display.wgsl',
   },
   {
     file: 'src-tauri/src/shaders/shader.wgsl',

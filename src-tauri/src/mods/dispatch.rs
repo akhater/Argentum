@@ -67,6 +67,11 @@ struct FileArgs {
 }
 
 #[derive(Deserialize)]
+struct OnArgs {
+    on: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelArgs {
     /// Absent for commands that only identify a camera by model.
@@ -138,6 +143,14 @@ pub async fn ag(
             let a: ModelArgs = args_for(&name, args)?;
             serde_json::to_value(commands::get_profile_online(a.make, a.model).await?)
                 .map_err(|e| e.to_string())
+        }
+        "highlight_recovery" => {
+            serde_json::to_value(commands::highlight_recovery()?).map_err(|e| e.to_string())
+        }
+        "set_highlight_recovery" => {
+            let a: OnArgs = args_for(&name, args)?;
+            commands::set_highlight_recovery(a.on)?;
+            Ok(serde_json::Value::Null)
         }
         "profiles_for_camera" => {
             let a: ModelArgs = args_for(&name, args)?;

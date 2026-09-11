@@ -34,6 +34,12 @@
 //! channels gone, not all three. That number is the ceiling on what any
 //! recovery can be worth, and it is knowable before writing the recovery.
 
+// The survey below is a measuring instrument, run by hand, and nothing in the
+// app calls it. It stays because the numbers it produces are the reason
+// highlight recovery is built the way it is, and a measurement you cannot rerun
+// is a claim rather than a measurement.
+#![allow(dead_code)]
+
 use rawler::rawimage::{RawImage, RawImageData};
 
 /// How close to the ceiling still counts as clipped, as a fraction of the
@@ -534,6 +540,14 @@ const SAMPLE_STRIDE: usize = 4;
 /// that is not a mosaic or a triple, a frame too dark to learn a colour from.
 /// None of those is an error, and none is worth failing a decode over.
 pub fn recover(raw: &mut RawImage) {
+    if !enabled() {
+        return;
+    }
+    // A way to render the same photo without this from a test, so the two can
+    // be put side by side. Nothing in the app reads the environment.
+    if std::env::var_os("AG_NO_RECOVERY").is_some() {
+        return;
+    }
     let Some(ceil4) = ceilings(raw) else { return };
     let ceilings = [ceil4[0], ceil4[1], ceil4[2]];
 
@@ -947,5 +961,118 @@ inside the blown region:");
             );
         }
         println!();
+    }
+}
+
+// ============================================================================
+// THE SETTING
+// ============================================================================
+//
+// WHY IT IS A SETTING AND NOT A SLIDER
+//
+// Neither Lightroom nor darktable gives highlight recovery an amount. Lightroom
+// has no control at all — it happens, always, as part of reading the file.
+// darktable and RawTherapee give you a *method* to choose between and a switch
+// to turn it off, because there is nothing continuous to dial: a channel is
+// either being reconstructed or it is being left at its ceiling.
+//
+// WHY IT IS NOT PER PHOTO
+//
+// Because this runs while the RAW is decoded, and a per-photo setting that
+// changes the decode has to re-read the file every time it is flipped. Camera
+// profiles were built that way first and it took four attempts and a rewrite
+// onto the GPU before switching one stopped breaking something. This cannot go
+// on the GPU — it has to happen before demosaic, on the mosaic itself — so
+// instead it does not pretend to be instant: it is a preference, and it applies
+// to the next photo opened.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// On unless someone turns it off.
+///
+/// Default on because it is the right default and a free one: a photo with
+/// nothing clipped comes out of it bit for bit unchanged.
+static ENABLED: AtomicBool = AtomicBool::new(true);
+
+pub fn set_enabled(on: bool) {
+    ENABLED.store(on, Ordering::Relaxed);
+}
+
+pub fn enabled() -> bool {
+    ENABLED.load(Ordering::Relaxed)
+}
+
+/// Where the preference is kept between runs.
+///
+/// Beside the profile library, in our own directory, because it is ours. One
+/// line of JSON rather than a key in their settings file, which would be a line
+/// of theirs and a merge conflict every time upstream touches it.
+fn settings_path(library: &std::path::Path) -> std::path::PathBuf {
+    library.join("argentum-processing.json")
+}
+
+/// Read the preference at startup. Missing or unreadable means on.
+pub fn load(library: &std::path::Path) {
+    let on = std::fs::read_to_string(settings_path(library))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|json| json.get("highlightRecovery").and_then(|v| v.as_bool()))
+        .unwrap_or(true);
+    set_enabled(on);
+}
+
+/// Write it, and apply it now.
+pub fn save(library: &std::path::Path, on: bool) -> Result<(), String> {
+    set_enabled(on);
+    std::fs::create_dir_all(library).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&serde_json::json!({ "highlightRecovery": on }))
+        .map_err(|e| e.to_string())?;
+    std::fs::write(settings_path(library), text).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod setting_tests {
+    use super::*;
+
+    fn scratch(label: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("argentum-hl-{label}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch");
+        dir
+    }
+
+    #[test]
+    fn it_survives_a_restart() {
+        let dir = scratch("roundtrip");
+        save(&dir, false).expect("save");
+        set_enabled(true); // as if the app had restarted with the default
+        load(&dir);
+        assert!(!enabled());
+
+        save(&dir, true).expect("save");
+        set_enabled(false);
+        load(&dir);
+        assert!(enabled());
+        set_enabled(true);
+    }
+
+    /// No settings file is the normal case for everyone who never opens the
+    /// switch, and it has to mean on.
+    #[test]
+    fn nothing_written_yet_means_on() {
+        let dir = scratch("absent");
+        set_enabled(false);
+        load(&dir);
+        assert!(enabled());
+    }
+
+    /// A corrupt file must not decide anything.
+    #[test]
+    fn rubbish_means_on() {
+        let dir = scratch("rubbish");
+        std::fs::write(dir.join("argentum-processing.json"), "not json").expect("write");
+        set_enabled(false);
+        load(&dir);
+        assert!(enabled());
     }
 }

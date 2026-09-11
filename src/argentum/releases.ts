@@ -32,6 +32,20 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2026.37.17',
+    date: '2026-09-11',
+    notes: [
+      'Fixed the preview showing photos more saturated than they are. Argentum now '
+      + 'converts colour for the screen it is on, read from that display profile '
+      + 'profile — so what you see matches what you export. On a normal sRGB screen '
+      + 'nothing changes; on a wide-gamut one, quite a lot does.',
+      'Added highlight recovery: when a bright area blows out in one colour channel, '
+      + 'it is rebuilt from the two that survived. On by default, under Color.',
+      'The clipping warning now steps through channels — off, L, R, G, B — and '
+      + 'holding Ctrl while dragging Whites or Blacks shows only what is about to clip.',
+    ],
+  },
+  {
     version: '2026.37.16',
     date: '2026-09-10',
     notes: [

@@ -52,11 +52,25 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
 /// What is left here is the one thing only the decode knows: which matrix was
 /// used, so the correction can be worked out later. See
 /// mods/profile_correction.rs.
-fn apply_camera_profile(raw: &mut RawImage, _photo_path: Option<&str>) {
+fn apply_camera_profile(raw: &mut RawImage, photo_path: Option<&str>) {
+    // The matrix rawler will *actually* develop with, not the first one in the
+    // map.
+    //
+    // `color_matrix` is a HashMap, so `.values().next()` is whichever entry the
+    // hasher happens to yield — and for a camera carrying two illuminants that
+    // is not reliably the one used. `develop_intermediate` looks for D65 and
+    // falls back to the first entry only if there is none, so recording
+    // anything else means the correction inverts a transform that was never
+    // applied. Silent, and wrong in colour rather than in behaviour.
+    //
+    // Kept deliberately identical to rawler's rule rather than merely similar:
+    // this value is only meaningful if it is the same matrix.
     let built_in = raw
         .color_matrix
-        .values()
-        .next()
+        .iter()
+        .find(|(illuminant, _)| **illuminant == rawler::imgop::xyz::Illuminant::D65)
+        .or_else(|| raw.color_matrix.iter().next())
+        .map(|(_, m)| m)
         .filter(|m| m.len() >= 9)
         .map(|m| {
             let mut flat = [0.0f32; 9];
@@ -65,7 +79,7 @@ fn apply_camera_profile(raw: &mut RawImage, _photo_path: Option<&str>) {
         });
 
     match built_in {
-        Some(matrix) => super::profile_correction::remember_built_in(matrix),
+        Some(matrix) => super::profile_correction::remember_built_in(photo_path, matrix),
         // Nothing to correct against; a profile will simply not apply.
         None => super::profile_correction::forget_built_in(),
     }

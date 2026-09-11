@@ -122,10 +122,11 @@ impl Chromaticity {
 /// chromaticity, and unevenly per channel, which biases the detected illuminant.
 /// This was measurably making results warmer than darktable's.
 ///
-/// Keep these constants in sync with theirs. If upstream retunes the preview
-/// look, auto-WB drifts until this follows.
-const RAW_PREPROCESS_GAMMA: f32 = 2.38;
-const RAW_PREPROCESS_CONTRAST: f32 = 1.28;
+/// The curve itself lives in `mods::preview_encode`, which owns it and its
+/// inverse. Two constants used to sit here as well, with a note to keep them in
+/// step with upstream's — they had not been read by anything since the encode
+/// gained a toe and the inverse moved, so the note was asking for maintenance
+/// on a copy nobody was using.
 
 #[inline]
 fn to_scene_linear(value: f32) -> f32 {

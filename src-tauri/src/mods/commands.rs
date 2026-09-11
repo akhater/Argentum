@@ -128,6 +128,12 @@ pub async fn sample_processed_pixel(
         &adjustments,
         loaded.is_raw,
         tonemapper,
+        // The photo this readout took out of the state a moment ago, not
+        // "whatever is open now" — those are the same until somebody opens
+        // another photo while the numbers are being computed, and then the
+        // readout would be describing a different picture from the one on
+        // screen.
+        Some(loaded.path.as_str()),
     );
     // Clipping indicators paint pure red or blue over blown pixels, which would
     // be read back as if it were the colour of the picture.
@@ -328,3 +334,12 @@ pub fn profiles_for_camera(make: String, model: String) -> Result<CameraProfiles
     })
 }
 
+/// Is highlight recovery on, and where does the switch live?
+pub fn highlight_recovery() -> Result<bool, String> {
+    Ok(crate::mods::highlights::enabled())
+}
+
+/// Turn it on or off. Applies to the next photo decoded.
+pub fn set_highlight_recovery(on: bool) -> Result<(), String> {
+    crate::mods::highlights::save(profile_library()?, on)
+}

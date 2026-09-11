@@ -468,7 +468,21 @@ mod make_a_test_profile {
 pub(crate) mod fixture {
     use super::tag;
 
+    /// The same profile with the forward matrix left out.
+    ///
+    /// A real shape: the DNG spec requires `ColorMatrix1` and makes
+    /// `ForwardMatrix1` optional, so profiles like this exist and get handed to
+    /// us. Argentum cannot render with one, and this is what proves it says so
+    /// rather than accepting it and doing nothing.
+    pub fn colour_matrix_only(camera: &str) -> Vec<u8> {
+        build(camera, false)
+    }
+
     pub fn profile_for(camera: &str) -> Vec<u8> {
+        build(camera, true)
+    }
+
+    fn build(camera: &str, with_forward: bool) -> Vec<u8> {
         let matrix: [(i32, i32); 9] = [
             (4716, 10000),
             (603, 10000),
@@ -487,12 +501,32 @@ pub(crate) mod fixture {
         name.push(0);
         let name = name.as_slice();
 
-        let entries: Vec<(u16, u16, u32)> = vec![
+        // A real profile carries a forward matrix, and without one Argentum
+        // refuses it — so a fixture without one is not a fixture of anything
+        // this code will ever be handed. These are the published Canon EOS 5D
+        // Mark II values, so neutral in gives D50 white out.
+        let forward: [(i32, i32); 9] = [
+            (6399, 10000),
+            (1294, 10000),
+            (1949, 10000),
+            (2827, 10000),
+            (6579, 10000),
+            (594, 10000),
+            (1, 10000),
+            (51, 10000),
+            (8199, 10000),
+        ];
+
+        let mut entries: Vec<(u16, u16, u32)> = vec![
             (tag::PROFILE_NAME, 2, name.len() as u32),
             (tag::UNIQUE_CAMERA_MODEL, 2, name.len() as u32),
             (tag::CALIBRATION_ILLUMINANT_1, 3, 1),
             (tag::COLOR_MATRIX_1, 10, 9),
         ];
+        if with_forward {
+            entries.push((tag::FORWARD_MATRIX_1, 10, 9));
+        }
+        let entries = entries;
 
         let ifd_at = 8usize;
         let heap_at = ifd_at + 2 + entries.len() * 12 + 4;
@@ -505,6 +539,12 @@ pub(crate) mod fixture {
                 tag::PROFILE_NAME | tag::UNIQUE_CAMERA_MODEL => heap.extend_from_slice(name),
                 tag::COLOR_MATRIX_1 => {
                     for (n, d) in matrix {
+                        heap.extend_from_slice(&n.to_le_bytes());
+                        heap.extend_from_slice(&d.to_le_bytes());
+                    }
+                }
+                tag::FORWARD_MATRIX_1 => {
+                    for (n, d) in forward {
                         heap.extend_from_slice(&n.to_le_bytes());
                         heap.extend_from_slice(&d.to_le_bytes());
                     }

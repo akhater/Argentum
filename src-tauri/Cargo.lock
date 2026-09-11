@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Argentum"
-version = "2026.37.9"
+version = "2026.37.17"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -74,6 +74,7 @@ dependencies = [
  "webkit2gtk",
  "webp",
  "wgpu",
+ "windows 0.62.2",
 ]
 
 [[package]]

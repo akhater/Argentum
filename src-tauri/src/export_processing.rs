@@ -444,7 +444,7 @@ fn process_image_for_export_pipeline(
         .collect();
 
     let tm_override = resolve_tonemapper_override_from_handle(app_handle, is_raw);
-    let mut all_adjustments = get_all_adjustments_from_json(js_adjustments, is_raw, tm_override);
+    let mut all_adjustments = get_all_adjustments_from_json(js_adjustments, is_raw, tm_override, Some(path));
     all_adjustments.global.show_clipping = 0;
 
     let lut_path = js_adjustments["lutPath"].as_str();
@@ -718,7 +718,7 @@ fn export_masks_for_image(
 
     if !mask_bitmaps.is_empty() {
         let tm_override = resolve_tonemapper_override_from_handle(app_handle, is_raw);
-        let all_adjustments = get_all_adjustments_from_json(js_adjustments, is_raw, tm_override);
+        let all_adjustments = get_all_adjustments_from_json(js_adjustments, is_raw, tm_override, Some(source_path_str));
         let lut_path = js_adjustments["lutPath"].as_str();
         let lut = lut_path.and_then(|p| get_or_load_lut(state, p).ok());
         let unique_hash = calculate_full_job_hash(source_path_str, js_adjustments);
@@ -816,7 +816,7 @@ fn export_adjustments_as_lut(
     let identity_image = generate_identity_lut_image(lut_size);
 
     let tm_override = resolve_tonemapper_override_from_handle(app_handle, false);
-    let mut all_adjustments = get_all_adjustments_from_json(js_adjustments, false, tm_override);
+    let mut all_adjustments = get_all_adjustments_from_json(js_adjustments, false, tm_override, Some(source_path_str));
 
     all_adjustments.global.show_clipping = 0;
     all_adjustments.global.vignette_amount = 0.0;
@@ -1567,7 +1567,7 @@ pub async fn estimate_export_sizes(
 
         let tm_override = resolve_tonemapper_override_from_handle(&app_handle, is_raw);
         let mut all_adjustments =
-            get_all_adjustments_from_json(&adjustments_clone, is_raw, tm_override);
+            get_all_adjustments_from_json(&adjustments_clone, is_raw, tm_override, Some(source_path_str.as_str()));
         all_adjustments.global.show_clipping = 0;
 
         let lut = adjustments_clone["lutPath"]
@@ -1705,7 +1705,7 @@ pub async fn estimate_export_sizes(
 
         let tm_override = resolve_tonemapper_override_from_handle(&app_handle, is_raw);
         let mut all_adjustments =
-            get_all_adjustments_from_json(&js_adjustments, is_raw, tm_override);
+            get_all_adjustments_from_json(&js_adjustments, is_raw, tm_override, Some(source_path_str.as_str()));
         all_adjustments.global.show_clipping = 0;
 
         let lut = js_adjustments["lutPath"]

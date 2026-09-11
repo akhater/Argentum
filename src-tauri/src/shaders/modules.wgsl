@@ -357,16 +357,59 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
     let high = 0.998;
     let low = 0.002;
 
-    var over = false;
-    var under = false;
+    // Setting a white or black point. Everything that is not at the limit goes
+    // away, so the only thing on screen is what you are about to lose — which
+    // is the whole reason to look.
+    //
+    // The colour is which channels went, because on the way to a white point
+    // the channels do not arrive together: red first on warm light, blue first
+    // on cold. Seeing one channel go is the signal to stop.
+    if (mode == 5u) {
+        if (color.r > high || color.g > high || color.b > high) {
+            var out = vec3<f32>(0.0, 0.0, 0.0);
+            if (color.r > high) { out.r = 1.0; }
+            if (color.g > high) { out.g = 1.0; }
+            if (color.b > high) { out.b = 1.0; }
+            return out;
+        }
+        return vec3<f32>(0.0, 0.0, 0.0);
+    }
+    if (mode == 6u) {
+        // On white, a crushed channel is *taken away* rather than added.
+        //
+        // The first version added them, the same way the white point view does
+        // on black — so a pixel with all three channels crushed came out white,
+        // on a white background, and setting a black point showed nothing at
+        // all. Removing them means all three gone is black, which is the thing
+        // you are looking for, and one gone is its complement: lose red and the
+        // pixel goes cyan.
+        if (color.r < low || color.g < low || color.b < low) {
+            var out = vec3<f32>(1.0, 1.0, 1.0);
+            if (color.r < low) { out.r = 0.0; }
+            if (color.g < low) { out.g = 0.0; }
+            if (color.b < low) { out.b = 0.0; }
+            return out;
+        }
+        return vec3<f32>(1.0, 1.0, 1.0);
+    }
+
+    var v = 0.0;
+    var check_all = false;
     if (mode == 1u) {
-        over = any(color > vec3<f32>(high));
-        under = any(color < vec3<f32>(low));
+        check_all = true;
+    } else if (mode == 2u) {
+        v = color.r;
+    } else if (mode == 3u) {
+        v = color.g;
     } else {
-        // 2, 3, 4 select one channel; anything else was never written by us.
-        let v = select(select(color.b, color.g, mode == 3u), color.r, mode == 2u);
-        over = v > high;
-        under = v < low;
+        v = color.b;
+    }
+
+    var over = v > high;
+    var under = v < low;
+    if (check_all) {
+        over = color.r > high || color.g > high || color.b > high;
+        under = color.r < low || color.g < low || color.b < low;
     }
 
     if (over) {
@@ -377,6 +420,7 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
     }
     return color;
 }
+
 
 /// Display-referred stage: everything Argentum does after tone mapping.
 ///

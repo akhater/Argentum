@@ -42,6 +42,66 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.17 — 2026-09-11
+
+The preview had been showing every photo more saturated than it was, on this
+screen, since before any of the colour work started.
+
+### Fixed
+- **Display colour management** — `mods/display_profile.rs`,
+  `mods/display_monitor.rs`, `shaders/ag_display.wgsl`. The pipeline produces
+  sRGB and the native preview handed those numbers to the panel untouched:
+  `gpu_processing.rs` asks for a non-sRGB swapchain and `display.wgsl` returned
+  what it sampled. Right only if the panel is sRGB. On a wide-gamut display the
+  same numbers drive more saturated primaries.
+
+  Nothing on screen said so, because nothing sat beside it — except the crop
+  view, which goes out as a JPEG through WebView2 and *is* colour-managed. The
+  two disagreed, and an audit measured the gap as exactly this monitor's gamut
+  conversion: 0.5 of 255 with it, 3.5 without.
+
+  Now the ICC profile of whichever monitor the window is on is read at runtime,
+  the conversion derived from its colourants, and applied in linear light before
+  presenting. Three confirmations: the derivation agrees with the audit's own
+  matrix to 0.0003, the lookup returns the file the audit named, and the shader
+  compiles under naga in a test.
+
+  It follows the window rather than the machine. Moving to another screen is
+  caught by the window's own move event, because the frontend only sends a
+  transform when *its* idea of one changes and that does not include which
+  monitor. A profile reassigned or recalibrated under a window that never moves
+  is caught by a check every two seconds, because an idle photo has no frame to
+  notice on. Both found by audit, neither reachable by the tests that existed.
+
+  **What it is not:** a full ICC transform. The tone curves are read and ignored
+  — matching what the rest of the system appears to do for this class of profile
+  measured better than applying them. Matrix-shaped profiles with an sRGB curve
+  are what this is measured against; anything else is untested.
+
+### Added
+- **Highlight recovery** — `mods/highlights.rs`. Rebuilds a clipped channel from
+  the two that survived, using the colour of the photo's own bright pixels
+  rather than the camera's white balance, which is wrong exactly where it
+  matters. On by default with a switch in the Color panel; a photo with nothing
+  clipped comes out bit for bit unchanged.
+
+- **The clipping warning steps through the channels.** Off, L, R, G, B. And Ctrl
+  while dragging Whites or Blacks empties the picture to show only what is about
+  to go, which is how a white point is actually set — the difference between 250
+  and 255 is nothing to look at on a photograph.
+
+### Measured
+- Highlight recovery does almost nothing on AK's photos, and that is the honest
+  result. sRAW cannot be recovered at all: the format keeps one brightness for
+  all three channels, so when it saturates they all go. On full RAW there is too
+  little clipped — 0.05% of a frame on average — and what does clip is blown in
+  every channel at once.
+
+### Changed
+- Skin tones added to the roadmap.
+
+---
+
 ## 2026.37.16 — 2026-09-10
 
 ### Added

@@ -152,6 +152,33 @@ pub fn library_dir(app_data: &Path) -> std::io::Result<PathBuf> {
 ///
 /// A file that will not parse is skipped rather than failing the listing: one
 /// bad download should not hide the rest.
+/// Can this profile actually be rendered with?
+///
+/// A `.dcp` is required to carry a `ColorMatrix` and *may* carry a
+/// `ForwardMatrix`. Only the forward matrix describes rendering — the colour
+/// matrix exists to find the illuminant — and the correction is derived from it
+/// alone. A profile without one parses, imports, appears in the dropdown, gets
+/// chosen, gets saved, and changes not one pixel. Silent nothing is the worst
+/// of the possible answers.
+///
+/// The alternative was to fall back to the colour matrix. It is a real reading
+/// of the format and it is not obviously right here: substituting a colour
+/// matrix earlier in this project measured *worse* than doing nothing — red 4.2%
+/// off against darktable became 9.5%. That might not apply to the arrangement
+/// the code now uses, and finding out needs the ten-photo set and a profile that
+/// actually lacks a forward matrix. Until then, refusing is honest and silence
+/// is not.
+/// Asks about the matrix rendering will *choose*, not about any matrix.
+///
+/// The first version accepted a profile if either illuminant carried a forward
+/// matrix. Rendering does not take either one — it takes whichever illuminant is
+/// nearest daylight. A profile with a tungsten forward matrix and a daylight
+/// entry without one therefore passed the check and then rendered nothing,
+/// which is the exact failure the check was written to prevent.
+pub fn is_renderable(profile: &dcp::Profile) -> bool {
+    super::decode::daylight_matrix(profile).is_some_and(|(_, _, forward)| forward.is_some())
+}
+
 pub fn installed(library: &Path) -> Vec<Installed> {
     let Ok(entries) = std::fs::read_dir(library) else {
         return Vec::new();
@@ -165,6 +192,10 @@ pub fn installed(library: &Path) -> Vec<Installed> {
         }
         let Ok(bytes) = std::fs::read(&path) else { continue };
         let Ok(profile) = dcp::parse(&bytes) else { continue };
+        // Not offered, because choosing it would do nothing at all.
+        if !is_renderable(&profile) {
+            continue;
+        }
         out.push(Installed {
             file: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
             name: profile.name,
@@ -230,6 +261,11 @@ pub fn published_is_installed(library: &Path, make: &str, model: &str) -> bool {
 pub fn import(library: &Path, source: &Path) -> Result<Installed, String> {
     let bytes = std::fs::read(source).map_err(|e| format!("could not read that file: {e}"))?;
     let profile = dcp::parse(&bytes).map_err(|e| format!("not a usable camera profile: {e}"))?;
+    if !is_renderable(&profile) {
+        return Err(
+            "that profile has no forward matrix, so Argentum cannot render with it".to_string(),
+        );
+    }
 
     let file = source
         .file_name()
@@ -326,6 +362,59 @@ mod tests {
         assert!(!matches("Canon EOS 7D Mark II", "Canon", "EOS 7D"));
         assert!(!matches("Canon EOS R", "Canon", "EOS R5"));
         assert!(!matches("Canon EOS R5", "Canon", "EOS R"));
+    }
+
+    /// Rendering takes the illuminant nearest daylight, so that is the one
+    /// whose forward matrix has to exist.
+    ///
+    /// A profile with a tungsten forward matrix and a daylight entry without one
+    /// passed the first version of this check and then rendered nothing — the
+    /// exact failure the check was written to prevent.
+    #[test]
+    fn the_check_asks_about_the_matrix_rendering_will_choose() {
+        const M: [f32; 9] = [0.4716, 0.0603, -0.083, -0.7798, 1.5474, 0.248, -0.1496, 0.1937, 0.6651];
+        let profile = |f1: Option<[f32; 9]>, f2: Option<[f32; 9]>| dcp::Profile {
+            name: None,
+            camera: None,
+            illuminant1: 17, // Standard A, tungsten
+            illuminant2: Some(21), // D65, and the one rendering will pick
+            colour_matrix1: M,
+            colour_matrix2: Some(M),
+            forward_matrix1: f1,
+            forward_matrix2: f2,
+        };
+
+        assert!(!is_renderable(&profile(Some(M), None)), "tungsten only is not enough");
+        assert!(is_renderable(&profile(None, Some(M))), "daylight has one, so it renders");
+        assert!(is_renderable(&profile(Some(M), Some(M))));
+        assert!(!is_renderable(&profile(None, None)));
+    }
+
+    /// A profile with no forward matrix is refused rather than offered.
+    ///
+    /// Offering it is the bad outcome: the correction is derived from the
+    /// forward matrix alone, so choosing one without it would save the choice,
+    /// show it in the dropdown, and change nothing at all.
+    #[test]
+    fn a_profile_that_cannot_render_is_not_offered() {
+        let dir = std::env::temp_dir().join("argentum-profiles-noforward");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch");
+
+        // The fixture without its forward matrix: parses, and is useless.
+        let full = dcp::fixture::profile_for("Canon EOS 5D Mark II");
+        let stripped = dcp::fixture::colour_matrix_only("Canon EOS 5D Mark II");
+        assert!(dcp::parse(&full).is_ok_and(|p| is_renderable(&p)));
+        assert!(dcp::parse(&stripped).is_ok_and(|p| !is_renderable(&p)));
+
+        let source = dir.join("incoming.dcp");
+        std::fs::write(&source, &stripped).expect("write");
+        let err = import(&dir, &source).expect_err("must refuse");
+        assert!(err.contains("forward matrix"), "{err}");
+
+        // And one already sitting in the library is not listed either.
+        std::fs::write(dir.join("old.dcp"), &stripped).expect("write");
+        assert!(installed(&dir).iter().all(|i| i.file != "old.dcp"));
     }
 
     /// "Find one" has nothing to find once RawTherapee's own file is here.

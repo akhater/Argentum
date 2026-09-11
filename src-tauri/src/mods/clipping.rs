@@ -8,6 +8,12 @@
 //! So the button cycles rather than toggles: off, all channels, then red, green
 //! and blue on their own.
 //!
+//! Two more modes are not on that cycle because they are *held*, not chosen:
+//! Ctrl while dragging Whites or Blacks empties the picture to black or white
+//! and shows only what is being blown or crushed, which is how a white point
+//! and a black point are actually set. Lightroom does this with Alt; Alt and
+//! Shift on a slider here already mean fine adjustment, so it is Ctrl.
+//!
 //! WHY NOT ONE VIEW WITH THE CHANNELS COLOUR-CODED
 //!
 //! That was the first version, and it was better on paper: one look tells you
@@ -26,6 +32,12 @@
 //! adjustments — and every key there is part of the thumbnail cache hash, so a
 //! new one rebuilds the user's whole library once for nothing.
 
+// The mode constants are a contract with two things Rust cannot see: the WGSL
+// in shaders/modules.wgsl, which compares against the same numbers, and the
+// frontend, which cycles through them. Naming them here is what keeps those
+// three in step, so they are not dead — they are the definition.
+#![allow(dead_code)]
+
 /// Off. The photo as it is.
 pub const OFF: u32 = 0;
 /// Any channel: red for clipped, blue for crushed. RapidRAW's original.
@@ -37,6 +49,15 @@ pub const BLUE: u32 = 4;
 /// How many steps the button cycles through, off included.
 pub const COUNT: u32 = 5;
 
+/// Setting the white point: the picture goes black and only what is being
+/// blown shows. Not part of the button's cycle — it is held, while dragging.
+pub const WHITE_POINT: u32 = 5;
+/// Setting the black point: the picture goes white and only what is being
+/// crushed shows.
+pub const BLACK_POINT: u32 = 6;
+/// Every mode, including the two held ones.
+pub const LAST: u32 = 6;
+
 /// Read the mode out of the adjustments the frontend sent.
 ///
 /// Accepts the old `true`/`false` as well as a number, because sidecars written
@@ -44,7 +65,7 @@ pub const COUNT: u32 = 5;
 pub fn mode(js_adjustments: &serde_json::Value) -> u32 {
     let value = &js_adjustments["showClipping"];
     if let Some(n) = value.as_u64() {
-        return if n < COUNT as u64 { n as u32 } else { OFF };
+        return if n <= LAST as u64 { n as u32 } else { OFF };
     }
     if value.as_bool().unwrap_or(false) { ALL } else { OFF }
 }
@@ -81,6 +102,8 @@ mod tests {
     /// reaching past the end of the list.
     #[test]
     fn rubbish_lands_on_a_real_mode() {
+        assert_eq!(mode(&json!({ "showClipping": 5 })), WHITE_POINT);
+        assert_eq!(mode(&json!({ "showClipping": 6 })), BLACK_POINT);
         assert_eq!(mode(&json!({ "showClipping": 99 })), OFF);
         assert_eq!(mode(&json!({ "showClipping": "yes" })), OFF);
     }

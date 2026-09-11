@@ -691,7 +691,7 @@ pub fn generate_lut_previews(
                 "sectionVisibility": { "effects": true }
             });
             let swatch_adjustments =
-                get_all_adjustments_from_json(&swatch_lut_json, is_raw, tm_override);
+                get_all_adjustments_from_json(&swatch_lut_json, is_raw, tm_override, Some(loaded_image.path.as_str()));
 
             let thumb = render_lut_swatch(
                 &context,

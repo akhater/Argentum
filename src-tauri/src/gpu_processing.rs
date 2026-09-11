@@ -40,6 +40,7 @@ pub struct DisplayTransform {
     pub _pad: f32,
     pub bg_primary: [f32; 4],
     pub bg_secondary: [f32; 4],
+    pub ag_display_matrix: [[f32; 4]; 3], // Argentum: sRGB to this screen, see mods/display_profile.rs
 }
 
 pub struct WgpuDisplay {
@@ -302,7 +303,7 @@ pub fn get_or_init_gpu_context(
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Display Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/display.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/ag_display.wgsl"), include_str!("shaders/display.wgsl")).into()), // Argentum: ours in front of theirs
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -404,6 +405,7 @@ pub fn get_or_init_gpu_context(
                 _pad: 0.0,
                 bg_primary: [24.0 / 255.0, 24.0 / 255.0, 24.0 / 255.0, 1.0],
                 bg_secondary: [35.0 / 255.0, 35.0 / 255.0, 35.0 / 255.0, 1.0],
+                ag_display_matrix: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], // Argentum: no conversion until a screen is known
             },
             sampler,
             current_bind_group: None,

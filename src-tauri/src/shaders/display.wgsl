@@ -8,6 +8,7 @@ struct Transform {
     _pad: f32,
     bg_primary: vec4<f32>,
     bg_secondary: vec4<f32>,
+    ag_display_matrix: array<vec4<f32>, 3>,  // Argentum
 };
 
 @group(0) @binding(0) var<uniform> transform: Transform;
@@ -64,14 +65,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let min_uv = half_texel;
     let max_uv = (transform.image_size / transform.texture_size) - half_texel;
 
+    var sampled: vec4<f32>;
     if (transform.pixelated > 0.5) {
         let texel_coords = floor(adjusted_uv * transform.texture_size);
         let nearest_uv = (texel_coords + vec2<f32>(0.5, 0.5)) / transform.texture_size;
 
         let clamped_nearest = clamp(nearest_uv, min_uv, max_uv);
-        return textureSample(tex, samp, clamped_nearest);
+        sampled = textureSample(tex, samp, clamped_nearest);
     } else {
         let clamped_uv = clamp(adjusted_uv, min_uv, max_uv);
-        return textureSample(tex, samp, clamped_uv);
+        sampled = textureSample(tex, samp, clamped_uv);
     }
+    return ag_stage_present(sampled, transform.ag_display_matrix);  // Argentum: the presentation anchor, see ag_display.wgsl
 }

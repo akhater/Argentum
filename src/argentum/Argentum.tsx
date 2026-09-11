@@ -27,6 +27,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import RgbReadout from './RgbReadout';
 import RgbReadoutButton from './RgbReadoutButton';
@@ -35,9 +36,11 @@ import RefreshMetadataButton from './RefreshMetadataButton';
 import AutoWhiteBalanceButton from './AutoWhiteBalanceButton';
 import AboutPanel from './AboutPanel';
 import CameraProfile from './CameraProfile';
+import HighlightRecovery from './HighlightRecovery';
 import MyGear from './MyGear';
-import { registerArgentumTranslations } from './locales';
+import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
+import { useThresholdPreview } from './useThresholdPreview';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -68,6 +71,12 @@ function useAnchor(selector: string, pick: (el: Element) => Element | null = (el
 }
 
 export default function Argentum() {
+  // Their namespace, not ours: what is needed here is the label they already
+  // print on the Whites and Blacks sliders, in whichever of the thirteen
+  // languages is showing.
+  const { t } = useTranslation();
+  const agT = useAgTranslation();
+
   // Our strings live in our own i18next namespace, so a new one costs nothing
   // in their thirteen locale files. Registered here rather than at module
   // scope: i18next is only ready for it after its own init has run.
@@ -77,6 +86,15 @@ export default function Argentum() {
   // library card, a folder path, a preset. Not a portal: it adds behaviour to
   // their existing tooltip rather than rendering anything of its own.
   useTruncatedTooltips();
+
+  // Ctrl while dragging Whites or Blacks empties the picture and shows only
+  // what is being blown or crushed, which is how those two are actually set.
+  // Their own slider labels identify which slider, so their files stay untouched.
+  useThresholdPreview({
+    white: t('adjustments.basic.whites'),
+    black: t('adjustments.basic.blacks'),
+    hint: agT('thresholdHint'),
+  });
 
   // The toolbar's undo button, whose parent is the button row. Upstream tags it
   // for its own benchmarks, so it is a stable thing to hang from.
@@ -118,7 +136,14 @@ export default function Argentum() {
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
       {colorTools && createPortal(<AutoWhiteBalanceButton />, colorTools)}
       {about && createPortal(<AboutPanel />, about)}
-      {cameraProfile && createPortal(<CameraProfile />, cameraProfile)}
+      {cameraProfile &&
+        createPortal(
+          <>
+            <CameraProfile />
+            <HighlightRecovery />
+          </>,
+          cameraProfile,
+        )}
       {gear && createPortal(<MyGear />, gear)}
       <RgbReadout />
     </>

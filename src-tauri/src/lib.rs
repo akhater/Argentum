@@ -312,6 +312,7 @@ async fn update_wgpu_transform(
             display.latest_transform.bg_primary = payload.bg_primary;
             display.latest_transform.bg_secondary = payload.bg_secondary;
             display.latest_transform.pixelated = if payload.pixelated { 1.0 } else { 0.0 };
+            display.latest_transform.ag_display_matrix = crate::mods::display_monitor::shader_rows_for_main_window(); // Argentum: sRGB to whichever screen the window is on
 
             context.queue.write_buffer(
                 &display.transform_buffer,
@@ -494,7 +495,7 @@ fn process_preview_job(
 
     let is_raw = loaded_image.is_raw;
     let tm_override = resolve_tonemapper_override_from_handle(app_handle, is_raw);
-    let final_adjustments = get_all_adjustments_from_json(&adjustments_clone, is_raw, tm_override);
+    let final_adjustments = get_all_adjustments_from_json(&adjustments_clone, is_raw, tm_override, Some(loaded_image.path.as_str()));
     let lut_path = adjustments_clone["lutPath"].as_str();
     let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
 
@@ -840,7 +841,7 @@ async fn generate_uncropped_preview(
 
         let tm_override = resolve_tonemapper_override_from_handle(&app_handle, is_raw);
         let mut uncropped_adjustments =
-            get_all_adjustments_from_json(&adjustments_clone, is_raw, tm_override);
+            get_all_adjustments_from_json(&adjustments_clone, is_raw, tm_override, Some(path.as_str()));
         uncropped_adjustments.global.show_clipping = 0;
         let lut_path = adjustments_clone["lutPath"].as_str();
         let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
@@ -942,7 +943,7 @@ fn generate_preset_preview(
         .collect();
 
     let tm_override = resolve_tonemapper_override_from_handle(&app_handle, is_raw);
-    let mut all_adjustments = get_all_adjustments_from_json(&js_adjustments, is_raw, tm_override);
+    let mut all_adjustments = get_all_adjustments_from_json(&js_adjustments, is_raw, tm_override, Some(loaded_image.path.as_str()));
     all_adjustments.global.show_clipping = 0;
     let lut_path = js_adjustments["lutPath"].as_str();
     let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
@@ -1009,7 +1010,7 @@ async fn generate_all_community_previews(
 
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
-    let mut base_thumbnails: Vec<(DynamicImage, bool, f32)> = Vec::new();
+    let mut base_thumbnails: Vec<(DynamicImage, bool, f32, String)> = Vec::new(); // Argentum: and which photo each came from
     for image_path in image_paths.iter() {
         let (source_path, _) = parse_virtual_path(image_path);
         let source_path_str = source_path.to_string_lossy().to_string();
@@ -1033,7 +1034,7 @@ async fn generate_all_community_previews(
             (original_image, 1.0)
         };
 
-        base_thumbnails.push((base_image, is_raw, base_scale));
+        base_thumbnails.push((base_image, is_raw, base_scale, source_path_str));
     }
 
     for preset in presets.iter() {
@@ -1044,7 +1045,7 @@ async fn generate_all_community_previews(
         preset.name.hash(&mut preset_hasher);
         let preset_hash = preset_hasher.finish();
 
-        for (i, (base_image, is_raw, base_scale)) in base_thumbnails.iter().enumerate() {
+        for (i, (base_image, is_raw, base_scale, tile_path)) in base_thumbnails.iter().enumerate() {
             let mut scaled_adjustments = js_adjustments.clone();
             if let Some(crop_val) = scaled_adjustments.get_mut("crop")
                 && let Ok(c) = serde_json::from_value::<Crop>(crop_val.clone())
@@ -1092,7 +1093,7 @@ async fn generate_all_community_previews(
 
             let tm_override = resolve_tonemapper_override_from_handle(&app_handle, *is_raw);
             let all_adjustments =
-                get_all_adjustments_from_json(&scaled_adjustments, *is_raw, tm_override);
+                get_all_adjustments_from_json(&scaled_adjustments, *is_raw, tm_override, Some(tile_path.as_str()));
             let lut_path = js_adjustments["lutPath"].as_str();
             let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
 
@@ -1376,7 +1377,7 @@ async fn generate_preview_for_path(
 
         let tm_override = resolve_tonemapper_override(&settings, is_raw);
         let mut all_adjustments =
-            get_all_adjustments_from_json(&js_adjustments, is_raw, tm_override);
+            get_all_adjustments_from_json(&js_adjustments, is_raw, tm_override, Some(source_path_str.as_str()));
         all_adjustments.global.show_clipping = 0;
         let lut_path = js_adjustments["lutPath"].as_str();
         let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
@@ -2008,6 +2009,7 @@ pub fn run() {
 
                 window.on_window_event(move |event| match event {
                     tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                        mods::display_monitor::refresh_after_window_change(); // Argentum: the window may be on another screen now
                         #[cfg(any(windows, target_os = "linux"))]
                         let maximized = window_for_handler.is_maximized().unwrap_or(false);
                         #[cfg(not(any(windows, target_os = "linux")))]

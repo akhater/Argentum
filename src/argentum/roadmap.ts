@@ -62,21 +62,32 @@ const MILESTONES: Milestone[] = [
       + 'Profiles are found online or imported, and applied while the photo is drawn.',
   },
   {
-    stage: 'building',
+    stage: 'done',
     what: 'Highlight recovery',
+    release: '2026.37.17',
     why:
-      'When a bright area clips, one channel usually blows before the others — a '
-      + 'sunset goes white, a lit dress goes flat. Rebuild the missing channel from '
-      + 'the two that survived, so colour comes back instead of a hole. The '
-      + 'Highlights slider is not this: it can only move detail that is still there.',
+      'When a bright area clips, one channel usually blows before the others. '
+      + 'Rebuilds the missing one from the two that survived. On by default, and '
+      + 'it does nothing at all to a photo with nothing clipped — which, measured '
+      + 'across 400 photos, is nearly all of them.',
   },
   {
-    stage: 'planned',
+    stage: 'done',
     what: 'Clipping preview',
+    release: '2026.37.17',
     why:
-      'Hold a key while dragging Blacks or Whites and see exactly which pixels are '
-      + 'about to lose all detail, the way Lightroom does. Without it, recovering '
-      + 'highlights is guesswork — you cannot fix what you cannot see.',
+      'The warning button steps through off, L, R, G and B. Hold Ctrl while '
+      + 'dragging Whites or Blacks and the picture empties to show only what is '
+      + 'about to go — which is how those two are actually set.',
+  },
+  {
+    stage: 'done',
+    what: 'Display colour management',
+    release: '2026.37.17',
+    why:
+      'The preview now converts for the screen it is on, read from the display profile '
+      + 'own profile. Without it a wide-gamut display showed every photo more '
+      + 'saturated than it was, and nothing on screen said so.',
   },
   {
     stage: 'planned',
@@ -90,6 +101,13 @@ const MILESTONES: Milestone[] = [
       'Export currently writes 8 bits a channel, which throws away most of what '
       + 'a RAW holds and shows as banding in skies once anything is edited '
       + 'afterwards. Needed before Argentum can hand work to another editor.',
+  },
+  {
+    stage: 'planned',
+    what: 'Skin tones',
+    why:
+      'The colour nobody forgives getting wrong, and the one a measurement against '
+      + 'another program cannot settle. Specifics still to come.',
   },
   {
     stage: 'planned',

@@ -2027,6 +2027,14 @@ pub fn is_image_edited(
     if adj.is_null() || adj.as_object().is_none() {
         return false;
     }
+    // Argentum: a chosen camera profile is an edit. It is not visible in the
+    // structs compared below, because that comparison names no photo and so
+    // gets the identity correction on both sides.
+    if let Some(profile) = adj.get("cameraProfile").and_then(|v| v.as_str())
+        && !profile.trim().is_empty()
+    {
+        return true;
+    }
 
     if let Some(patches) = adj.get("aiPatches").and_then(|v| v.as_array())
         && !patches.is_empty()
@@ -2084,9 +2092,9 @@ pub fn is_image_edited(
         return true;
     }
 
-    let current_adj = get_all_adjustments_from_json(adj, is_raw, tonemapper_override);
+    let current_adj = get_all_adjustments_from_json(adj, is_raw, tonemapper_override, None);
     let default_adj =
-        get_all_adjustments_from_json(&serde_json::json!({}), is_raw, tonemapper_override);
+        get_all_adjustments_from_json(&serde_json::json!({}), is_raw, tonemapper_override, None);
 
     bytemuck::bytes_of(&current_adj) != bytemuck::bytes_of(&default_adj)
 }
@@ -2095,6 +2103,7 @@ fn get_global_adjustments_from_json(
     js_adjustments: &serde_json::Value,
     is_raw: bool,
     tonemapper_override: Option<u32>,
+    photo: Option<&str>,
 ) -> GlobalAdjustments {
     let visibility = js_adjustments.get("sectionVisibility");
     let is_visible = |section: &str| -> bool {
@@ -2219,7 +2228,7 @@ fn get_global_adjustments_from_json(
         (0, 1.0, 0)
     };
 
-    let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments); // Argentum
+    let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
 
     GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),
@@ -2522,12 +2531,17 @@ fn get_mask_adjustments_from_json(adj: &serde_json::Value) -> MaskAdjustments {
     }
 }
 
+/// `photo` is the file whose pixels are being rendered. Argentum needs it: the
+/// camera-profile correction is derived from the matrix that *this* photo was
+/// decoded with, and a renderer that does not know which photo it is holding
+/// cannot ask for the right one. `None` is for callers that render nothing.
 pub fn get_all_adjustments_from_json(
     js_adjustments: &serde_json::Value,
     is_raw: bool,
     tonemapper_override: Option<u32>,
+    photo: Option<&str>,
 ) -> AllAdjustments {
-    let global = get_global_adjustments_from_json(js_adjustments, is_raw, tonemapper_override);
+    let global = get_global_adjustments_from_json(js_adjustments, is_raw, tonemapper_override, photo);
     let mut mask_adjustments = [MaskAdjustments::default(); MAX_MASKS];
     let mut mask_count = 0;
 

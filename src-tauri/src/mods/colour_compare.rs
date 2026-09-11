@@ -318,7 +318,7 @@ mod across_a_set {
             };
 
             let Ok(bytes) = std::fs::read(&raw) else { continue };
-            let Ok(mut ours) =
+            let Ok(ours) =
                 crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
             else {
                 continue;
@@ -977,5 +977,71 @@ mod difference_image {
         let path = dir.join("difference.png");
         out.save(&path).expect("save");
         println!("wrote {} at {gain}x", path.display());
+    }
+}
+
+/// Put two renders of the same photo side by side, cropped to where they differ
+/// most, so a person can decide whether a change is worth having.
+///
+/// A number can say "2.3 of 255 levels" and still not answer whether anyone
+/// would notice. This crops both to the same window — the one with the largest
+/// difference — and writes them as one image with a line down the middle: left
+/// is before, right is after.
+#[cfg(test)]
+mod side_by_side {
+    #[test]
+    #[ignore = "writes a comparison; run by hand"]
+    fn crop_where_they_differ() {
+        let before = image::open(std::env::var("AG_A").expect("set AG_A")).expect("a").to_rgb8();
+        let after = image::open(std::env::var("AG_B").expect("set AG_B")).expect("b").to_rgb8();
+        let out_path = std::env::var("AG_OUT").expect("set AG_OUT");
+        let window: u32 = std::env::var("AG_WINDOW").ok().and_then(|v| v.parse().ok()).unwrap_or(400);
+
+        assert_eq!(before.dimensions(), after.dimensions(), "different sizes");
+        let (w, h) = before.dimensions();
+
+        // Coarse search: the window with the most total difference.
+        let step = (window / 4).max(1);
+        let mut best = (0u32, 0u32, 0f64);
+        let mut y = 0;
+        while y + window <= h {
+            let mut x = 0;
+            while x + window <= w {
+                let mut sum = 0f64;
+                // Sampled, because this is a search and not a measurement.
+                for dy in (0..window).step_by(8) {
+                    for dx in (0..window).step_by(8) {
+                        let a = before.get_pixel(x + dx, y + dy);
+                        let b = after.get_pixel(x + dx, y + dy);
+                        sum += (0..3).map(|c| (a[c] as f64 - b[c] as f64).abs()).sum::<f64>();
+                    }
+                }
+                if sum > best.2 {
+                    best = (x, y, sum);
+                }
+                x += step;
+            }
+            y += step;
+        }
+
+        let (bx, by, score) = best;
+        println!("\nmost changed window at {bx},{by}  (score {score:.0})");
+        if score == 0.0 {
+            println!("the two renders are identical\n");
+            return;
+        }
+
+        let mut canvas = image::RgbImage::new(window * 2 + 4, window);
+        for yy in 0..window {
+            for xx in 0..window {
+                canvas.put_pixel(xx, yy, *before.get_pixel(bx + xx, by + yy));
+                canvas.put_pixel(xx + window + 4, yy, *after.get_pixel(bx + xx, by + yy));
+            }
+            for gap in 0..4 {
+                canvas.put_pixel(window + gap, yy, image::Rgb([255, 0, 255]));
+            }
+        }
+        canvas.save(&out_path).expect("write");
+        println!("wrote {out_path}   left: before   right: after\n");
     }
 }
