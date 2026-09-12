@@ -153,3 +153,18 @@ export function detectOverlaps(run, from, to, { shadowed = SHADOWED, sidecarKeys
   }
   return overlaps;
 }
+
+/**
+ * For each borrowed pull request, the upstream commits in this range that name
+ * it — which is weak evidence and is labelled as such where it is printed.
+ *
+ * Reported per pull request. The first version asked whether *any* borrowed PR
+ * had landed and, if one had, printed nothing about the others: one landing
+ * silenced the rest.
+ */
+export function borrowStatus(run, from, to, prs) {
+  return prs.map((pr) => {
+    const landed = run(`git log --format=%h ${from}..${to} --grep="#${pr}"`).trim();
+    return { pr, landedIn: landed ? landed.split('\n') : [] };
+  });
+}

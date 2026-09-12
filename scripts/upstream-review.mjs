@@ -1,4 +1,4 @@
-// What arrived with the last upstream fetch, and which of it touches us.
+// What arrived from upstream since the last recorded review, and what it lands on.
 //
 // WHY THIS EXISTS
 //
@@ -9,7 +9,11 @@
 // upstream had shipped their own white balance, git would have merged it in
 // silence and Argentum would have had two, or theirs would quietly have won.
 //
-// So this prints the review list. The decision is a person's; the list is not.
+// The first version of this script started from the git merge-base, which meant
+// the merge itself closed the window: afterwards it printed "nothing new" whether
+// or not anybody had looked. It starts from the review register now, so the list
+// survives the merge and goes on being printed until the decisions are written
+// down. check-mergeability.mjs fails for exactly as long.
 //
 // Run:  npm run review:upstream
 
@@ -18,107 +22,146 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { SENSITIVE, borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
+import { reviewedThrough } from './upstream-decisions.mjs';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-
-/** Upstream code our hooks step around. Kept in step with check-mergeability. */
-const SHADOWED = [
-  { file: 'src-tauri/src/image_processing.rs', symbol: 'apply_cpu_default_raw_processing' },
-  { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_white_balance' },
-];
-
-/** Keys in the adjustments JSON we added or re-typed. */
-const SIDECAR_KEYS = ['showClipping', 'cameraProfile'];
-
-/** Areas where a clean merge proves least. */
-const SENSITIVE = [
-  { what: 'RAW decode / white balance', re: /raw_processing|image_processing|auto_wb|white.?balance|demosaic|temperature/i },
-  { what: 'lens correction', re: /lens_correction|lensfun|distortion|vignett/i },
-  { what: 'camera profiles', re: /dcp|profile|colou?r.?matrix|calibration/i },
-  { what: 'shaders', re: /\.wgsl|shader|gpu_processing/i },
-  { what: 'export', re: /export_processing|tiff|bit.?depth|encode/i },
-];
-
-const sh = (cmd, big = false) =>
-  execSync(cmd, { cwd: root, encoding: 'utf8', maxBuffer: (big ? 96 : 8) * 1024 * 1024 });
+const git = (cmd, big = false) =>
+  execSync(cmd, {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: (big ? 96 : 8) * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+const short = (sha) => sha.slice(0, 8);
 
 if (!existsSync(join(root, '.git'))) process.exit(0);
 
+let head;
+try {
+  head = git('git rev-parse upstream/main').trim();
+} catch {
+  console.log('  no upstream/main ref - run: git fetch upstream');
+  process.exit(0);
+}
+
+const from = reviewedThrough();
 let base;
 try {
-  base = sh('git merge-base HEAD upstream/main').trim();
+  base = git(`git rev-parse --verify ${from}`).trim();
 } catch {
-  console.log('  no upstream/main ref — run: git fetch upstream');
-  process.exit(0);
+  console.log(`  the review register names ${short(from)}, which is not a commit here.`);
+  console.log('  Fetch upstream with full history and try again.');
+  process.exit(1);
 }
 
-const head = sh('git rev-parse upstream/main').trim();
-if (base === head) {
-  console.log(`  upstream: nothing new since ${base.slice(0, 8)} — already merged up to date`);
-  process.exit(0);
-}
-
-const commits = sh(`git log --format="%h%x09%s" ${base}..upstream/main`).trim().split('\n').filter(Boolean);
-const diffNames = sh(`git diff --name-only ${base}..upstream/main`).trim().split('\n').filter(Boolean);
-const diff = sh(`git diff ${base}..upstream/main`, true);
-
-console.log(`\n  ${commits.length} upstream commits to review, ${base.slice(0, 8)}..${head.slice(0, 8)}\n`);
-
-// --- Shadowed symbols: the highest-value signal -------------------------------
-const shadowHits = [];
-for (const { file, symbol } of SHADOWED) {
-  const touched = diffNames.includes(file);
-  const mentioned = diff.includes(symbol);
-  if (touched || mentioned) shadowHits.push({ file, symbol, touched, mentioned });
-}
-if (shadowHits.length > 0) {
-  console.log('  SHADOWED CODE UPSTREAM CHANGED — read these first\n');
-  for (const h of shadowHits) {
-    console.log(`    ${h.file}`);
-    console.log(`      we step around ${h.symbol}, and upstream ${h.mentioned ? 'changed lines mentioning it' : 'edited this file'}`);
-    console.log('      their fix will merge cleanly and never run here. Decide: adopt, keep ours, or combine.\n');
-  }
-} else {
-  console.log('  shadowed code: untouched by this batch\n');
-}
-
-// --- Sidecar keys: overlap in the data format, which no merge sees ------------
-const keyHits = SIDECAR_KEYS.filter((k) => diff.includes(k));
-if (keyHits.length > 0) {
-  console.log(`  SIDECAR KEYS upstream touched: ${keyHits.join(', ')}`);
-  console.log('    We changed the meaning of these. A type change breaks silently.\n');
-}
-
-// --- Borrowed fixes upstream may now have merged ------------------------------
-let borrowed = [];
+// Where the merge itself has got to. Commits between `base` and `merged` are
+// already in our tree and unreviewed - the dangerous kind, because nothing will
+// ever conflict over them again.
+let merged = base;
 try {
-  borrowed = [...sh('git grep -hoE "// upstream #[0-9]+" -- src src-tauri').matchAll(/#(\d+)/g)]
-    .map((m) => m[1]);
-} catch { /* none */ }
-const pending = [...new Set(borrowed)];
-for (const pr of pending) {
-  const landed = sh(`git log --format=%h ${base}..upstream/main --grep="#${pr}"`).trim();
-  if (landed) {
-    console.log(`  BORROWED #${pr} MAY HAVE LANDED upstream (${landed.split('\n').join(', ')})`);
-    console.log('    Compare our marked block with theirs. If identical, delete the markers;');
-    console.log('    if not, they changed it after we copied it.\n');
-  }
-}
-if (pending.length > 0 && !pending.some((pr) => sh(`git log --format=%h ${base}..upstream/main --grep="#${pr}"`).trim())) {
-  console.log(`  borrowed and still pending upstream: ${pending.map((p) => '#' + p).join(', ')}\n`);
+  merged = git('git merge-base HEAD upstream/main').trim();
+} catch { /* keep base */ }
+
+if (base === head) {
+  console.log(`  upstream: nothing new since ${short(base)}, and it is reviewed`);
+  process.exit(0);
 }
 
-// --- The commits themselves, flagged by area ---------------------------------
-console.log('  commits:\n');
+const commits = git(`git log --format="%h%x09%s" ${base}..${head}`).trim().split('\n').filter(Boolean);
+const mergedCount = base === merged
+  ? 0
+  : git(`git log --format=%h ${base}..${merged}`).trim().split('\n').filter(Boolean).length;
+
+console.log('');
+console.log(`  ${commits.length} upstream commits to review, ${short(base)}..${short(head)}`);
+if (mergedCount > 0) {
+  console.log(`  ${mergedCount} of them are ALREADY MERGED into this tree and unreviewed.`);
+  console.log('  Nothing will conflict over those again. They are the ones to read first.');
+}
+console.log('');
+
+const marks = borrowMarkers(git);
+const overlaps = detectOverlaps(git, base, head, { borrow: marks });
+const isMerged = (sha) => {
+  if (mergedCount === 0) return false;
+  try {
+    return git(`git merge-base --is-ancestor ${sha} ${merged} && echo yes`).trim() === 'yes';
+  } catch {
+    return false;
+  }
+};
+
+const gated = overlaps.filter((o) => o.gated);
+if (gated.length === 0) {
+  console.log('  nothing upstream lands on code of ours in this batch.');
+  console.log('');
+} else {
+  console.log(`  OVERLAPS - each of these needs a decision (${gated.length}):`);
+  console.log('');
+  for (const o of gated) {
+    console.log(`    ${o.key}${isMerged(o.commit) ? '   [already merged]' : ''}`);
+    console.log(`      ${o.commit}  ${o.subject}`);
+    console.log(`      ${o.detail}`);
+    console.log('');
+  }
+}
+
+const areas = overlaps.filter((o) => o.kind === 'area');
+if (areas.length > 0) {
+  console.log('  commits in areas where a clean merge proves least - read, but not gated:');
+  for (const a of areas) {
+    const what = SENSITIVE.find((x) => x.slug === a.target)?.what ?? a.target;
+    console.log(`    ${a.commit}  ${what}: ${a.subject}`);
+  }
+  console.log('');
+}
+
+// Borrowed fixes. Matching the pull request number finds a squash merge and
+// nothing else: most RapidRAW commits are the maintainer's own and name no
+// number, so a fix of theirs for the same bug is invisible to a grep. The file
+// overlaps above are what actually catch that; this is the cheap extra check.
+for (const { pr, landedIn } of borrowStatus(git, base, head, marks.prs)) {
+  if (landedIn.length > 0) {
+    console.log(`  BORROWED #${pr} names a commit upstream (${landedIn.join(', ')})`);
+    console.log('    If their block is now identical to ours, delete the markers.');
+  } else {
+    console.log(`  borrowed #${pr}: no commit in this batch names it - which is not proof`);
+    console.log('    it is still pending. Check the overlaps above for edits to the file it sits in.');
+  }
+}
+console.log('');
+
+console.log('  commits:');
+console.log('');
 for (const line of commits) {
   const [sha, ...rest] = line.split('\t');
-  const subject = rest.join('\t');
-  const files = sh(`git show --name-only --format= ${sha}`).trim();
-  const areas = SENSITIVE.filter((a) => a.re.test(subject) || a.re.test(files)).map((a) => a.what);
-  const mark = areas.length > 0 ? '  <-- ' + areas.join(', ') : '';
-  console.log(`    ${sha}  ${subject}${mark}`);
+  const flags = [...new Set(overlaps.filter((o) => o.commit === sha).map((o) => o.kind))];
+  const mark = flags.length > 0 ? '  <-- ' + flags.join(', ') : '';
+  console.log(`    ${sha}  ${rest.join('\t')}${mark}`);
 }
 
-console.log('\n  When the merge is done, record the new base in CHANGELOG.md:');
-console.log(`    **Based on RapidRAW \`x.y.z\` @ \`${head.slice(0, 8)}\`**`);
-console.log('  check:merge fails until that line matches, which is what makes this');
-console.log('  review happen at merge time rather than never.\n');
+console.log('');
+console.log('  When the merge is done and each overlap above is decided, add this to');
+console.log('  scripts/upstream-decisions.mjs - check:merge fails until it is there:');
+console.log('');
+console.log('    {');
+console.log(`      through: '${head}',`);
+const today = new Date();
+const stamp = [
+  today.getFullYear(),
+  String(today.getMonth() + 1).padStart(2, '0'),
+  String(today.getDate()).padStart(2, '0'),
+].join('-');
+console.log(`      date: '${stamp}',`);
+console.log('      decisions: [');
+for (const o of gated) {
+  console.log(`        { overlap: '${o.key}',`);
+  console.log(`          verdict: 'adopt | keep-ours | combine | not-applicable',`);
+  console.log(`          why: '' },`);
+}
+console.log('      ],');
+console.log('    },');
+console.log('');
+console.log(`  and make CHANGELOG.md say: **Based on RapidRAW \`x.y.z\` @ \`${short(head)}\`**`);
+console.log('');

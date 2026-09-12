@@ -34,6 +34,8 @@
 //
 // Run `npm run review:upstream` — it prints the overlap keys ready to paste.
 
+export const VERDICTS = ['adopt', 'keep-ours', 'combine', 'not-applicable'];
+
 export const REVIEWS = [
   {
     through: 'ef25ba2af99b6b0da1c568f51ccbb9040162bfc6',

@@ -18,6 +18,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { accountDiff } from './upstream-diff.mjs';
+import { SHADOWED, borrowMarkers, detectOverlaps } from './upstream-overlaps.mjs';
+import { VERDICTS, newestRange, reviewedThrough } from './upstream-decisions.mjs';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Paths that are ours. Anything under these is unlimited. */
@@ -38,6 +42,10 @@ const OURS = [
   // Ours by adoption - it now carries both rule sets, and upstream changes to
   // it are additive lines we simply keep.
   '.gitignore',
+  // Ours by creation: upstream has no such workflow. Their three are still
+  // theirs, and the Android matrix entry we removed from each is recorded in
+  // EXCEPTIONS below.
+  '.github/workflows/upstream.yml',
 ];
 
 /**
@@ -96,12 +104,11 @@ const EXCEPTIONS = [
   {
     file: 'src-tauri/src/file_management.rs',
     allow: 31,
-    allowDeleted: 31,
-    deletedWhy: 'Every deleted line is one half of the .rrdata -> .agdata '
-      + 'rename and was replaced one for one on the line below it. A rename, '
-      + 'not a removal: nothing of theirs stopped existing, so an upstream edit '
-      + 'still lands in a line that is there under a different name. Recorded '
-      + '2026-09-13, when the checker learned to see deletions at all.',
+    // This file needed an allowDeleted for exactly one day. Once the checker
+    // learned to tell a replacement from a removal, its 31 deleted lines came
+    // out as zero on their own - which is what the prose had always claimed:
+    // every one of them is half of the .rrdata -> .agdata rename and was
+    // replaced on the line below. Nothing of theirs stopped existing.
     date: '2026-09-10',
     why: 'Sidecar rename .rrdata -> .agdata (30 lines, agreed 2026-09-08). An '
       + 'extension permeates their code by nature; no amount of moving logic to '
@@ -125,17 +132,90 @@ const EXCEPTIONS = [
   {
     file: 'src/components/panel/SettingsPanel.tsx',
     allow: 6,
-    allowDeleted: 209,
+    allowDeleted: 207,
     date: '2026-09-13',
     why: 'The lens section moved out to src/argentum/MyGear.tsx, which is the '
       + 'architecture working: the panel is ours and their file keeps a tag.',
-    deletedWhy: '209 lines of their lens UI removed rather than left dormant, '
+    deletedWhy: '207 lines of their lens UI removed rather than left dormant, '
       + 'and this is the uncomfortable one. It is written down so it stays '
       + 'uncomfortable: upstream edits this file often, and any change they '
       + 'make inside the block we deleted is a conflict resolved by hand. It '
       + 'was invisible until the checker learned to count deletions on '
       + '2026-09-13. If it conflicts twice, put their section back and hide it '
       + 'instead of removing it.',
+  },
+  {
+    file: 'src/components/panel/editor/ImageCanvas.tsx',
+    allowDeleted: 13,
+    date: '2026-09-13',
+    why: 'One import and one call to argentum/whiteBalance.',
+    deletedWhy: 'Their eyedropper solved a colour temperature inline: gamma 2.2 '
+      + 'to linear, then two ratios scaled by 125 and 400. Ours solves the same '
+      + 'question in Rust so the picker and auto white balance cannot disagree '
+      + 'about what a temperature is. Their block had to go rather than go '
+      + 'dormant because it wrote straight into setAdjustments: left in place it '
+      + 'would run first and our answer would arrive as a second render. If '
+      + 'upstream edits this maths, the conflict is ours to resolve by hand.',
+  },
+  {
+    file: 'src-tauri/src/shaders/shader.wgsl',
+    allowDeleted: 10,
+    date: '2026-09-13',
+    deletedWhy: 'Their clipping indicator, eleven lines, replaced by the single '
+      + 'ag_stage_display call. Same reason as ImageCanvas: it assigns to '
+      + 'final_rgb, so a dormant copy is not dormant - it overwrites what our '
+      + 'stage returned. showClipping is 0..4 here and their block understands '
+      + 'only 1, so keeping both would show the wrong indicator, not two.',
+  },
+  {
+    file: 'src-tauri/src/image_processing.rs',
+    allowDeleted: 4,
+    date: '2026-09-13',
+    deletedWhy: 'The five-line boolean that filled show_clipping, replaced by a '
+      + 'one-line call to mods::clipping::mode. The field is theirs and is still '
+      + 'there; only the expression that fills it changed, because the value is '
+      + 'no longer a boolean.',
+  },
+  {
+    file: 'src/components/panel/editor/Waveform.tsx',
+    allowDeleted: 2,
+    date: '2026-09-13',
+    deletedWhy: 'A data-tooltip that read showClipping as a boolean. The prop is '
+      + 'still declared in their interface and this is the live proof of why '
+      + 'SIDECAR_KEYS exists: the type changed under their code and nothing '
+      + 'failed to compile.',
+  },
+  {
+    file: 'src/components/panel/MainLibrary.tsx',
+    allowDeleted: 9,
+    date: '2026-09-13',
+    deletedWhy: 'The Ko-fi link and the "or" that joined it to the repository '
+      + 'link. Argentum must not raise money on its splash screen in another '
+      + "author's name, and it is not our place to point people at his funding "
+      + 'page either - the credit belongs in Special Thanks and CREDITS.md, '
+      + 'where it is. The rest of this file is the update-check URL, replaced '
+      + 'one line for one.',
+  },
+  {
+    file: '.github/workflows/ci.yml',
+    allowDeleted: 7,
+    date: '2026-09-13',
+    deletedWhy: 'Five lines are the aarch64-linux-android matrix entry: there is '
+      + 'no Android build of Argentum, and leaving it would fail every run. Two '
+      + 'are the push trigger, replaced by workflow_dispatch - the full matrix '
+      + 'belongs on a release, not on every chore (CHANGELOG 26.37.19).',
+  },
+  {
+    file: '.github/workflows/pr-ci.yml',
+    allowDeleted: 5,
+    date: '2026-09-13',
+    deletedWhy: 'The aarch64-linux-android matrix entry. Same reason as ci.yml.',
+  },
+  {
+    file: '.github/workflows/release.yml',
+    allowDeleted: 5,
+    date: '2026-09-13',
+    deletedWhy: 'The aarch64-linux-android matrix entry. Same reason as ci.yml.',
   },
 ];
 
@@ -295,23 +375,76 @@ const anchorFor = (file) => ANCHORS.find((a) => a.file === file);
 const isOurs = (file) => OURS.some((prefix) => file.startsWith(prefix));
 const exceptionFor = (file) => EXCEPTIONS.find((e) => e.file === file);
 const budgetFor = (file) => {
+  // `allow` is optional: an exception that only records removed lines leaves the
+  // added-line budget where it was.
   const exception = exceptionFor(file);
-  return exception ? exception.allow : BUDGETS.find((b) => b.pattern.test(file)).limit;
+  return exception?.allow ?? BUDGETS.find((b) => b.pattern.test(file)).limit;
 };
 
-let base;
-try {
-  base = execSync('git merge-base HEAD upstream/main', {
+// stderr is captured rather than inherited: every probe here is allowed to
+// fail, and git's "fatal: Not a valid object name" is noise above our own
+// message saying the same thing in a useful way.
+const git = (cmd, big = false) =>
+  execSync(cmd, {
     cwd: root,
     encoding: 'utf8',
-  }).trim();
-} catch {
-  console.log('  mergeability: no upstream/main ref, skipping');
+    maxBuffer: (big ? 96 : 8) * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+/**
+ * Prerequisites.
+ *
+ * Everything below is measured against upstream/main. Without that ref there is
+ * nothing to compare against and this script used to exit 0 — the right answer
+ * on a contributor's fresh clone, and the wrong one in CI, where a vacuous pass
+ * is indistinguishable from a real one and the check is a required one.
+ *
+ * So: skip locally, fail in CI. The workflow is responsible for adding the
+ * remote and fetching enough history; if it stops doing so, the build says so
+ * instead of going green.
+ */
+const inCI = process.env.CI === 'true' || process.env.CI === '1';
+const prerequisite = (detail, fix) => {
+  if (inCI) {
+    console.error('');
+    console.error('  UPSTREAM CHECK CANNOT RUN');
+    console.error('');
+    console.error(`    ${detail}`);
+    console.error(`    ${fix}`);
+    console.error('');
+    process.exit(1);
+  }
+  console.log(`  mergeability: ${detail} — skipping`);
   process.exit(0);
+};
+
+if (!existsSync(join(root, '.git'))) {
+  prerequisite('not a git repository', 'Nothing to compare against.');
 }
 
-if (!base || !existsSync(join(root, '.git'))) {
-  process.exit(0);
+let shallow = 'false';
+try {
+  shallow = git('git rev-parse --is-shallow-repository').trim();
+} catch { /* old git: assume full */ }
+if (shallow === 'true') {
+  prerequisite(
+    'the clone is shallow, so no merge-base with upstream can be computed',
+    'actions/checkout needs fetch-depth: 0.',
+  );
+}
+
+let base = '';
+try {
+  base = git('git merge-base HEAD upstream/main').trim();
+} catch {
+  prerequisite(
+    'no upstream/main ref',
+    'git remote add upstream https://github.com/CyberTimon/RapidRAW.git && git fetch upstream',
+  );
+}
+if (!base) {
+  prerequisite('merge-base with upstream/main is empty', 'Fetch upstream: git fetch upstream');
 }
 
 
@@ -351,23 +484,42 @@ for (const [file, st] of stats) {
     added: ours,
     borrowed: st.borrowed,
     deleted: st.deleted,
+    removed: st.removed,
+    replaced: st.replaced,
+    borrowedRemoved: st.borrowedRemoved,
     limit: budgetFor(file),
     prs: [...st.prs],
   });
 }
 
-// --- Gate: deleting their lines ---------------------------------------------
+// --- Gate: removing their lines ---------------------------------------------
 //
 // The rule CLAUDE.md states is "never delete their function — just stop calling
-// it". It was never enforced, and it is the one that actually causes conflicts:
-// any upstream edit inside a block we removed conflicts, every time.
+// it". It is the rule that actually decides whether a merge is work: an upstream
+// edit inside a block we removed conflicts, every time.
+//
+// There is no allowance. A number here would be arbitrary whatever it was — the
+// first version picked 20, which was reverse-engineered from what the fork had
+// already done and so could not fail on any of it. The rule is absolute, so the
+// gate is absolute, and the pressure lands where it belongs: on writing down
+// which of their lines we removed and why.
+//
+// What makes that bearable is counting removals rather than deletions. Within a
+// run of changed lines, a `-` answered by a `+` is a replacement: the .rrdata
+// rename touched 31 of their lines and left nothing of theirs missing, so it is
+// now zero here and needed no exception at all. Only unreplaced lines count.
+//
+// Removals made while pasting in a borrowed upstream fix are theirs on both
+// sides and are not counted either.
 for (const t of touched) {
-  const allowed = exceptionFor(t.file)?.allowDeleted ?? DELETION_LIMIT;
-  if (t.deleted > allowed) {
+  const allowed = exceptionFor(t.file)?.allowDeleted ?? 0;
+  if (t.removed > allowed) {
     errors.push({
       file: t.file,
-      detail: `${t.deleted} of their lines deleted, the limit is ${allowed}`,
-      fix: 'Stop calling their code rather than removing it — or record it in EXCEPTIONS with allowDeleted and the reason.',
+      detail: allowed === 0
+        ? `${t.removed} of their lines removed and not replaced`
+        : `${t.removed} of their lines removed, ${allowed} recorded in EXCEPTIONS`,
+      fix: 'Stop calling their code rather than removing it — or record it in EXCEPTIONS with allowDeleted and deletedWhy, which is a decision, not a budget.',
     });
   }
 }
@@ -389,13 +541,100 @@ for (const [file, st] of stats) {
   }
 }
 
-// --- Gate: the recorded base must be the real one ---------------------------
+// --- Gate: overlap review ---------------------------------------------------
 //
-// Accepting an upstream change only means anything against the commit it was
-// judged at. Forcing this line to be rewritten is what makes the review happen
-// at merge time rather than never. `git fetch` does not move the merge-base, so
-// this fails once per merge, not every time upstream moves.
+// The question git cannot answer is whether upstream has now built, moved or
+// renamed the thing we built around. Those changes conflict with nothing.
+//
+// The first version of this gate asked only that CHANGELOG.md name the current
+// merge-base, on the theory that having to rewrite the line would make somebody
+// look. It would not: the line can be corrected with one `sed`, and the review
+// script it pointed at started from the merge-base, so after the merge it said
+// "nothing new" whether or not anybody had looked. Merging erased the window.
+//
+// So the reviewed-through point and the decisions live together in
+// scripts/upstream-decisions.mjs, the overlaps are re-derived here from git, and
+// the sha cannot advance until each one has a decision beside it. CHANGELOG.md
+// is checked against the register rather than written independently - one
+// register, which was the whole objection to having one.
+const short = (sha) => sha.slice(0, 8);
 {
+  const declared = reviewedThrough();
+  let through = '';
+  try {
+    through = git(`git rev-parse --verify ${declared}`).trim();
+  } catch {
+    errors.push({
+      file: 'scripts/upstream-decisions.mjs',
+      detail: `REVIEWS records through ${short(declared)}, which is not a commit here`,
+      fix: 'Fetch upstream, or correct the sha. In CI this means fetch-depth: 0.',
+    });
+  }
+
+  if (through && through !== base) {
+    errors.push({
+      file: 'scripts/upstream-decisions.mjs',
+      detail: `reviewed through ${short(through)}, but upstream is merged in up to ${short(base)}`,
+      fix: 'npm run review:upstream - then add a REVIEWS entry whose through is the new sha, carrying a decision for every overlap it lists.',
+    });
+  }
+
+  // Only the newest entry's range is re-derived. Older entries are records of
+  // what was known then; re-deriving them against today's shadow list and
+  // today's borrow markers would invent overlaps nobody could have seen.
+  const { from, to, entry } = newestRange();
+  if (from) {
+    let overlaps = [];
+    try {
+      overlaps = detectOverlaps(git, from, to, { borrow: borrowMarkers(git) });
+    } catch {
+      errors.push({
+        file: 'scripts/upstream-decisions.mjs',
+        detail: `cannot re-derive the overlaps for ${short(from)}..${short(to)}`,
+        fix: 'The history for that range is missing. Fetch upstream with full depth.',
+      });
+    }
+    const decisions = entry.decisions ?? [];
+    const recorded = new Map(decisions.map((d) => [d.overlap, d]));
+
+    for (const o of overlaps.filter((x) => x.gated)) {
+      const decision = recorded.get(o.key);
+      if (!decision) {
+        errors.push({
+          file: 'scripts/upstream-decisions.mjs',
+          detail: `no decision for ${o.key}`,
+          lines: [`${o.commit}  ${o.subject}`, o.detail],
+          fix: 'Read it, decide, and add { overlap, verdict, why } to the newest REVIEWS entry.',
+        });
+        continue;
+      }
+      if (!VERDICTS.includes(decision.verdict)) {
+        errors.push({
+          file: 'scripts/upstream-decisions.mjs',
+          detail: `${o.key} has verdict "${decision.verdict}"`,
+          fix: `One of: ${VERDICTS.join(', ')}.`,
+        });
+      }
+      if (!decision.why || decision.why.trim().length < 20) {
+        errors.push({
+          file: 'scripts/upstream-decisions.mjs',
+          detail: `${o.key} has no reasoning`,
+          fix: 'A verdict with no why is a rubber stamp. Say what you read and what you concluded.',
+        });
+      }
+    }
+
+    for (const d of decisions) {
+      if (!overlaps.some((o) => o.key === d.overlap)) {
+        warnings.push(
+          `scripts/upstream-decisions.mjs: decision for ${d.overlap} matches no overlap in `
+          + `${short(from)}..${short(to)} - the shadow list or the borrow markers moved under it`,
+        );
+      }
+    }
+  }
+
+  // CHANGELOG.md is documentation of the register, checked against it.
   const changelog = join(root, 'CHANGELOG.md');
   if (existsSync(changelog)) {
     const recorded = readFileSync(changelog, 'utf8').match(
@@ -405,27 +644,44 @@ for (const [file, st] of stats) {
       errors.push({
         file: 'CHANGELOG.md',
         detail: 'no "Based on RapidRAW ... @ `sha`" line found',
-        fix: 'Record the upstream commit this fork is merged up to.',
+        fix: 'Record the upstream commit this fork is reviewed up to.',
       });
-    } else if (!base.startsWith(recorded[1])) {
+    } else if (through && !through.startsWith(recorded[1])) {
       errors.push({
         file: 'CHANGELOG.md',
-        detail: `records base ${recorded[1]}, but the merge-base is ${base.slice(0, recorded[1].length)}`,
-        fix: 'Update it as part of the merge, having reviewed what arrived with it: npm run review:upstream',
+        detail: `says ${recorded[1]}, the review register says ${short(through)}`,
+        fix: 'The register is the source. Make this line agree with it.',
       });
     }
   }
 }
 
+// --- Warning: upstream commits nobody has merged yet ------------------------
+//
+// Overlaps in commits we have NOT merged are a reading list, not a failure.
+// Failing on them would break `npm start` every time upstream pushes something
+// unrelated, and a check that fires on other people's schedule is a check that
+// gets switched off - which is the exact end this whole file exists to avoid.
+try {
+  const head = git('git rev-parse upstream/main').trim();
+  if (head !== base) {
+    const ahead = detectOverlaps(git, base, head, { borrow: borrowMarkers(git) })
+      .filter((o) => o.gated);
+    if (ahead.length > 0) {
+      const one = ahead.length === 1;
+      warnings.push(
+        `${ahead.length} unmerged upstream change${one ? '' : 's'} `
+        + `${one ? 'lands' : 'land'} on code of ours - npm run review:upstream`,
+      );
+    }
+  }
+} catch { /* no upstream ref: handled above */ }
+
 // --- Gate: shadowed upstream code must still exist --------------------------
 for (const { file, symbol, instead } of SHADOWED) {
   let upstreamCopy = '';
   try {
-    upstreamCopy = execSync(`git show upstream/main:${file}`, {
-      cwd: root,
-      encoding: 'utf8',
-      maxBuffer: 32 * 1024 * 1024,
-    });
+    upstreamCopy = git(`git show upstream/main:${file}`, true);
   } catch {
     errors.push({
       file,
@@ -483,10 +739,12 @@ if (errors.length > 0) {
 const used = touched.filter((t) => t.added > 0 || t.deleted > 0 || t.borrowed > 0);
 if (used.length > 0) {
   const added = used.reduce((n, t) => n + t.added, 0);
-  const deleted = used.reduce((n, t) => n + t.deleted, 0);
+  const removed = used.reduce((n, t) => n + t.removed, 0);
+  const replaced = used.reduce((n, t) => n + t.replaced, 0);
   const hooked = [...stats.values()].filter((st) => st.hooks.length > 0);
   const hooks = hooked.reduce((n, st) => n + st.hooks.length, 0);
-  console.log(`  upstream: ${used.length} files touched, ${added} of our lines added, ${deleted} of theirs deleted`);
+  console.log(`  upstream: ${used.length} files touched, ${added} of our lines added`);
+  console.log(`  their lines: ${removed} removed and recorded, ${replaced} replaced in place`);
   console.log(`  anchors: ${hooks} calls into our code across ${hooked.length} of their files — a new feature should add none`);
 
   const borrowed = used.filter((t) => t.borrowed > 0);
@@ -502,7 +760,10 @@ if (used.length > 0) {
     console.log(`  approved exceptions (${active.length}):`);
     for (const e of active) {
       const t = used.find((x) => x.file === e.file);
-      console.log(`    ${e.file}  ${t?.added ?? 0}/${e.allow} lines, agreed ${e.date}`);
+      const parts = [];
+      if (e.allow !== undefined) parts.push(`${t?.added ?? 0}/${e.allow} added`);
+      if (e.allowDeleted !== undefined) parts.push(`${t?.removed ?? 0}/${e.allowDeleted} removed`);
+      console.log(`    ${e.file}  ${parts.join(', ')}, agreed ${e.date}`);
     }
   }
 }

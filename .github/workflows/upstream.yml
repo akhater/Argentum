@@ -1,0 +1,42 @@
+name: Upstream
+
+# The mergeability and overlap checks, as a required check.
+#
+# They ran only on `npm start` before, which meant they ran on one machine when
+# one person happened to build. Worse, without an upstream remote the checker
+# exits 0 and says so quietly — correct on a contributor's fresh clone, useless
+# as a gate. So this job creates the prerequisites and the checker fails, rather
+# than skips, when CI is set and they are missing.
+#
+# fetch-depth: 0 is not optional. merge-base needs the whole history, and the
+# review register names commits that a shallow clone does not have.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  upstream:
+    name: Mergeability and upstream review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/CyberTimon/RapidRAW.git
+          git fetch --no-tags upstream +refs/heads/main:refs/remotes/upstream/main
+
+      - name: Test the checks themselves
+        run: node scripts/test-upstream-checks.mjs
+
+      - name: Mergeability, removals, anchors and overlap review
+        run: node scripts/check-mergeability.mjs

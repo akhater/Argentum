@@ -243,6 +243,36 @@ changed ones. Keep both. That's the whole resolution.
 **If you ever find yourself doing a real merge, something drifted from the rule
 above.** Move that code into a file of ours instead.
 
+### A clean merge is not the same as a safe one
+
+This is the part that took a mistake to learn. On 2026-09-13 ten upstream
+commits merged with no conflict in application code, and that was written up as
+proof the architecture works. It was not proof of anything.
+
+`git merge` answers one question: *do these texts collide?* It cannot answer the
+one a fork lives on: *has upstream now built, moved or renamed the thing we
+built around?* Those changes conflict with nothing. Had upstream shipped their
+own auto white balance that week, git would have merged it in silence and
+Argentum would have had two of them — or theirs would quietly have won.
+
+Three kinds of change merge cleanly and still break us:
+
+- **Upstream fixes a function we shadow.** We left it in place and stopped
+  calling it, exactly as the rule says. Their fix lands in code that never runs.
+- **Upstream edits a file we carry one of their own fixes in.** Nothing marks
+  it: they need not mention the pull request number, and in RapidRAW most
+  commits are the maintainer's own and mention nothing. `8737fc4e` rewrote the
+  cache hashing that one of our borrowed blocks sits inside.
+- **Upstream changes a key we re-typed.** `showClipping` is 0..4 here and still
+  a boolean in their `Waveform.tsx`. The day they write `=== true`, our control
+  reads as off and nothing errors.
+
+So the overlaps are derived mechanically from git, keyed to the exact upstream
+commit, and `scripts/upstream-decisions.mjs` records a verdict and a reason for
+each. `npm run check:merge` re-derives them and fails until the decisions are
+there. It cannot check that the reasoning is any good — it can make sure the
+question was asked, which is the part that was being skipped.
+
 ---
 
 ## Where code comes from

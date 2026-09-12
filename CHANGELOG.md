@@ -70,6 +70,57 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 26.37.20 — 2026-09-13
+
+### Fixed
+- **Two AI patches of the same base64 length shared a cache entry**, and the
+  first one rendered was served for both. `calculate_transform_hash` hashed
+  `.len()` of the patch data rather than the data. Carried early from upstream
+  pull request #1307, marked in `src-tauri/src/cache_utils.rs` between
+  `// upstream #1307` and `// end upstream #1307`; still unmerged upstream at
+  `5ad3ba0b`.
+- **sRGB decoding used an exponent of 3.0 where the standard says 2.4**, which
+  darkened the midtones of every non-raw image. From upstream pull request
+  #1633, marked the same way in `src-tauri/src/raw_processing.rs`.
+
+### Internal
+- **The mergeability checker could not see a deleted file, and reviewing what
+  upstream sends was not enforced at all.** Both found by a second model, both
+  reproduced before being fixed. Deleting a whole 257-line upstream component
+  changed the checker's output by nothing: `+++ b/…` does not match `+++
+  /dev/null`, so a deleted file's lines were charged to whichever file preceded
+  it in the diff, or dropped when that file was one of ours.
+
+  The deletion gate is now a **removal** gate with no allowance. A `-` line
+  answered by a `+` is a replacement and does not count, which is why the
+  `.rrdata` → `.agdata` rename went from 31 deletions to zero and gave up its
+  exception. Everything genuinely removed is written down: their eyedropper
+  white-balance maths, their clipping block in `shader.wgsl`, the Ko-fi link,
+  the Android matrix entry in three workflows.
+
+  Overlap review replaces the stale-sha line that was meant to force it. The
+  commit we have reviewed through, and a verdict for every upstream change that
+  lands on code of ours, live together in `scripts/upstream-decisions.mjs`;
+  `check:merge` re-derives the overlaps from git and fails until each has a
+  decision and a reason. `CHANGELOG.md`'s base sha is checked against that
+  register instead of being written by hand.
+
+  The review now starts from the register rather than the merge-base, so merging
+  no longer erases the window, and it watches the *files* our borrowed fixes sit
+  in rather than grepping commit subjects for `#1307` — upstream `8737fc4e`
+  rewrote the hashing module one of them is inside and named no pull request at
+  all. Its own detection was the first thing to catch it.
+
+  `scripts/upstream-diff.mjs` and `scripts/upstream-overlaps.mjs` split the
+  logic out of the checker so it can be tested; `npm run test:checks` drives it
+  against throwaway repositories, covering whole-file deletion, upstream editing
+  borrowed code with no PR number, a landed and a pending borrow together, and
+  reviewing after the merge. `.github/workflows/upstream.yml` runs all of it as
+  a required check and fails — rather than skipping quietly — when the upstream
+  remote or the full history is missing.
+
+---
+
 ## 26.37.19 — 2026-09-12
 
 ### Internal
