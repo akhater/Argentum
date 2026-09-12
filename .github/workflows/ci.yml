@@ -1,9 +1,15 @@
 name: CI Build
 
+# Manual only. This is the full platform matrix - twelve builds producing
+# installers - and running it on every push to main meant doing release work on
+# documentation commits and chores. Pushes are many, releases are rare, so the
+# fan-out belongs on a release: see release.yml, which fires when one is created.
+# Fast checks still run on every push, in lint.yml.
+#
+# Run it by hand from the Actions tab when a build needs proving between
+# releases.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build:

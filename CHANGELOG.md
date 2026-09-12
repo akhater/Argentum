@@ -176,6 +176,20 @@ came from — without it there's no way to tell later whether upstream moved on.
   reason written into `lint.yml`: upstream's files fail `rustfmt`, and fixing
   that would spend budget meant for real changes on whitespace.
 
+- **Building every platform on every push is now manual.** `ci.yml` ran the full
+  matrix - twelve builds producing installers - on every push to `main`. Pushes
+  are many and releases are rare, so a documentation fix or a chore did the same
+  work as a release, and five pushes in an afternoon queued sixty-five jobs that
+  stacked faster than they cleared.
+
+  It is `workflow_dispatch` now: runnable by hand from the Actions tab when a
+  build needs proving between releases, and otherwise silent. Nothing is lost -
+  `release.yml` still fans out across every platform when a release is created,
+  which is where installers are actually wanted, and `lint.yml` still runs on
+  every push, which is where fast feedback belongs.
+
+  The backlog was cancelled rather than left to drain.
+
 - **The Android build is dropped, and the earlier explanation for it was wrong.**
   The first diagnosis blamed a `.gitignore` line for untracking upstream's
   Android project. That was real and worth fixing on its own, but it was not why
