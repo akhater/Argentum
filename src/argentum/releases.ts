@@ -32,7 +32,7 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
-    version: '2026.37.18',
+    version: '26.37.18',
     date: '2026-09-12',
     notes: [
       'Fixed a case where the preview stopped converting colour for your screen and '
@@ -44,7 +44,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.17',
+    version: '26.37.17',
     date: '2026-09-11',
     notes: [
       'Fixed the preview showing photos more saturated than they are. Argentum now '
@@ -58,7 +58,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.16',
+    version: '26.37.16',
     date: '2026-09-10',
     notes: [
       'The clipping warning now steps through the channels — off, L, R, G, B. '
@@ -68,7 +68,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.13',
+    version: '26.37.13',
     date: '2026-09-10',
     notes: [
       'Hover any name the layout has cut short — a file on a library card, a '
@@ -80,7 +80,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.12',
+    version: '26.37.12',
     date: '2026-09-10',
     notes: [
       'Added camera profiles. A profile describes how your particular camera '
@@ -91,7 +91,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.11',
+    version: '26.37.11',
     date: '2026-09-10',
     notes: [
       'Added this About section — credits, the roadmap, what is currently broken, '
@@ -99,7 +99,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.10',
+    version: '26.37.10',
     date: '2026-09-09',
     notes: [
       'Fixed a green cast and heavy shadows on Canon sRAW and mRAW photos. These '
@@ -109,7 +109,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.6',
+    version: '26.37.6',
     date: '2026-09-09',
     notes: [
       'Lenses are now detected automatically on Canon bodies, so lens corrections '
@@ -118,7 +118,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.5',
+    version: '26.37.5',
     date: '2026-09-09',
     notes: [
       'Added an RGB readout, so a colour under the cursor can be checked rather '
@@ -126,7 +126,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.2',
+    version: '26.37.2',
     date: '2026-09-08',
     notes: [
       'White balance rebuilt on real colour science, in Kelvin, replacing three '
@@ -136,7 +136,7 @@ export const RELEASES: Release[] = [
     ],
   },
   {
-    version: '2026.37.1',
+    version: '26.37.1',
     date: '2026-09-08',
     notes: [
       'First build. A fork of RapidRAW that renders identically to it — the '

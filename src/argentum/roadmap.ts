@@ -40,7 +40,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'White balance',
-    release: '2026.37.2',
+    release: '26.37.2',
     why:
       'Real chromatic adaptation from darktable, in Kelvin, with an auto mode and '
       + 'a picker — replacing three fixed multipliers.',
@@ -48,7 +48,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'Correct RAW decoding',
-    release: '2026.37.10',
+    release: '26.37.10',
     why:
       'Canon sRAW and mRAW were being black-subtracted twice, which caused both a '
       + 'green cast and crushed shadows.',
@@ -56,7 +56,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'Camera colour profiles',
-    release: '2026.37.12',
+    release: '26.37.12',
     why:
       'Pick a profile per photo under Color, or leave it on the built-in matrix. '
       + 'Profiles are found online or imported, and applied while the photo is drawn.',
@@ -64,7 +64,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'Highlight recovery',
-    release: '2026.37.17',
+    release: '26.37.17',
     why:
       'When a bright area clips, one channel usually blows before the others. '
       + 'Rebuilds the missing one from the two that survived. On by default, and '
@@ -74,7 +74,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'Clipping preview',
-    release: '2026.37.17',
+    release: '26.37.17',
     why:
       'The warning button steps through off, L, R, G and B. Hold Ctrl while '
       + 'dragging Whites or Blacks and the picture empties to show only what is '
@@ -83,7 +83,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'Display colour management',
-    release: '2026.37.17',
+    release: '26.37.17',
     why:
       'The preview now converts for the screen it is on, read from the display profile '
       + 'own profile. Without it a wide-gamut display showed every photo more '

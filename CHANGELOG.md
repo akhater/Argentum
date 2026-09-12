@@ -4,13 +4,13 @@ Newest first.
 
 **Based on RapidRAW `1.6.3` @ `97fada3`** — updated whenever upstream is merged.
 
-## Versioning: `yyyy.isoWeek.release`
+## Versioning: `yy.isoWeek.release`
 
 ```
-2026.37.1
-  │    │ └── release within that week, counting from 1
-  │    └──── ISO week number
-  └───────── ISO year
+26.37.1
+ │  │  └── release within that week, counting from 1
+ │  └───── ISO week number
+ └──────── ISO year, two digits
 ```
 
 No arguments about what counts as major or minor. The version says when it was
@@ -19,8 +19,26 @@ built, which is the thing you actually want to know a year later.
 Current week:
 
 ```bash
-date +%G.%V
+date +%g.%V
 ```
+
+**Two digits, not four, and that is not a style choice.** It was `yyyy` until
+`26.37.19`, whose Windows build failed with
+
+```
+failed to bundle project: `app version major number cannot be greater than 255`
+```
+
+Windows installers cap the major version at 255, so `2026.x.y` can never be
+packaged for Windows - the platform Argentum is actually developed on. macOS and
+Linux have no such limit and built all twenty artefacts happily, which is why it
+took a real release to find out.
+
+Every historical version here was renumbered with it. That is safe because none
+of them were ever published, and it is *necessary* because the in-app update
+check compares version numbers: leaving the old entries at `2026.x` would make
+every future release look older than the past, and the check would never fire
+again.
 
 **This file is the engineering record. The app does not show it.** What a user
 sees is written separately, in plain language, in `src/argentum/releases.ts` —
@@ -42,9 +60,36 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
-## 2026.37.19 — 2026-09-12
+## 26.37.19 — 2026-09-12
 
 ### Internal
+- **The version scheme lost two digits, because Windows cannot package the
+  other two.** The first real release built twenty artefacts for macOS and Linux
+  and failed on both Windows jobs, four retries each, with:
+
+  ```
+  failed to bundle project: `app version major number cannot be greater than 255`
+  ```
+
+  `26.37.19` was `2026.37.19`, and 2026 is the major number. Windows installers
+  cap it at 255. So `yyyy.isoWeek.release` could never have produced a Windows
+  build - on the platform Argentum is developed and used on - and nothing short
+  of cutting a real release would have said so, because every other platform
+  packages it without complaint.
+
+  The scheme is now `yy.isoWeek.release`. It says the same thing, `26` holds
+  until the year 2255, and the alternatives were worse: a separate Windows-only
+  version means two numbers to keep in step, and abandoning calendar versioning
+  throws away a decision made deliberately.
+
+  Every past version was renumbered to match. Safe, because none of them were
+  ever published - and necessary, because the in-app update check compares
+  version numbers, so a history left at `2026.x` would make every future release
+  look older than the past and the check would never fire again.
+
+  The failed release and its tag were deleted rather than left as a half-built
+  first impression.
+
 - **Argentum is published.** The repository goes to GitHub as its own project
   rather than a GitHub-level fork of RapidRAW: own name, own issues, no "forked
   from" banner. The debt is stated where it belongs — the README's first
@@ -240,7 +285,7 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
-## 2026.37.18 — 2026-09-12
+## 26.37.18 — 2026-09-12
 
 ### Measured
 - **Three apps, one file, three different pictures — and now three answers.**
@@ -369,7 +414,7 @@ Remaining limits, all deliberate:
 
 ---
 
-## 2026.37.17 — 2026-09-11
+## 26.37.17 — 2026-09-11
 
 The preview had been showing every photo more saturated than it was, on this
 screen, since before any of the colour work started.
@@ -429,7 +474,7 @@ screen, since before any of the colour work started.
 
 ---
 
-## 2026.37.16 — 2026-09-10
+## 26.37.16 — 2026-09-10
 
 ### Added
 - **The clipping warning steps through the channels** — `mods/clipping.rs`,
@@ -511,7 +556,7 @@ screen, since before any of the colour work started.
 
 ---
 
-## 2026.37.15 — 2026-09-10
+## 26.37.15 — 2026-09-10
 
 ### Removed
 - **"Colour is close to darktable, not equal to it"** from the known issues.
@@ -526,7 +571,7 @@ screen, since before any of the colour work started.
 
 ---
 
-## 2026.37.14 — 2026-09-10
+## 26.37.14 — 2026-09-10
 
 ### Fixed
 - **sRAW thumbnails failed in dev builds** — `src-tauri/Cargo.toml`, explained in
@@ -553,7 +598,7 @@ screen, since before any of the colour work started.
 ### Notes
 - The empty library that led here was mostly not this. Thumbnail hashes cover
   the photo's adjustments, and `cameraProfile` joined the defaults in
-  `2026.37.12`, so every thumbnail regenerates once on first sight of a folder —
+  `26.37.12`, so every thumbnail regenerates once on first sight of a folder —
   134 were written while this was being looked into. Only the sRAW frames stayed
   empty.
 
@@ -562,7 +607,7 @@ screen, since before any of the colour work started.
 
 ---
 
-## 2026.37.13 — 2026-09-10
+## 26.37.13 — 2026-09-10
 
 Two things that were wrong in the same way: a message that named the URL and
 not the fault, and a label cut short with no way to see the rest.
@@ -650,7 +695,7 @@ not the fault, and a label cut short with no way to see the rest.
 
 ---
 
-## 2026.37.12 — 2026-09-10
+## 26.37.12 — 2026-09-10
 
 Camera profiles. The last piece of the colour work the fork was started for,
 and the one that taught the most by not working.
@@ -738,7 +783,7 @@ and the one that taught the most by not working.
 
 ---
 
-## 2026.37.11 — 2026-09-10
+## 26.37.11 — 2026-09-10
 
 Housekeeping, and the architecture work that makes the rest of it cheap.
 
@@ -767,7 +812,7 @@ Housekeeping, and the architecture work that makes the rest of it cheap.
   single sentence can carry both. Two audiences, two documents.
 
 - **A current known-issues list**, `src/argentum/knownIssues.ts`. The one in
-  `2026.37.1` still said lens auto-detection was broken long after `2026.37.6`
+  `26.37.1` still said lens auto-detection was broken long after `26.37.6`
   fixed it. A stale warning is worse than none, because it is trusted and the
   reader stops looking. The rule that comes with the file: an entry is deleted
   in the same commit as its fix.
@@ -810,15 +855,15 @@ Housekeeping, and the architecture work that makes the rest of it cheap.
 
 ---
 
-## 2026.37.10 — 2026-09-09
+## 26.37.10 — 2026-09-09
 
 The green cast and the crushed shadows were the same bug, and it was neither
 white balance nor the colour matrix. The affected frames were shot as sRAW,
 and sRAW is not sensor data.
 
-Three releases went unrecorded while this was being chased — `2026.37.7`
-(D50/D65 matrix correction), `2026.37.8` (darktable's sigmoid as the tone
-curve) and `2026.37.9` (reverting it). Both of those attempts are now gone.
+Three releases went unrecorded while this was being chased — `26.37.7`
+(D50/D65 matrix correction), `26.37.8` (darktable's sigmoid as the tone
+curve) and `26.37.9` (reverting it). Both of those attempts are now gone.
 They were built against a single frame and were compensating for the bug
 below.
 
@@ -884,7 +929,7 @@ below.
 
 ### Removed
 - **The D50→D65 camera matrix correction** (`mods/colour_fix.rs`, added in
-  `2026.37.7`). It closed the gap on the one frame it was built against. With
+  `26.37.7`). It closed the gap on the one frame it was built against. With
   the real bug fixed it made nine of ten test photos worse: mean R/G error 6.8%
   with it against 4.2% without. rawler's composition matches dcraw and
   rawspeed's legacy path and was not the error it was taken for.
@@ -913,7 +958,7 @@ below.
 
 ---
 
-## 2026.37.6 — 2026-09-09
+## 26.37.6 — 2026-09-09
 
 Lens auto-detection works. darktable identified a Canon EF 135mm f/2 L
 instantly while Argentum asked for it to be picked by hand every time.
@@ -967,7 +1012,7 @@ instantly while Argentum asked for it to be picked by hand every time.
 
 ---
 
-## 2026.37.5 — 2026-09-09
+## 26.37.5 — 2026-09-09
 
 ### Added
 - **Render indicator** — a small spinner in the toolbar while the preview is
@@ -997,12 +1042,12 @@ instantly while Argentum asked for it to be picked by hand every time.
   discarded.
 
   Worth noting the shape of this bug — a measuring instrument quietly reporting
-  stale data is the same failure as the `_medium.jpg` sampling in `2026.37.3`,
+  stale data is the same failure as the `_medium.jpg` sampling in `26.37.3`,
   and the same failure the readout exists to catch in the first place.
 
 ---
 
-## 2026.37.4 — 2026-09-09
+## 26.37.4 — 2026-09-09
 
 White balance is now correct, not just consistent — measured against darktable
 on a real file rather than asserted.
@@ -1040,7 +1085,7 @@ on a real file rather than asserted.
 
 ---
 
-## 2026.37.3 — 2026-09-09
+## 26.37.3 — 2026-09-09
 
 Mergeability stops being a budget and becomes an architecture, and colour work
 becomes measurable.
@@ -1097,7 +1142,7 @@ becomes measurable.
 
 ---
 
-## 2026.37.2 — 2026-09-08
+## 26.37.2 — 2026-09-08
 
 First harvest. The image maths now differs from RapidRAW's, so the sidecar had
 to split too.
@@ -1188,7 +1233,7 @@ to split too.
 
 ---
 
-## 2026.37.1 — 2026-09-08
+## 26.37.1 — 2026-09-08
 
 First build. A rebranded fork of RapidRAW that compiles and runs. **No image
 code changed yet** — it renders identically to RapidRAW, by design.

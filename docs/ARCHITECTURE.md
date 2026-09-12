@@ -87,7 +87,7 @@ more perceptual. Transplanted math needs converting in and back out.
 That conversion lives in `modules.wgsl` and is **written once, reused by every
 tool after** — not a per-tool cost.
 
-**What actually got built, in `2026.37.2`:** linear sRGB ↔ CIE XYZ, plus XYZ ↔
+**What actually got built, in `26.37.2`:** linear sRGB ↔ CIE XYZ, plus XYZ ↔
 Bradford cone space (LMS). White balance needed a colorimetric space and a cone
 space, not a wider RGB one, so that is what exists:
 

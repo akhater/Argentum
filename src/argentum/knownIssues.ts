@@ -4,8 +4,8 @@
  * WHY NOT READ THEM OUT OF THE CHANGELOG
  *
  * Because a changelog records what was true at a release, and this has to say
- * what is true today. The `### Known issues` list in `2026.37.1` still claimed
- * lens auto-detection was broken long after `2026.37.6` fixed it — a stale
+ * what is true today. The `### Known issues` list in `26.37.1` still claimed
+ * lens auto-detection was broken long after `26.37.6` fixed it — a stale
  * warning is worse than none, because a reader trusts it and stops looking.
  *
  * So this is a list with one job, and the rule that comes with it: **when
