@@ -176,6 +176,31 @@ came from — without it there's no way to tell later whether upstream moved on.
   reason written into `lint.yml`: upstream's files fail `rustfmt`, and fixing
   that would spend budget meant for real changes on whitespace.
 
+- **The Android build is dropped, and the earlier explanation for it was wrong.**
+  The first diagnosis blamed a `.gitignore` line for untracking upstream's
+  Android project. That was real and worth fixing on its own, but it was not why
+  the job failed, and the job failed again after it. The actual message:
+
+  ```
+  Project directory .../gen/android/app/src/main/java/co/argentum/editor
+  does not exist. Did you update the bundle identifier in tauri.conf.json?
+  ```
+
+  The Android project is laid out for *RapidRAW's* identity all the way through -
+  `io.github.CyberTimon.RapidRAW` as the package path, the gradle `namespace` and
+  the `applicationId`. Argentum changed its identifier to `co.argentum.editor`,
+  and Tauri looks for a Java package matching it.
+
+  Making it build means rewriting those three things inside upstream's files and
+  keeping them rewritten, so every Android change he makes conflicts with ours
+  forever - for a platform Argentum does not ship, cannot test, and whose pull
+  requests it has already declined. That is the divergence the whole architecture
+  exists to prevent, spent on the one platform with nothing to gain.
+
+  So the job is removed from all three workflows. The Android project itself
+  stays tracked, byte-for-byte his, so a future upstream merge still receives his
+  changes to it and nothing has to be un-deleted first.
+
 - **One line of `.gitignore` had silently untracked upstream's Android project.**
   The Android CI job failed with `could not find Cargo.toml`, which reads like a
   broken workflow and was not: 42 files that RapidRAW tracks under
