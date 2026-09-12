@@ -154,6 +154,28 @@ came from — without it there's no way to tell later whether upstream moved on.
   Also removed from it: a pointer to two decision records in a private notebook,
   which a reader of the public repository cannot open.
 
+- **CI was red on the day the repository went public, and every warning was
+  ours.** `cargo clippy -D warnings` fails the build on any lint, and thirty
+  fired - all thirty inside `src/mods/`, none in a file of upstream's. That is
+  the architecture working: the code being judged is the code we wrote.
+
+  Most were mechanical and `clippy --fix` took them: floats carrying more digits
+  than an `f32` holds, `chunks_exact` with a constant size where `as_chunks`
+  says it better, `repeat().take()` where `repeat_n` exists, a `min`/`max` pair
+  that is `clamp`, a `trim()` before `split_whitespace` which already trims.
+
+  Three needed a decision, and one of those decisions was wrong first time:
+
+  | | |
+  |---|---|
+  | `conversion_for_window` | Deleted. Superseded by `shader_rows_for_main_window`, and only a test still called it - a test whose real assertion, that a nonsense window handle does not crash the renderer, survives without it |
+  | `forget` | **Kept**, gated to tests. It was called by six of them; "never used" was the lint reading the library build, not the truth. Deleting it broke the test build immediately |
+  | `IDENTITY` | Kept, gated to tests. `SHADER_IDENTITY` is what the shader takes; this is now the fixture the test uses to check the two agree |
+
+  Formatting is now checked on `src/mods/` rather than the whole crate, with the
+  reason written into `lint.yml`: upstream's files fail `rustfmt`, and fixing
+  that would spend budget meant for real changes on whitespace.
+
 - **Removed a stray file named `60%`**, a zero-byte artefact of a shell redirect
   that had been committed by accident.
 

@@ -213,7 +213,9 @@ fn parse_color_data(blob: &[u8], file_bytes: &[u8]) -> Option<Vec<u16>> {
         let bytes = file_bytes.get(at..at.checked_add(n * 2)?)?;
         return Some(
             bytes
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|b| u16::from_le_bytes([b[0], b[1]]))
                 .collect(),
         );

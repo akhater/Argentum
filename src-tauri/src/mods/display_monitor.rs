@@ -99,27 +99,6 @@ pub fn profile_for_window(_hwnd: isize) -> Option<std::path::PathBuf> {
     None
 }
 
-/// The conversion for the screen a window is on, ready for the shader.
-///
-/// `None` when there is nothing to do — no profile, an unreadable one, or a
-/// display that is already sRGB. The caller presents unconverted in that case,
-/// which is both correct and what it did before.
-pub fn conversion_for_window(hwnd: isize) -> Option<[[f32; 3]; 3]> {
-    let path = profile_for_window(hwnd)?;
-    let matrix = super::display_profile::from_file(&path)?;
-
-    // An sRGB screen's profile gives back something within rounding of the
-    // identity. Saying "nothing to do" lets the shader skip a decode/encode
-    // round trip that would only add error.
-    let is_identity = (0..3).all(|i| {
-        (0..3).all(|j| {
-            let want = if i == j { 1.0 } else { 0.0 };
-            (matrix[i][j] - want).abs() < 1e-3
-        })
-    });
-    (!is_identity).then_some(matrix)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,7 +114,6 @@ mod tests {
     #[test]
     fn a_nonsense_window_does_not_crash() {
         let _ = profile_for_window(0);
-        let _ = conversion_for_window(0);
     }
 }
 
@@ -217,6 +195,11 @@ struct Cached {
 static CACHE: std::sync::Mutex<Option<Cached>> = std::sync::Mutex::new(None);
 
 /// Throw away what is cached, so the next ask resolves from scratch.
+///
+/// Only the tests need this: nothing in the running app invalidates the cache
+/// by hand, because `rows_now` re-checks the profile's path and mtime itself.
+/// Gated so it does not read as an API the app uses.
+#[cfg(test)]
 pub fn forget() {
     if let Ok(mut cache) = CACHE.lock() {
         *cache = None;

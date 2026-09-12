@@ -150,7 +150,7 @@ fn measure_three_colour(raw: &RawImage) -> Option<Clipping> {
     let ceilings = ceilings(raw)?;
 
     let mut out = Clipping::default();
-    for pixel in pixels.chunks_exact(3) {
+    for pixel in pixels.as_chunks::<3>().0 {
         let clipped = (0..3).filter(|&c| pixel[c] as f32 >= ceilings[c]).count();
         out.blocks += 1;
         if clipped > 0 {
@@ -526,7 +526,7 @@ mod recovery_tests {
     /// say so rather than to average the whole photo.
     #[test]
     fn a_dark_photo_teaches_nothing() {
-        let dim = std::iter::repeat([100.0f32, 100.0, 100.0]).take(10_000);
+        let dim = std::iter::repeat_n([100.0f32, 100.0, 100.0], 10_000);
         assert!(highlight_colour(dim, CEILINGS).is_none());
     }
 
@@ -534,8 +534,8 @@ mod recovery_tests {
     /// drifts towards whatever the ceilings happen to be.
     #[test]
     fn the_colour_is_learnt_from_bright_unclipped_pixels_only() {
-        let bright = std::iter::repeat([600.0f32, 800.0, 400.0]).take(2_000);
-        let clipped = std::iter::repeat([1000.0f32, 1000.0, 1000.0]).take(50_000);
+        let bright = std::iter::repeat_n([600.0f32, 800.0, 400.0], 2_000);
+        let clipped = std::iter::repeat_n([1000.0f32, 1000.0, 1000.0], 50_000);
         let c = highlight_colour(bright.chain(clipped), CEILINGS).expect("enough samples");
         assert!((c.ratio[0] - 0.75).abs() < 1e-3, "{:?}", c.ratio);
         assert!((c.ratio[2] - 0.50).abs() < 1e-3, "{:?}", c.ratio);
@@ -605,7 +605,9 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) {
 
     let colour = highlight_colour(
         pixels
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .step_by(SAMPLE_STRIDE)
             .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
         ceilings,
@@ -615,7 +617,7 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) {
     let mut out: Vec<f32> = Vec::with_capacity(pixels.len());
     let mut touched = false;
 
-    for p in pixels.chunks_exact(3) {
+    for p in pixels.as_chunks::<3>().0 {
         let before = [p[0] as f32, p[1] as f32, p[2] as f32];
         if (0..3).any(|c| before[c] >= ceilings[c]) {
             let after = rebuild(before, ceilings, &colour);
@@ -770,7 +772,7 @@ mod proof {
         }
         let mut total = 0.0f64;
         let mut n = 0u64;
-        for p in pixels.chunks_exact(3) {
+        for p in pixels.as_chunks::<3>().0 {
             let v = [p[0] as f32, p[1] as f32, p[2] as f32];
             // Only pixels that were clipped in the original. A pixel is judged
             // clipped by the *ceiling*, which recovery pushes values past — so
@@ -821,7 +823,9 @@ mod proof {
         // making everything grey.
         let ratio = highlight_colour(
             before
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
             ceilings,
         )
@@ -913,7 +917,7 @@ mod diagnose {
         // Where does each channel actually top out?
         let mut maxes = [0u16; 3];
         let mut at_ceiling = [0u64; 3];
-        for p in pixels.chunks_exact(3) {
+        for p in pixels.as_chunks::<3>().0 {
             for c in 0..3 {
                 maxes[c] = maxes[c].max(p[c]);
                 if p[c] as f32 >= ceilings[c] {
@@ -932,7 +936,9 @@ mod diagnose {
 
         let colour = highlight_colour(
             pixels
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
             ceilings,
         )
@@ -946,7 +952,7 @@ mod diagnose {
         // level should have been, against green's ceiling?
         let mut buckets = [0u64; 6];
         let mut n = 0u64;
-        for p in pixels.chunks_exact(3) {
+        for p in pixels.as_chunks::<3>().0 {
             let v = [p[0] as f32, p[1] as f32, p[2] as f32];
             if v[1] < ceilings[1] {
                 continue;
@@ -978,7 +984,7 @@ mod diagnose {
         {
             let mut r = Vec::new();
             let mut b = Vec::new();
-            for p in pixels.chunks_exact(3) {
+            for p in pixels.as_chunks::<3>().0 {
                 if (p[1] as f32) >= ceilings[1] {
                     r.push(p[0] as f64);
                     b.push(p[2] as f64);
@@ -1012,7 +1018,7 @@ inside the blown region:"
         // three. Are they saturating too, at a ceiling of their own?
         let mut both_at_max = 0u64;
         let mut green_clipped = 0u64;
-        for p in pixels.chunks_exact(3) {
+        for p in pixels.as_chunks::<3>().0 {
             if (p[1] as f32) < ceilings[1] {
                 continue;
             }

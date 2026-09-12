@@ -43,7 +43,7 @@ use super::profile_matrix::{invert, multiply};
 const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
     [0.412_456_4, 0.357_576_1, 0.180_437_5],
     [0.212_672_9, 0.715_152_2, 0.072_175_0],
-    [0.019_333_9, 0.119_192_0, 0.950_304_1],
+    [0.019_333_9, 0.119_192, 0.950_304_1],
 ];
 
 pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -81,7 +81,10 @@ pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0
 /// a decode of its own — the preview worker and the export worker. That is a
 /// deliberate exception to the anchor rule, taken because the alternative was a
 /// heuristic that is wrong in a case a person would hit.
-static BUILT_IN: Mutex<Option<Vec<(String, [f32; 9])>>> = Mutex::new(None);
+/// One camera's built-in matrix, remembered against the photo it came from.
+type BuiltInMatrix = (String, [f32; 9]);
+
+static BUILT_IN: Mutex<Option<Vec<BuiltInMatrix>>> = Mutex::new(None);
 
 pub fn remember_built_in(path: Option<&str>, matrix: [f32; 9]) {
     let Some(path) = path.map(str::to_string) else {
@@ -216,6 +219,40 @@ pub fn correction_for(photo: Option<&str>, profile_xyz2cam: &[f32; 9]) -> Option
     let from = cam_to_srgb(&built_in)?;
     let to = cam_to_srgb(profile_xyz2cam)?;
     Some(multiply(&to, &invert(&from)?))
+}
+
+/// The three shader rows for whatever profile this photo asked for.
+///
+/// Identity whenever there is no profile, no library, or anything at all goes
+/// wrong. A photo without a profile must render exactly as it always has, and
+/// "exactly" here means multiplied by the identity, not skipped.
+pub fn rows_for(
+    js_adjustments: &serde_json::Value,
+    photo: Option<&str>,
+) -> ([f32; 4], [f32; 4], [f32; 4]) {
+    let m = chosen_correction(js_adjustments, photo).unwrap_or(IDENTITY);
+    (
+        [m[0][0], m[0][1], m[0][2], 0.0],
+        [m[1][0], m[1][1], m[1][2], 0.0],
+        [m[2][0], m[2][1], m[2][2], 0.0],
+    )
+}
+
+fn chosen_correction(
+    js_adjustments: &serde_json::Value,
+    photo: Option<&str>,
+) -> Option<[[f32; 3]; 3]> {
+    let file = js_adjustments.get("cameraProfile")?.as_str()?.trim();
+    if file.is_empty() {
+        return None;
+    }
+
+    let library = super::profiles::library()?;
+    let profile = super::profiles::load(library, file)?;
+    let (_, _, forward) = super::decode::daylight_matrix(&profile)?;
+    let xyz2cam = super::profile_matrix::xyz2cam_from_forward(&forward?)?;
+
+    correction_for(photo, &xyz2cam)
 }
 
 #[cfg(test)]
@@ -530,38 +567,4 @@ mod tests {
         forget_built_in();
         assert!(correction_for(Some("A.CR2"), &BUILT_IN_5D2).is_none());
     }
-}
-
-/// The three shader rows for whatever profile this photo asked for.
-///
-/// Identity whenever there is no profile, no library, or anything at all goes
-/// wrong. A photo without a profile must render exactly as it always has, and
-/// "exactly" here means multiplied by the identity, not skipped.
-pub fn rows_for(
-    js_adjustments: &serde_json::Value,
-    photo: Option<&str>,
-) -> ([f32; 4], [f32; 4], [f32; 4]) {
-    let m = chosen_correction(js_adjustments, photo).unwrap_or(IDENTITY);
-    (
-        [m[0][0], m[0][1], m[0][2], 0.0],
-        [m[1][0], m[1][1], m[1][2], 0.0],
-        [m[2][0], m[2][1], m[2][2], 0.0],
-    )
-}
-
-fn chosen_correction(
-    js_adjustments: &serde_json::Value,
-    photo: Option<&str>,
-) -> Option<[[f32; 3]; 3]> {
-    let file = js_adjustments.get("cameraProfile")?.as_str()?.trim();
-    if file.is_empty() {
-        return None;
-    }
-
-    let library = super::profiles::library()?;
-    let profile = super::profiles::load(library, file)?;
-    let (_, _, forward) = super::decode::daylight_matrix(&profile)?;
-    let xyz2cam = super::profile_matrix::xyz2cam_from_forward(&forward?)?;
-
-    correction_for(photo, &xyz2cam)
 }

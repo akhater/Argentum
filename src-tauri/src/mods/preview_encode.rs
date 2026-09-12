@@ -85,7 +85,7 @@ pub fn encode(linear: f32) -> f32 {
     };
     // The top still clamps: above 1.0 is out of the display's range and their
     // pipeline expects it bounded. Only the bottom changes.
-    y.min(1.0).max(0.0)
+    y.clamp(0.0, 1.0)
 }
 
 /// Undo `encode`. Needed by anything working in scene-linear — the illuminant

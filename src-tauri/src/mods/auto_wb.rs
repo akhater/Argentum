@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 const OFF: usize = 4;
 
 /// Guard against division by zero. darktable's `NORM_MIN`.
-const NORM_MIN: f32 = 1.52587890625e-05; // 2^-16
+const NORM_MIN: f32 = 1.525_878_9e-5; // 2^-16
 
 /// D65 white point — the white of linear sRGB, and therefore what a correctly
 /// balanced image should be adapted *to* here.
@@ -53,7 +53,7 @@ const SLIDER_SCALE_TINT: f32 = 100.0;
 const SRGB_TO_XYZ: [[f32; 3]; 3] = [
     [0.412_456_4, 0.357_576_1, 0.180_437_5],
     [0.212_672_9, 0.715_152_2, 0.072_175_0],
-    [0.019_333_9, 0.119_192_0, 0.950_304_1],
+    [0.019_333_9, 0.119_192, 0.950_304_1],
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -127,7 +127,6 @@ impl Chromaticity {
 /// step with upstream's — they had not been read by anything since the encode
 /// gained a toe and the inverse moved, so the note was asking for maintenance
 /// on a copy nobody was using.
-
 #[inline]
 fn to_scene_linear(value: f32) -> f32 {
     // Single source of truth: mods::preview_encode owns the curve and its
@@ -234,8 +233,8 @@ fn detect_illuminant(
                     // Average the patch, then weight it by how much genuine
                     // coloured *surface* it contains.
                     let mut central = [0.0f32; 2];
-                    for c in 0..2 {
-                        central[c] = local_average(&chroma, row, col, c);
+                    for (c, slot) in central.iter_mut().enumerate() {
+                        *slot = local_average(&chroma, row, col, c);
                     }
 
                     // Variance of each chroma channel across the 9 taps.
@@ -280,8 +279,8 @@ fn detect_illuminant(
                 DetectMode::Edges => {
                     // Weight by edge strength instead: image minus blur.
                     let mut dd = [0.0f32; 2];
-                    for c in 0..2 {
-                        dd[c] = chroma.at(row, col)[c] - local_average(&chroma, row, col, c);
+                    for (c, slot) in dd.iter_mut().enumerate() {
+                        *slot = chroma.at(row, col)[c] - local_average(&chroma, row, col, c);
                     }
 
                     let p = 8.0f32;
@@ -808,7 +807,7 @@ mod neutralisation_tests {
     ];
     const XYZ_TO_SRGB: [[f32; 3]; 3] = [
         [3.2404542, -1.5371385, -0.4985314],
-        [-0.9692660, 1.8760108, 0.0415560],
+        [-0.969_266, 1.8760108, 0.0415560],
         [0.0556434, -0.2040259, 1.0572252],
     ];
 

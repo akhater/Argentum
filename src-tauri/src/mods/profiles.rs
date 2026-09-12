@@ -116,7 +116,6 @@ pub fn matches(profile_camera: &str, make: &str, model: &str) -> bool {
     // it cannot turn into prefix matching: "Canon EOS 7D" with its first word
     // removed is "EOS 7D", which is still not "EOS 7D Mark II".
     let without_maker: String = profile_camera
-        .trim()
         .split_whitespace()
         .skip(1)
         .collect::<Vec<_>>()

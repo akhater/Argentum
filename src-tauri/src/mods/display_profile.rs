@@ -46,7 +46,7 @@ use crate::mods::profile_matrix::{invert, multiply};
 const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
     [0.412_456_4, 0.357_576_1, 0.180_437_5],
     [0.212_672_9, 0.715_152_2, 0.072_175_0],
-    [0.019_333_9, 0.119_192_0, 0.950_304_1],
+    [0.019_333_9, 0.119_192, 0.950_304_1],
 ];
 
 /// Bradford, D65 to D50.
@@ -62,8 +62,12 @@ const BRADFORD_D65_TO_D50: [[f32; 3]; 3] = [
     [-0.009_234_5, 0.015_043_6, 0.752_131_6],
 ];
 
-/// No conversion. What a genuine sRGB display needs, and the safe answer
-/// whenever the profile cannot be read.
+/// No conversion, as a plain 3x3.
+///
+/// The shader takes `SHADER_IDENTITY` instead, which is this with the flag
+/// column, so the only thing left reading this one is the test that checks the
+/// two agree. Gated rather than deleted for exactly that reason.
+#[cfg(test)]
 pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
 /// The red, green and blue a display actually produces, in XYZ D50.

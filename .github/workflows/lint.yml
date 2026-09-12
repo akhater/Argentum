@@ -45,9 +45,13 @@ jobs:
           rustflags: ''
           rust-src-dir: src-tauri
 
+      # Argentum's own modules only. Upstream's files are deliberately left
+      # unformatted: rewrapping four of them added twenty to forty lines against
+      # the per-file budgets that keep this fork mergeable, and that budget is
+      # not there to be spent on whitespace.
       - name: Check formatting
         working-directory: src-tauri
-        run: cargo fmt -p Argentum -- --check
+        run: rustfmt --edition 2024 --check src/mods/*.rs
 
   clippy:
     name: cargo clippy
