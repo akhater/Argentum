@@ -22,6 +22,16 @@ Current week:
 date +%g.%V
 ```
 
+**Bump immediately after releasing, never before.** The moment `26.37.19` was
+published, the working version became `26.37.20`. So a number that exists on the
+Releases page is a release, and a number one ahead of it is a build from source
+- which answers "which version am I actually running?" without a suffix, a
+build-metadata tag, or anything the Windows installer might refuse.
+
+It also makes the in-app update check behave by accident: a development build is
+*newer* than the latest release, so it stays quiet instead of offering to
+"update" you to something older than what you are running.
+
 **Two digits, not four, and that is not a style choice.** It was `yyyy` until
 `26.37.19`, whose Windows build failed with
 
