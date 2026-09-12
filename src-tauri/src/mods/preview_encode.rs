@@ -85,7 +85,13 @@ pub fn encode(linear: f32) -> f32 {
     };
     // The top still clamps: above 1.0 is out of the display's range and their
     // pipeline expects it bounded. Only the bottom changes.
-    y.clamp(0.0, 1.0)
+    // NOT `y.clamp(0.0, 1.0)`, which clippy asks for and which is not the same
+    // function: `min`/`max` fall through to the other operand on NaN and answer
+    // 1.0, where `clamp` answers NaN. Decoded frames do carry NaN - the white
+    // balance array arrives with one in its fourth slot - and a NaN here reaches
+    // the canvas as a zero-sized image. Left as it is on purpose.
+    #[allow(clippy::manual_clamp)]
+    y.min(1.0).max(0.0)
 }
 
 /// Undo `encode`. Needed by anything working in scene-linear — the illuminant
