@@ -315,122 +315,27 @@ if (!base || !existsSync(join(root, '.git'))) {
 }
 
 
-/**
- * Upstream code our hooks step around but leave in place.
- *
- * CLAUDE.md says never delete their function — just stop calling it. That keeps
- * merges clean, and it hides something: upstream goes on fixing a function that
- * no longer runs here, the fix merges without a murmur, and nothing executes it.
- * Silence is the failure mode, so the shadows are listed and checked.
- *
- * The script asserts each symbol still exists upstream. A rename is exactly the
- * change that would otherwise slip past, because it conflicts with nothing.
- */
-const SHADOWED = [
-  {
-    file: 'src-tauri/src/image_processing.rs',
-    symbol: 'apply_cpu_default_raw_processing',
-    instead: 'mods/preview_encode.rs — the same curve with a toe instead of a cliff',
-  },
-  {
-    file: 'src-tauri/src/shaders/shader.wgsl',
-    symbol: 'apply_white_balance',
-    instead: 'shaders/modules.wgsl — scene-linear chromatic adaptation',
-  },
-];
+// SHADOWED, SIDECAR_KEYS and the borrow markers moved to
+// scripts/upstream-overlaps.mjs on 2026-09-13. Both this script and
+// upstream-review.mjs need them, both kept their own copy, and the copies had
+// already drifted: one of them knew what we use instead of each shadowed
+// symbol and the other did not.
 
-/**
- * Keys in the adjustments JSON whose meaning we changed, or which we added.
- *
- * Not symbols, so SHADOWED misses them, and a type change here breaks quietly.
- * `showClipping` went from a boolean to 0..4 and upstream's Waveform.tsx still
- * declares it a boolean: the day upstream writes `=== true`, our four-way
- * control reads as off and nothing errors.
- */
-const SIDECAR_KEYS = ['showClipping', 'cameraProfile'];
-
-/**
- * Fixes carried from an upstream pull request before upstream merged it.
- *
- * Lines between the markers are upstream's own work held early, not our
- * divergence — when the pull request lands they become identical to their copy.
- * They are therefore not charged against the file's budget, and are printed
- * separately so they are not forgotten:
- *
- *   // upstream #1307
- *   ...their fix...
- *   // end upstream #1307
- */
-const BORROW_START = /\/\/\s*upstream #(\d+)/;
-const BORROW_END = /\/\/\s*end upstream #(\d+)/;
-
-/**
- * Deleting their lines is what actually causes conflicts.
- *
- * Any upstream edit inside a block we removed conflicts, every time. This is
- * the rule CLAUDE.md already states — "never delete their function, just stop
- * calling it" — which went unenforced until 2026-09-13.
- */
-const DELETION_LIMIT = 20;
 // One pass over the real diff. Deliberately NOT `-w`: git merge does not
 // ignore whitespace, so a number that does is not the number to look at. It
 // reported Color.tsx as 4 lines where git sees 17 added and 13 deleted.
+//
+// The accounting itself is in scripts/upstream-diff.mjs so it can be tested
+// against throwaway repositories. Inline and untestable, it missed deleted
+// files entirely: `+++ /dev/null` did not match its header pattern, so removing
+// a whole upstream component changed this script's output by nothing at all.
 const diff = execSync(`git diff ${base} -- .`, {
   cwd: root,
   encoding: 'utf8',
   maxBuffer: 96 * 1024 * 1024,
 });
 
-/** file -> { added, deleted, borrowed, hooks[], prs } */
-const stats = new Map();
-const statFor = (file) => {
-  if (!stats.has(file)) {
-    stats.set(file, { added: 0, deleted: 0, borrowed: 0, hooks: [], prs: new Set() });
-  }
-  return stats.get(file);
-};
-
-{
-  let current = null;
-  let borrowing = null;
-  for (const line of diff.split('\n')) {
-    const header = line.match(/^\+\+\+ b\/(.+)$/);
-    if (header) {
-      current = header[1];
-      borrowing = null;
-      continue;
-    }
-    if (!current || isOurs(current) || IDENTITY.includes(current)) continue;
-
-    if (line.startsWith('-') && !line.startsWith('---')) {
-      statFor(current).deleted += 1;
-      continue;
-    }
-    if (!line.startsWith('+') || line.startsWith('+++')) continue;
-
-    const text = line.slice(1);
-    const st = statFor(current);
-    st.added += 1;
-
-    if (BORROW_END.test(text)) {
-      borrowing = null;
-      st.borrowed += 1;
-      continue;
-    }
-    const start = text.match(BORROW_START);
-    if (start) {
-      borrowing = start[1];
-      st.prs.add(start[1]);
-      st.borrowed += 1;
-      continue;
-    }
-    if (borrowing) {
-      st.borrowed += 1;
-      continue;
-    }
-    if (isHook(text)) st.hooks.push(text.trim());
-  }
-}
+const stats = accountDiff(diff, { isOurs, skip: IDENTITY, isHook });
 
 const warnings = [];
 const errors = [];

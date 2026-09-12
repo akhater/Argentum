@@ -76,6 +76,9 @@ mod tests {
     #[test]
     fn identical_patches_still_share_a_hash() {
         let p = json!({ "aiPatches": [{ "id": "p1", "visible": true, "patchDataBase64": "AAAABBBB" }] });
-        assert_eq!(calculate_transform_hash(&p), calculate_transform_hash(&p.clone()));
+        assert_eq!(
+            calculate_transform_hash(&p),
+            calculate_transform_hash(&p.clone())
+        );
     }
 }
