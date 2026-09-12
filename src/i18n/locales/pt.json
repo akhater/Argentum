@@ -987,6 +987,9 @@
         "clearSearch": "Limpar pesquisa",
         "collapse": "Recolher",
         "expand": "Expandir",
+        "moreOptions": "Opções",
+        "navBack": "Voltar",
+        "navForward": "Avançar",
         "sortFolders": "Ordenar pastas"
       }
     },
@@ -1107,6 +1110,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "Preencher Quadrado",
+      "justified": "Mosaico",
       "originalRatio": "Proporção Original"
     },
     "thumbnailSize": {

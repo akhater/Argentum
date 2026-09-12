@@ -940,7 +940,7 @@
       }
     },
     "folders": {
-      "addFolder": "Afegir carpeta",
+      "addFolder": "Afegeix una carpeta",
       "albumsEmpty": "Feu clic amb el botó dret per crear un àlbum.",
       "collapseSection": "Contraure {{section}}",
       "expandSection": "Expandir {{section}}",
@@ -964,6 +964,9 @@
         "clearSearch": "Netejar cerca",
         "collapse": "Contraure",
         "expand": "Expandir",
+        "moreOptions": "Opcions",
+        "navBack": "Enrere",
+        "navForward": "Endavant",
         "sortFolders": "Ordenar carpetes"
       }
     },
@@ -1083,6 +1086,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "Omplir el quadrat",
+      "justified": "Mosaic",
       "originalRatio": "Proporció original"
     },
     "thumbnailSize": {

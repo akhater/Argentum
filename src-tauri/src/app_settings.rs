@@ -571,7 +571,7 @@ impl Default for AppSettings {
             thumbnail_size: Some("small".to_string()),
             #[cfg(not(target_os = "android"))]
             thumbnail_size: Some("medium".to_string()),
-            thumbnail_aspect_ratio: Some("cover".to_string()),
+            thumbnail_aspect_ratio: Some("contain".to_string()),
             ai_provider: Some("cpu".to_string()),
             adjustment_visibility: default_adjustment_visibility(),
             open_tree_sections: default_open_tree_sections(),

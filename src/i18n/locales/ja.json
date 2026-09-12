@@ -938,7 +938,7 @@
       }
     },
     "folders": {
-      "addFolder": "フォルダを追加",
+      "addFolder": "フォルダーを追加",
       "albumsEmpty": "右クリックでアルバムを作成します。",
       "collapseSection": "{{section}}をたたむ",
       "expandSection": "{{section}}を展開",
@@ -962,6 +962,9 @@
         "clearSearch": "検索をクリア",
         "collapse": "折りたたむ",
         "expand": "展開",
+        "moreOptions": "オプション",
+        "navBack": "戻る",
+        "navForward": "進む",
         "sortFolders": "フォルダーを並べ替え"
       }
     },
@@ -1081,6 +1084,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "正方形にフィット",
+      "justified": "メイソンリー",
       "originalRatio": "オリジナル比率"
     },
     "thumbnailSize": {

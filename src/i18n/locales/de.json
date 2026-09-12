@@ -964,6 +964,9 @@
         "clearSearch": "Suche löschen",
         "collapse": "Zuklappen",
         "expand": "Aufklappen",
+        "moreOptions": "Optionen",
+        "navBack": "Zurück",
+        "navForward": "Vorwärts",
         "sortFolders": "Ordner sortieren"
       }
     },
@@ -1083,6 +1086,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "Quadrat füllen",
+      "justified": "Mosaik",
       "originalRatio": "Original-Verhältnis"
     },
     "thumbnailSize": {

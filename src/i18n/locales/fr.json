@@ -987,6 +987,9 @@
         "clearSearch": "Effacer la recherche",
         "collapse": "Réduire",
         "expand": "Développer",
+        "moreOptions": "Options",
+        "navBack": "Retour",
+        "navForward": "Suivant",
         "sortFolders": "Trier les dossiers"
       }
     },
@@ -1107,6 +1110,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "Remplir le carré",
+      "justified": "Mosaïque",
       "originalRatio": "Rapport original"
     },
     "thumbnailSize": {

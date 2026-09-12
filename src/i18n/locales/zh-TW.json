@@ -962,6 +962,9 @@
         "clearSearch": "清除搜尋",
         "collapse": "摺疊",
         "expand": "展開",
+        "moreOptions": "選項",
+        "navBack": "後退",
+        "navForward": "前進",
         "sortFolders": "對資料夾排序"
       }
     },
@@ -1081,6 +1084,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "填充正方形",
+      "justified": "瀑布流",
       "originalRatio": "原始比例"
     },
     "thumbnailSize": {

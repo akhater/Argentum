@@ -987,6 +987,9 @@
         "clearSearch": "Borrar búsqueda",
         "collapse": "Contraer",
         "expand": "Expandir",
+        "moreOptions": "Opciones",
+        "navBack": "Atrás",
+        "navForward": "Adelante",
         "sortFolders": "Ordenar carpetas"
       }
     },
@@ -1107,6 +1110,7 @@
     },
     "thumbnailFit": {
       "fillSquare": "Llenar cuadrado",
+      "justified": "Mosaico",
       "originalRatio": "Proporción original"
     },
     "thumbnailSize": {

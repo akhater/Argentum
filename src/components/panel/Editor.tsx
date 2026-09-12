@@ -114,6 +114,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
   const hasRenderedFirstFrame = useEditorStore((s) => s.hasRenderedFirstFrame);
 
   const setEditor = useEditorStore((s) => s.setEditor);
+  const toggleFullScreen = useUIStore((s) => s.toggleFullScreen);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const goToHistoryIndex = useEditorStore((s) => s.goToHistoryIndex);
@@ -229,21 +230,6 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
       window.removeEventListener('blur', handleBlur);
     };
   }, []);
-
-  const handleToggleFullScreen = useCallback(() => {
-    const currentlyZoomed = targetZoom > 1.01;
-    setUI({ isInstantTransition: currentlyZoomed });
-
-    if (isFullScreen) {
-      setUI({ isFullScreen: false });
-    } else {
-      if (selectedImage) setUI({ isFullScreen: true });
-    }
-
-    if (currentlyZoomed) {
-      setTimeout(() => setUI({ isInstantTransition: false }), 100);
-    }
-  }, [isFullScreen, selectedImage, targetZoom, setUI]);
 
   const handleDisplaySizeChange = useCallback(
     (size: RenderSize) => {
@@ -1049,7 +1035,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     const posOldX = transformStateRef.current.positionX;
     const posOldY = transformStateRef.current.positionY;
 
-    if (isInstantTransition && !transitionAnchorRef.current && scaleOld > 1.01) {
+    if (isInstantTransition && !transitionAnchorRef.current && Math.abs(scaleOld - 1) > 0.01) {
       transitionAnchorRef.current = {
         active: true,
         screenImageLeft: prevRenderState.current.containerLeft + posOldX + prevRenderState.current.offsetX * scaleOld,
@@ -2066,7 +2052,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
           onBackToLibrary={onBackToLibrary}
           onImageSelect={onImageSelect}
           onRedo={redo}
-          onToggleFullScreen={handleToggleFullScreen}
+          onToggleFullScreen={toggleFullScreen}
           onToggleShowOriginal={toggleShowOriginal}
           onUndo={undo}
           selectedImage={selectedImage}
