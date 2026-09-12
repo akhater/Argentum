@@ -95,6 +95,71 @@ Cap the depth, store deltas, or both.
 | ⬜ | **Stop the sidecar re-sending every mask on every keystroke** | Measured on one real photo: an AI mask is a full-resolution 8-bit PNG — 5616x3744, 254KB, 340KB once base64'd into the JSON. Linear and radial masks cost nothing, because they are stored as geometry. So the whole cost is AI and brush masks at ~330KB each, and ten of them on one photo is a 3.4MB sidecar. Nothing crashes at that size; what hurts is that `debouncedSave` re-serialises the entire adjustments object, bitmaps included, 300ms after *any* change and ships it over IPC — so nudging a slider moves megabytes, and OneDrive re-uploads the lot. Four options, in the order they are worth doing: **(1) store masks at reduced resolution** — half res is a quarter of the bytes and a feathered selection is resampled on use anyway, taking ten masks from 3.4MB to 650KB, and this is small and self-contained; **(2) send only masks that changed** and merge the rest in Rust, which is the real fix and takes a slider nudge from 3.4MB to 3KB — but it touches `useImageProcessing.ts` and `file_management.rs`, and that file is at 31/31 of its budget, so the logic has to sit on our side of the line; **(3) split bitmaps into files beside the `.agdata`**, which also removes the 33% base64 tax and stops OneDrive re-uploading untouched masks, at the cost of orphan cleanup and keeping them travelling with the photo; **(4) a database, which does not solve it** — the cost is per-keystroke serialisation rather than storage, and it would break edits living next to the pictures. Ten AI masks on one photo is expected, not hypothetical. **Migration, which is why the order is what it is:** (1) needs none, because a mask is resampled when it is applied, so old full-resolution ones keep working beside new small ones; (2) needs none either, being a transport change with the file format untouched; (3) migrates itself one photo at a time - read `maskDataBase64` when it is there, write the PNG beside the sidecar on the next save and drop the field, no batch job and no flag day; (4) is the only one needing a real migration, with no way back, which is a further reason against it. **Measured on AK's own masks, 2026-09-12, rather than assumed.** The worry was that a lower-resolution mask would soften detail on a 21MP photo, and it does not, because there is no detail in the mask to soften: the steepest change between adjacent pixels is 11 levels of 255, so the edge ramps over roughly 23 pixels, and 95% of the mask is flat 0 or 255. Downsampled and brought back up: half resolution is off by at most **4 levels of 255** with one pixel in 100,000 differing by more than two; quarter is at most 8; an eighth at most 18. Sizes re-encoded from the same mask - full 121KB, half 53KB, quarter 18KB, eighth 6KB. **A second saving found while measuring, free of everything:** that mask is stored at 254KB but re-encodes to 121KB with no change to a single pixel, so whatever writes it is not optimising the PNG. Halving it needs no resolution change, no schema change and no migration. Half resolution plus a proper encoder is 254KB to 53KB, about 4.8x, and takes ten masks from 3.4MB to 700KB. **Caveat, untested:** this was measured on AI masks only. A brush at zero feather may genuinely have hard edges, so key the resolution on mask type rather than applying it to everything | 1–3 days depending on option |
 | ⬜ | **Never let a failed load save over a good sidecar** | Autosave's only guard is `prev.adjustments !== adjustments` in `useImageProcessing.ts` — a reference comparison. It answers "is this a different object than last time", not "did this photo's real data finish loading". Masks live inside `adjustments`, so if the editor state is ever reset to defaults while a photo is selected — after a crash in the mask overlay, say — that counts as a change and is written straight to the sidecar, and a 768KB file with three masks becomes a 6KB file with none. Not proven to be what cost `104-6535` its masks, because the evidence for that is in OneDrive version history rather than here, but it is a mechanism that exists in the code today and the shape matches exactly. A save should be refused unless the adjustments being written came from a completed load of that same path | 1 day |
 
+
+### Sidecar size — the counter-case, and the decision
+
+The two rows above argue for shrinking masks. This is the argument against doing
+it now, and it is the one that won. Recorded because a plan that keeps only the
+winning side is useless when the question comes back.
+
+**Keep the sidecars.** Do not switch storage architecture or reduce mask
+resolution just before a release. The current format can evolve without
+abandoning existing edits.
+
+"Sidecar" is a standard *approach* — a companion file beside the photo. It does
+not imply a universal editing format. `.agdata` being application-specific is
+normal: even editors using XMP keep application-specific editing instructions in
+it, and Lightroom now separates heavier data into an additional ACR sidecar.
+
+**There is no universal acceptable sidecar size.** These are engineering
+guidelines, not format limits:
+
+| Size per edited photo | Assessment |
+|---|---|
+| A few KB to hundreds of KB | No reason to worry about storage alone |
+| 1–5 MB with several AI masks | Reasonable; benchmark repeated saves |
+| Tens of MB | Investigate serialisation, memory, syncing, asset separation |
+
+3.4MB is not inherently a problem. Ten thousand such sidecars would be ~34GB,
+so library scale is the thing to watch, not one file.
+
+**The performance question is how often that data is processed, not how big it
+is.** Rendering already avoids retransmitting some cached mask data, though it
+clones the adjustments first. Autosave still sends the full adjustments, reads
+the existing sidecar, serialises the replacement and rewrites it — and also
+schedules thumbnail generation. So size alone cannot say whether anyone will
+feel lag. **There are no measurements yet that justify calling this a release
+blocker, nor calling it seamless.**
+
+**On the measurements in the row above:** they support "half resolution produced
+a small error on those samples". They do **not** prove imperceptibility across
+photographs and adjustments — a mask's error affects the final image more
+strongly the stronger the adjustment behind it. The claim that a maximum step of
+11 proves there is no fine detail was also too strong.
+
+The finding worth keeping is the **lossless PNG re-encode**: 254KB to 121KB with
+identical decoded pixels costs no resolution, no schema change and no
+compatibility. It still needs verifying across more masks, and the ratio will
+not be identical for every one.
+
+**Decision, 2026-09-12 — revisit when there is a measurement, not before:**
+
+1. Keep `.agdata` and full-quality masks.
+2. Evaluate better lossless PNG compression, applied when a mask is created or
+   changed — not on every slider save.
+3. Benchmark a demanding photo with 10–20 masks on the minimum supported
+   hardware: slider responsiveness, save completion, reopening, thumbnail load.
+4. Establish compatibility tests against existing sidecars *before* any format
+   change.
+
+For a later storage upgrade the seamless path is straightforward to design: keep
+reading embedded masks, introduce a versioned format with external references,
+write and verify the assets before replacing the sidecar, keep the original
+during conversion. Moving, copying and renaming a photo must carry those assets
+too. **New versions reading old edits is achievable; old releases reading a new
+format is a separate promise** — leaving existing files untouched until an
+explicit or safe conversion keeps that distinction manageable.
+
 ## Detail
 
 | | What | Effort |
