@@ -9,6 +9,7 @@
 //! `docs/ADDING_A_TOOL.md` for the recipe.
 
 pub mod auto_wb;
+pub mod cache_key;
 pub mod cache_version;
 pub mod clipping;
 pub mod colour_compare;

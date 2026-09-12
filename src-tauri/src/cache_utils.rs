@@ -151,7 +151,7 @@ pub fn calculate_transform_hash(adjustments: &serde_json::Value) -> u64 {
             val.to_string().hash(&mut hasher);
         }
         if let Some(val) = adjustments.get("lensBlurDepthMap") {
-            val.as_str().unwrap_or("").len().hash(&mut hasher);
+            val.as_str().unwrap_or("").hash(&mut hasher);
         }
     }
 
@@ -184,28 +184,28 @@ pub fn calculate_transform_hash(adjustments: &serde_json::Value) -> u64 {
                 .unwrap_or(true);
             is_visible.hash(&mut hasher);
 
+            // upstream #1307
+            // Hash the contents, not the length: two patches of the same base64
+            // length collided and the cache served whichever arrived first.
             if let Some(patch_data) = patch.get("patchData") {
-                let color_len = patch_data
+                patch_data
                     .get("color")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
-                    .len();
-                color_len.hash(&mut hasher);
+                    .hash(&mut hasher);
 
-                let mask_len = patch_data
+                patch_data
                     .get("mask")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
-                    .len();
-                mask_len.hash(&mut hasher);
+                    .hash(&mut hasher);
             } else {
-                let data_len = patch
-                    .get("patchDataBase64")
+                patch.get("patchDataBase64")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
-                    .len();
-                data_len.hash(&mut hasher);
+                    .hash(&mut hasher);
             }
+            // end upstream #1307
 
             if let Some(sub_masks_val) = patch.get("subMasks") {
                 sub_masks_val.to_string().hash(&mut hasher);
