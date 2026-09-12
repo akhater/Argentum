@@ -46,6 +46,13 @@ and DEC-26 in the brain.
 |---|---|---|---|
 | ⬜ | **16-bit TIFF export** | Export writes 8 bits a channel today — `image::ImageFormat::Tiff` on an 8-bit buffer. That discards most of what a RAW holds, and banding shows in skies as soon as the file is edited again elsewhere. Confirmed missing 2026-09-10 | 1 day |
 
+## Library
+
+| | What | Why | Effort |
+|---|---|---|---|
+| ⬜ | **Group by date, camera or lens** | The grid is one flat list — `useSortedLibrary.ts` sorts and filters, and nothing groups. Needs no index, so it can be done before the catalogue | 2 days |
+| ⬜ | **Sort by capture time, not file time** | `case 'date'` compares `a.modified`, the file's modified time, which copying or re-editing changes. `DateTimeOriginal` is already parsed for display in `MetadataPanel.tsx` and never used for ordering. Wanted by grouping by day anyway | ½ day |
+
 ## Catalog
 
 Browse-only offline. **No smart previews** — decided.
@@ -80,6 +87,12 @@ Cap the depth, store deltas, or both.
 | ⬜ | Filmic / Sigmoid tone curve | 2 days |
 | ⬜ | Color balance rgb | 2 days |
 | ⬜ | Color equalizer | 2 days |
+
+## Masking
+
+| | What | Why | Effort |
+|---|---|---|---|
+| ⬜ | **Name the objects, then mask one** | `generate_ai_subject_mask` takes a `start_point`/`end_point` — SAM only segments what you have already boxed by hand. A detection pass would list what is in the frame and hand SAM the box, so masking the dog is a tick rather than a drag. RAM++ **classifies** and does not localise, so a grounding model (Grounding DINO / YOLO-World) sits between it and SAM — which is the Grounded-SAM pipeline, not something new. `ort` and a SAM download path already exist; the cost is two more models on disk and the picker UI. Tags fall out of it for free and make library search work on content | ~1 week |
 
 ## Detail
 

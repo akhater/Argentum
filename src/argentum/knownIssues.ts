@@ -38,6 +38,16 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     inherited: true,
   },
   {
+    what: 'The screen conversion is Windows-only, and needs a matrix profile',
+    detail:
+      'The preview is converted for the screen it is on by reading the display '
+      + 'profile Windows has for that monitor. On macOS and Linux nothing is read '
+      + 'and nothing is converted, and the same is true of a monitor profile built '
+      + 'as a lookup table rather than from three primaries. In both cases the '
+      + 'picture is shown the way it was before any of this existed — which is '
+      + 'right on an sRGB screen and over-saturated on a wide-gamut one.',
+  },
+  {
     what: 'Tested against one camera',
     detail:
       'Every colour measurement so far comes from a Canon EOS 5D Mark II. The RAW '

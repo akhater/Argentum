@@ -173,6 +173,59 @@ become an event our code listens for, not another line of theirs.
 
 ---
 
+## Planned: naming the objects before masking them
+
+Written down now because the shape of it is decided and the cost is not where it
+looks. Nothing is built yet. See the Masking row in `ROADMAP.md`.
+
+**What it is.** RapidRAW's AI mask (`generate_ai_subject_mask`) takes a
+`start_point` and an `end_point`: you drag a box round the thing, SAM segments
+inside it. The wanted behaviour is the other way round — look at the photo once,
+list what is in it, tick the dog.
+
+**Three models, not one.**
+
+| Step | Model | What it answers |
+|---|---|---|
+| Name | RAM++ | *what* is in this picture — a list of tags, no positions |
+| Locate | Grounding DINO (or YOLO-World) | *where* the thing called "dog" is — a box |
+| Cut | SAM | the mask inside that box — **already shipped** |
+
+RAM++ classifies and does not localise. That is the whole reason the middle row
+exists, and it is the thing most likely to be misremembered later as "RAM++ gives
+you objects". It does not. This chain is Grounded-SAM's own arrangement, so it is
+a known-good combination rather than an invention.
+
+**What is already here.** `ort` (ONNX Runtime, `load-dynamic`) is a dependency.
+`ai_processing.rs` already downloads a model from a URL into
+`get_models_dir(app_handle)`, checks a SHA-256, and caches the session — so two
+more models are a list entry, not new machinery. SAM needs a box; we would be
+handing it one we computed instead of one the user drew, which is the same
+argument it takes today.
+
+**Where the cost actually is.** Not the models — the mount point. A picker has to
+appear inside their masks panel, and `MasksPanel.tsx` has no `data-argentum`
+marker. So this feature wants a **new anchor in one of their files**, which the
+rule above says a feature must not need, and `check-mergeability.mjs` will fail
+the build until someone decides. Three ways out, in order of preference:
+
+1. Put the picker in a panel we already have a marker in, and have it *create*
+   the mask rather than live inside the mask UI. No new anchor.
+2. One new marker in `MasksPanel.tsx`, as a one-time mount point in the same
+   category as `color-tools` — an approved exception with a date, like the three
+   that exist.
+3. Our own window. No anchor at all and the worst place for it to be.
+
+Decide that before writing any of the model code, because it decides where the
+code goes.
+
+**Open, and not to be guessed at.** Model licences and sizes (two more downloads
+on top of SAM's). Whether the tags are worth storing per photo — they would make
+library search work on content, which needs somewhere to put them, and the
+catalogue index is the obvious place and does not exist yet.
+
+---
+
 ## Staying mergeable
 
 ```bash

@@ -42,6 +42,135 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.18 — 2026-09-12
+
+### Measured
+- **Three apps, one file, three different pictures — and now three answers.**
+
+  AK's export looked faded in Windows Photos, richer in GIMP, and different
+  again in Argentum. Embedding an sRGB profile in a copy changed nothing in
+  either viewer, so the missing tag was not the cause.
+
+  Measured with a patch chart rather than a photograph: eight flat colours of
+  known sRGB value, screenshotted out of each app. A screenshot holds what was
+  handed to the panel, so a patch that comes back unchanged means the app
+  converted nothing, and one that comes back different says exactly what it did.
+
+  ```
+                     file     Windows Photos   GIMP
+    red         255,  0,  0     219, 54, 40    255,  0,  0
+    green         0,255,  0     132,249, 80      0,255,  0
+    blue          0,  0,255      49, 32,241      0,  0,255
+    skin        224,172,140     208,170,142    224,172,140
+  ```
+
+  Windows Photos converts, and it converts with `UX3405CA_…_CMDEF.icm` — the
+  profile `GetICMProfileW` returns for this monitor, and the one Argentum reads.
+  Predicted against measured agrees within a few levels on every patch. The
+  *other* profile listed for this display, `CalibratedDisplayProfile-1.icc`,
+  predicts red as 255,3,2 and is not what anything uses.
+
+  GIMP converts nothing. Not one patch moved. Its own shipped defaults say why:
+
+  ```
+    (mode display)                   colour management on
+    (display-profile-from-gdk no)    never ask the system for the monitor profile
+  ```
+
+  No display profile set and told not to fetch one, so it manages colour towards
+  nothing and passes sRGB numbers to a wide-gamut panel. That is the same fault
+  Argentum's native preview had, and it is why GIMP looks richest.
+
+  So the ordering is: Photos converts, Argentum converts, GIMP does not. GIMP is
+  the outlier.
+
+- **And the native surface converts, measured rather than reasoned.** The same
+  chart, opened in Argentum with the native renderer live, screenshotted off the
+  panel:
+
+  ```
+                  Argentum    predicted    Windows Photos
+    red         222, 51, 36  222, 51, 36    219, 54, 40
+    green       134,250, 80  134,250, 80    132,249, 80
+    blue         44, 26,244   44, 26,244     49, 32,241
+    skin        211,174,145  211,174,145    208,170,142
+  ```
+
+  Exact against its own prediction on every channel of every patch, so the
+  conversion reaches the screen. Within three levels of Windows Photos, the
+  residual being their tone curves against our plain sRGB curve — a difference
+  visible in a table and not on a photograph.
+
+  This took the window in front: the native surface composites behind the
+  webview, so nothing that captures a window can see it. Worth knowing before
+  the next time something needs measuring on that path.
+
+### Fixed
+- **A profile that failed to read once stayed failed for the session.**
+  `mods/display_monitor.rs` keys its cache on the monitor, the profile path and
+  the file's write time, and re-checks a second later. That covers a profile
+  being reassigned or recalibrated. It did not cover the read itself failing —
+  the file locked while calibration software rewrote it, a drive that had not
+  woken up — because the identity that came back was cached against a path and
+  a write time that were *unchanged* afterwards. Every later check matched,
+  updated the clock, and handed back the identity again. Nothing about the file
+  ever changes to unstick it, and the user has no way to ask.
+
+  A resolution now records whether the profile was actually read, and only a
+  real answer may be kept on the strength of an unchanged file. A failure is
+  retried on the next check. An sRGB screen still counts as a real answer, so
+  it is not re-read every second.
+
+### Where this works, and where it does not
+
+| | Converted? | Why |
+|---|---|---|
+| Windows 10 / 11 | yes | `GetICMProfileW` on a device context for the monitor the window is on |
+| macOS, Linux | **no** | `profile_for_window` returns `None` there. Both have their own way to ask; writing them blind would be three implementations with one tested. Presents unconverted, exactly as before the feature |
+| Matrix profile (`rXYZ`/`gXYZ`/`bXYZ`) | yes | The three colourant tags are read as `XYZType` s15Fixed16 and inverted. v2 and v4 alike — the tags are the same shape in both |
+| LUT-only profile (`A2B0` and no colourants) | **no** | Nothing to invert, so `None`, so unconverted. Rare on displays, normal on printers |
+| Broken or truncated profile | no | Refused rather than guessed at: header shorter than 132 bytes, more than 256 tags, primaries that do not invert |
+| Profile tone curves (`rTRC`, `vcgt`) | read and ignored | Measured: applying them was a *worse* match to the rest of Windows than the primaries with a plain sRGB curve. This is the residual three levels against Windows Photos |
+
+Remaining limits, all deliberate:
+
+- **Only the main window's screen.** One window, one conversion.
+- **A change takes up to three seconds to show** — a one-second cache and a
+  two-second poll. There is a message Windows broadcasts for this, and receiving
+  it means a window procedure of our own inside somebody else's application.
+- **Exports carry no profile and no conversion.** Correct: an export is sRGB
+  data for another program, not pixels for this screen. Tagging them with sRGB is
+  a separate question and is on the roadmap conversation, not done.
+- **One cache entry.** Dragging between two profiled monitors re-reads the
+  profile on each move rather than keeping both. A file read per drag.
+
+- **The two views agree, measured.** The whole feature was found by the crop view
+  and the normal view of one photo disagreeing: the crop view goes out as a JPEG
+  in an `<img>`, which WebView2 colour-manages, and the native surface did not.
+  So the acceptance test is that they now agree. The same unedited frame, no
+  crop, screenshotted in both views off the panel:
+
+  ```
+                  normal         crop view      delta
+    skin (arm)   136, 95, 73    136, 94, 73    -0.4, -0.4, -0.2
+    shirt         67, 55, 53     66, 55, 53    -0.5, -0.3, -0.4
+    denim         63, 70, 85     63, 70, 84    -0.2, -0.3, -0.2
+    grass         78, 85, 66     78, 85, 66    -0.2, -0.2, -0.4
+    wall          46, 46, 23     46, 46, 22    -0.5, -0.5, -0.4
+  ```
+
+  Half a level out of 255, which is the audit's own figure for agreement — it
+  measured 0.5 with the conversion and 3.5 without. The residual is the crop
+  preview being a quality-80 JPEG, not a colour difference. Feature closed.
+
+  The caching moved into `rows_now`, which takes the clock and both lookups as
+  arguments, because the case is three things a test cannot stage: a monitor, a
+  profile Windows assigned to it, and a file that reads one moment and not the
+  next. `a_read_that_fails_once_recovers_with_the_file_unchanged` fails against
+  the previous version and passes against this one.
+
+---
+
 ## 2026.37.17 — 2026-09-11
 
 The preview had been showing every photo more saturated than it was, on this

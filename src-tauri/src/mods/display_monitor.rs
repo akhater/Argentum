@@ -208,6 +208,10 @@ struct Cached {
     written: Option<std::time::SystemTime>,
     checked: std::time::Instant,
     rows: super::display_profile::ShaderRows,
+    /// Whether the profile was actually read, as opposed to a path that was
+    /// found and then failed to parse. Only a real answer may be kept on the
+    /// strength of an unchanged file; see `rows_now`.
+    read_succeeded: bool,
 }
 
 static CACHE: std::sync::Mutex<Option<Cached>> = std::sync::Mutex::new(None);
@@ -237,9 +241,29 @@ pub fn forget() {
 /// written; and it is re-checked on a timer rather than only when the monitor
 /// changes. A failure caches nothing, so the next check tries again.
 pub fn shader_rows_for_window(hwnd: isize) -> super::display_profile::ShaderRows {
-    let monitor = monitor_key(hwnd);
-    let now = std::time::Instant::now();
+    rows_now(
+        monitor_key(hwnd),
+        std::time::Instant::now(),
+        &|| profile_for_window(hwnd),
+        &super::display_profile::from_file,
+    )
+}
 
+/// The caching itself, with the clock and both lookups handed in.
+///
+/// WHY THE SEAM EXISTS
+///
+/// Everything interesting here is a decision about *when to ask again*, and all
+/// three inputs to that decision are things a test cannot stage: a real monitor,
+/// a profile Windows assigned to it, and a file that reads one moment and not
+/// the next. Passing them in is what lets the failure case below be a test
+/// rather than a paragraph.
+fn rows_now(
+    monitor: isize,
+    now: std::time::Instant,
+    find_profile: &dyn Fn() -> Option<std::path::PathBuf>,
+    read_profile: &dyn Fn(&std::path::Path) -> Option<[[f32; 3]; 3]>,
+) -> super::display_profile::ShaderRows {
     if let Ok(cache) = CACHE.lock()
         && let Some(cached) = cache.as_ref()
         && cached.monitor == monitor
@@ -248,33 +272,43 @@ pub fn shader_rows_for_window(hwnd: isize) -> super::display_profile::ShaderRows
         return cached.rows;
     }
 
-    let profile = profile_for_window(hwnd);
-    let written = profile.as_ref().and_then(|p| {
-        std::fs::metadata(p).ok().and_then(|m| m.modified().ok())
-    });
+    let profile = find_profile();
+    let written = profile
+        .as_ref()
+        .and_then(|p| std::fs::metadata(p).ok().and_then(|m| m.modified().ok()));
 
     // Still the same screen, the same file, and the file has not been rewritten:
     // nothing to redo, so only the clock is updated.
+    //
+    // `read_succeeded` is in that condition because without it this branch kept
+    // a *failure* forever. A profile that could not be read — locked while the
+    // calibration software rewrote it, on a drive that had not woken up — gave
+    // the identity, and the path and write time that came with it were unchanged
+    // afterwards, so every later check landed here, updated the clock and handed
+    // back the identity again. The file never changes to unstick it and the user
+    // has no way to ask. So a failure is never kept on the strength of an
+    // unchanged file: it is retried on the next check, one second later.
     if let Ok(mut cache) = CACHE.lock()
         && let Some(cached) = cache.as_mut()
         && cached.monitor == monitor
         && cached.profile == profile
         && cached.written == written
         && written.is_some()
+        && cached.read_succeeded
     {
         cached.checked = now;
         return cached.rows;
     }
 
-    let rows = profile
-        .as_ref()
-        .and_then(|p| super::display_profile::from_file(p))
+    let matrix = profile.as_ref().and_then(|p| read_profile(p));
+    let read_succeeded = matrix.is_some() || profile.is_none();
+    let rows = matrix
         .filter(|m| !is_identity(m))
         .map(|m| super::display_profile::shader_rows(&m))
         .unwrap_or(super::display_profile::SHADER_IDENTITY);
 
     if let Ok(mut cache) = CACHE.lock() {
-        *cache = Some(Cached { monitor, profile, written, checked: now, rows });
+        *cache = Some(Cached { monitor, profile, written, checked: now, rows, read_succeeded });
     }
     rows
 }
@@ -368,6 +402,15 @@ pub fn refresh_after_window_change() {
 mod cache_tests {
     use super::*;
 
+    /// There is one cache for the process and these tests all write to it, so
+    /// they take turns. Without this they pass alone and fail together, which is
+    /// the worst kind of test.
+    static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn in_turn() -> std::sync::MutexGuard<'static, ()> {
+        ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// A failed lookup must not be remembered as the answer.
     ///
     /// The cache used to key on the monitor alone, so a lookup that failed once
@@ -376,6 +419,7 @@ mod cache_tests {
     /// could not repair it because panning hits the same key.
     #[test]
     fn a_failure_is_retried_rather_than_kept() {
+        let _turn = in_turn();
         forget();
         // Nothing to find for a handle that is not a window on a machine with
         // no profile; what matters is that asking twice asks twice.
@@ -383,6 +427,105 @@ mod cache_tests {
         forget();
         let second = shader_rows_for_window(0);
         assert_eq!(first, second, "the same question gave two answers");
+    }
+
+    /// A read that fails once and then works, with the file never changing.
+    ///
+    /// This is the case the path/mtime key cannot see. The profile is found, the
+    /// file is there, its write time is the same before and after — and the read
+    /// of it failed the first time, because something else had the file open.
+    /// Nothing about the key changes when it starts working, so the only thing
+    /// that can bring the conversion back is refusing to keep a failure.
+    ///
+    /// Against the previous version this fails on the second assertion: the
+    /// identity from the failed read was returned for the rest of the session.
+    #[test]
+    fn a_read_that_fails_once_recovers_with_the_file_unchanged() {
+        let _turn = in_turn();
+        let path = std::env::temp_dir().join("ag-display-transient-read.icm");
+        std::fs::write(&path, b"stands in for a profile; the reader is faked").unwrap();
+        let written = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+        // A conversion far enough from the identity not to be filtered out.
+        let real = [[1.2, -0.2, 0.0], [-0.1, 1.1, 0.0], [0.0, -0.3, 1.3]];
+        let reads = std::cell::Cell::new(0u32);
+        let read = |_: &std::path::Path| -> Option<[[f32; 3]; 3]> {
+            reads.set(reads.get() + 1);
+            if reads.get() == 1 { None } else { Some(real) }
+        };
+        let find = || Some(path.clone());
+
+        let t0 = std::time::Instant::now();
+        forget();
+
+        let failed = rows_now(MONITOR, t0, &find, &read);
+        assert_eq!(
+            failed,
+            super::super::display_profile::SHADER_IDENTITY,
+            "a profile that cannot be read must present unconverted, not guess"
+        );
+
+        // Same screen, same path, same write time, cache untouched.
+        assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), written);
+        let recovered = rows_now(MONITOR, t0 + RECHECK_AFTER, &find, &read);
+        assert_ne!(
+            recovered,
+            super::super::display_profile::SHADER_IDENTITY,
+            "the failed read was cached for good: nothing about the file changes to undo it"
+        );
+        assert_eq!(recovered, super::super::display_profile::shader_rows(&real));
+        assert!(reads.get() >= 2, "the file was never read a second time");
+
+        // And once it is working it is kept, rather than re-read every check.
+        let again = rows_now(MONITOR, t0 + RECHECK_AFTER * 2, &find, &read);
+        assert_eq!(again, recovered);
+        assert_eq!(reads.get(), 2, "a good profile is being re-read needlessly");
+
+        // Different rows is exactly the condition `refresh_after_window_change`
+        // redraws on, so the picture on screen changes with it. The GPU half of
+        // that cannot be reached from a test; the decision can.
+        assert_ne!(failed, recovered);
+
+        forget();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A screen whose profile is genuinely sRGB reads fine and converts to the
+    /// identity, and that is an answer, not a failure — so it must not be
+    /// re-read on every check the way a failure is.
+    #[test]
+    fn an_srgb_screen_is_not_treated_as_a_failed_read() {
+        let _turn = in_turn();
+        let path = std::env::temp_dir().join("ag-display-srgb.icm");
+        std::fs::write(&path, b"stands in for an sRGB profile").unwrap();
+        let reads = std::cell::Cell::new(0u32);
+        let read = |_: &std::path::Path| -> Option<[[f32; 3]; 3]> {
+            reads.set(reads.get() + 1);
+            Some([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        };
+        let find = || Some(path.clone());
+
+        let t0 = std::time::Instant::now();
+        forget();
+        let first = rows_now(MONITOR, t0, &find, &read);
+        let second = rows_now(MONITOR, t0 + RECHECK_AFTER, &find, &read);
+        assert_eq!(first, super::super::display_profile::SHADER_IDENTITY);
+        assert_eq!(second, first);
+        assert_eq!(reads.get(), 1, "an sRGB profile is being re-read on every check");
+
+        forget();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A monitor number no real monitor has, so these tests cannot be confused
+    /// by a cache entry the rest of the suite left behind.
+    const MONITOR: isize = -777;
+
+    /// The poll has to be at least as slow as the timer, or it spends its time
+    /// hitting the short-circuit instead of looking again.
+    #[test]
+    fn the_watcher_runs_slowly_enough_to_reach_a_fresh_lookup() {
+        assert!(WATCH_EVERY >= RECHECK_AFTER);
     }
 
     /// And the timer has to be short enough to notice a recalibration while
@@ -415,8 +558,14 @@ mod cache_tests {
 pub fn watch() {
     std::thread::spawn(|| {
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(2));
+            std::thread::sleep(WATCH_EVERY);
             refresh_after_window_change();
         }
     });
 }
+
+/// How often that check runs. Must be at least `RECHECK_AFTER`, or the poll
+/// keeps hitting the short-circuit and never reaches a fresh lookup — which is
+/// also how a recovered profile gets back on screen without the user doing
+/// anything.
+const WATCH_EVERY: std::time::Duration = std::time::Duration::from_secs(2);

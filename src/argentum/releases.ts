@@ -32,11 +32,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2026.37.18',
+    date: '2026-09-12',
+    notes: [
+      'Fixed a case where the preview stopped converting colour for your screen and '
+      + 'stayed that way until the app was restarted — if the screen’s profile could '
+      + 'not be read for a moment, that answer was kept for good. It is retried now.',
+      'The screen conversion is Windows-only, and needs a monitor profile built from '
+      + 'primaries rather than a lookup table. That was always true and is now written '
+      + 'down under Known issues.',
+    ],
+  },
+  {
     version: '2026.37.17',
     date: '2026-09-11',
     notes: [
       'Fixed the preview showing photos more saturated than they are. Argentum now '
-      + 'converts colour for the screen it is on, read from that display profile '
+      + 'converts colour for the screen it is on, read from that display’s own '
       + 'profile — so what you see matches what you export. On a normal sRGB screen '
       + 'nothing changes; on a wide-gamut one, quite a lot does.',
       'Added highlight recovery: when a bright area blows out in one colour channel, '

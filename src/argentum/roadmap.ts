@@ -91,6 +91,16 @@ const MILESTONES: Milestone[] = [
   },
   {
     stage: 'planned',
+    what: 'Group by date, camera or lens',
+    why:
+      'The library is one flat list. You can sort it and filter it, but not break '
+      + 'it into days, or cameras, or lenses, which is how a shoot is actually '
+      + 'looked for. And sorting by date uses the file’s modified time — which '
+      + 'copying or re-editing changes — while the moment the shutter fired sits '
+      + 'in the EXIF, read for display and never used for ordering.',
+  },
+  {
+    stage: 'planned',
     what: 'Offline catalogue',
     why: 'Browse and search photos with the drive unplugged, and relink folders that move.',
   },
@@ -101,6 +111,34 @@ const MILESTONES: Milestone[] = [
       'Export currently writes 8 bits a channel, which throws away most of what '
       + 'a RAW holds and shows as banding in skies once anything is edited '
       + 'afterwards. Needed before Argentum can hand work to another editor.',
+  },
+  {
+    stage: 'planned',
+    what: 'Stack burst shots',
+    why:
+      'A run of frames taken in continuous mode is one moment, not eight, and the '
+      + 'library shows it as eight. Group them so a burst takes one slot and opens '
+      + 'to the rest. The timestamps are the obvious signal; whether they are enough '
+      + 'on their own is still to be worked out.',
+  },
+  {
+    stage: 'planned',
+    what: 'Name what is in the picture, then mask it',
+    why:
+      'An AI mask needs you to drag a box around the thing first. Instead: look at '
+      + 'the photo once, list what is in it — sky, face, the dog, the tree on the '
+      + 'left — and tick the ones to mask. RAM++ names things but does not say '
+      + 'where they are, so a locating step sits between it and the mask. Everything '
+      + 'stays on this machine, and the same names make the library searchable by '
+      + 'what is in a photo rather than only by filename and EXIF.',
+  },
+  {
+    stage: 'planned',
+    what: 'Feather on the linear mask',
+    why:
+      'A linear gradient has a hard-ish edge and no way to soften it. The falloff '
+      + 'is already there — mask_generation.rs takes a range, fixed at 50 — it has '
+      + 'simply never been put on screen.',
   },
   {
     stage: 'planned',

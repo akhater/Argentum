@@ -279,7 +279,7 @@ const budgetFor = (file) => {
 
 let base;
 try {
-  base = execSync('git rev-parse --verify --quiet upstream/main', {
+  base = execSync('git merge-base HEAD upstream/main', {
     cwd: root,
     encoding: 'utf8',
   }).trim();
