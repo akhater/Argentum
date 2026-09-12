@@ -10,8 +10,14 @@
 
 pub mod auto_wb;
 pub mod cache_version;
-pub mod colour_compare;
 pub mod clipping;
+pub mod colour_compare;
+pub mod commands;
+pub mod dcp;
+pub mod decode;
+pub mod dispatch;
+pub mod display_monitor;
+pub mod display_profile;
 pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;
@@ -24,9 +30,3 @@ pub mod shader_check;
 pub mod sigmoid;
 pub mod sraw_levels;
 pub mod startup;
-pub mod commands;
-pub mod dcp;
-pub mod decode;
-pub mod display_monitor;
-pub mod display_profile;
-pub mod dispatch;

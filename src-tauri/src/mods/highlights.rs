@@ -223,7 +223,12 @@ mod tests {
     /// this whole decision rests on are not comparable.
     #[test]
     fn recoverable_and_blown_account_for_every_clipped_block() {
-        let c = Clipping { blocks: 100, clipped: 30, recoverable: 18, blown: 12 };
+        let c = Clipping {
+            blocks: 100,
+            clipped: 30,
+            recoverable: 18,
+            blown: 12,
+        };
         assert_eq!(c.recoverable + c.blown, c.clipped);
         assert!((c.percent_clipped() - 30.0).abs() < 1e-9);
         assert!((c.percent_recoverable() - 18.0).abs() < 1e-9);
@@ -245,7 +250,11 @@ mod survey {
         let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
         let decoder = rawler::get_decoder(&source).ok()?;
         let mut raw = decoder
-            .raw_image(&source, &rawler::decoders::RawDecodeParams::default(), false)
+            .raw_image(
+                &source,
+                &rawler::decoders::RawDecodeParams::default(),
+                false,
+            )
             .ok()?;
         // The same levels the app decodes with, or sRAW would be measured
         // against a ceiling that is not its own.
@@ -274,9 +283,16 @@ mod survey {
             rows.push((path.file_stem().unwrap().to_string_lossy().to_string(), c));
         }
 
-        rows.sort_by(|a, b| b.1.percent_recoverable().partial_cmp(&a.1.percent_recoverable()).unwrap());
+        rows.sort_by(|a, b| {
+            b.1.percent_recoverable()
+                .partial_cmp(&a.1.percent_recoverable())
+                .unwrap()
+        });
 
-        println!("\n{:<46} {:>10} {:>13} {:>9}", "photo", "clipped", "recoverable", "blown");
+        println!(
+            "\n{:<46} {:>10} {:>13} {:>9}",
+            "photo", "clipped", "recoverable", "blown"
+        );
         for (name, c) in &rows {
             println!(
                 "{:<46} {:>9.2}% {:>12.2}% {:>8.2}%",
@@ -454,7 +470,9 @@ mod recovery_tests {
     const CEILINGS: [f32; 3] = [1000.0, 1000.0, 1000.0];
 
     fn neutral() -> HighlightColour {
-        HighlightColour { ratio: [1.0, 1.0, 1.0] }
+        HighlightColour {
+            ratio: [1.0, 1.0, 1.0],
+        }
     }
 
     /// The property every photo without blown highlights depends on.
@@ -476,12 +494,18 @@ mod recovery_tests {
     /// area reads magenta until the green is put back.
     #[test]
     fn a_clipped_green_is_rebuilt_from_red_and_blue() {
-        let colour = HighlightColour { ratio: [0.9, 1.0, 0.8] };
+        let colour = HighlightColour {
+            ratio: [0.9, 1.0, 0.8],
+        };
         // Red at 990 implies a level of 1100, blue at 800 implies 1000, and the
         // two readings are averaged: 1050. Green comes back there rather than
         // stopping at its ceiling.
         let out = rebuild([990.0, 1000.0, 800.0], CEILINGS, &colour);
-        assert!((out[1] - 1050.0).abs() < 1.0, "green came back as {}", out[1]);
+        assert!(
+            (out[1] - 1050.0).abs() < 1.0,
+            "green came back as {}",
+            out[1]
+        );
         assert_eq!(out[0], 990.0, "red was not clipped and must not move");
         assert_eq!(out[2], 800.0, "blue was not clipped and must not move");
     }
@@ -489,7 +513,9 @@ mod recovery_tests {
     /// Never darker than the sensor said.
     #[test]
     fn a_rebuilt_channel_is_never_lowered() {
-        let colour = HighlightColour { ratio: [1.0, 1.0, 1.0] };
+        let colour = HighlightColour {
+            ratio: [1.0, 1.0, 1.0],
+        };
         // Blue is unclipped and dim, which implies a level below the ceiling.
         // The clipped channels must not follow it down.
         let out = rebuild([1000.0, 1000.0, 200.0], CEILINGS, &colour);
@@ -708,7 +734,11 @@ mod proof {
         let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
         let decoder = rawler::get_decoder(&source).ok()?;
         let mut raw = decoder
-            .raw_image(&source, &rawler::decoders::RawDecodeParams::default(), false)
+            .raw_image(
+                &source,
+                &rawler::decoders::RawDecodeParams::default(),
+                false,
+            )
             .ok()?;
         crate::mods::sraw_levels::fix(&mut raw, &bytes);
         let c4 = ceilings(&raw)?;
@@ -729,7 +759,12 @@ mod proof {
     /// A perfectly reconstructed blown highlight scores zero: all three
     /// channels sit at the same level. A magenta one scores high, because green
     /// is stuck at its ceiling while red and blue are not.
-    fn cast_of_clipped(pixels: &[u16], cpp: usize, ceilings: [f32; 3], ratio: [f32; 3]) -> Option<(f64, u64)> {
+    fn cast_of_clipped(
+        pixels: &[u16],
+        cpp: usize,
+        ceilings: [f32; 3],
+        ratio: [f32; 3],
+    ) -> Option<(f64, u64)> {
         if cpp != 3 {
             return None;
         }
@@ -770,7 +805,11 @@ mod proof {
         let (before, cpp, ceilings) = decode(&path, false).expect("decode");
         let (after, _, _) = decode(&path, true).expect("decode with recovery");
 
-        let changed = before.iter().zip(after.iter()).filter(|(a, b)| a != b).count();
+        let changed = before
+            .iter()
+            .zip(after.iter())
+            .filter(|(a, b)| a != b)
+            .count();
         println!(
             "\nvalues changed: {changed} of {} ({:.2}%)",
             before.len(),
@@ -781,14 +820,20 @@ mod proof {
         // reconstruction aims at — scoring against neutral would just reward
         // making everything grey.
         let ratio = highlight_colour(
-            before.chunks_exact(3).map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
+            before
+                .chunks_exact(3)
+                .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
             ceilings,
         )
         .expect("a bright enough photo")
         .ratio;
-        println!("highlight colour: R {:.3}  G 1.000  B {:.3}", ratio[0], ratio[2]);
+        println!(
+            "highlight colour: R {:.3}  G 1.000  B {:.3}",
+            ratio[0], ratio[2]
+        );
 
-        let (cast_before, n) = cast_of_clipped(&before, cpp, ceilings, ratio).expect("three colour");
+        let (cast_before, n) =
+            cast_of_clipped(&before, cpp, ceilings, ratio).expect("three colour");
         let (cast_after, _) = cast_of_clipped(&after, cpp, ceilings, ratio).expect("three colour");
 
         println!("clipped pixels: {n}");
@@ -810,11 +855,19 @@ mod proof {
     #[test]
     #[ignore = "reads AK's photos; run by hand"]
     fn a_photo_without_clipping_is_untouched() {
-        let path = std::env::var("AG_CLEAN_RAW").expect("set AG_CLEAN_RAW to a photo with no clipping");
+        let path =
+            std::env::var("AG_CLEAN_RAW").expect("set AG_CLEAN_RAW to a photo with no clipping");
         let (before, _, _) = decode(&path, false).expect("decode");
         let (after, _, _) = decode(&path, true).expect("decode with recovery");
-        let changed = before.iter().zip(after.iter()).filter(|(a, b)| a != b).count();
-        assert_eq!(changed, 0, "{changed} values moved in a photo with nothing to recover");
+        let changed = before
+            .iter()
+            .zip(after.iter())
+            .filter(|(a, b)| a != b)
+            .count();
+        assert_eq!(
+            changed, 0,
+            "{changed} values moved in a photo with nothing to recover"
+        );
     }
 }
 
@@ -834,12 +887,21 @@ mod diagnose {
         let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
         let decoder = rawler::get_decoder(&source).expect("decoder");
         let mut raw = decoder
-            .raw_image(&source, &rawler::decoders::RawDecodeParams::default(), false)
+            .raw_image(
+                &source,
+                &rawler::decoders::RawDecodeParams::default(),
+                false,
+            )
             .expect("decode");
         crate::mods::sraw_levels::fix(&mut raw, &bytes);
 
         let c4 = ceilings(&raw).expect("ceilings");
-        println!("\ncpp {}   whitelevel {:?}   ceilings {:?}", raw.cpp, raw.whitelevel.0, &c4[..3]);
+        println!(
+            "\ncpp {}   whitelevel {:?}   ceilings {:?}",
+            raw.cpp,
+            raw.whitelevel.0,
+            &c4[..3]
+        );
         println!("blacklevel {:?}", raw.blacklevel.levels);
         println!("wb_coeffs {:?}", raw.wb_coeffs);
 
@@ -869,11 +931,16 @@ mod diagnose {
         );
 
         let colour = highlight_colour(
-            pixels.chunks_exact(3).map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
+            pixels
+                .chunks_exact(3)
+                .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
             ceilings,
         )
         .expect("bright enough");
-        println!("\nhighlight ratio     R {:.3}  G 1.000  B {:.3}", colour.ratio[0], colour.ratio[2]);
+        println!(
+            "\nhighlight ratio     R {:.3}  G 1.000  B {:.3}",
+            colour.ratio[0], colour.ratio[2]
+        );
 
         // For pixels where green has clipped, what do red and blue say the
         // level should have been, against green's ceiling?
@@ -927,10 +994,18 @@ mod diagnose {
             };
             let (rlo, rhi, rmean, rsd) = stats(&r);
             let (blo, bhi, bmean, bsd) = stats(&b);
-            println!("
-inside the blown region:");
-            println!("  red   {rlo:.0} to {rhi:.0}   mean {rmean:.0}   sd {rsd:.1}  ({:.2}% of mean)", rsd / rmean * 100.0);
-            println!("  blue  {blo:.0} to {bhi:.0}   mean {bmean:.0}   sd {bsd:.1}  ({:.2}% of mean)", bsd / bmean * 100.0);
+            println!(
+                "
+inside the blown region:"
+            );
+            println!(
+                "  red   {rlo:.0} to {rhi:.0}   mean {rmean:.0}   sd {rsd:.1}  ({:.2}% of mean)",
+                rsd / rmean * 100.0
+            );
+            println!(
+                "  blue  {blo:.0} to {bhi:.0}   mean {bmean:.0}   sd {bsd:.1}  ({:.2}% of mean)",
+                bsd / bmean * 100.0
+            );
         }
 
         // Red and blue top out well below a table that says 64424 for all
@@ -952,7 +1027,14 @@ inside the blown region:");
         );
 
         println!("\ngreen-clipped pixels: {n}");
-        let names = ["<1.00", "1.00-1.01", "1.01-1.05", "1.05-1.10", "1.10-1.20", ">1.20"];
+        let names = [
+            "<1.00",
+            "1.00-1.01",
+            "1.01-1.05",
+            "1.05-1.10",
+            "1.10-1.20",
+            ">1.20",
+        ];
         for (i, name) in names.iter().enumerate() {
             println!(
                 "  red+blue imply {name:>8} of green's ceiling   {:>10}  {:>5.1}%",

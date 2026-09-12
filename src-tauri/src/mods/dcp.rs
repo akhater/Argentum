@@ -179,7 +179,14 @@ fn read_directory(bytes: &[u8], endian: Endian, at: usize) -> Option<HashMap<u16
             endian.u32(bytes, e + 8)? as usize
         };
 
-        out.insert(tag, Entry { kind, count: n, offset });
+        out.insert(
+            tag,
+            Entry {
+                kind,
+                count: n,
+                offset,
+            },
+        );
     }
     Some(out)
 }
@@ -264,25 +271,29 @@ mod tests {
     #[test]
     fn the_matrix_keeps_its_order() {
         let p = parse(&synthetic()).expect("should parse");
-        assert!((p.colour_matrix1[0] - 0.4716).abs() < 1e-6, "{:?}", p.colour_matrix1);
+        assert!(
+            (p.colour_matrix1[0] - 0.4716).abs() < 1e-6,
+            "{:?}",
+            p.colour_matrix1
+        );
         assert!((p.colour_matrix1[2] + 0.0830).abs() < 1e-6);
         assert!((p.colour_matrix1[3] + 0.7798).abs() < 1e-6);
         assert!((p.colour_matrix1[8] - 0.6651).abs() < 1e-6);
     }
 
-/// A DNG ColorMatrix maps XYZ to camera, so a camera's response to white must
-/// be positive in every channel — a sensor cannot respond negatively to light.
-///
-/// This replaced a row-sum range that was invented from synthetic data and
-/// promptly rejected a real Canon profile whose green row sums to 1.38. A weak
-/// property that is actually true beats a tight one that is not.
-fn responds_positively_to_white(m: &[f32; 9]) -> bool {
-    const D50: [f32; 3] = [0.9642, 1.0, 0.8249];
-    (0..3).all(|row| {
-        let r: f32 = (0..3).map(|c| m[row * 3 + c] * D50[c]).sum();
-        r > 0.0
-    })
-}
+    /// A DNG ColorMatrix maps XYZ to camera, so a camera's response to white must
+    /// be positive in every channel — a sensor cannot respond negatively to light.
+    ///
+    /// This replaced a row-sum range that was invented from synthetic data and
+    /// promptly rejected a real Canon profile whose green row sums to 1.38. A weak
+    /// property that is actually true beats a tight one that is not.
+    fn responds_positively_to_white(m: &[f32; 9]) -> bool {
+        const D50: [f32; 3] = [0.9642, 1.0, 0.8249];
+        (0..3).all(|row| {
+            let r: f32 = (0..3).map(|c| m[row * 3 + c] * D50[c]).sum();
+            r > 0.0
+        })
+    }
 
     #[test]
     fn the_matrix_is_plausible() {
@@ -379,8 +390,8 @@ mod make_a_test_profile {
     #[ignore = "writes a .dcp into a library; run by hand"]
     fn write_a_swapped_profile() {
         let out = std::env::var("AG_OUT").expect("set AG_OUT to the .dcp to write");
-        let camera = std::env::var("AG_CAMERA")
-            .unwrap_or_else(|_| "Canon EOS 5D Mark II".to_string());
+        let camera =
+            std::env::var("AG_CAMERA").unwrap_or_else(|_| "Canon EOS 5D Mark II".to_string());
 
         // The published Canon D50 pair, as read from RawTherapee's profile.
         let colour: [f32; 9] = [
@@ -401,13 +412,20 @@ mod make_a_test_profile {
         for row in 0..3 {
             let before: f32 = forward[row * 3..row * 3 + 3].iter().sum();
             let after: f32 = swapped[row * 3..row * 3 + 3].iter().sum();
-            assert!((before - after).abs() < 1e-6, "row {row} changed its white point");
+            assert!(
+                (before - after).abs() < 1e-6,
+                "row {row} changed its white point"
+            );
         }
 
         let fields: Vec<(u16, u16, Vec<u8>)> = vec![
             ascii(tag::PROFILE_NAME, "TEST - red and blue swapped"),
             ascii(tag::UNIQUE_CAMERA_MODEL, &camera),
-            (tag::CALIBRATION_ILLUMINANT_1, 3, 23u16.to_le_bytes().to_vec()), // D50
+            (
+                tag::CALIBRATION_ILLUMINANT_1,
+                3,
+                23u16.to_le_bytes().to_vec(),
+            ), // D50
             srational(tag::COLOR_MATRIX_1, &colour),
             srational(tag::FORWARD_MATRIX_1, &swapped),
         ];
@@ -575,4 +593,3 @@ pub(crate) mod fixture {
         out
     }
 }
-

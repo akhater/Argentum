@@ -175,7 +175,10 @@ mod tests {
 
         assert!(!thumbs.join("abc_small.jpg").exists());
         assert!(thumbs.join("notes.txt").exists(), "unrelated file removed");
-        assert!(thumbs.join("photo.jpg").exists(), "a real photo was removed");
+        assert!(
+            thumbs.join("photo.jpg").exists(),
+            "a real photo was removed"
+        );
         assert!(thumbs.join("subdir").is_dir(), "a directory was removed");
     }
 

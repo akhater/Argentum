@@ -27,8 +27,8 @@
 pub fn profile_for_window(hwnd: isize) -> Option<std::path::PathBuf> {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Gdi::{
-        CreateDCW, DeleteDC, GetMonitorInfoW, MonitorFromWindow, MONITORINFOEXW,
-        MONITOR_DEFAULTTONEAREST,
+        CreateDCW, DeleteDC, GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFOEXW,
+        MonitorFromWindow,
     };
     use windows::Win32::UI::ColorSystem::GetICMProfileW;
     use windows::core::PCWSTR;
@@ -308,7 +308,14 @@ fn rows_now(
         .unwrap_or(super::display_profile::SHADER_IDENTITY);
 
     if let Ok(mut cache) = CACHE.lock() {
-        *cache = Some(Cached { monitor, profile, written, checked: now, rows, read_succeeded });
+        *cache = Some(Cached {
+            monitor,
+            profile,
+            written,
+            checked: now,
+            rows,
+            read_succeeded,
+        });
     }
     rows
 }
@@ -329,7 +336,7 @@ fn is_identity(m: &[[f32; 3]; 3]) -> bool {
 #[cfg(target_os = "windows")]
 fn monitor_key(hwnd: isize) -> isize {
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
+    use windows::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromWindow};
     unsafe { MonitorFromWindow(HWND(hwnd as *mut _), MONITOR_DEFAULTTONEAREST).0 as isize }
 }
 
@@ -466,7 +473,10 @@ mod cache_tests {
         );
 
         // Same screen, same path, same write time, cache untouched.
-        assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), written);
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().modified().unwrap(),
+            written
+        );
         let recovered = rows_now(MONITOR, t0 + RECHECK_AFTER, &find, &read);
         assert_ne!(
             recovered,
@@ -511,7 +521,11 @@ mod cache_tests {
         let second = rows_now(MONITOR, t0 + RECHECK_AFTER, &find, &read);
         assert_eq!(first, super::super::display_profile::SHADER_IDENTITY);
         assert_eq!(second, first);
-        assert_eq!(reads.get(), 1, "an sRGB profile is being re-read on every check");
+        assert_eq!(
+            reads.get(),
+            1,
+            "an sRGB profile is being re-read on every check"
+        );
 
         forget();
         let _ = std::fs::remove_file(&path);

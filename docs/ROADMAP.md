@@ -24,8 +24,8 @@ the pipeline, so doing them together means understanding it once.
 |---|---|---|---|---|
 | ✅ | **White balance** | darktable | Done 2026.37.2, plus auto-WB. Built the sRGB↔XYZ↔Bradford conversion every later tool reuses | 3–4 days |
 | ✅ | **DCP camera profiles** | RawTherapee | Done 2026.37.12. Per photo, found online or imported, applied on the GPU per frame. It did **not** close the 4.2% gap against darktable, and could not have: darktable renders through the same Adobe matrix rawler already carries, so that measurement scores agreement with Adobe, not accuracy. The reasoning in the line above was wrong | 3–4 days |
-| 🔨 | **Highlight recovery** | darktable | Biggest visible rescue on real photos. RapidRAW has a Highlights *slider*, which is a different thing — it can only move detail that survived. This rebuilds a channel that clipped from the two that did not. Raw domain, before demosaic, through the decode anchor we already have | 2 days |
-| ⬜ | **Clipping preview** | Lightroom | Hold a key on Blacks/Whites and see which pixels are about to lose everything. Recovering highlights without it is guesswork. Shift and Alt on a slider are taken (fine adjustment), so the key has to be chosen | 1 day |
+| ✅ | **Highlight recovery** | darktable | Biggest visible rescue on real photos. RapidRAW has a Highlights *slider*, which is a different thing — it can only move detail that survived. This rebuilds a channel that clipped from the two that did not. Raw domain, before demosaic, through the decode anchor we already have | 2 days |
+| ✅ | **Clipping preview** | Lightroom | Hold a key on Blacks/Whites and see which pixels are about to lose everything. Recovering highlights without it is guesswork. Shift and Alt on a slider are taken (fine adjustment), so the key has to be chosen | 1 day |
 
 **Order matters here:** white balance first (it builds the colour conversion),
 then DCP (same pipeline stage, and it changes what "correct" white balance even
@@ -37,8 +37,7 @@ just take pictures for a while.
 
 On DCP specifically — RawTherapee ships hand-made DCP profiles that auto-match a
 camera on open, so this is partly about *using* existing profiles rather than
-building anything from scratch. Found by comparing against MeraRAW; see DEC-25
-and DEC-26 in the brain.
+building anything from scratch. Found by comparing against MeraRAW.
 
 ## Export
 
@@ -51,7 +50,7 @@ and DEC-26 in the brain.
 | | What | Why | Effort |
 |---|---|---|---|
 | ⬜ | **Group by date, camera or lens** | The grid is one flat list — `useSortedLibrary.ts` sorts and filters, and nothing groups. Needs no index, so it can be done before the catalogue | 2 days |
-| ⬜ | **Sort by capture time, not file time** | `case 'date'` compares `a.modified`, the file's modified time, which copying or re-editing changes. `DateTimeOriginal` is already parsed for display in `MetadataPanel.tsx` and never used for ordering. Wanted by grouping by day anyway | ½ day |
+| ✅ | **Sort by capture time, not file time** | `useSortedLibrary.ts` now prefers `DateTimeOriginal` and falls back to the file's modified time only when a photo has no capture date | ½ day |
 
 ## Catalog
 

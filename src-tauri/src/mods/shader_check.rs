@@ -42,16 +42,22 @@ mod tests {
     fn compiles(source: &str, what: &str) {
         let module = match wgpu::naga::front::wgsl::parse_str(source) {
             Ok(module) => module,
-            Err(e) => panic!("the {what} shader does not parse:
-{}", e.emit_to_string(source)),
+            Err(e) => panic!(
+                "the {what} shader does not parse:
+{}",
+                e.emit_to_string(source)
+            ),
         };
         let mut validator = wgpu::naga::valid::Validator::new(
             wgpu::naga::valid::ValidationFlags::all(),
             wgpu::naga::valid::Capabilities::all(),
         );
         if let Err(e) = validator.validate(&module) {
-            panic!("the {what} shader does not validate:
-{}", e.emit_to_string(source));
+            panic!(
+                "the {what} shader does not validate:
+{}",
+                e.emit_to_string(source)
+            );
         }
     }
 
@@ -62,7 +68,10 @@ mod tests {
 
     #[test]
     fn the_display_stage_is_wired() {
-        assert!(DISPLAY_SOURCE.contains("fn ag_stage_present"), "the presentation stage is gone");
+        assert!(
+            DISPLAY_SOURCE.contains("fn ag_stage_present"),
+            "the presentation stage is gone"
+        );
         assert_eq!(
             DISPLAY_SOURCE.matches("ag_stage_present(").count(),
             2,
@@ -83,7 +92,10 @@ mod tests {
         );
 
         if let Err(e) = validator.validate(&module) {
-            panic!("the shader does not validate:\n{}", e.emit_to_string(SOURCE));
+            panic!(
+                "the shader does not validate:\n{}",
+                e.emit_to_string(SOURCE)
+            );
         }
     }
 
@@ -91,8 +103,14 @@ mod tests {
     /// arrangement: their file calls two functions of ours and nothing else.
     #[test]
     fn both_stages_are_wired() {
-        assert!(SOURCE.contains("fn ag_stage_scene_linear"), "the scene-linear stage is gone");
-        assert!(SOURCE.contains("fn ag_stage_display"), "the display stage is gone");
+        assert!(
+            SOURCE.contains("fn ag_stage_scene_linear"),
+            "the scene-linear stage is gone"
+        );
+        assert!(
+            SOURCE.contains("fn ag_stage_display"),
+            "the display stage is gone"
+        );
         assert_eq!(
             SOURCE.matches("= ag_stage_scene_linear(").count(),
             1,

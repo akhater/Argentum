@@ -34,7 +34,10 @@ use crate::mods::commands;
 use serde::Deserialize;
 
 /// Pull one command's arguments out of the bag, or say which command failed.
-fn args_for<T: for<'de> Deserialize<'de>>(name: &str, args: serde_json::Value) -> Result<T, String> {
+fn args_for<T: for<'de> Deserialize<'de>>(
+    name: &str,
+    args: serde_json::Value,
+) -> Result<T, String> {
     serde_json::from_value(args).map_err(|e| format!("{name}: bad arguments: {e}"))
 }
 
@@ -94,7 +97,8 @@ pub async fn ag(
     match name.as_str() {
         "solve_white_balance_at_point" => {
             let a: PointArgs = args_for(&name, args)?;
-            let r = commands::solve_white_balance_at_point(a.x, a.y, a.js_adjustments, state).await?;
+            let r =
+                commands::solve_white_balance_at_point(a.x, a.y, a.js_adjustments, state).await?;
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
         "detect_auto_white_balance" => {
@@ -189,6 +193,9 @@ mod tests {
         let e = args_for::<PointArgs>("sample_processed_pixel", v)
             .err()
             .expect("bad arguments must not parse");
-        assert!(e.starts_with("sample_processed_pixel:"), "unhelpful error: {e}");
+        assert!(
+            e.starts_with("sample_processed_pixel:"),
+            "unhelpful error: {e}"
+        );
     }
 }

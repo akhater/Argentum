@@ -67,7 +67,11 @@ pub fn mode(js_adjustments: &serde_json::Value) -> u32 {
     if let Some(n) = value.as_u64() {
         return if n <= LAST as u64 { n as u32 } else { OFF };
     }
-    if value.as_bool().unwrap_or(false) { ALL } else { OFF }
+    if value.as_bool().unwrap_or(false) {
+        ALL
+    } else {
+        OFF
+    }
 }
 
 #[cfg(test)]

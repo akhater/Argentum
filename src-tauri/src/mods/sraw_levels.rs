@@ -180,9 +180,8 @@ fn color_data(file_bytes: &[u8]) -> Option<Vec<u16>> {
 
 /// Walk the IFD for tag 0x4001 and decode its SHORT array.
 fn parse_color_data(blob: &[u8], file_bytes: &[u8]) -> Option<Vec<u16>> {
-    let u16_at = |i: usize| -> Option<u16> {
-        Some(u16::from_le_bytes([*blob.get(i)?, *blob.get(i + 1)?]))
-    };
+    let u16_at =
+        |i: usize| -> Option<u16> { Some(u16::from_le_bytes([*blob.get(i)?, *blob.get(i + 1)?])) };
     let u32_at = |i: usize| -> Option<u32> {
         Some(u32::from_le_bytes([
             *blob.get(i)?,
@@ -241,8 +240,16 @@ mod tests {
         assert_eq!(specular_white_index(6, 1250), Some(0x2d0));
         assert_eq!(specular_white_index(10, 1273), Some(0x1e4));
         assert_eq!(specular_white_index(10, 1312), Some(0x1fd));
-        assert_eq!(specular_white_index(1, 800), None, "40D era has no white level");
-        assert_eq!(specular_white_index(99, 1250), None, "unknown layouts are declined");
+        assert_eq!(
+            specular_white_index(1, 800),
+            None,
+            "40D era has no white level"
+        );
+        assert_eq!(
+            specular_white_index(99, 1250),
+            None,
+            "unknown layouts are declined"
+        );
     }
 
     /// An IFD without ColorData, or with garbage in it, yields nothing rather

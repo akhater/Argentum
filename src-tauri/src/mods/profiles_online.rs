@@ -123,12 +123,20 @@ async fn get(url: &str, seconds: u64) -> Result<reqwest::Response, String> {
         let builder = reqwest::Client::builder()
             .user_agent(AGENT)
             .timeout(std::time::Duration::from_secs(seconds));
-        let builder = if http1_only { builder.http1_only() } else { builder };
+        let builder = if http1_only {
+            builder.http1_only()
+        } else {
+            builder
+        };
         builder.build().map_err(|e| why(&e))
     }
 
     if HTTP2_IS_BROKEN.load(Relaxed) {
-        return client(true, seconds)?.get(url).send().await.map_err(|e| why(&e));
+        return client(true, seconds)?
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| why(&e));
     }
 
     let first = client(false, seconds)?.get(url).send().await;
@@ -152,7 +160,10 @@ async fn listing() -> Result<Vec<Item>, String> {
     {
         return Ok(items
             .iter()
-            .map(|i| Item { name: i.name.clone(), download_url: i.download_url.clone() })
+            .map(|i| Item {
+                name: i.name.clone(),
+                download_url: i.download_url.clone(),
+            })
             .collect());
     }
 
@@ -167,7 +178,10 @@ async fn listing() -> Result<Vec<Item>, String> {
         *guard = Some(
             items
                 .iter()
-                .map(|i| Item { name: i.name.clone(), download_url: i.download_url.clone() })
+                .map(|i| Item {
+                    name: i.name.clone(),
+                    download_url: i.download_url.clone(),
+                })
                 .collect(),
         );
     }
@@ -221,8 +235,16 @@ mod tests {
     fn a_near_miss_is_not_offered() {
         // The real case: rawler reports the model alone, the profile is named
         // for the whole camera.
-        assert!(profiles::matches("Canon EOS 5D Mark II", "Canon", "EOS 5D Mark II"));
-        assert!(!profiles::matches("Canon EOS 7D", "Canon", "EOS 7D Mark II"));
+        assert!(profiles::matches(
+            "Canon EOS 5D Mark II",
+            "Canon",
+            "EOS 5D Mark II"
+        ));
+        assert!(!profiles::matches(
+            "Canon EOS 7D",
+            "Canon",
+            "EOS 7D Mark II"
+        ));
     }
 
     /// A failure has to say what failed. This is the whole point of `why`:
@@ -239,13 +261,18 @@ mod tests {
         }
         impl std::error::Error for Layer {
             fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-                self.1.as_deref().map(|l| l as &(dyn std::error::Error + 'static))
+                self.1
+                    .as_deref()
+                    .map(|l| l as &(dyn std::error::Error + 'static))
             }
         }
 
         let e = Layer(
             "error sending request for url (https://api.github.com/...)",
-            Some(Box::new(Layer("client error", Some(Box::new(Layer("connection timed out", None)))))),
+            Some(Box::new(Layer(
+                "client error",
+                Some(Box::new(Layer("connection timed out", None))),
+            ))),
         );
         let text = why(&e);
         assert!(text.contains("connection timed out"), "{text}");
@@ -265,7 +292,9 @@ mod tests {
         }
         impl std::error::Error for Same {
             fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-                self.0.as_deref().map(|s| s as &(dyn std::error::Error + 'static))
+                self.0
+                    .as_deref()
+                    .map(|s| s as &(dyn std::error::Error + 'static))
             }
         }
         assert_eq!(why(&Same(Some(Box::new(Same(None))))), "dns error");
@@ -274,8 +303,13 @@ mod tests {
     /// A malformed entry must be refused before any network call.
     #[tokio::test]
     async fn a_download_without_a_link_is_refused() {
-        let found = Found { file: "x.dcp".into(), url: String::new() };
-        let err = fetch_into(std::path::Path::new("."), &found).await.unwrap_err();
+        let found = Found {
+            file: "x.dcp".into(),
+            url: String::new(),
+        };
+        let err = fetch_into(std::path::Path::new("."), &found)
+            .await
+            .unwrap_err();
         assert!(err.contains("no download link"), "{err}");
     }
 }
@@ -329,7 +363,9 @@ mod live_tests {
         println!("colour matrix 1 {:?}", profile.colour_matrix1);
         const D50: [f32; 3] = [0.9642, 1.0, 0.8249];
         for row in 0..3 {
-            let response: f32 = (0..3).map(|c| profile.colour_matrix1[row * 3 + c] * D50[c]).sum();
+            let response: f32 = (0..3)
+                .map(|c| profile.colour_matrix1[row * 3 + c] * D50[c])
+                .sum();
             assert!(response > 0.0, "row {row} responds {response} to white");
         }
         assert!(profile.forward_matrix1.is_some(), "no forward matrix");

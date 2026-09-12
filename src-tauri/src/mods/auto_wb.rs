@@ -169,7 +169,11 @@ fn to_chromaticity(image: &DynamicImage, linearise: bool) -> Chromaticity {
         data.push([(x_ / sum - D65_X) / norm, (y_ / sum - D65_Y) / norm, y_]);
     }
 
-    Chromaticity { data, width, height }
+    Chromaticity {
+        data,
+        width,
+        height,
+    }
 }
 
 /// The nine taps of the patch, at stride `OFF`, with their B-spline weights.
@@ -205,7 +209,11 @@ fn local_average(chroma: &Chromaticity, row: usize, col: usize, channel: usize) 
 }
 
 /// Detect the scene illuminant. Returns its chromaticity in CIE xy.
-fn detect_illuminant(image: &DynamicImage, mode: DetectMode, linearise: bool) -> Option<(f32, f32)> {
+fn detect_illuminant(
+    image: &DynamicImage,
+    mode: DetectMode,
+    linearise: bool,
+) -> Option<(f32, f32)> {
     let chroma = to_chromaticity(image, linearise);
 
     // Need room for the 3x3 neighbourhood at stride OFF, plus darktable's
@@ -314,7 +322,6 @@ fn cct_from_xy(x: f32, y: f32) -> f32 {
     let n = (x - 0.332_0) / (0.185_8 - y);
     (449.0 * n * n * n + 3525.0 * n * n + 6823.3 * n + 5520.33).clamp(1000.0, 25000.0)
 }
-
 
 /// Turn a detected illuminant into slider values.
 ///
@@ -469,10 +476,18 @@ mod tests {
     #[test]
     fn warm_light_is_detected_and_cooled() {
         // Same scene, lit warm. Should ask to cool it back.
-        let neutral = auto_white_balance(&textured(192, 192, [1.0, 1.0, 1.0]), DetectMode::Surfaces, false)
-            .expect("should detect");
-        let warm = auto_white_balance(&textured(192, 192, [1.25, 1.0, 0.7]), DetectMode::Surfaces, false)
-            .expect("should detect");
+        let neutral = auto_white_balance(
+            &textured(192, 192, [1.0, 1.0, 1.0]),
+            DetectMode::Surfaces,
+            false,
+        )
+        .expect("should detect");
+        let warm = auto_white_balance(
+            &textured(192, 192, [1.25, 1.0, 0.7]),
+            DetectMode::Surfaces,
+            false,
+        )
+        .expect("should detect");
 
         assert!(
             warm.temperature < neutral.temperature,
@@ -487,10 +502,18 @@ mod tests {
     #[test]
     #[ignore = "edges mode returns implausible illuminants in this pipeline"]
     fn edges_mode_also_responds_to_the_light() {
-        let neutral = auto_white_balance(&textured(192, 192, [1.0, 1.0, 1.0]), DetectMode::Edges, false)
-            .expect("should detect");
-        let warm = auto_white_balance(&textured(192, 192, [1.25, 1.0, 0.7]), DetectMode::Edges, false)
-            .expect("should detect");
+        let neutral = auto_white_balance(
+            &textured(192, 192, [1.0, 1.0, 1.0]),
+            DetectMode::Edges,
+            false,
+        )
+        .expect("should detect");
+        let warm = auto_white_balance(
+            &textured(192, 192, [1.25, 1.0, 0.7]),
+            DetectMode::Edges,
+            false,
+        )
+        .expect("should detect");
 
         assert!(
             warm.temperature < neutral.temperature,
@@ -587,7 +610,11 @@ mod picker_tests {
     #[test]
     fn an_orange_sample_cools_the_picture() {
         let r = white_balance_from_neutral(0.6, 0.4, 0.2).expect("should solve");
-        assert!(r.temperature < 0.0, "orange should cool, got {}", r.temperature);
+        assert!(
+            r.temperature < 0.0,
+            "orange should cool, got {}",
+            r.temperature
+        );
     }
 
     #[test]
@@ -653,7 +680,6 @@ mod tint_direction_tests {
         }
     }
 }
-
 
 /// Solve white balance from a point the user clicked, in normalised image
 /// coordinates (0..1, origin top-left).
@@ -741,7 +767,11 @@ mod picker_point_tests {
     fn an_orange_patch_cools_the_picture() {
         let img = flat([200, 140, 90]);
         let r = white_balance_at(&img, 0.5, 0.5).expect("should solve");
-        assert!(r.temperature < 0.0, "orange should cool, got {}", r.temperature);
+        assert!(
+            r.temperature < 0.0,
+            "orange should cool, got {}",
+            r.temperature
+        );
     }
 
     #[test]

@@ -144,6 +144,16 @@ came from — without it there's no way to tell later whether upstream moved on.
   code ships either way; and RapidRAW's closing thank-you to his users is left out,
   because it is a message rather than an attribution.
 
+- **The roadmap said three shipped things were unfinished.** Highlight recovery
+  was marked in progress, the clipping preview not started, and capture-time
+  sorting outstanding - all three had shipped, the last of them in
+  `useSortedLibrary.ts` before any of this. A roadmap that disagrees with the
+  changelog makes a reader doubt both, so the statuses are corrected and the
+  entry for capture-time sorting now describes what the code does.
+
+  Also removed from it: a pointer to two decision records in a private notebook,
+  which a reader of the public repository cannot open.
+
 - **Removed a stray file named `60%`**, a zero-byte artefact of a shell redirect
   that had been committed by accident.
 

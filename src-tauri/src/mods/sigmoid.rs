@@ -87,8 +87,8 @@ impl Sigmoid {
         let ref_paper_power = 1.0;
         let ref_magnitude = 1.0;
         let ref_film_fog = 0.0;
-        let ref_paper_exposure =
-            (ref_film_fog + MIDDLE_GREY).powf(ref_film_power) * ((ref_magnitude / MIDDLE_GREY) - 1.0);
+        let ref_paper_exposure = (ref_film_fog + MIDDLE_GREY).powf(ref_film_power)
+            * ((ref_magnitude / MIDDLE_GREY) - 1.0);
 
         let slope_at = |mag: f32, exp: f32, fog: f32, fp: f32, pp: f32| {
             (loglogistic(MIDDLE_GREY + DELTA, mag, exp, fog, fp, pp)
@@ -128,8 +128,7 @@ impl Sigmoid {
         let white_target = 0.01 * display_white;
         let black_target = 0.01 * display_black;
         let white_grey_relation = (white_target / MIDDLE_GREY).powf(1.0 / paper_power) - 1.0;
-        let white_black_relation =
-            (black_target / white_target).powf(-1.0 / paper_power) - 1.0;
+        let white_black_relation = (black_target / white_target).powf(-1.0 / paper_power) - 1.0;
 
         let film_fog = MIDDLE_GREY * white_grey_relation.powf(1.0 / film_power)
             / (white_black_relation.powf(1.0 / film_power)
@@ -251,7 +250,7 @@ mod tests {
 ///
 /// So it was measured instead. Swept across all 34 photos:
 ///
-/// 
+///
 ///
 /// 2.6 lands on darktable's average. Chosen from the whole set rather than one
 /// frame, after AK pointed out that tuning on a single picture is how you get a

@@ -187,17 +187,28 @@ pub fn installed(library: &Path) -> Vec<Installed> {
     let mut out = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("dcp")) {
+        if !path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("dcp"))
+        {
             continue;
         }
-        let Ok(bytes) = std::fs::read(&path) else { continue };
-        let Ok(profile) = dcp::parse(&bytes) else { continue };
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        let Ok(profile) = dcp::parse(&bytes) else {
+            continue;
+        };
         // Not offered, because choosing it would do nothing at all.
         if !is_renderable(&profile) {
             continue;
         }
         out.push(Installed {
-            file: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
+            file: path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             name: profile.name,
             camera: profile.camera.or_else(|| stem_as_camera(&path)),
         });
@@ -228,8 +239,6 @@ pub fn matching(library: &Path, make: &str, model: &str) -> Vec<Installed> {
         })
         .collect()
 }
-
-
 
 /// Is the profile RawTherapee publishes for this body already here?
 ///
@@ -278,8 +287,7 @@ pub fn import(library: &Path, source: &Path) -> Result<Installed, String> {
     // different profile because it happened to share a file name would lose
     // work — re-importing the *same* file is still just a no-op rewrite.
     let file = free_name(library, &file, &bytes);
-    std::fs::write(library.join(&file), &bytes)
-        .map_err(|e| format!("could not save it: {e}"))?;
+    std::fs::write(library.join(&file), &bytes).map_err(|e| format!("could not save it: {e}"))?;
 
     Ok(Installed {
         camera: profile.camera.clone().or_else(|| stem_as_camera(source)),
@@ -335,8 +343,16 @@ mod tests {
 
     #[test]
     fn the_same_camera_written_differently_still_matches() {
-        assert!(matches("Canon EOS 5D Mark II", "Canon", "Canon EOS 5D Mark II"));
-        assert!(matches("Canon EOS 5D Mark II", "Canon", "Canon Canon EOS 5D Mark II"));
+        assert!(matches(
+            "Canon EOS 5D Mark II",
+            "Canon",
+            "Canon EOS 5D Mark II"
+        ));
+        assert!(matches(
+            "Canon EOS 5D Mark II",
+            "Canon",
+            "Canon Canon EOS 5D Mark II"
+        ));
         assert!(matches("canon eos 5d mark ii", "Canon", "EOS 5D Mark II"));
         assert!(matches("NIKON CORPORATION NIKON D750", "NIKON", "D750"));
     }
@@ -372,11 +388,13 @@ mod tests {
     /// exact failure the check was written to prevent.
     #[test]
     fn the_check_asks_about_the_matrix_rendering_will_choose() {
-        const M: [f32; 9] = [0.4716, 0.0603, -0.083, -0.7798, 1.5474, 0.248, -0.1496, 0.1937, 0.6651];
+        const M: [f32; 9] = [
+            0.4716, 0.0603, -0.083, -0.7798, 1.5474, 0.248, -0.1496, 0.1937, 0.6651,
+        ];
         let profile = |f1: Option<[f32; 9]>, f2: Option<[f32; 9]>| dcp::Profile {
             name: None,
             camera: None,
-            illuminant1: 17, // Standard A, tungsten
+            illuminant1: 17,       // Standard A, tungsten
             illuminant2: Some(21), // D65, and the one rendering will pick
             colour_matrix1: M,
             colour_matrix2: Some(M),
@@ -384,8 +402,14 @@ mod tests {
             forward_matrix2: f2,
         };
 
-        assert!(!is_renderable(&profile(Some(M), None)), "tungsten only is not enough");
-        assert!(is_renderable(&profile(None, Some(M))), "daylight has one, so it renders");
+        assert!(
+            !is_renderable(&profile(Some(M), None)),
+            "tungsten only is not enough"
+        );
+        assert!(
+            is_renderable(&profile(None, Some(M))),
+            "daylight has one, so it renders"
+        );
         assert!(is_renderable(&profile(Some(M), Some(M))));
         assert!(!is_renderable(&profile(None, None)));
     }
@@ -450,8 +474,15 @@ mod tests {
         )
         .expect("write");
 
-        assert_eq!(matching(&dir, "Canon", "EOS 5D Mark II").len(), 1, "it belongs to the camera");
-        assert!(!published_is_installed(&dir, "Canon", "EOS 5D Mark II"), "but it is not theirs");
+        assert_eq!(
+            matching(&dir, "Canon", "EOS 5D Mark II").len(),
+            1,
+            "it belongs to the camera"
+        );
+        assert!(
+            !published_is_installed(&dir, "Canon", "EOS 5D Mark II"),
+            "but it is not theirs"
+        );
     }
 
     #[test]
@@ -610,7 +641,10 @@ pub fn remember_camera(library: &Path, make: &str, model: &str) -> bool {
         return false;
     }
 
-    known.push(Camera { make: make.to_string(), model: model.to_string() });
+    known.push(Camera {
+        make: make.to_string(),
+        model: model.to_string(),
+    });
     known.sort_by(|a, b| a.model.cmp(&b.model));
 
     if let Ok(text) = serde_json::to_string_pretty(&known) {
@@ -625,7 +659,6 @@ pub fn cameras(library: &Path) -> Vec<Camera> {
     read_cameras(library)
 }
 
-
 /// Forget a camera. The profile, if any, is left alone.
 pub fn forget_camera(library: &Path, model: &str) {
     let kept: Vec<Camera> = read_cameras(library)
@@ -636,7 +669,6 @@ pub fn forget_camera(library: &Path, model: &str) {
         let _ = std::fs::write(cameras_file(library), text);
     }
 }
-
 
 #[cfg(test)]
 mod real_file_tests {
@@ -670,7 +702,11 @@ pub fn learn_make_from(library: &Path, model: &str, full_name: &str) {
     };
     // Only when the rest of the name is the model, or the first word is
     // something else entirely and would be wrong.
-    let rest: String = full_name.split_whitespace().skip(1).collect::<Vec<_>>().join(" ");
+    let rest: String = full_name
+        .split_whitespace()
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join(" ");
     if !same_model(&rest, model) {
         return;
     }
@@ -733,7 +769,6 @@ mod learn_make_tests {
     }
 }
 
-
 /// A name that does not overwrite a different profile.
 ///
 /// The same bytes under the same name is the same profile, so that keeps its
@@ -773,7 +808,10 @@ mod import_naming_tests {
     #[test]
     fn a_fresh_name_is_used_as_is() {
         let dir = scratch("fresh");
-        assert_eq!(free_name(&dir, "Canon EOS 5D Mark II.dcp", b"x"), "Canon EOS 5D Mark II.dcp");
+        assert_eq!(
+            free_name(&dir, "Canon EOS 5D Mark II.dcp", b"x"),
+            "Canon EOS 5D Mark II.dcp"
+        );
     }
 
     /// Re-importing the same file must not litter the library with copies.

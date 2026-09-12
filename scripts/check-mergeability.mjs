@@ -30,6 +30,7 @@ const OURS = [
   'docs/',
   'CLAUDE.md',
   'CHANGELOG.md',
+  'CREDITS.md',
   'README.md',
   'setup.ps1',
   // Branding: regenerated wholesale from our own source art, never merged.

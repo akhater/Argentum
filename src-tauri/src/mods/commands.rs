@@ -122,8 +122,10 @@ pub async fn sample_processed_pixel(
         .clone()
         .ok_or("No original image loaded")?;
 
-    let tonemapper =
-        crate::image_processing::resolve_tonemapper_override_from_handle(&app_handle, loaded.is_raw);
+    let tonemapper = crate::image_processing::resolve_tonemapper_override_from_handle(
+        &app_handle,
+        loaded.is_raw,
+    );
     let mut all = crate::image_processing::get_all_adjustments_from_json(
         &adjustments,
         loaded.is_raw,
@@ -223,7 +225,10 @@ pub fn refresh_image_metadata(
         let cache_file = cache_dir.join("exif").join(format!("{hash}.json"));
         if cache_file.exists() {
             let _ = std::fs::remove_file(&cache_file);
-            log::info!("[refresh] cleared folder exif cache for {}", folder.display());
+            log::info!(
+                "[refresh] cleared folder exif cache for {}",
+                folder.display()
+            );
         }
     }
 
@@ -251,19 +256,24 @@ fn profile_library() -> Result<&'static std::path::Path, String> {
 /// Which camera this photo is from, and whether a profile matches it.
 pub fn camera_profile_status(path: String) -> Result<crate::mods::profiles::Status, String> {
     let library = profile_library()?;
-    Ok(crate::mods::profiles::status_for(library, std::path::Path::new(&path)))
+    Ok(crate::mods::profiles::status_for(
+        library,
+        std::path::Path::new(&path),
+    ))
 }
 
 /// Copy a `.dcp` the user picked into the library.
-pub fn import_camera_profile(
-    path: String,
-) -> Result<crate::mods::profiles::Installed, String> {
+pub fn import_camera_profile(path: String) -> Result<crate::mods::profiles::Installed, String> {
     let library = profile_library()?;
     let installed = crate::mods::profiles::import(library, std::path::Path::new(&path))?;
     // The profile names the whole camera, so it also supplies the maker for a
     // gear entry that has none.
     if let Some(camera) = installed.camera.as_deref() {
-        let model: String = camera.split_whitespace().skip(1).collect::<Vec<_>>().join(" ");
+        let model: String = camera
+            .split_whitespace()
+            .skip(1)
+            .collect::<Vec<_>>()
+            .join(" ");
         crate::mods::profiles::learn_make_from(library, &model, camera);
     }
     log::info!(
@@ -313,7 +323,6 @@ pub async fn get_profile_online(make: String, model: String) -> Result<Option<St
     log::info!("[profile] downloaded {} for {model}", found.file);
     Ok(Some(found.file))
 }
-
 
 /// What My Gear needs to draw one camera's row.
 #[derive(serde::Serialize)]

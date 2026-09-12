@@ -120,7 +120,10 @@ fn evict_keeping(known: &mut Vec<(String, [f32; 9])>, open: Option<&str>) {
     if known.len() <= KEEP {
         return;
     }
-    if let Some(at) = known.iter().position(|(path, _)| open != Some(path.as_str())) {
+    if let Some(at) = known
+        .iter()
+        .position(|(path, _)| open != Some(path.as_str()))
+    {
         known.remove(at);
     }
 }
@@ -315,7 +318,9 @@ mod tests {
         use serde_json::json;
         let edited = |adj| crate::image_processing::is_image_edited(&adj, true, None);
 
-        assert!(edited(json!({ "cameraProfile": "Canon EOS 5D Mark II.dcp" })));
+        assert!(edited(
+            json!({ "cameraProfile": "Canon EOS 5D Mark II.dcp" })
+        ));
         assert!(!edited(json!({ "cameraProfile": serde_json::Value::Null })));
         assert!(!edited(json!({ "cameraProfile": "" })));
         assert!(!edited(json!({ "cameraProfile": "   " })));
@@ -383,7 +388,10 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let want = if i == j { 1.0 } else { 0.0 };
-                assert!((c[i][j] - want).abs() < 1e-3, "photo A got somebody else's matrix: {c:?}");
+                assert!(
+                    (c[i][j] - want).abs() < 1e-3,
+                    "photo A got somebody else's matrix: {c:?}"
+                );
             }
         }
 
@@ -391,7 +399,10 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let want = if i == j { 1.0 } else { 0.0 };
-                assert!((n[i][j] - want).abs() < 1e-3, "photo B got somebody else's matrix: {n:?}");
+                assert!(
+                    (n[i][j] - want).abs() < 1e-3,
+                    "photo B got somebody else's matrix: {n:?}"
+                );
             }
         }
         forget_built_in();
@@ -417,7 +428,10 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let want = if i == j { 1.0 } else { 0.0 };
-                assert!((c[i][j] - want).abs() < 1e-3, "got the other photo's matrix: {c:?}");
+                assert!(
+                    (c[i][j] - want).abs() < 1e-3,
+                    "got the other photo's matrix: {c:?}"
+                );
             }
         }
         forget_built_in();
@@ -477,7 +491,11 @@ mod tests {
             known.iter().any(|(p, _)| p == "OPEN.CR2"),
             "the open photo was evicted while nobody was looking at it"
         );
-        assert!(known.len() <= 257, "the table grew without bound: {}", known.len());
+        assert!(
+            known.len() <= 257,
+            "the table grew without bound: {}",
+            known.len()
+        );
     }
 
     /// And with nothing open — every offline harness, and the app before a photo

@@ -86,9 +86,8 @@ pub fn read_lens_model(file_bytes: &[u8]) -> Option<String> {
 /// stops being true the entry-count check catches it, since a byte-swapped count
 /// is absurdly large.
 fn parse_canon_ifd(blob: &[u8], file_bytes: &[u8]) -> Option<String> {
-    let u16_at = |i: usize| -> Option<u16> {
-        Some(u16::from_le_bytes([*blob.get(i)?, *blob.get(i + 1)?]))
-    };
+    let u16_at =
+        |i: usize| -> Option<u16> { Some(u16::from_le_bytes([*blob.get(i)?, *blob.get(i + 1)?])) };
     let u32_at = |i: usize| -> Option<u32> {
         Some(u32::from_le_bytes([
             *blob.get(i)?,
@@ -152,7 +151,10 @@ mod tests {
     fn refuses_garbage() {
         assert!(parse_canon_ifd(&[0xff; 32], &[]).is_none());
         assert!(parse_canon_ifd(&[], &[]).is_none());
-        assert!(parse_canon_ifd(&[0x02, 0x00], &[]).is_none(), "truncated entries");
+        assert!(
+            parse_canon_ifd(&[0x02, 0x00], &[]).is_none(),
+            "truncated entries"
+        );
     }
 
     /// A well-formed IFD without the lens tag returns nothing, rather than
@@ -225,7 +227,6 @@ mod tests {
     }
 }
 
-
 /// Fill in `LensModel` from the MakerNote when the standard EXIF pass did not
 /// produce a usable one.
 ///
@@ -269,8 +270,8 @@ mod folder_scan {
     #[test]
     #[ignore = "scans the folder named by AG_CANON_DIR"]
     fn every_file_in_a_folder() {
-        let dir = std::env::var("AG_CANON_DIR")
-            .expect("set AG_CANON_DIR to a folder of Canon RAWs");
+        let dir =
+            std::env::var("AG_CANON_DIR").expect("set AG_CANON_DIR to a folder of Canon RAWs");
         let dir = std::path::Path::new(&dir);
         let Ok(entries) = std::fs::read_dir(dir) else {
             println!("folder not readable: {}", dir.display());
@@ -281,12 +282,17 @@ mod folder_scan {
         let mut found = 0;
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase())
+            if path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase())
                 != Some("cr2".to_string())
             {
                 continue;
             }
-            let Ok(bytes) = std::fs::read(&path) else { continue };
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
             let name = path.file_name().unwrap().to_string_lossy().to_string();
             match read_lens_model(&bytes) {
                 Some(lens) => {
@@ -337,15 +343,27 @@ mod naming {
     fn separates_the_mount_from_the_focal_length() {
         assert_eq!(normalise_lens_name("EF135mm f/2L USM"), "EF 135mm f/2L USM");
         assert_eq!(normalise_lens_name("EF85mm f/1.8 USM"), "EF 85mm f/1.8 USM");
-        assert_eq!(normalise_lens_name("EF-S18-55mm f/3.5-5.6"), "EF-S 18-55mm f/3.5-5.6");
-        assert_eq!(normalise_lens_name("RF50mm F1.2 L USM"), "RF 50mm F1.2 L USM");
+        assert_eq!(
+            normalise_lens_name("EF-S18-55mm f/3.5-5.6"),
+            "EF-S 18-55mm f/3.5-5.6"
+        );
+        assert_eq!(
+            normalise_lens_name("RF50mm F1.2 L USM"),
+            "RF 50mm F1.2 L USM"
+        );
     }
 
     /// Already-spaced and non-Canon-style names must pass through untouched.
     #[test]
     fn leaves_anything_else_alone() {
-        assert_eq!(normalise_lens_name("EF 135mm f/2L USM"), "EF 135mm f/2L USM");
-        assert_eq!(normalise_lens_name("Sigma 35mm f/1.4 DG HSM"), "Sigma 35mm f/1.4 DG HSM");
+        assert_eq!(
+            normalise_lens_name("EF 135mm f/2L USM"),
+            "EF 135mm f/2L USM"
+        );
+        assert_eq!(
+            normalise_lens_name("Sigma 35mm f/1.4 DG HSM"),
+            "Sigma 35mm f/1.4 DG HSM"
+        );
         assert_eq!(normalise_lens_name("EFxyz"), "EFxyz");
         assert_eq!(normalise_lens_name(""), "");
     }

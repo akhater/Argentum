@@ -92,14 +92,14 @@ fn apply_camera_profile(raw: &mut RawImage, photo_path: Option<&str>) {
 /// anything that is then computed with.
 fn kelvin_of(illuminant: u16) -> Option<f32> {
     Some(match illuminant {
-        17 => 2856.0, // Standard A, tungsten
-        18 => 4874.0, // B
-        19 => 6774.0, // C
-        20 => 5503.0, // D55
-        21 => 6504.0, // D65
-        22 => 7504.0, // D75
-        23 => 5003.0, // D50
-        24 => 3200.0, // ISO studio tungsten
+        17 => 2856.0,         // Standard A, tungsten
+        18 => 4874.0,         // B
+        19 => 6774.0,         // C
+        20 => 5503.0,         // D55
+        21 => 6504.0,         // D65
+        22 => 7504.0,         // D75
+        23 => 5003.0,         // D50
+        24 => 3200.0,         // ISO studio tungsten
         1 | 9 | 10 => 6504.0, // daylight, fine weather, cloudy: treat as D65
         _ => return None,
     })
@@ -165,7 +165,11 @@ mod tests {
         let (illuminant, colour, forward) = daylight_matrix(&p).expect("a matrix");
         assert_eq!(illuminant, 23, "picked the tungsten matrix");
         assert_eq!(colour[0], 2.0);
-        assert_eq!(forward.expect("a forward matrix")[0], 102.0, "matrices came from different illuminants");
+        assert_eq!(
+            forward.expect("a forward matrix")[0],
+            102.0,
+            "matrices came from different illuminants"
+        );
     }
 
     /// Order in the file must not decide it.

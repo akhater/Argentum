@@ -27,7 +27,6 @@ pub fn init(app: &AppHandle) {
     // moves — there is no frame to catch it on.
     super::display_monitor::watch();
 
-
     if let Ok(cache) = app.path().app_cache_dir() {
         super::cache_version::clear_thumbnails_if_pipeline_changed(&cache);
     }

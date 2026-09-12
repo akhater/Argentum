@@ -13,11 +13,19 @@ Everything Argentum adds lives in its own files, so RapidRAW's updates keep
 merging cleanly. That constraint is enforced by a script, not by good intentions
 — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+> **Early preview.** Argentum is developed and used on Windows and is not yet
+> proven anywhere else. Editing is non-destructive — your RAW files are never
+> written to — but keep your own backups, as you would with any young tool.
+
+> Argentum is independently maintained and is **not affiliated with, nor endorsed
+> by, RapidRAW or darktable.** It is a fork, and it says so because their work
+> deserves the credit, not because they have any part in this one.
+
 ---
 
 ## Status
 
-Builds and runs, and is used daily on Windows.
+**Early preview**, used daily by its author on Windows.
 
 | Platform | State |
 |---|---|

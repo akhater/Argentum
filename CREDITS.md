@@ -86,17 +86,6 @@ naming them is honest where guessing a URL would not be.
 
 ---
 
-## What is deliberately not here
-
-RapidRAW's in-app list ends by thanking the people who use it. That is his to
-say to his users and it is good that it is there, but it is a message, not an
-attribution, so it has no row in this file.
-
-Nothing else has been dropped. Argentum removed none of RapidRAW's
-functionality, so none of his credits stopped applying.
-
----
-
 ## Licence
 
 Argentum is licensed **AGPL-3.0** — RapidRAW's licence, inherited unchanged. See

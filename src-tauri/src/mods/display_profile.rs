@@ -229,7 +229,10 @@ mod tests {
         let m = srgb_to_display(&wide).expect("invertible");
         let red = apply(&m, [1.0, 0.0, 0.0]);
         assert!(red[0] < 1.0, "full red stayed full: {red:?}");
-        assert!(red[1] > 0.0 || red[2] > 0.0, "red lost its other channels: {red:?}");
+        assert!(
+            red[1] > 0.0 || red[2] > 0.0,
+            "red lost its other channels: {red:?}"
+        );
     }
 
     #[test]
@@ -237,7 +240,11 @@ mod tests {
         assert!(colourants(&[]).is_none());
         assert!(colourants(&[0u8; 200]).is_none());
         // Three identical primaries span nothing and cannot be inverted.
-        let flat = Colourants { red: [1.0, 1.0, 1.0], green: [1.0, 1.0, 1.0], blue: [1.0, 1.0, 1.0] };
+        let flat = Colourants {
+            red: [1.0, 1.0, 1.0],
+            green: [1.0, 1.0, 1.0],
+            blue: [1.0, 1.0, 1.0],
+        };
         assert!(srgb_to_display(&flat).is_none());
     }
 
@@ -282,7 +289,10 @@ mod against_a_real_profile {
             }
         }
         println!("worst difference from the audit's matrix: {worst:.6}\n");
-        assert!(worst < 0.01, "this does not agree with the audit's own derivation");
+        assert!(
+            worst < 0.01,
+            "this does not agree with the audit's own derivation"
+        );
     }
 }
 
@@ -315,9 +325,15 @@ mod shader_tests {
     /// always on or always off.
     #[test]
     fn the_flag_says_which_is_which() {
-        assert_eq!(SHADER_IDENTITY[0][3], 0.0, "identity must be marked as nothing to do");
+        assert_eq!(
+            SHADER_IDENTITY[0][3], 0.0,
+            "identity must be marked as nothing to do"
+        );
         let rows = shader_rows(&IDENTITY);
-        assert_eq!(rows[0][3], 1.0, "a real conversion must be marked as something to do");
+        assert_eq!(
+            rows[0][3], 1.0,
+            "a real conversion must be marked as something to do"
+        );
     }
 
     /// And the numbers have to arrive in the order the shader multiplies them.

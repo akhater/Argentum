@@ -32,9 +32,8 @@
 mod tests_support {
     /// Shared by both comparison tests.
     pub fn brightness(a: &image::DynamicImage, b: &image::DynamicImage) -> (f64, f64) {
-        let lum = |p: &image::Rgb<u8>| {
-            0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64
-        };
+        let lum =
+            |p: &image::Rgb<u8>| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64;
         let ra = a.to_rgb8();
         let rb = b.to_rgb8();
         (
@@ -124,13 +123,26 @@ mod tests {
     fn how_does_our_colour_differ_from_darktables() {
         let darktable = fixtures::compare("darktable_yourdefaults.tif");
         let dt_path = std::path::Path::new(&darktable);
-        assert!(dt_path.exists(), "render darktable's side first: {darktable}");
+        assert!(
+            dt_path.exists(),
+            "render darktable's side first: {darktable}"
+        );
 
         let dt = image::open(dt_path).expect("open darktable render");
 
-        let bytes = std::fs::read(fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")).expect("read raw");
-        let ours = crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
-            .expect("develop raw");
+        let bytes = std::fs::read(fixtures::raw(
+            "2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2",
+        ))
+        .expect("read raw");
+        let ours = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "off".to_string(),
+            None,
+            None,
+        )
+        .expect("develop raw");
 
         // EXPERIMENT: how much of the gap is the white balance coefficients?
         // rawler uses the as-shot [2.179, 1.0, 1.623]; darktable reports
@@ -166,7 +178,6 @@ mod tests {
         // at default settings.
         crate::mods::preview_encode::apply(&mut ours);
 
-
         // NOTE highlight_compression 2.5, matching what the app passes from
         // settings. The first run used 1.0, which clamps every channel at 1.0 -
         // and red carries a 2.18x white balance multiplier, so red clipped
@@ -179,16 +190,23 @@ mod tests {
 
         let (dt_rg, our_rg, n) = compare(&dt, &ours);
 
-        println!("
-{n} pixels compared, same position in both");
+        println!(
+            "
+{n} pixels compared, same position in both"
+        );
         {
             let da = dt.to_rgb8();
             let aa = ours.to_rgb8();
-            let lum = |p: &image::Rgb<u8>| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64;
+            let lum = |p: &image::Rgb<u8>| {
+                0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64
+            };
             let dl: f64 = da.pixels().map(lum).sum::<f64>() / da.pixels().len() as f64;
             let al: f64 = aa.pixels().map(lum).sum::<f64>() / aa.pixels().len() as f64;
-            println!("
-brightness  darktable {dl:.1}   argentum {al:.1}   ours is {:.0}% of theirs", al / dl * 100.0);
+            println!(
+                "
+brightness  darktable {dl:.1}   argentum {al:.1}   ours is {:.0}% of theirs",
+                al / dl * 100.0
+            );
         }
 
         println!("darktable  mean R/G {dt_rg:.4}");
@@ -322,7 +340,13 @@ mod across_a_set {
                     }
                 } else if p.file_stem().and_then(|s| s.to_str()).map(|s| {
                     s.chars()
-                        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+                        .map(|c| {
+                            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                                c
+                            } else {
+                                '_'
+                            }
+                        })
                         .collect::<String>()
                 }) == Some(stem.to_string())
                 {
@@ -352,10 +376,17 @@ mod across_a_set {
                 continue;
             };
 
-            let Ok(bytes) = std::fs::read(&raw) else { continue };
-            let Ok(ours) =
-                crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
-            else {
+            let Ok(bytes) = std::fs::read(&raw) else {
+                continue;
+            };
+            let Ok(ours) = crate::raw_processing::develop_raw_image(
+                &bytes,
+                false,
+                2.5,
+                "off".to_string(),
+                None,
+                None,
+            ) else {
                 continue;
             };
             // The decoder applies exposure and the curve itself now.
@@ -429,12 +460,23 @@ mod distribution {
     #[test]
     #[ignore = "reads AK's files; run by hand"]
     fn compare_tone_distribution() {
-        let dt = image::open(fixtures::compare("set/2023-06-25_Canon_EOS_5D_Mark_II_104-5897.tif"))
-            .expect("darktable render");
-        let bytes = std::fs::read(fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2")).expect("raw");
-        let mut ours =
-            crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
-                .expect("develop");
+        let dt = image::open(fixtures::compare(
+            "set/2023-06-25_Canon_EOS_5D_Mark_II_104-5897.tif",
+        ))
+        .expect("darktable render");
+        let bytes = std::fs::read(fixtures::raw(
+            "2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2",
+        ))
+        .expect("raw");
+        let mut ours = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "off".to_string(),
+            None,
+            None,
+        )
+        .expect("develop");
         crate::mods::preview_encode::apply(&mut ours);
 
         let d = histogram(&dt);
@@ -457,9 +499,7 @@ mod distribution {
         let shadows_a: f64 = a[0..3].iter().sum();
         let mids_d: f64 = d[4..12].iter().sum();
         let mids_a: f64 = a[4..12].iter().sum();
-        println!(
-            "\nbottom 3 bins  darktable {shadows_d:.1}%   argentum {shadows_a:.1}%"
-        );
+        println!("\nbottom 3 bins  darktable {shadows_d:.1}%   argentum {shadows_a:.1}%");
         println!("midtones       darktable {mids_d:.1}%   argentum {mids_a:.1}%\n");
     }
 }
@@ -480,13 +520,23 @@ mod crush {
     #[test]
     #[ignore = "reads AK's file; run by hand"]
     fn how_much_is_clipped_to_black() {
-        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2"));
-        println!("
-file {raw_path}");
+        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| {
+            fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2")
+        });
+        println!(
+            "
+file {raw_path}"
+        );
         let bytes = std::fs::read(&raw_path).expect("raw");
-        let before =
-            crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
-                .expect("develop");
+        let before = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "off".to_string(),
+            None,
+            None,
+        )
+        .expect("develop");
 
         let mut after = before.clone();
         crate::mods::preview_encode::apply(&mut after);
@@ -539,7 +589,10 @@ file {raw_path}");
 
         // The threshold the arithmetic predicts.
         let v: f32 = 0.5 - 0.5 / 1.28;
-        println!("clips below gamma-encoded {v:.4}, i.e. scene-linear {:.5}", v.powf(2.38));
+        println!(
+            "clips below gamma-encoded {v:.4}, i.e. scene-linear {:.5}",
+            v.powf(2.38)
+        );
     }
 }
 
@@ -603,7 +656,11 @@ mod linear_stage {
     }
 
     fn srgb_to_linear(v: f32) -> f32 {
-        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
     }
 
     fn develop(bytes: &[u8]) -> image::DynamicImage {
@@ -615,12 +672,16 @@ mod linear_stage {
     #[ignore = "reads AK's file and a darktable render; run by hand"]
     fn where_is_the_cast_born() {
         // Point at any pair with AG_RAW / AG_DT; the constants are the default.
-        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2"));
-        let dt_path =
-            std::env::var("AG_DT").unwrap_or_else(|_| fixtures::compare("dt_none_linrec709_16.tif"));
-        println!("
+        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| {
+            fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")
+        });
+        let dt_path = std::env::var("AG_DT")
+            .unwrap_or_else(|_| fixtures::compare("dt_none_linrec709_16.tif"));
+        println!(
+            "
 raw: {raw_path}
-dt:  {dt_path}");
+dt:  {dt_path}"
+        );
         let dt = image::open(&dt_path).expect("render darktable's linear side first");
         let bytes = std::fs::read(&raw_path).expect("read raw");
 
@@ -628,22 +689,28 @@ dt:  {dt_path}");
 
         // The camera's own JPEG, linearised: a third opinion on the balance.
         // It carries the camera's picture style, so only a rough guide.
-        let jpeg = rawler::analyze::extract_preview_pixels(&raw_path, &rawler::decoders::RawDecodeParams::default())
-            .ok()
-            .map(|j| {
-                let mut f = j.to_rgb32f();
-                for p in f.pixels_mut() {
-                    for c in 0..3 {
-                        p[c] = srgb_to_linear(p[c]);
-                    }
+        let jpeg = rawler::analyze::extract_preview_pixels(
+            &raw_path,
+            &rawler::decoders::RawDecodeParams::default(),
+        )
+        .ok()
+        .map(|j| {
+            let mut f = j.to_rgb32f();
+            for p in f.pixels_mut() {
+                for c in 0..3 {
+                    p[c] = srgb_to_linear(p[c]);
                 }
-                image::DynamicImage::ImageRgb32F(f)
-            });
+            }
+            image::DynamicImage::ImageRgb32F(f)
+        });
 
         let (dw, dh) = dt.dimensions();
         println!(
             "\ndarktable {}x{}   ours {}x{}   jpeg {:?}",
-            dw, dh, ours.width(), ours.height(),
+            dw,
+            dh,
+            ours.width(),
+            ours.height(),
             jpeg.as_ref().map(|j| j.dimensions())
         );
 
@@ -652,7 +719,15 @@ dt:  {dt_path}");
         let md = means(&dt);
         let mo = means(&ours);
         let row = |name: &str, m: [f64; 3]| {
-            println!("{:<26} {:>8.4} {:>8.4} {:>8.4}  {:>6.3}  {:>6.3}", name, m[0], m[1], m[2], m[0] / m[1], m[2] / m[1])
+            println!(
+                "{:<26} {:>8.4} {:>8.4} {:>8.4}  {:>6.3}  {:>6.3}",
+                name,
+                m[0],
+                m[1],
+                m[2],
+                m[0] / m[1],
+                m[2] / m[1]
+            )
         };
         println!("\nlinear channel means              R        G        B     R/G     B/G");
         row("darktable (none)", md);
@@ -663,7 +738,9 @@ dt:  {dt_path}");
 
         println!(
             "\nours / darktable   R {:.3}  G {:.3}  B {:.3}",
-            mo[0] / md[0], mo[1] / md[1], mo[2] / md[2]
+            mo[0] / md[0],
+            mo[1] / md[1],
+            mo[2] / md[2]
         );
 
         let (d, o, n) = ratios(&dt, &ours);
@@ -671,7 +748,10 @@ dt:  {dt_path}");
         println!("darktable (none)          {:.4}   {:.4}", d[0], d[1]);
         println!(
             "argentum                  {:.4}   {:.4}   gap {:+.1}% / {:+.1}%\n",
-            o[0], o[1], (o[0] / d[0] - 1.0) * 100.0, (o[1] / d[1] - 1.0) * 100.0
+            o[0],
+            o[1],
+            (o[0] / d[0] - 1.0) * 100.0,
+            (o[1] / d[1] - 1.0) * 100.0
         );
     }
 }
@@ -685,17 +765,29 @@ mod sraw_facts {
     #[test]
     #[ignore = "reads AK's file; run by hand"]
     fn what_rawler_reads_from_an_sraw() {
-        let path = std::env::var("AG_SRAW").unwrap_or_else(|_| fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2"));
+        let path = std::env::var("AG_SRAW").unwrap_or_else(|_| {
+            fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")
+        });
         let bytes = std::fs::read(&path).expect("read raw");
         let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
         let decoder = rawler::get_decoder(&source).expect("decoder");
         let img = decoder
-            .raw_image(&source, &rawler::decoders::RawDecodeParams::default(), false)
+            .raw_image(
+                &source,
+                &rawler::decoders::RawDecodeParams::default(),
+                false,
+            )
             .expect("decode");
 
         println!("\nfile        {path}");
-        println!("camera      {} {}   mode {:?}", img.clean_make, img.clean_model, img.camera.mode);
-        println!("size        {}x{}   cpp {}   photometric {:?}", img.width, img.height, img.cpp, img.photometric);
+        println!(
+            "camera      {} {}   mode {:?}",
+            img.clean_make, img.clean_model, img.camera.mode
+        );
+        println!(
+            "size        {}x{}   cpp {}   photometric {:?}",
+            img.width, img.height, img.cpp, img.photometric
+        );
         println!("wb_coeffs   {:?}", img.wb_coeffs);
         println!("blacklevel  {:?}", img.blacklevel);
         println!("whitelevel  {:?}", img.whitelevel);
@@ -716,14 +808,19 @@ mod sraw_facts {
                 min[c] = min[c].min(v);
                 max[c] = max[c].max(v);
                 sum[c] += v as f64;
-                if v <= 0.0 { zeros[c] += 1; }
+                if v <= 0.0 {
+                    zeros[c] += 1;
+                }
             }
         }
         println!("\nraw data per channel (as decoded, before levels)");
         for c in 0..img.cpp.min(3) {
             println!(
                 "  ch{c}  min {:>8.0}  max {:>8.0}  mean {:>9.1}  at-zero {:.2}%",
-                min[c], max[c], sum[c] / n as f64, zeros[c] as f64 / n as f64 * 100.0
+                min[c],
+                max[c],
+                sum[c] / n as f64,
+                zeros[c] as f64 / n as f64 * 100.0
             );
         }
     }
@@ -749,10 +846,15 @@ mod linear_across_a_set {
         let name = stem.replace('_', " ");
         let date = stem.get(..10)?;
         let year = stem.get(..4)?;
-        let dir = std::path::Path::new(&fixtures::raw_root()).join(year).join(date);
+        let dir = std::path::Path::new(&fixtures::raw_root())
+            .join(year)
+            .join(date);
         for entry in std::fs::read_dir(dir).ok()? {
             let path = entry.ok()?.path();
-            if path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("CR2")) {
+            if path
+                .extension()
+                .is_none_or(|e| !e.eq_ignore_ascii_case("CR2"))
+            {
                 continue;
             }
             let file = path.file_stem()?.to_string_lossy().to_string();
@@ -810,11 +912,14 @@ mod linear_across_a_set {
 
         let mut rows: Vec<(String, bool, [f64; 3])> = Vec::new();
 
-        for entry in std::fs::read_dir(fixtures::compare("linset"))
-            .expect("render the linear set first")
+        for entry in
+            std::fs::read_dir(fixtures::compare("linset")).expect("render the linear set first")
         {
             let dt_path = entry.expect("dir entry").path();
-            if dt_path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("tif")) {
+            if dt_path
+                .extension()
+                .is_none_or(|e| !e.eq_ignore_ascii_case("tif"))
+            {
                 continue;
             }
             let stem = dt_path.file_stem().unwrap().to_string_lossy().to_string();
@@ -822,11 +927,18 @@ mod linear_across_a_set {
                 println!("no raw for {stem}");
                 continue;
             };
-            let Ok(bytes) = std::fs::read(&raw) else { continue };
+            let Ok(bytes) = std::fs::read(&raw) else {
+                continue;
+            };
 
             let measure = || -> Option<[f64; 3]> {
                 let ours = crate::raw_processing::develop_raw_image(
-                    &bytes, false, 2.5, "off".to_string(), None, None,
+                    &bytes,
+                    false,
+                    2.5,
+                    "off".to_string(),
+                    None,
+                    None,
                 )
                 .ok()?;
                 let dt = image::open(&dt_path).ok()?;
@@ -848,7 +960,13 @@ mod linear_across_a_set {
             // sRAW decodes to three channels; full RAW to one and then demosaics.
             let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
             let sraw = rawler::get_decoder(&source)
-                .and_then(|d| d.raw_image(&source, &rawler::decoders::RawDecodeParams::default(), false))
+                .and_then(|d| {
+                    d.raw_image(
+                        &source,
+                        &rawler::decoders::RawDecodeParams::default(),
+                        false,
+                    )
+                })
                 .map(|i| i.cpp == 3)
                 .unwrap_or(false);
 
@@ -856,13 +974,18 @@ mod linear_across_a_set {
         }
 
         rows.sort_by(|a, b| a.0.cmp(&b.0));
-        println!("\n{:<42} {:>5} {:>9} {:>9} {:>12}", "photo", "kind", "R/G", "B/G", "brightness");
+        println!(
+            "\n{:<42} {:>5} {:>9} {:>9} {:>12}",
+            "photo", "kind", "R/G", "B/G", "brightness"
+        );
         for (name, sraw, gap) in &rows {
             println!(
                 "{:<42} {:>5} {:>+8.1}% {:>+8.1}% {:>11.0}%",
                 name.get(..42).unwrap_or(name),
                 if *sraw { "sRAW" } else { "full" },
-                gap[0], gap[1], gap[2]
+                gap[0],
+                gap[1],
+                gap[2]
             );
         }
 
@@ -871,7 +994,10 @@ mod linear_across_a_set {
         let bright = rows.iter().map(|r| r.2[2]).sum::<f64>() / n;
         println!(
             "\n{} photos   mean |R/G| off {:.1}%   mean |B/G| off {:.1}%   brightness {:.0}% of darktable\n",
-            rows.len(), mag(0), mag(1), bright
+            rows.len(),
+            mag(0),
+            mag(1),
+            bright
         );
     }
 }
@@ -970,7 +1096,10 @@ mod how_different {
             let p99 = diffs[diffs.len() * 99 / 100];
             let max = *diffs.last().unwrap_or(&0);
 
-            println!("{:<44} {mean:>9.2} {p99:>9} {max:>9}", name.get(..44).unwrap_or(name));
+            println!(
+                "{:<44} {mean:>9.2} {p99:>9} {max:>9}",
+                name.get(..44).unwrap_or(name)
+            );
             all_mean += mean;
             all_max = all_max.max(max);
         }
@@ -999,7 +1128,10 @@ mod difference_image {
     fn amplified_difference() {
         let dir = std::env::var("AG_PAIRS").expect("set AG_PAIRS");
         let dir = std::path::Path::new(&dir);
-        let gain: f32 = std::env::var("AG_GAIN").ok().and_then(|g| g.parse().ok()).unwrap_or(10.0);
+        let gain: f32 = std::env::var("AG_GAIN")
+            .ok()
+            .and_then(|g| g.parse().ok())
+            .unwrap_or(10.0);
 
         let a = image::open(dir.join("x__off.png")).expect("off").to_rgb8();
         let b = image::open(dir.join("x__on.png")).expect("on").to_rgb8();
@@ -1028,10 +1160,17 @@ mod side_by_side {
     #[test]
     #[ignore = "writes a comparison; run by hand"]
     fn crop_where_they_differ() {
-        let before = image::open(std::env::var("AG_A").expect("set AG_A")).expect("a").to_rgb8();
-        let after = image::open(std::env::var("AG_B").expect("set AG_B")).expect("b").to_rgb8();
+        let before = image::open(std::env::var("AG_A").expect("set AG_A"))
+            .expect("a")
+            .to_rgb8();
+        let after = image::open(std::env::var("AG_B").expect("set AG_B"))
+            .expect("b")
+            .to_rgb8();
         let out_path = std::env::var("AG_OUT").expect("set AG_OUT");
-        let window: u32 = std::env::var("AG_WINDOW").ok().and_then(|v| v.parse().ok()).unwrap_or(400);
+        let window: u32 = std::env::var("AG_WINDOW")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(400);
 
         assert_eq!(before.dimensions(), after.dimensions(), "different sizes");
         let (w, h) = before.dimensions();
@@ -1049,7 +1188,9 @@ mod side_by_side {
                     for dx in (0..window).step_by(8) {
                         let a = before.get_pixel(x + dx, y + dy);
                         let b = after.get_pixel(x + dx, y + dy);
-                        sum += (0..3).map(|c| (a[c] as f64 - b[c] as f64).abs()).sum::<f64>();
+                        sum += (0..3)
+                            .map(|c| (a[c] as f64 - b[c] as f64).abs())
+                            .sum::<f64>();
                     }
                 }
                 if sum > best.2 {
