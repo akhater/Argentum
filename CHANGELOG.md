@@ -124,6 +124,26 @@ came from — without it there's no way to tell later whether upstream moved on.
   the same wording as `knownIssues.ts`, so the app and the repository do not
   disagree.
 
+- **The repository has a front page, and a credits file.** The README was written
+  for one reader who already knew everything. It now says what Argentum is, which
+  platforms it is tested on, where to get a build, what it adds over RapidRAW, and
+  where the app keeps its files.
+
+  Two things in it were simply wrong and are corrected: it described the app data
+  as living in one configurable folder chosen in Settings, which is the roadmap's
+  portable install and not what the code does — the real location is the operating
+  system's application-data directory under `co.argentum.editor`, and there is no
+  setting for it. And it presented the Windows build toolchain as the way to run
+  Argentum, when an installer needs none of it.
+
+  `CREDITS.md` is new. The app carries two lists — Argentum's own in
+  `src/argentum/credits.ts` and RapidRAW's inherited Special Thanks — and neither
+  is visible to someone reading the repository. It merges both, states what was
+  taken from each project rather than only naming it, and records two decisions:
+  darktable's sigmoid curve is credited even though nothing calls it, because the
+  code ships either way; and RapidRAW's closing thank-you to his users is left out,
+  because it is a message rather than an attribution.
+
 - **Removed a stray file named `60%`**, a zero-byte artefact of a shell redirect
   that had been committed by accident.
 
