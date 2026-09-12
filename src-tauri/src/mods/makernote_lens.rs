@@ -207,14 +207,18 @@ mod tests {
 
     /// The end-to-end check, against the file the bug was found on.
     ///
-    /// Ignored by default because it reads a specific photo off AK's disk:
-    /// cargo test --lib mods::makernote_lens -- --ignored --nocapture
+    /// Ignored by default because it reads a real Canon file, which is not in
+    /// the repository. Point `AG_CANON_SAMPLE` at one of your own:
+    ///
+    /// ```text
+    /// AG_CANON_SAMPLE=... cargo test --lib mods::makernote_lens -- --ignored --nocapture
+    /// ```
     #[test]
-    #[ignore = "reads a specific file off AK's disk"]
+    #[ignore = "reads a Canon file named by AG_CANON_SAMPLE"]
     fn reads_the_lens_from_a_real_canon_file() {
-        let path =
-            r"C:\Users\you\ClaudeDesktop\photostack\g_A\2026-09-06_Canon EOS 5D Mark II_104-6382.CR2";
-        let bytes = std::fs::read(path).expect("read sample");
+        let path = std::env::var("AG_CANON_SAMPLE")
+            .expect("set AG_CANON_SAMPLE to a Canon RAW shot with a 135mm lens");
+        let bytes = std::fs::read(&path).expect("read sample");
         let name = read_lens_model(&bytes).expect("should find a lens name");
         println!("lens: {name}");
         assert!(name.contains("135"), "unexpected lens name: {name}");
@@ -261,13 +265,13 @@ mod folder_scan {
     /// Used to tell "this file has no lens tag" apart from "this file was cached
     /// before the fix" — the two look identical in the UI.
     ///
-    /// cargo test --lib mods::makernote_lens::folder_scan -- --ignored --nocapture
+    /// AG_CANON_DIR=... cargo test --lib mods::makernote_lens::folder_scan -- --ignored --nocapture
     #[test]
-    #[ignore = "scans a folder on AK's disk"]
+    #[ignore = "scans the folder named by AG_CANON_DIR"]
     fn every_file_in_a_folder() {
-        let dir = std::path::Path::new(
-            r"C:\Users\you\OneDrive\Pictures\_Original to Review\2026\2026-09-06",
-        );
+        let dir = std::env::var("AG_CANON_DIR")
+            .expect("set AG_CANON_DIR to a folder of Canon RAWs");
+        let dir = std::path::Path::new(&dir);
         let Ok(entries) = std::fs::read_dir(dir) else {
             println!("folder not readable: {}", dir.display());
             return;

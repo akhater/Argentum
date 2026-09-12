@@ -11,28 +11,18 @@ and later RawTherapee, GIMP, or anywhere else worth raiding.
 
 ---
 
-## Where things live
+## Known limitations
 
-| | Path | What |
-|---|---|---|
-| **Work** | `C:\Users\you\NoCloudZone\Argentum` (here) | Everything — source, `node_modules`, build output, app data |
-| **Backup** | `…\OneDrive\…\Personal\Argentum.git` | Bare git repo. Source history only, ~7MB, never a binary |
+**The screen conversion is Windows-only, and needs a matrix profile.** Argentum
+reads the ICC profile Windows holds for the monitor the window is on and converts
+the preview for it, so what you see matches what you export. On macOS and Linux
+nothing is read and nothing is converted, and the same is true of a monitor
+profile built as a lookup table rather than from three primaries. In those cases
+the picture is shown the way RapidRAW always showed it — correct on an sRGB
+screen, over-saturated on a wide-gamut one.
 
-**Why the working tree isn't in OneDrive.** It was, briefly. OneDrive doesn't
-tolerate directory junctions inside a synced folder — it silently replaced the
-`node_modules` junction with a real folder and started syncing 182 packages. No
-link-based trick survives that.
-
-So the split moved up a level: work happens entirely outside OneDrive, and
-OneDrive holds the *git history* instead of the files. It still has every version
-of every source file, in a fraction of the space, and it can never pick up a
-binary because git never tracks one.
-
-Back up after committing:
-
-```bash
-git push
-```
+**macOS and Linux builds are untested.** The code compiles for them and CI
+builds them, but no one has run Argentum on either yet. Reports welcome.
 
 ---
 
@@ -40,16 +30,12 @@ git push
 
 | File | What's in it |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Working rules — read first |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code layout, and why upstream updates won't hurt |
 | [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) | The recipe. Same four steps every time |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What order, and what's done |
 | [docs/MENU.md](docs/MENU.md) | Everything available to harvest, from each source |
 | [docs/FEASIBILITY.md](docs/FEASIBILITY.md) | The original go/no-go research |
 | [CHANGELOG.md](CHANGELOG.md) | Every module, with its upstream source and commit |
-
-Full project brain — decisions, scope, research — lives in OpenViking at
-`viking://resources/personal/photography/Argentum/`.
 
 ---
 
@@ -69,11 +55,7 @@ winget install Rustlang.Rustup
 winget install OpenJS.NodeJS.LTS
 ```
 
-Then wire up the redirects and check everything's present:
-
-```bash
-powershell -ExecutionPolicy Bypass -File setup.ps1
-```
+Then install the front-end dependencies:
 
 ```bash
 npm install
@@ -111,7 +93,7 @@ almost always "keep both sides".
 
 ## The app's own data
 
-One folder, chosen in Settings, default `C:\Users\you\NoCloudZone\Argentum\data`:
+One folder, chosen in Settings, defaulting to `data/` beside the checkout:
 
 ```
 data\

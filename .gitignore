@@ -1,5 +1,5 @@
 # ── Nothing heavy in OneDrive ────────────────────────────────────────────
-# Build output and runtimes live in C:\Users\you\NoCloudZone\Alloy
+# Build output and runtimes stay out of git entirely.
 # See docs/ARCHITECTURE.md → "Where things live"
 
 # Rust build output — redirected by .cargo/config.toml, ignored as a safety net
@@ -96,3 +96,7 @@ src-tauri/libs/
 # bench/replay.js result dumps
 bench/out/
 .compare/
+
+# Private to this machine - working rules and one-time setup.
+CLAUDE.md
+setup.ps1

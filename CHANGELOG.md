@@ -42,6 +42,93 @@ came from — without it there's no way to tell later whether upstream moved on.
 
 ---
 
+## 2026.37.19 — 2026-09-12
+
+### Internal
+- **Argentum is published.** The repository goes to GitHub as its own project
+  rather than a GitHub-level fork of RapidRAW: own name, own issues, no "forked
+  from" banner. The debt is stated where it belongs — the README's first
+  paragraph, the AGPL-3.0 licence inherited unchanged, and the "Built on" group
+  in `src/argentum/credits.ts`, which still names Timon Käch first.
+
+- **Personal data removed from the source and from the history.** Publishing a
+  repository publishes every version of every file it has ever held, so editing
+  the current copy is not enough:
+
+  | What | Where it was | What replaced it |
+  |---|---|---|
+  | A work email address | the author field of 87 commits | the GitHub noreply address |
+  | An employer's name | a backup path, in four files | the bare service name |
+  | An account name | a home directory, in seven files | a neutral placeholder |
+  | Working rules | `CLAUDE.md`, tracked | untracked, kept locally |
+  | Machine setup | `setup.ps1`, tracked | untracked, kept locally |
+
+  The table describes rather than quotes on purpose. This file is rewritten by
+  the same pass, so a literal here would be replaced along with the real ones
+  and the row would end up saying that a thing was replaced by itself. It did,
+  on the first attempt.
+
+- **The fork point had to be rebuilt, and this is the note for the next person
+  who tries this.** Rewriting history renumbers every commit it touches. The
+  intent was to touch only Argentum's, leaving RapidRAW's hashes alone so the
+  shared ancestry survived — and that is not possible here, for two reasons
+  found the hard way.
+
+  This clone is **shallow**, so its history has no single root: the shallow
+  boundary makes several, and a rewrite renumbers across all of them. And the
+  rewrite also renumbers the *remote-tracking* ref, so `git merge-base HEAD
+  upstream/main` answers confidently with a commit that exists only locally.
+  The first run looked like it had worked. It had severed the fork: no common
+  ancestor with the real RapidRAW, and every future upstream merge a whole-tree
+  conflict.
+
+  What made this survivable was a full mirror clone taken before the first
+  rewrite, and checking `git merge-base` against the real upstream tip rather
+  than the local ref. The repair is two steps: fetch the full history so the
+  shallow boundary stops inventing roots, then record `97fada3` — the upstream
+  commit Argentum had actually merged — as a second parent with `git merge -s
+  ours`, which keeps our tree byte for byte. That is truthful rather than a
+  trick: everything up to `97fada3` is already in this tree. The eleven upstream
+  commits made since are still unmerged and still arrive on the next
+  `git merge upstream/main`.
+
+- **Test fixtures read their paths from the environment.** The colour-comparison
+  and MakerNote tests pointed at one photo library on one disk. They now take
+  `AG_RAW_ROOT`, `AG_COMPARE`, `AG_CANON_SAMPLE` and `AG_CANON_DIR`, so the
+  ignored tests still run for whoever has the files and the repository carries
+  nobody's folder layout. `mod fixtures` in `colour_compare.rs` documents them.
+
+- **The splash points at Argentum.** It asked RapidRAW's releases what the
+  newest version was and compared it against ours — different projects,
+  different version schemes, so it could announce an update that does not exist
+  for this app and then offer an installer that replaces it with a different
+  one. Three URLs in their `MainLibrary.tsx` now name Argentum: the releases API
+  the check reads, the download it opens, and the contribute link. Written
+  inline rather than imported from `src/argentum/`, because that file has no
+  anchor and a link is not a reason to give it one.
+
+- **`package.json` names Argentum's author.** It said `Timon Käch`, inherited
+  from RapidRAW, which meant every build blamed him for our bugs. The credit for
+  his work is not diminished by this; an authorship field is about who to report
+  a crash to.
+
+  `Cargo.toml` keeps his name, and that is the mergeability rule working rather
+  than an oversight: the same edit there took the file to 9 added lines against
+  a budget of 8, and the budget is not raised. One line of vanity is not worth
+  the room a real change will need.
+
+- **README rewritten for a reader who is not AK.** The machine-layout and
+  backup sections described one person's disk and meant nothing to anyone else.
+  In their place a `Known limitations` section says plainly that the screen
+  conversion is Windows-only and that the macOS and Linux builds are untested —
+  the same wording as `knownIssues.ts`, so the app and the repository do not
+  disagree.
+
+- **Removed a stray file named `60%`**, a zero-byte artefact of a shell redirect
+  that had been committed by accident.
+
+---
+
 ## 2026.37.18 — 2026-09-12
 
 ### Measured

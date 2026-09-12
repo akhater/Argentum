@@ -281,7 +281,7 @@ Two locations, deliberately. **Nothing heavy goes in OneDrive.**
 | | Path | Rule |
 |---|---|---|
 | Source, docs, config | `...\OneDrive\...\Personal\Argentum` | Git-tracked. Text only |
-| Build output, runtimes, models, app data | `C:\Users\you\NoCloudZone\Argentum` | Never tracked, never synced |
+| Build output, runtimes, models, app data | the checkout | Never tracked, never synced |
 
 A Rust `target/` directory reaches several GB and `node_modules` tens of
 thousands of files. Syncing either would be miserable. So they are redirected
@@ -324,7 +324,7 @@ stopped.
 
 | | Path | What |
 |---|---|---|
-| Work | `C:\Users\you\NoCloudZone\Argentum` | Everything - source, node_modules, target, app data |
+| Work | the checkout | Everything - source, node_modules, target, app data |
 | Backup | `...\OneDrive\...\Personal\Argentum.git` | Bare git repo, ~7MB, source history only |
 
 The split moved up a level. Instead of separating files *within* one folder, the

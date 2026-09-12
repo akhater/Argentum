@@ -1,6 +1,6 @@
 {
   "name": "argentum",
-  "author": "Timon Käch",
+  "author": "Antoine Khater",
   "private": true,
   "scripts": {
     "dev": "vite",

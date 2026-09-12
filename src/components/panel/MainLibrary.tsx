@@ -297,7 +297,7 @@ export default function MainLibrary(props: MainLibraryProps) {
         const currentVersion = await getVersion();
         setAppVersion(currentVersion);
 
-        const response = await fetch('https://api.github.com/repos/CyberTimon/RapidRAW/releases/latest');
+        const response = await fetch('https://api.github.com/repos/akhater/Argentum/releases/latest');
         if (!response.ok) {
           console.error('Failed to fetch latest release info from GitHub.');
           return;
@@ -456,7 +456,7 @@ export default function MainLibrary(props: MainLibraryProps) {
                             }`}
                             onClick={() => {
                               if (isUpdateAvailable) {
-                                open('https://github.com/CyberTimon/RapidRAW/releases/latest');
+                                open('https://github.com/akhater/Argentum/releases/latest');
                               }
                             }}
                             data-tooltip={
@@ -478,7 +478,7 @@ export default function MainLibrary(props: MainLibraryProps) {
                         <span>-</span>
                         <p>
                           <a
-                            href="https://github.com/CyberTimon/RapidRAW"
+                            href="https://github.com/akhater/Argentum"
                             className="hover:underline"
                             target="_blank"
                             rel="noopener noreferrer"

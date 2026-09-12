@@ -46,12 +46,47 @@ mod tests_support {
     pub use super::tests::compare;
 }
 
+/// Where the comparison fixtures live.
+///
+/// They are photographs and darktable renders from a personal library, so they
+/// are not in the repository and their paths are not written into it. Point
+/// these at your own copies before running any ignored test in this file:
+///
+/// ```text
+/// AG_RAW_ROOT   the RAW library root, scanned by year and then date
+/// AG_COMPARE    the directory holding darktable's renders
+/// ```
+#[cfg(test)]
+mod fixtures {
+    fn var(name: &str) -> String {
+        std::env::var(name)
+            .unwrap_or_else(|_| panic!("set {name} - see `mod fixtures` in colour_compare.rs"))
+    }
+
+    pub fn raw_root() -> String {
+        var("AG_RAW_ROOT")
+    }
+
+    pub fn compare_root() -> String {
+        var("AG_COMPARE")
+    }
+
+    /// A RAW under the library root.
+    pub fn raw(rel: &str) -> String {
+        format!("{}/{rel}", raw_root())
+    }
+
+    /// A darktable render under the comparison root.
+    pub fn compare(rel: &str) -> String {
+        format!("{}/{rel}", compare_root())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use image::GenericImageView;
 
-    const RAW: &str = r"C:\Users\you\OneDrive\Pictures\_Original to Review\2023\2023-06-01\2023-06-01_Canon EOS 5D Mark II_104-5729.CR2";
-    const DARKTABLE: &str = r"C:\Users\you\NoCloudZone\Argentum\.compare\darktable_yourdefaults.tif";
+    use super::fixtures;
 
     /// Compare the two renders pixel by pixel.
     ///
@@ -87,12 +122,13 @@ mod tests {
     #[test]
     #[ignore = "needs a darktable render alongside; run by hand"]
     fn how_does_our_colour_differ_from_darktables() {
-        let dt_path = std::path::Path::new(DARKTABLE);
-        assert!(dt_path.exists(), "render darktable's side first: {DARKTABLE}");
+        let darktable = fixtures::compare("darktable_yourdefaults.tif");
+        let dt_path = std::path::Path::new(&darktable);
+        assert!(dt_path.exists(), "render darktable's side first: {darktable}");
 
         let dt = image::open(dt_path).expect("open darktable render");
 
-        let bytes = std::fs::read(RAW).expect("read raw");
+        let bytes = std::fs::read(fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")).expect("read raw");
         let ours = crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
             .expect("develop raw");
 
@@ -274,9 +310,7 @@ mod matrix_sim {
 mod across_a_set {
     use super::tests_support::*;
 
-    const DT_DIR: &str = r"C:\Users\you\NoCloudZone\Argentum\.compare\set";
-    const RAW_ROOT: &str =
-        r"C:\Users\you\OneDrive\Pictures\_Original to Review";
+    use super::fixtures;
 
     fn find_raw(stem: &str) -> Option<std::path::PathBuf> {
         fn walk(dir: &std::path::Path, stem: &str) -> Option<std::path::PathBuf> {
@@ -297,13 +331,14 @@ mod across_a_set {
             }
             None
         }
-        walk(std::path::Path::new(RAW_ROOT), stem)
+        walk(std::path::Path::new(&fixtures::raw_root()), stem)
     }
 
     #[test]
     #[ignore = "renders dozens of RAWs; run by hand"]
     fn colour_and_brightness_across_many_photos() {
-        let dir = std::path::Path::new(DT_DIR);
+        let set = fixtures::compare("set");
+        let dir = std::path::Path::new(&set);
         let mut rows = Vec::new();
 
         for entry in std::fs::read_dir(dir).expect("darktable set").flatten() {
@@ -369,8 +404,7 @@ mod across_a_set {
 /// argued about.
 #[cfg(test)]
 mod distribution {
-    const DT: &str = r"C:\Users\you\NoCloudZone\Argentum\.compare\set\2023-06-25_Canon_EOS_5D_Mark_II_104-5897.tif";
-    const RAW: &str = r"C:\Users\you\OneDrive\Pictures\_Original to Review\2023\2023-06-25\2023-06-25_Canon EOS 5D Mark II_104-5897.CR2";
+    use super::fixtures;
 
     fn histogram(img: &image::DynamicImage) -> [f64; 16] {
         let rgb = img.to_rgb8();
@@ -395,8 +429,9 @@ mod distribution {
     #[test]
     #[ignore = "reads AK's files; run by hand"]
     fn compare_tone_distribution() {
-        let dt = image::open(DT).expect("darktable render");
-        let bytes = std::fs::read(RAW).expect("raw");
+        let dt = image::open(fixtures::compare("set/2023-06-25_Canon_EOS_5D_Mark_II_104-5897.tif"))
+            .expect("darktable render");
+        let bytes = std::fs::read(fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2")).expect("raw");
         let mut ours =
             crate::raw_processing::develop_raw_image(&bytes, false, 2.5, "off".to_string(), None, None)
                 .expect("develop");
@@ -440,12 +475,12 @@ mod distribution {
 /// after the encode, and the same pixels should be non-zero before it.
 #[cfg(test)]
 mod crush {
-    const RAW: &str = r"C:\Users\you\OneDrive\Pictures\_Original to Review\2023\2023-06-25\2023-06-25_Canon EOS 5D Mark II_104-5897.CR2";
+    use super::fixtures;
 
     #[test]
     #[ignore = "reads AK's file; run by hand"]
     fn how_much_is_clipped_to_black() {
-        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| RAW.to_string());
+        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2"));
         println!("
 file {raw_path}");
         let bytes = std::fs::read(&raw_path).expect("raw");
@@ -530,8 +565,7 @@ file {raw_path}");
 mod linear_stage {
     use image::GenericImageView;
 
-    const RAW: &str = r"C:\Users\you\OneDrive\Pictures\_Original to Review\2023\2023-06-01\2023-06-01_Canon EOS 5D Mark II_104-5729.CR2";
-    const DT: &str = r"C:\Users\you\NoCloudZone\Argentum\.compare\dt_none_linrec709_16.tif";
+    use super::fixtures;
 
     fn means(img: &image::DynamicImage) -> [f64; 3] {
         let rgb = img.to_rgb32f();
@@ -581,8 +615,9 @@ mod linear_stage {
     #[ignore = "reads AK's file and a darktable render; run by hand"]
     fn where_is_the_cast_born() {
         // Point at any pair with AG_RAW / AG_DT; the constants are the default.
-        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| RAW.to_string());
-        let dt_path = std::env::var("AG_DT").unwrap_or_else(|_| DT.to_string());
+        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2"));
+        let dt_path =
+            std::env::var("AG_DT").unwrap_or_else(|_| fixtures::compare("dt_none_linrec709_16.tif"));
         println!("
 raw: {raw_path}
 dt:  {dt_path}");
@@ -645,12 +680,12 @@ dt:  {dt_path}");
 /// against an independent parse of the same file.
 #[cfg(test)]
 mod sraw_facts {
-    const SRAW: &str = r"C:\Users\you\OneDrive\Pictures\_Original to Review\2023\2023-06-01\2023-06-01_Canon EOS 5D Mark II_104-5729.CR2";
+    use super::fixtures;
 
     #[test]
     #[ignore = "reads AK's file; run by hand"]
     fn what_rawler_reads_from_an_sraw() {
-        let path = std::env::var("AG_SRAW").unwrap_or_else(|_| SRAW.to_string());
+        let path = std::env::var("AG_SRAW").unwrap_or_else(|_| fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2"));
         let bytes = std::fs::read(&path).expect("read raw");
         let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
         let decoder = rawler::get_decoder(&source).expect("decoder");
@@ -708,14 +743,13 @@ mod sraw_facts {
 mod linear_across_a_set {
     use image::GenericImageView;
 
-    const DT_DIR: &str = r"C:\Users\you\NoCloudZone\Argentum\.compare\linset";
-    const ROOT: &str = r"C:\Users\you\OneDrive\Pictures\_Original to Review";
+    use super::fixtures;
 
     fn find_raw(stem: &str) -> Option<std::path::PathBuf> {
         let name = stem.replace('_', " ");
         let date = stem.get(..10)?;
         let year = stem.get(..4)?;
-        let dir = std::path::Path::new(ROOT).join(year).join(date);
+        let dir = std::path::Path::new(&fixtures::raw_root()).join(year).join(date);
         for entry in std::fs::read_dir(dir).ok()? {
             let path = entry.ok()?.path();
             if path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("CR2")) {
@@ -776,7 +810,9 @@ mod linear_across_a_set {
 
         let mut rows: Vec<(String, bool, [f64; 3])> = Vec::new();
 
-        for entry in std::fs::read_dir(DT_DIR).expect("render the linear set first") {
+        for entry in std::fs::read_dir(fixtures::compare("linset"))
+            .expect("render the linear set first")
+        {
             let dt_path = entry.expect("dir entry").path();
             if dt_path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("tif")) {
                 continue;
