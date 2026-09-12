@@ -12,7 +12,12 @@ node_modules/
 
 # Tauri build artifacts
 src-tauri/target/
-src-tauri/gen/
+# NOT `src-tauri/gen/`. Excluding the directory kills upstream's
+# `!src-tauri/gen/android/` further down, because git cannot re-include a file
+# whose parent directory is excluded - and that silently untracked the 42 files
+# of the Android project, so the Android CI job could not find Cargo.toml.
+# Upstream's `src-tauri/gen/*` below ignores the generated schemas and keeps the
+# Android project, which is what we want too.
 
 # Frontend build output
 dist/

@@ -176,6 +176,26 @@ came from — without it there's no way to tell later whether upstream moved on.
   reason written into `lint.yml`: upstream's files fail `rustfmt`, and fixing
   that would spend budget meant for real changes on whitespace.
 
+- **One line of `.gitignore` had silently untracked upstream's Android project.**
+  The Android CI job failed with `could not find Cargo.toml`, which reads like a
+  broken workflow and was not: 42 files that RapidRAW tracks under
+  `src-tauri/gen/android` were not in this repository at all.
+
+  Argentum had added `src-tauri/gen/` to ignore the generated Tauri schemas.
+  Upstream already handled that further down, with `src-tauri/gen/*` followed by
+  `!src-tauri/gen/android/` - and **git cannot re-include a file whose parent
+  directory is excluded**, so our line killed their negation. Nothing warned:
+  the files simply stopped being tracked, and the only symptom was a CI job
+  failing on a platform nobody was looking at.
+
+  Our line is gone and upstream's pair does the job, with a comment above it
+  saying why the obvious-looking rule must not come back. The Android project is
+  restored from `upstream/main`, so those 42 files are byte-for-byte his.
+
+  Argentum does not target Android and rejected the Android-specific pull
+  requests. That is a reason not to *work* on it, not a reason to break a build
+  upstream maintains for free.
+
 - **Removed a stray file named `60%`**, a zero-byte artefact of a shell redirect
   that had been committed by accident.
 
