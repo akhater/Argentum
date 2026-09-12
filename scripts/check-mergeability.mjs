@@ -14,7 +14,7 @@
 // Run standalone:  node scripts/check-mergeability.mjs
 
 import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -96,6 +96,12 @@ const EXCEPTIONS = [
   {
     file: 'src-tauri/src/file_management.rs',
     allow: 31,
+    allowDeleted: 31,
+    deletedWhy: 'Every deleted line is one half of the .rrdata -> .agdata '
+      + 'rename and was replaced one for one on the line below it. A rename, '
+      + 'not a removal: nothing of theirs stopped existing, so an upstream edit '
+      + 'still lands in a line that is there under a different name. Recorded '
+      + '2026-09-13, when the checker learned to see deletions at all.',
     date: '2026-09-10',
     why: 'Sidecar rename .rrdata -> .agdata (30 lines, agreed 2026-09-08). An '
       + 'extension permeates their code by nature; no amount of moving logic to '
@@ -115,6 +121,21 @@ const EXCEPTIONS = [
     date: '2026-09-08',
     why: 'Same rename, plus one call into mods::sidecar so legacy .rrdata '
       + 'files are still read and nothing already edited is orphaned.',
+  },
+  {
+    file: 'src/components/panel/SettingsPanel.tsx',
+    allow: 6,
+    allowDeleted: 209,
+    date: '2026-09-13',
+    why: 'The lens section moved out to src/argentum/MyGear.tsx, which is the '
+      + 'architecture working: the panel is ours and their file keeps a tag.',
+    deletedWhy: '209 lines of their lens UI removed rather than left dormant, '
+      + 'and this is the uncomfortable one. It is written down so it stays '
+      + 'uncomfortable: upstream edits this file often, and any change they '
+      + 'make inside the block we deleted is a conflict resolved by hand. It '
+      + 'was invisible until the checker learned to count deletions on '
+      + '2026-09-13. If it conflicts twice, put their section back and hide it '
+      + 'instead of removing it.',
   },
 ];
 
@@ -293,121 +314,293 @@ if (!base || !existsSync(join(root, '.git'))) {
   process.exit(0);
 }
 
-// Added lines per file, ours vs upstream's tree.
-//
-// -w ignores whitespace, because re-indenting their code to nest it in a
-// container is not divergence — git counts every moved line as added, but a
-// conflict there resolves itself. What we care about is real added logic.
-const numstat = execSync(`git diff -w --numstat ${base} -- .`, {
+
+/**
+ * Upstream code our hooks step around but leave in place.
+ *
+ * CLAUDE.md says never delete their function — just stop calling it. That keeps
+ * merges clean, and it hides something: upstream goes on fixing a function that
+ * no longer runs here, the fix merges without a murmur, and nothing executes it.
+ * Silence is the failure mode, so the shadows are listed and checked.
+ *
+ * The script asserts each symbol still exists upstream. A rename is exactly the
+ * change that would otherwise slip past, because it conflicts with nothing.
+ */
+const SHADOWED = [
+  {
+    file: 'src-tauri/src/image_processing.rs',
+    symbol: 'apply_cpu_default_raw_processing',
+    instead: 'mods/preview_encode.rs — the same curve with a toe instead of a cliff',
+  },
+  {
+    file: 'src-tauri/src/shaders/shader.wgsl',
+    symbol: 'apply_white_balance',
+    instead: 'shaders/modules.wgsl — scene-linear chromatic adaptation',
+  },
+];
+
+/**
+ * Keys in the adjustments JSON whose meaning we changed, or which we added.
+ *
+ * Not symbols, so SHADOWED misses them, and a type change here breaks quietly.
+ * `showClipping` went from a boolean to 0..4 and upstream's Waveform.tsx still
+ * declares it a boolean: the day upstream writes `=== true`, our four-way
+ * control reads as off and nothing errors.
+ */
+const SIDECAR_KEYS = ['showClipping', 'cameraProfile'];
+
+/**
+ * Fixes carried from an upstream pull request before upstream merged it.
+ *
+ * Lines between the markers are upstream's own work held early, not our
+ * divergence — when the pull request lands they become identical to their copy.
+ * They are therefore not charged against the file's budget, and are printed
+ * separately so they are not forgotten:
+ *
+ *   // upstream #1307
+ *   ...their fix...
+ *   // end upstream #1307
+ */
+const BORROW_START = /\/\/\s*upstream #(\d+)/;
+const BORROW_END = /\/\/\s*end upstream #(\d+)/;
+
+/**
+ * Deleting their lines is what actually causes conflicts.
+ *
+ * Any upstream edit inside a block we removed conflicts, every time. This is
+ * the rule CLAUDE.md already states — "never delete their function, just stop
+ * calling it" — which went unenforced until 2026-09-13.
+ */
+const DELETION_LIMIT = 20;
+// One pass over the real diff. Deliberately NOT `-w`: git merge does not
+// ignore whitespace, so a number that does is not the number to look at. It
+// reported Color.tsx as 4 lines where git sees 17 added and 13 deleted.
+const diff = execSync(`git diff ${base} -- .`, {
   cwd: root,
   encoding: 'utf8',
-  maxBuffer: 32 * 1024 * 1024,
+  maxBuffer: 96 * 1024 * 1024,
 });
 
-/** Added lines that call into our code, per upstream file. */
-const hooksByFile = (() => {
-  const diff = execSync(`git diff -w ${base} -- .`, {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  const found = new Map();
+/** file -> { added, deleted, borrowed, hooks[], prs } */
+const stats = new Map();
+const statFor = (file) => {
+  if (!stats.has(file)) {
+    stats.set(file, { added: 0, deleted: 0, borrowed: 0, hooks: [], prs: new Set() });
+  }
+  return stats.get(file);
+};
+
+{
   let current = null;
+  let borrowing = null;
   for (const line of diff.split('\n')) {
     const header = line.match(/^\+\+\+ b\/(.+)$/);
     if (header) {
       current = header[1];
+      borrowing = null;
       continue;
     }
-    if (!current || !line.startsWith('+') || line.startsWith('+++')) continue;
-    if (isOurs(current) || IDENTITY.includes(current)) continue;
-    const text = line.slice(1);
-    if (!isHook(text)) continue;
-    if (!found.has(current)) found.set(current, []);
-    found.get(current).push(text.trim());
-  }
-  return found;
-})();
+    if (!current || isOurs(current) || IDENTITY.includes(current)) continue;
 
-const violations = [];
+    if (line.startsWith('-') && !line.startsWith('---')) {
+      statFor(current).deleted += 1;
+      continue;
+    }
+    if (!line.startsWith('+') || line.startsWith('+++')) continue;
+
+    const text = line.slice(1);
+    const st = statFor(current);
+    st.added += 1;
+
+    if (BORROW_END.test(text)) {
+      borrowing = null;
+      st.borrowed += 1;
+      continue;
+    }
+    const start = text.match(BORROW_START);
+    if (start) {
+      borrowing = start[1];
+      st.prs.add(start[1]);
+      st.borrowed += 1;
+      continue;
+    }
+    if (borrowing) {
+      st.borrowed += 1;
+      continue;
+    }
+    if (isHook(text)) st.hooks.push(text.trim());
+  }
+}
+
+const warnings = [];
+const errors = [];
 const touched = [];
 
-for (const line of numstat.split('\n').filter(Boolean)) {
-  const [addedRaw, , file] = line.split('\t');
-  if (!file || addedRaw === '-') continue; // binary
-  if (isOurs(file)) continue;
-
-  const added = Number(addedRaw);
-  if (added === 0) continue;
-
-  const limit = budgetFor(file);
-  touched.push({ file, added, limit });
-  if (added > limit) violations.push({ file, added, limit });
+for (const [file, st] of stats) {
+  // Borrowed lines are upstream's own fix carried early. They are not our
+  // divergence: when upstream merges the pull request they become identical to
+  // their copy, so they are not charged against the file's budget.
+  const ours = st.added - st.borrowed;
+  touched.push({
+    file,
+    added: ours,
+    borrowed: st.borrowed,
+    deleted: st.deleted,
+    limit: budgetFor(file),
+    prs: [...st.prs],
+  });
 }
 
-// The anchor check: a file may only reach into our code a fixed number of
-// times, and adding a feature must not be one of them.
-const anchorBreaks = [];
-for (const [file, hooks] of hooksByFile) {
+// --- Gate: deleting their lines ---------------------------------------------
+//
+// The rule CLAUDE.md states is "never delete their function — just stop calling
+// it". It was never enforced, and it is the one that actually causes conflicts:
+// any upstream edit inside a block we removed conflicts, every time.
+for (const t of touched) {
+  const allowed = exceptionFor(t.file)?.allowDeleted ?? DELETION_LIMIT;
+  if (t.deleted > allowed) {
+    errors.push({
+      file: t.file,
+      detail: `${t.deleted} of their lines deleted, the limit is ${allowed}`,
+      fix: 'Stop calling their code rather than removing it — or record it in EXCEPTIONS with allowDeleted and the reason.',
+    });
+  }
+}
+
+// --- Gate: anchors ----------------------------------------------------------
+for (const [file, st] of stats) {
+  if (st.hooks.length === 0) continue;
   const anchor = anchorFor(file);
   const allowed = anchor ? anchor.hooks : 0;
-  if (hooks.length > allowed) {
-    anchorBreaks.push({ file, hooks, allowed, anchor });
+  if (st.hooks.length > allowed) {
+    errors.push({
+      file,
+      detail: `${st.hooks.length} calls into our code, the anchor allows ${allowed}`,
+      fix: anchor
+        ? `${anchor.what} — do this instead: ${anchor.instead}`
+        : 'This file has no anchor at all, and should have none.',
+      lines: st.hooks,
+    });
   }
 }
 
-if (anchorBreaks.length > 0) {
-  console.error('\n  ANCHOR ADDED TO AN UPSTREAM FILE\n');
-  for (const { file, hooks, allowed, anchor } of anchorBreaks) {
-    console.error(`    ${file}`);
-    console.error(`      ${hooks.length} calls into our code, the anchor allows ${allowed}`);
-    if (anchor) {
-      console.error(`      anchor: ${anchor.what}`);
-      console.error(`      do this instead: ${anchor.instead}`);
-    } else {
-      console.error('      this file has no anchor at all — it should have none');
+// --- Gate: the recorded base must be the real one ---------------------------
+//
+// Accepting an upstream change only means anything against the commit it was
+// judged at. Forcing this line to be rewritten is what makes the review happen
+// at merge time rather than never. `git fetch` does not move the merge-base, so
+// this fails once per merge, not every time upstream moves.
+{
+  const changelog = join(root, 'CHANGELOG.md');
+  if (existsSync(changelog)) {
+    const recorded = readFileSync(changelog, 'utf8').match(
+      /Based on RapidRAW[^@]*@\s*`([0-9a-f]{7,40})`/,
+    );
+    if (!recorded) {
+      errors.push({
+        file: 'CHANGELOG.md',
+        detail: 'no "Based on RapidRAW ... @ `sha`" line found',
+        fix: 'Record the upstream commit this fork is merged up to.',
+      });
+    } else if (!base.startsWith(recorded[1])) {
+      errors.push({
+        file: 'CHANGELOG.md',
+        detail: `records base ${recorded[1]}, but the merge-base is ${base.slice(0, recorded[1].length)}`,
+        fix: 'Update it as part of the merge, having reviewed what arrived with it: npm run review:upstream',
+      });
     }
-    for (const h of hooks) console.error(`        + ${h}`);
-    console.error('');
   }
-  console.error('  An anchor is a fixed cost, not a budget. If a feature needs a');
-  console.error('  new one, that is the design being wrong, not the number.\n');
-  console.error('  See docs/ARCHITECTURE.md, \"What the next feature costs\".\n');
+}
+
+// --- Gate: shadowed upstream code must still exist --------------------------
+for (const { file, symbol, instead } of SHADOWED) {
+  let upstreamCopy = '';
+  try {
+    upstreamCopy = execSync(`git show upstream/main:${file}`, {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    });
+  } catch {
+    errors.push({
+      file,
+      detail: `we step around ${symbol} here, but upstream no longer has this file`,
+      fix: 'Our hook may now be bypassing nothing. Find what replaced it.',
+    });
+    continue;
+  }
+  if (!upstreamCopy.includes(symbol)) {
+    errors.push({
+      file,
+      detail: `${symbol} is gone from upstream, and we step around it`,
+      fix: `We use ${instead}. A rename is exactly the change that would otherwise slip through — check the hook still bypasses what we think it does.`,
+    });
+  }
+}
+
+// --- Warning: the budget ----------------------------------------------------
+//
+// Demoted from a gate on 2026-09-13. It counts additions only, so it cannot see
+// the deletions that actually conflict, and it charges a line in a file upstream
+// touches once a year the same as one it touches weekly. Kept as a warning
+// because it is still the only thing that notices logic quietly growing inside
+// one of their functions, which the anchor rule cannot see.
+for (const t of touched) {
+  if (t.added > t.limit) {
+    warnings.push(`${t.file}: ${t.added} of our lines added, the budget is ${t.limit}`);
+  }
+}
+
+// --- Warning: is upstream/main even current? --------------------------------
+try {
+  const when = execSync('git log -1 --format=%ct upstream/main', { cwd: root, encoding: 'utf8' }).trim();
+  const days = Math.floor((Date.now() / 1000 - Number(when)) / 86400);
+  if (days > 14) {
+    warnings.push(`upstream/main is ${days} days old — this check passes vacuously against a stale ref. Run: git fetch upstream`);
+  }
+} catch {
+  /* no upstream ref: handled above */
+}
+
+// --- Report -----------------------------------------------------------------
+if (errors.length > 0) {
+  console.error('\n  UPSTREAM CHECK FAILED\n');
+  for (const e of errors) {
+    console.error(`    ${e.file}`);
+    console.error(`      ${e.detail}`);
+    if (e.lines) for (const l of e.lines) console.error(`        + ${l}`);
+    console.error(`      ${e.fix}\n`);
+  }
+  console.error('  See CLAUDE.md, "The one architectural rule".\n');
   process.exit(1);
 }
 
-if (violations.length === 0) {
-  if (touched.length > 0) {
-    const total = touched.reduce((sum, t) => sum + t.added, 0);
-    const hookCount = [...hooksByFile.values()].reduce((n, h) => n + h.length, 0);
-    console.log(
-      `  mergeability: ${touched.length} upstream files touched, ${total} lines, all within budget`,
-    );
-    console.log(
-      `  anchors: ${hookCount} calls into our code across ${hooksByFile.size} of their files — a new feature should add none`,
-    );
+const used = touched.filter((t) => t.added > 0 || t.deleted > 0 || t.borrowed > 0);
+if (used.length > 0) {
+  const added = used.reduce((n, t) => n + t.added, 0);
+  const deleted = used.reduce((n, t) => n + t.deleted, 0);
+  const hooked = [...stats.values()].filter((st) => st.hooks.length > 0);
+  const hooks = hooked.reduce((n, st) => n + st.hooks.length, 0);
+  console.log(`  upstream: ${used.length} files touched, ${added} of our lines added, ${deleted} of theirs deleted`);
+  console.log(`  anchors: ${hooks} calls into our code across ${hooked.length} of their files — a new feature should add none`);
+
+  const borrowed = used.filter((t) => t.borrowed > 0);
+  if (borrowed.length > 0) {
+    console.log(`  borrowed from upstream, pending their merge (${borrowed.length}):`);
+    for (const b of borrowed) {
+      console.log(`    ${b.file}  ${b.borrowed} lines, ${b.prs.map((n) => `#${n}`).join(', ')}`);
+    }
   }
 
-  // Keep the approved trespasses visible. The point of writing them down is
-  // that they stay uncomfortable, not that they get forgotten.
-  const active = EXCEPTIONS.filter((e) => touched.some((t) => t.file === e.file));
+  const active = EXCEPTIONS.filter((e) => used.some((t) => t.file === e.file));
   if (active.length > 0) {
     console.log(`  approved exceptions (${active.length}):`);
     for (const e of active) {
-      const used = touched.find((t) => t.file === e.file)?.added ?? 0;
-      console.log(`    ${e.file}  ${used}/${e.allow} lines, agreed ${e.date}`);
+      const t = used.find((x) => x.file === e.file);
+      console.log(`    ${e.file}  ${t?.added ?? 0}/${e.allow} lines, agreed ${e.date}`);
     }
   }
-  process.exit(0);
 }
 
-console.error('\n  MERGEABILITY BUDGET EXCEEDED\n');
-for (const { file, added, limit } of violations) {
-  console.error(`    ${file}`);
-  console.error(`      ${added} lines added, budget is ${limit}\n`);
-}
-console.error('  Our code belongs in our own files. Move the logic into');
-console.error('    src-tauri/src/mods/   ·   src/argentum/   ·   shaders/modules.wgsl');
-console.error('  and leave a single call behind in theirs.\n');
-console.error('  See CLAUDE.md, "The one architectural rule".\n');
-process.exit(1);
+for (const w of warnings) console.log(`  warning: ${w}`);
+process.exit(0);

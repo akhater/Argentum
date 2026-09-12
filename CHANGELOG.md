@@ -2,7 +2,7 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.3` @ `97fada3`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.3` @ `ef25ba2a`** — updated whenever upstream is merged.
 
 ## Versioning: `yy.isoWeek.release`
 
