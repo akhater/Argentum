@@ -169,6 +169,52 @@ explicit or safe conversion keeps that distinction manageable.
 | ⬜ | Profiled denoise | ~1 week |
 | ⬜ | Local laplacian contrast | ~1 week |
 
+
+## Upstream pull requests worth taking
+
+RapidRAW's open pull requests, triaged against what Argentum already has. Each
+claim below was checked against this repository on 2026-09-12 rather than taken
+from the pull request's description - three of them did not survive that check,
+which is why the order differs from the obvious one.
+
+| | Take | Verified here | Effort |
+|---|---|---|---|
+| ⬜ | **#1307, the AI patch cache key** | `cache_utils.rs` hashes `.len()` of `color`, `mask` and `patchDataBase64` rather than their contents, so two patches of equal length collide and the wrong one is rendered from cache. Visibly wrong output, which is why it goes first | 1 hour |
+| ⬜ | **#1307, the unbounded LUT cache** | `app_state.rs` holds `Mutex<HashMap<String, Arc<Lut>>>` with no eviction | 1 hour |
+| ⬜ | **#1307, the unchecked mask index** | `export_processing.rs` does `all.mask_adjustments[mask_index]` with no bounds check - a panic, not an error | 1 hour |
+| ⬜ | **#1619, `Arc<DynamicImage>` for the geometry cache** | `app_state.rs` stores a bare `HashMap<u64, DynamicImage>` and clones the whole pixel buffer on every hit, while the two caches either side of it already use `Arc` | 2 hours |
+| ⬜ | **#1633, the sRGB exponent** | Real: `raw_processing.rs` uses `powf(3.0)` where every other site in the tree uses `2.4`. Worth taking because it is one line and standards-correct - **not** because it matters here: the function is file-private and only reached under `is_linear_format && apply_ungamma`, which a Canon CR2 never is | 5 minutes |
+| ⬜ | **#1705 second commit, Lensfun evaluation** | `image_processing.rs` multiplies `lens_distortion_amount` by an arbitrary `2.5` in four places. The PR also corrects radius normalisation, coefficient rescaling and crop-factor matching. Take the maths, leave the bundled #1687 embedded-profile work. Put as much of it as possible in `mods/` and leave one call behind | 1 day |
+| ⬜ | **#1608, lens geometry after EXIF orientation** | Argentum warps and lens-blurs first and applies `orientationSteps` afterwards, which is the wrong order for portrait-oriented files. The earlier plan was to wait for upstream to merge it and receive it in a merge - **that plan is now expired**: the 2026-09-12 merge brought ten upstream commits and this was not among them, so waiting means shipping wrong output on portrait files indefinitely | 1 day |
+| ⬜ | **#1466 with #1395's safeguards, 16-bit TIFF** | The best feature in the list and the only one that closes a roadmap item. Not a cherry-pick: #1466 supplies the TIFF settings, encoder and end-to-end precision path, #1395 the GPU capability and memory bounds. Both touch the most sensitive render files we have, so build it as an Argentum subsystem in `mods/` with the smallest possible hook into `gpu_processing.rs` and `export_processing.rs` | ~1 week |
+| ⬜ | **#1569, missing sidecars and filename collisions** | Useful data-integrity logic, manual port only - it assumes RapidRAW's sidecar naming and we use `.agdata`. Raised in priority by what was found on 2026-09-12: autosave can write back state it never finished loading, which is the same family of fault. `file_management.rs` is at 31/31 of its budget, so the logic must live on our side | 1 day |
+| ⬜ | #1626 export XMP keywords, #1246 EXIF timezone offset | Small metadata-correctness fixes. We read `dc:subject` and `OffsetTime*` but do not clearly carry either into exported files | ½ day each |
+
+**Already done here, and done better - do not take these.** #1676 colour-managed
+white balance (we have scene-linear Bradford adaptation, Kelvin/tint inversion,
+auto-WB, a stable picker and regression tests; only its dual-illuminant matrix
+interpolation is a separate idea worth considering). #1219 highlight clipping
+(a soft knee *after* development, where we reconstruct the clipped channel
+*before* demosaic - a harder problem, already solved). #1557 automatic lens
+correction (we detect on load, wait for EXIF, read Canon MakerNotes, save the
+result and add it to My Gear). #1128 embedded JPEG previews (present, and used
+as a guarded fallback when RAW decoding panics).
+
+**Sounds like a roadmap item but is not.** #1578 app-data consolidation is a
+thirty-commit branch that centralises under OS app data rather than producing a
+portable one-folder install. #1577 "film rolls" are hand-made date ranges, not
+grouping by capture date, camera or lens. #727 is grouped recursive folders plus
+unrelated colour changes. #1335 is named snapshots in the adjustment object, not
+persistence of our undo stack. #1713 is face recognition and scene-aware
+adjustments across 140 files, not "name the objects then mask one". #1263
+replaces SAM with foreground-only BiRefNet, which works *against* selecting one
+named object.
+
+**One correction to the original triage, for the record:** it listed four bugs in
+#1307. There are three. The fourth, a zero-size divide in the resize path, does
+not exist - `downscale_f32_image` already guards both the zero output and the
+zero ratio. Checked before it was believed.
+
 ## Already covered — nothing to build
 
 **Lens correction is not missing.** RapidRAW ships a complete one: auto-detect
