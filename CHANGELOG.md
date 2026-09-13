@@ -202,6 +202,24 @@ came from — without it there's no way to tell later whether upstream moved on.
   and for every row agreeing (a wrong *row* stride is invisible in one row).
   Those are `#[ignore]`d, because CI has no adapter and a test that fails for
   want of a GPU teaches nobody anything: `cargo test --lib -- --ignored`.
+
+  **What none of those tests asked, and should have:** how many bits actually
+  arrive. Every one of them asks "better than 8-bit?" or "f32 rather than f16?",
+  which is the right question for catching a fake and the wrong one for measuring
+  a real thing - and a 16-bit headline shipped over an 11-bit pipeline with a
+  green board behind it. There is now a test that renders a full-range ramp at
+  four sampling densities and asserts the result is *equal* to a CPU half-float
+  round-trip of the same ramp: 2048 inputs give 2048 levels, 4096 give 3073, 8192
+  give 4097, 16384 give 5121. Exact agreement at every density, which says two
+  things - the precision of an export is exactly the precision of its upload, and
+  the rest of the render adds no error of its own.
+
+  It also kills a misreading. Those counts are not a ceiling: half-float holds
+  1024 values in *every* octave, so the count climbs by 1024 on each doubling of
+  the ramp, and `log2` of one of them is a property of the sampling rather than a
+  bit depth. The honest number is the one this file already carried - 11
+  significant bits, 1024 levels per stop. The test is expected to fail the day the
+  export input becomes f32, which is the point of writing it as an equality.
 - **Two AI patches of the same base64 length shared a cache entry**, and the
   first one rendered was served for both. `calculate_transform_hash` hashed
   `.len()` of the patch data rather than the data. Carried early from upstream
