@@ -31,7 +31,9 @@ import { dirname, join } from 'node:path';
 
 import { accountDiff } from './upstream-diff.mjs';
 import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
-import { REGISTRY, activeFor, borrowsOf, dependencyIndex, shadowsOf } from './upstream-registry.mjs';
+import {
+  REGISTRY, activeFor, borrowsOf, dependencyIndex, shadowsOf, validateRetirements,
+} from './upstream-registry.mjs';
 
 let ran = 0;
 let failed = 0;
@@ -314,15 +316,49 @@ test('gap 2: a shadowed symbol is flagged on a call, not on an import reshuffle'
 
 // --- GAP 3: the requirement cannot be erased by removing what created it ------
 
-test('gap 3: retiring an entry during the window does not erase its review', () => {
-  const previous = 'aaaaaaaa';
-  const retiredNow = { ...borrowEntry, retired: { recordedIn: 'bbbbbbbb', why: 'adopted' } };
-  const retiredBefore = { ...borrowEntry, retired: { recordedIn: previous, why: 'adopted last time' } };
+test('gap 3: a retirement is live in its own window and dead in every one after', () => {
+  const reviews = [{ through: 'A' }, { through: 'B' }, { through: 'C' }, { through: 'D' }];
+  const retiredInB = [{ ...borrowEntry, retired: { recordedIn: 'B', why: 'adopted' } }];
+  const live = (through) => activeFor(retiredInB, reviews, through).length === 1;
 
-  assert.equal(activeFor([retiredNow], previous).length, 1,
-    'retired in the review being written: still owes this window a decision');
-  assert.equal(activeFor([retiredBefore], previous).length, 0,
-    'retired in an earlier review: the requirement is discharged');
+  assert.equal(live('A'), true, 'before the retirement, live');
+  assert.equal(live('B'), true, 'retiring it IS the decision under review, so still live');
+  assert.equal(live('C'), false, 'the window after, discharged');
+  assert.equal(live('D'), false,
+    'and every window after that. The first version compared recordedIn against one '
+    + 'sha, so the entry went quiet for exactly one window and came back for good.');
+  assert.equal(live(null), false, 'the window being prepared: every recorded retirement is behind it');
+});
+
+test('gap 3: an unrecognised recordedIn keeps the entry live rather than silently retiring it', () => {
+  const reviews = [{ through: 'A' }, { through: 'B' }];
+  const bogus = [{ ...borrowEntry, retired: { recordedIn: 'nonsense', why: 'x' } }];
+  assert.equal(activeFor(bogus, reviews, 'B').length, 1);
+  const problems = validateRetirements(bogus, reviews);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0].detail, /names no review in REVIEWS/);
+});
+
+test('gap 3: a retirement needs a retire: decision in the review that records it', () => {
+  const withoutDecision = [{ through: 'A', decisions: [] }, { through: 'B', decisions: [] }];
+  const withDecision = [
+    { through: 'A', decisions: [] },
+    { through: 'B', decisions: [{ overlap: 'retire:borrow-1307', verdict: 'adopt', why: 'upstream merged it' }] },
+  ];
+  const entry = [{ ...borrowEntry, retired: { recordedIn: 'B', why: 'upstream merged the fix, our block matches theirs' } }];
+
+  assert.match(validateRetirements(entry, withoutDecision)[0].detail, /records no retire:borrow-1307/);
+  assert.deepEqual(validateRetirements(entry, withDecision), []);
+});
+
+test('gap 3: every retirement problem is reported, not just the first', () => {
+  const reviews = [{ through: 'A', decisions: [] }];
+  const entries = [
+    { ...borrowEntry, id: 'one', retired: { recordedIn: 'nope', why: 'a reason long enough to pass' } },
+    { ...borrowEntry, id: 'two', retired: { recordedIn: 'A', why: 'short' } },
+  ];
+  const ids = new Set(validateRetirements(entries, reviews).map((p) => p.id));
+  assert.deepEqual([...ids].sort(), ['one', 'two']);
 });
 
 test('gap 3: deleting the marker without retiring the entry leaves the tree and the registry disagreeing', () => {
@@ -339,7 +375,11 @@ test('gap 3: deleting the marker without retiring the entry leaves the tree and 
   assert.equal(orphaned.length, 1);
 
   // Retired in the current window, the requirement survives to be decided.
-  assert.equal(activeFor([{ ...borrowEntry, retired: { recordedIn: 'now', why: 'adopted' } }], 'earlier').length, 1);
+  const reviews = [{ through: 'earlier' }, { through: 'now' }];
+  assert.equal(
+    activeFor([{ ...borrowEntry, retired: { recordedIn: 'now', why: 'adopted' } }], reviews, 'now').length,
+    1,
+  );
 });
 
 test('gap 3: a marker in the tree that no entry declares is caught too', () => {

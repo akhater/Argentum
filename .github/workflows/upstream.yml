@@ -36,7 +36,7 @@ jobs:
           git fetch --no-tags upstream +refs/heads/main:refs/remotes/upstream/main
 
       - name: Test the checks themselves
-        run: node scripts/test-upstream-checks.mjs
+        run: npm run test:checks
 
       - name: Mergeability, removals, anchors and overlap review
         run: node scripts/check-mergeability.mjs
