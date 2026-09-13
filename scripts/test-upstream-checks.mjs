@@ -5,14 +5,21 @@
 // The accounting used to live inline in check-mergeability.mjs, where the only
 // way to exercise it was to damage the working tree and read the output. Two
 // bugs survived that: a deleted file was invisible to it, and every deleted line
-// counted the same whether or not it had been replaced. Both are covered here.
+// counted the same whether or not it had been replaced.
+//
+// Then a third thing became clear, which is why the line counts are now only
+// warnings: equal counts prove nothing. A call site rewritten one line for one
+// can change every export in the application. So the tests below cover the three
+// gaps in order - counts are not evidence, the inventory is what gates, and the
+// requirement to review cannot be erased by deleting the thing that created it -
+// plus reviewing after a merge and a mixed batch of borrowed fixes.
 //
 // WHAT IS NOT COVERED
 //
-// The gates themselves are a handful of lines over these numbers and read their
-// configuration from module scope, so they are not driven from here. What is
-// tested is everything that decides what the numbers are, which is where the
-// bugs were.
+// The gates read their configuration from module scope, so they are not driven
+// from here; what is tested is everything that decides what they see. The
+// featureReview requirement is deliberately not testable beyond its presence:
+// no test can tell whether a person actually read a batch of commits.
 //
 // Run:  npm run test:checks
 
@@ -24,6 +31,7 @@ import { dirname, join } from 'node:path';
 
 import { accountDiff } from './upstream-diff.mjs';
 import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
+import { REGISTRY, activeFor, borrowsOf, dependencyIndex, shadowsOf } from './upstream-registry.mjs';
 
 let ran = 0;
 let failed = 0;
@@ -65,7 +73,49 @@ function repo() {
 
 const lines = (n, text) => Array.from({ length: n }, (_, i) => `${text} ${i}`);
 
-// --- the diff accounting -----------------------------------------------------
+// --- GAP 1: line counts are not evidence -------------------------------------
+
+test('gap 1: a one-for-one call-site rewrite removes nothing and changes everything', () => {
+  const r = repo();
+  r.write('src-tauri/src/export_processing.rs', [
+    'fn export() {',
+    '    let adj = get_all_adjustments_from_json(js, is_raw, tm);',
+    '}',
+  ]);
+  const base = r.commit('upstream');
+
+  r.write('src-tauri/src/export_processing.rs', [
+    'fn export() {',
+    '    let adj = get_all_adjustments_from_json(js, is_raw, tm, Some(path));',
+    '}',
+  ]);
+  r.commit('thread the photo through');
+
+  const stats = accountDiff(r.git(`git diff ${base}`)).get('src-tauri/src/export_processing.rs');
+  assert.equal(stats.removed, 0, 'the arithmetic says nothing was lost');
+  assert.equal(stats.replaced, 1);
+  // ...and the only thing that can catch it is the inventory claiming the file.
+  const index = dependencyIndex(REGISTRY);
+  assert.equal(index.claims('src-tauri/src/export_processing.rs'), true,
+    'the real registry must claim the file this test is modelled on');
+});
+
+test('gap 1: every upstream file the real fork touches is claimed by the registry', () => {
+  // Not a synthetic repo: the gate is only as good as the inventory behind it.
+  const index = dependencyIndex(REGISTRY);
+  for (const entry of REGISTRY) {
+    assert.ok(entry.id && entry.what, 'every entry names itself and says what it is');
+    assert.ok(Array.isArray(entry.tests) && entry.tests.length > 0,
+      `${entry.id} must say what proves it works, even if the answer is NONE`);
+    for (const dep of entry.dependsOn) {
+      assert.ok(dep.file || dep.pattern, `${entry.id} has a dependency naming neither file nor pattern`);
+      assert.ok(dep.how, `${entry.id} has a dependency with no how`);
+    }
+  }
+  assert.ok(index.byFile.size > 10, 'the inventory is not a stub');
+});
+
+// --- the diff accounting, which is now informational -------------------------
 
 test('a deleted file is counted against the file that was deleted', () => {
   const r = repo();
@@ -154,10 +204,10 @@ test('lines removed while pasting in a borrowed fix are not our divergence', () 
   assert.deepEqual([...stats.prs], ['1307']);
 });
 
-// --- overlap detection -------------------------------------------------------
+// --- GAP 2: the inventory is what gates --------------------------------------
 
 /** A fork whose tree carries a borrowed fix, and an upstream that moves on. */
-function forkWithBorrowedFix({ merge = false, prInSubject = false } = {}) {
+function forkWithBorrowedFix({ merge = false, prInSubject = false, dropMarkers = false } = {}) {
   const r = repo();
   r.write('src-tauri/src/cache_utils.rs', ['fn hash() {', '    let n = s.len();', '}']);
   r.write('src-tauri/src/unrelated.rs', ['fn other() {}']);
@@ -183,38 +233,125 @@ function forkWithBorrowedFix({ merge = false, prInSubject = false } = {}) {
 
   r.git('git checkout -q main');
   if (merge) r.git('git merge -q -X ours --no-edit upstream-main');
+  if (dropMarkers) {
+    r.write('src-tauri/src/cache_utils.rs', ['fn hash() {', '    s.hash(h);', '}']);
+    r.commit('adopt theirs and drop our markers');
+  }
 
   return { r, base, theirs, tidy, head: r.git('git rev-parse upstream-main').trim() };
 }
 
-const bare = { shadowed: [], sidecarKeys: [], sensitive: [] };
+const borrowEntry = {
+  id: 'borrow-1307',
+  kind: 'borrowed-fix',
+  what: 'cache key hashes contents, not length',
+  ours: [],
+  dependsOn: [{ file: 'src-tauri/src/cache_utils.rs', pr: '1307', how: 'borrows' }],
+  tests: ['none'],
+  keywords: /cache|hash/i,
+};
 
-test('upstream editing a file we borrowed into is an overlap, with no PR number in sight', () => {
+const withIndex = (entries) => ({ entries, index: dependencyIndex(entries) });
+
+test('gap 2: upstream editing a registered dependency is an overlap, with no PR number in sight', () => {
   const { r, base, theirs } = forkWithBorrowedFix();
-  const marks = borrowMarkers(r.git);
-  assert.deepEqual(marks.files, ['src-tauri/src/cache_utils.rs']);
-
-  const overlaps = detectOverlaps(r.git, base, 'upstream-main', { ...bare, borrow: marks });
-  const key = `${theirs.slice(0, 8)}:borrow:src-tauri/src/cache_utils.rs`;
+  const overlaps = detectOverlaps(r.git, base, 'upstream-main', withIndex([borrowEntry]));
+  const key = `${theirs.slice(0, 8)}:dep:borrow-1307:src-tauri/src/cache_utils.rs`;
   const hit = overlaps.find((o) => o.key === key);
   assert.ok(hit, `no overlap for the commit that edited our borrowed file: ${overlaps.map((o) => o.key).join(' ')}`);
   assert.equal(hit.gated, true);
   assert.doesNotMatch(hit.subject, /#\d+/, 'the point of this test is a subject with no number in it');
 });
 
-test('an unrelated upstream commit is not an overlap', () => {
+test('gap 2: an unrelated upstream commit is not an overlap', () => {
   const { r, base, tidy } = forkWithBorrowedFix();
-  const overlaps = detectOverlaps(r.git, base, 'upstream-main', { ...bare, borrow: borrowMarkers(r.git) });
+  const overlaps = detectOverlaps(r.git, base, 'upstream-main', withIndex([borrowEntry]));
   assert.equal(overlaps.some((o) => o.commit === tidy.slice(0, 8)), false);
 });
 
-test('a landed pull request and a pending one are both reported', () => {
-  const { r, base } = forkWithBorrowedFix({ prInSubject: true });
-  const status = borrowStatus(r.git, base, 'upstream-main', ['1307', '1633']);
-  assert.equal(status.length, 2, 'one landing must not silence the others');
-  assert.equal(status.find((s) => s.pr === '1307').landedIn.length, 1);
-  assert.equal(status.find((s) => s.pr === '1633').landedIn.length, 0);
+test('gap 2: a feature upstream may have built elsewhere is flagged from the subject, and labelled a hint', () => {
+  const { r, base, tidy } = forkWithBorrowedFix();
+  const entry = { ...borrowEntry, id: 'clippy-thing', keywords: /clippy/i };
+  const overlaps = detectOverlaps(r.git, base, 'upstream-main', withIndex([entry]));
+  const hit = overlaps.find((o) => o.commit === tidy.slice(0, 8) && o.kind === 'feature');
+  assert.ok(hit, 'a keyword in the subject with none of our files touched should still ask');
+  assert.equal(hit.gated, true);
+  assert.match(hit.detail, /can never see/, 'the message must say what a file match cannot do');
 });
+
+test('gap 2: a shadowed symbol is flagged on a call, not on an import reshuffle', () => {
+  const r = repo();
+  r.write('src-tauri/src/image_processing.rs', ['pub fn apply_cpu_default_raw_processing() {}']);
+  r.write('src-tauri/src/lib.rs', ['use crate::image_processing::{', '    apply_crop, apply_flip,', '};']);
+  const base = r.commit('upstream base');
+
+  r.write('src-tauri/src/lib.rs', ['use crate::image_processing::{', '    apply_cpu_default_raw_processing, apply_crop,', '};']);
+  const reshuffle = r.commit('tidy imports');
+  r.write('src-tauri/src/lib.rs', ['fn go() { apply_cpu_default_raw_processing(); }']);
+  const call = r.commit('call it');
+
+  const entry = {
+    id: 'preview-encode',
+    kind: 'behaviour-change',
+    what: 'toe instead of cliff',
+    ours: [],
+    dependsOn: [{
+      file: 'src-tauri/src/image_processing.rs',
+      symbol: 'apply_cpu_default_raw_processing',
+      how: 'shadows',
+    }],
+    tests: ['none'],
+    keywords: /nothing-matches-here/,
+  };
+  const overlaps = detectOverlaps(r.git, base, 'HEAD', withIndex([entry]));
+  assert.equal(
+    overlaps.some((o) => o.commit === reshuffle.slice(0, 8)), false,
+    'an import list mentions every symbol in the module and means nothing by it',
+  );
+  assert.equal(overlaps.some((o) => o.commit === call.slice(0, 8) && o.kind === 'dep'), true);
+  assert.equal(shadowsOf([entry]).length, 1);
+});
+
+// --- GAP 3: the requirement cannot be erased by removing what created it ------
+
+test('gap 3: retiring an entry during the window does not erase its review', () => {
+  const previous = 'aaaaaaaa';
+  const retiredNow = { ...borrowEntry, retired: { recordedIn: 'bbbbbbbb', why: 'adopted' } };
+  const retiredBefore = { ...borrowEntry, retired: { recordedIn: previous, why: 'adopted last time' } };
+
+  assert.equal(activeFor([retiredNow], previous).length, 1,
+    'retired in the review being written: still owes this window a decision');
+  assert.equal(activeFor([retiredBefore], previous).length, 0,
+    'retired in an earlier review: the requirement is discharged');
+});
+
+test('gap 3: deleting the marker without retiring the entry leaves the tree and the registry disagreeing', () => {
+  const { r } = forkWithBorrowedFix({ dropMarkers: true });
+  const marks = borrowMarkers(r.git);
+  assert.deepEqual(marks.pairs, [], 'the markers really are gone from the tree');
+
+  // This is the state the integrity gate fails on: an unretired entry claiming a
+  // marker that no longer exists. Deleting the marker was the easy way to make
+  // the overlap disappear, and it now costs a recorded retirement instead.
+  const registered = borrowsOf([borrowEntry]);
+  const orphaned = registered.filter(({ entry, file, pr }) =>
+    !entry.retired && !marks.pairs.some((m) => m.file === file && m.pr === pr));
+  assert.equal(orphaned.length, 1);
+
+  // Retired in the current window, the requirement survives to be decided.
+  assert.equal(activeFor([{ ...borrowEntry, retired: { recordedIn: 'now', why: 'adopted' } }], 'earlier').length, 1);
+});
+
+test('gap 3: a marker in the tree that no entry declares is caught too', () => {
+  const { r } = forkWithBorrowedFix();
+  const marks = borrowMarkers(r.git);
+  assert.deepEqual(marks.prs, ['1307']);
+  const undeclared = marks.pairs.filter(({ file, pr }) =>
+    !borrowsOf([]).some((b) => b.file === file && b.pr === pr));
+  assert.equal(undeclared.length, 1, 'an unregistered borrowed fix must not be invisible');
+});
+
+// --- post-merge review, and mixed borrowed fixes -----------------------------
 
 test('the review survives the merge that used to erase it', () => {
   const { r, base, theirs, head } = forkWithBorrowedFix({ merge: true });
@@ -226,36 +363,27 @@ test('the review survives the merge that used to erase it', () => {
   assert.equal(r.git(`git log --format=%h ${mergeBase}..upstream-main`).trim(), '');
 
   // The register's window starts where the last review ended, so it is still open.
-  const overlaps = detectOverlaps(r.git, base, 'upstream-main', { ...bare, borrow: borrowMarkers(r.git) })
+  const overlaps = detectOverlaps(r.git, base, 'upstream-main', withIndex([borrowEntry]))
     .filter((o) => o.gated);
   assert.equal(overlaps.length, 1);
   assert.equal(overlaps[0].commit, theirs.slice(0, 8));
 });
 
-test('a shadowed symbol is flagged on a call, not on an import reshuffle', () => {
-  const r = repo();
-  r.write('src-tauri/src/image_processing.rs', ['pub fn apply_cpu_default_raw_processing() {}']);
-  r.write('src-tauri/src/lib.rs', ['use crate::image_processing::{', '    apply_crop, apply_flip,', '};']);
-  const base = r.commit('upstream base');
+test('a landed pull request and a pending one are both reported', () => {
+  const { r, base } = forkWithBorrowedFix({ prInSubject: true });
+  const status = borrowStatus(r.git, base, 'upstream-main', ['1307', '1633']);
+  assert.equal(status.length, 2, 'one landing must not silence the others');
+  assert.equal(status.find((s) => s.pr === '1307').landedIn.length, 1);
+  assert.equal(status.find((s) => s.pr === '1633').landedIn.length, 0);
+});
 
-  r.write('src-tauri/src/lib.rs', ['use crate::image_processing::{', '    apply_cpu_default_raw_processing, apply_crop,', '};']);
-  const reshuffle = r.commit('tidy imports');
-  r.write('src-tauri/src/lib.rs', ['fn go() { apply_cpu_default_raw_processing(); }']);
-  const call = r.commit('call it');
-
-  const shadowed = [{
-    file: 'src-tauri/src/image_processing.rs',
-    symbol: 'apply_cpu_default_raw_processing',
-    instead: 'mods::preview_encode',
-  }];
-  const overlaps = detectOverlaps(r.git, base, 'HEAD', {
-    shadowed, sidecarKeys: [], sensitive: [], borrow: { files: [], prs: [] },
-  });
+test('a landed borrowed fix still produces its dependency overlap', () => {
+  // The number in the subject is a convenience. The decision is owed either way.
+  const { r, base, theirs } = forkWithBorrowedFix({ prInSubject: true });
+  const overlaps = detectOverlaps(r.git, base, 'upstream-main', withIndex([borrowEntry]));
   assert.equal(
-    overlaps.some((o) => o.commit === reshuffle.slice(0, 8)), false,
-    'an import list mentions every symbol in the module and means nothing by it',
+    overlaps.some((o) => o.commit === theirs.slice(0, 8) && o.kind === 'dep'), true,
   );
-  assert.equal(overlaps.some((o) => o.commit === call.slice(0, 8) && o.kind === 'shadow'), true);
 });
 
 for (const dir of repos) {

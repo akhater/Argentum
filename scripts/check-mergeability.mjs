@@ -19,7 +19,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { accountDiff } from './upstream-diff.mjs';
-import { SHADOWED, borrowMarkers, detectOverlaps } from './upstream-overlaps.mjs';
+import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
+import { REGISTRY, activeFor, borrowsOf, dependencyIndex, shadowsOf }
+  from './upstream-registry.mjs';
 import { VERDICTS, newestRange, reviewedThrough } from './upstream-decisions.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -104,11 +106,11 @@ const EXCEPTIONS = [
   {
     file: 'src-tauri/src/file_management.rs',
     allow: 31,
-    // This file needed an allowDeleted for exactly one day. Once the checker
-    // learned to tell a replacement from a removal, its 31 deleted lines came
-    // out as zero on their own - which is what the prose had always claimed:
-    // every one of them is half of the .rrdata -> .agdata rename and was
-    // replaced on the line below. Nothing of theirs stopped existing.
+    // The removal bookkeeping that briefly lived here is in
+    // scripts/upstream-registry.mjs now, under sidecar-agdata. It was never the
+    // right place: a count of deleted lines cannot say whether behaviour was
+    // preserved, and here it said "31 replaced, nothing missing" about a rename
+    // that deliberately orphans every file RapidRAW has ever written.
     date: '2026-09-10',
     why: 'Sidecar rename .rrdata -> .agdata (30 lines, agreed 2026-09-08). An '
       + 'extension permeates their code by nature; no amount of moving logic to '
@@ -126,96 +128,21 @@ const EXCEPTIONS = [
     file: 'src-tauri/src/exif_processing.rs',
     allow: 10,
     date: '2026-09-08',
-    why: 'Same rename, plus one call into mods::sidecar so legacy .rrdata '
-      + 'files are still read and nothing already edited is orphaned.',
+    // Corrected 2026-09-13. This said "one call into mods::sidecar so legacy
+    // .rrdata files are still read and nothing already edited is orphaned".
+    // There is no mods::sidecar, there never was, and nothing reads a legacy
+    // sidecar: read_rrexif_sidecar keeps its name and reads .agexif. The
+    // orphaning is real and intended, and is registered as such.
+    why: 'The .rrdata -> .agdata and .rrexif -> .agexif rename, plus one call '
+      + 'into mods::makernote_lens, which fills the lens model from the '
+      + 'manufacturer note when the standard tag is empty.',
   },
   {
     file: 'src/components/panel/SettingsPanel.tsx',
     allow: 6,
-    allowDeleted: 207,
     date: '2026-09-13',
     why: 'The lens section moved out to src/argentum/MyGear.tsx, which is the '
       + 'architecture working: the panel is ours and their file keeps a tag.',
-    deletedWhy: '207 lines of their lens UI removed rather than left dormant, '
-      + 'and this is the uncomfortable one. It is written down so it stays '
-      + 'uncomfortable: upstream edits this file often, and any change they '
-      + 'make inside the block we deleted is a conflict resolved by hand. It '
-      + 'was invisible until the checker learned to count deletions on '
-      + '2026-09-13. If it conflicts twice, put their section back and hide it '
-      + 'instead of removing it.',
-  },
-  {
-    file: 'src/components/panel/editor/ImageCanvas.tsx',
-    allowDeleted: 13,
-    date: '2026-09-13',
-    why: 'One import and one call to argentum/whiteBalance.',
-    deletedWhy: 'Their eyedropper solved a colour temperature inline: gamma 2.2 '
-      + 'to linear, then two ratios scaled by 125 and 400. Ours solves the same '
-      + 'question in Rust so the picker and auto white balance cannot disagree '
-      + 'about what a temperature is. Their block had to go rather than go '
-      + 'dormant because it wrote straight into setAdjustments: left in place it '
-      + 'would run first and our answer would arrive as a second render. If '
-      + 'upstream edits this maths, the conflict is ours to resolve by hand.',
-  },
-  {
-    file: 'src-tauri/src/shaders/shader.wgsl',
-    allowDeleted: 10,
-    date: '2026-09-13',
-    deletedWhy: 'Their clipping indicator, eleven lines, replaced by the single '
-      + 'ag_stage_display call. Same reason as ImageCanvas: it assigns to '
-      + 'final_rgb, so a dormant copy is not dormant - it overwrites what our '
-      + 'stage returned. showClipping is 0..4 here and their block understands '
-      + 'only 1, so keeping both would show the wrong indicator, not two.',
-  },
-  {
-    file: 'src-tauri/src/image_processing.rs',
-    allowDeleted: 4,
-    date: '2026-09-13',
-    deletedWhy: 'The five-line boolean that filled show_clipping, replaced by a '
-      + 'one-line call to mods::clipping::mode. The field is theirs and is still '
-      + 'there; only the expression that fills it changed, because the value is '
-      + 'no longer a boolean.',
-  },
-  {
-    file: 'src/components/panel/editor/Waveform.tsx',
-    allowDeleted: 2,
-    date: '2026-09-13',
-    deletedWhy: 'A data-tooltip that read showClipping as a boolean. The prop is '
-      + 'still declared in their interface and this is the live proof of why '
-      + 'SIDECAR_KEYS exists: the type changed under their code and nothing '
-      + 'failed to compile.',
-  },
-  {
-    file: 'src/components/panel/MainLibrary.tsx',
-    allowDeleted: 9,
-    date: '2026-09-13',
-    deletedWhy: 'The Ko-fi link and the "or" that joined it to the repository '
-      + 'link. Argentum must not raise money on its splash screen in another '
-      + "author's name, and it is not our place to point people at his funding "
-      + 'page either - the credit belongs in Special Thanks and CREDITS.md, '
-      + 'where it is. The rest of this file is the update-check URL, replaced '
-      + 'one line for one.',
-  },
-  {
-    file: '.github/workflows/ci.yml',
-    allowDeleted: 7,
-    date: '2026-09-13',
-    deletedWhy: 'Five lines are the aarch64-linux-android matrix entry: there is '
-      + 'no Android build of Argentum, and leaving it would fail every run. Two '
-      + 'are the push trigger, replaced by workflow_dispatch - the full matrix '
-      + 'belongs on a release, not on every chore (CHANGELOG 26.37.19).',
-  },
-  {
-    file: '.github/workflows/pr-ci.yml',
-    allowDeleted: 5,
-    date: '2026-09-13',
-    deletedWhy: 'The aarch64-linux-android matrix entry. Same reason as ci.yml.',
-  },
-  {
-    file: '.github/workflows/release.yml',
-    allowDeleted: 5,
-    date: '2026-09-13',
-    deletedWhy: 'The aarch64-linux-android matrix entry. Same reason as ci.yml.',
   },
 ];
 
@@ -348,6 +275,9 @@ const ANCHORS = [
 const IDENTITY = [
   'package.json',
   'src-tauri/Cargo.toml',
+  // Generated from Cargo.toml, which is identity. It changes when the crate is
+  // renamed and when a dependency moves, and neither is a feature.
+  'src-tauri/Cargo.lock',
   'src-tauri/tauri.conf.json',
   'src-tauri/.identity',
   'src-tauri/src/main.rs',
@@ -492,35 +422,75 @@ for (const [file, st] of stats) {
   });
 }
 
-// --- Gate: removing their lines ---------------------------------------------
+// --- Gate: every file of theirs we touch must be claimed --------------------
 //
-// The rule CLAUDE.md states is "never delete their function — just stop calling
-// it". It is the rule that actually decides whether a merge is work: an upstream
-// edit inside a block we removed conflicts, every time.
+// Line counts do not prove behaviour was preserved, and the counter-example is
+// sitting in this repository. `get_all_adjustments_from_json` gained a fifth
+// parameter and five call sites across four of their files were rewritten one
+// line for one. By any arithmetic nothing was added and nothing was removed, and
+// the whole export path now depends on a signature upstream owns.
 //
-// There is no allowance. A number here would be arbitrary whatever it was — the
-// first version picked 20, which was reverse-engineered from what the fork had
-// already done and so could not fail on any of it. The rule is absolute, so the
-// gate is absolute, and the pressure lands where it belongs: on writing down
-// which of their lines we removed and why.
-//
-// What makes that bearable is counting removals rather than deletions. Within a
-// run of changed lines, a `-` answered by a `+` is a replacement: the .rrdata
-// rename touched 31 of their lines and left nothing of theirs missing, so it is
-// now zero here and needed no exception at all. Only unreplaced lines count.
-//
-// Removals made while pasting in a borrowed upstream fix are theirs on both
-// sides and are not counted either.
-for (const t of touched) {
-  const allowed = exceptionFor(t.file)?.allowDeleted ?? 0;
-  if (t.removed > allowed) {
+// So the counts are warnings, and this is the gate: if we changed a file of
+// theirs, some entry in scripts/upstream-registry.mjs must name it as a
+// dependency. Otherwise nobody has said what we are relying on, and no upstream
+// change to it will ever be reviewed.
+{
+  const index = dependencyIndex(REGISTRY);
+  for (const t of touched) {
+    if (t.added === 0 && t.deleted === 0 && t.borrowed === 0) continue;
+    if (index.claims(t.file) || exceptionFor(t.file)) continue;
     errors.push({
       file: t.file,
-      detail: allowed === 0
-        ? `${t.removed} of their lines removed and not replaced`
-        : `${t.removed} of their lines removed, ${allowed} recorded in EXCEPTIONS`,
-      fix: 'Stop calling their code rather than removing it — or record it in EXCEPTIONS with allowDeleted and deletedWhy, which is a decision, not a budget.',
+      detail: 'we changed this file of theirs and no registry entry claims it',
+      fix: 'Name it in the dependsOn of whichever feature needs it, in '
+        + 'scripts/upstream-registry.mjs, with a how and a note. If nothing needs '
+        + 'it, revert the change.',
     });
+  }
+}
+
+// --- Gate: registry integrity ----------------------------------------------
+//
+// The requirement to review a borrowed fix must not be erasable by deleting the
+// marker that creates it. Detection reads the working tree; a merge that removed
+// `// upstream #1307` would, without this, remove the reason anyone had to think
+// about it. So the tree and the registry have to agree, and retiring an entry is
+// a decision recorded in a review rather than an edit that quietly happens.
+{
+  const marks = borrowMarkers(git);
+  const registered = borrowsOf(REGISTRY);
+  for (const { file, pr } of marks.pairs) {
+    if (registered.some((b) => b.file === file && b.pr === pr)) continue;
+    errors.push({
+      file,
+      detail: `carries a // upstream #${pr} marker that no registry entry declares`,
+      fix: 'Add a borrowed-fix entry in scripts/upstream-registry.mjs, or remove the marker.',
+    });
+  }
+  for (const { entry, file, pr } of registered) {
+    if (entry.retired) continue;
+    if (marks.pairs.some((m) => m.file === file && m.pr === pr)) continue;
+    errors.push({
+      file: 'scripts/upstream-registry.mjs',
+      detail: `${entry.id} claims a // upstream #${pr} marker in ${file}, and there is none`,
+      fix: 'If upstream merged it and the block is gone, retire the entry with '
+        + 'retired: { recordedIn, why } in the review that decided it - which keeps '
+        + 'its review requirement for that window, where it belongs.',
+    });
+  }
+}
+
+// --- Warning: what the line counts say --------------------------------------
+//
+// Informational, deliberately. A removal is a signal worth printing and never
+// again a gate on its own: a line replaced in place can change everything, and a
+// line removed can change nothing.
+for (const t of touched) {
+  if (t.removed > 0) {
+    warnings.push(
+      `${t.file}: ${t.removed} of their lines removed unreplaced, ${t.replaced} replaced `
+      + '- see the registry entry that claims this file for what it means',
+    );
   }
 }
 
@@ -553,10 +523,10 @@ for (const [file, st] of stats) {
 // "nothing new" whether or not anybody had looked. Merging erased the window.
 //
 // So the reviewed-through point and the decisions live together in
-// scripts/upstream-decisions.mjs, the overlaps are re-derived here from git, and
-// the sha cannot advance until each one has a decision beside it. CHANGELOG.md
-// is checked against the register rather than written independently - one
-// register, which was the whole objection to having one.
+// scripts/upstream-decisions.mjs, the overlaps are re-derived here from git and
+// the registry, and the sha cannot advance until each one has a decision beside
+// it. CHANGELOG.md is checked against the register rather than written
+// independently - one register, which was the whole objection to having one.
 const short = (sha) => sha.slice(0, 8);
 {
   const declared = reviewedThrough();
@@ -580,13 +550,16 @@ const short = (sha) => sha.slice(0, 8);
   }
 
   // Only the newest entry's range is re-derived. Older entries are records of
-  // what was known then; re-deriving them against today's shadow list and
-  // today's borrow markers would invent overlaps nobody could have seen.
+  // what was known then; re-deriving them against today's registry would invent
+  // overlaps nobody could have seen.
   const { from, to, entry } = newestRange();
   if (from) {
+    // The inventory as it stood BEFORE this window. An entry retired during the
+    // window still owes its review: retiring it is the decision under review.
+    const entries = activeFor(REGISTRY, from);
     let overlaps = [];
     try {
-      overlaps = detectOverlaps(git, from, to, { borrow: borrowMarkers(git) });
+      overlaps = detectOverlaps(git, from, to, { entries, index: dependencyIndex(entries) });
     } catch {
       errors.push({
         file: 'scripts/upstream-decisions.mjs',
@@ -624,11 +597,32 @@ const short = (sha) => sha.slice(0, 8);
       }
     }
 
+    // The part no detector can do. File matching finds upstream changing
+    // something we registered; it cannot find upstream building the same feature
+    // somewhere we have never touched. This is the human claim, and nothing here
+    // verifies it beyond insisting that it was made.
+    const fr = entry.featureReview;
+    if (!fr || !fr.why || fr.why.trim().length < 40) {
+      errors.push({
+        file: 'scripts/upstream-decisions.mjs',
+        detail: 'the newest review has no featureReview',
+        fix: 'Read the batch for features upstream may have built independently of our '
+          + 'files, and record featureReview: { verdict, why } saying what you looked at '
+          + 'and what you concluded. No detector does this part.',
+      });
+    } else if (!['none', 'overlap-found'].includes(fr.verdict)) {
+      errors.push({
+        file: 'scripts/upstream-decisions.mjs',
+        detail: `featureReview verdict "${fr.verdict}" is not none or overlap-found`,
+        fix: 'none: nothing upstream duplicates a feature of ours. overlap-found: it does, and the decisions above say what happened.',
+      });
+    }
+
     for (const d of decisions) {
       if (!overlaps.some((o) => o.key === d.overlap)) {
         warnings.push(
           `scripts/upstream-decisions.mjs: decision for ${d.overlap} matches no overlap in `
-          + `${short(from)}..${short(to)} - the shadow list or the borrow markers moved under it`,
+          + `${short(from)}..${short(to)} - the registry moved under it`,
         );
       }
     }
@@ -665,7 +659,8 @@ const short = (sha) => sha.slice(0, 8);
 try {
   const head = git('git rev-parse upstream/main').trim();
   if (head !== base) {
-    const ahead = detectOverlaps(git, base, head, { borrow: borrowMarkers(git) })
+    const entries = activeFor(REGISTRY, reviewedThrough());
+    const ahead = detectOverlaps(git, base, head, { entries, index: dependencyIndex(entries) })
       .filter((o) => o.gated);
     if (ahead.length > 0) {
       const one = ahead.length === 1;
@@ -678,14 +673,14 @@ try {
 } catch { /* no upstream ref: handled above */ }
 
 // --- Gate: shadowed upstream code must still exist --------------------------
-for (const { file, symbol, instead } of SHADOWED) {
+for (const { entry, file, symbol } of shadowsOf(REGISTRY)) {
   let upstreamCopy = '';
   try {
     upstreamCopy = git(`git show upstream/main:${file}`, true);
   } catch {
     errors.push({
       file,
-      detail: `we step around ${symbol} here, but upstream no longer has this file`,
+      detail: `${entry.id} steps around ${symbol} here, but upstream no longer has this file`,
       fix: 'Our hook may now be bypassing nothing. Find what replaced it.',
     });
     continue;
@@ -693,11 +688,12 @@ for (const { file, symbol, instead } of SHADOWED) {
   if (!upstreamCopy.includes(symbol)) {
     errors.push({
       file,
-      detail: `${symbol} is gone from upstream, and we step around it`,
-      fix: `We use ${instead}. A rename is exactly the change that would otherwise slip through — check the hook still bypasses what we think it does.`,
+      detail: `${symbol} is gone from upstream, and ${entry.id} steps around it`,
+      fix: 'A rename is exactly the change that would otherwise slip through - check the hook still bypasses what we think it does.',
     });
   }
 }
+
 
 // --- Warning: the budget ----------------------------------------------------
 //
@@ -744,7 +740,7 @@ if (used.length > 0) {
   const hooked = [...stats.values()].filter((st) => st.hooks.length > 0);
   const hooks = hooked.reduce((n, st) => n + st.hooks.length, 0);
   console.log(`  upstream: ${used.length} files touched, ${added} of our lines added`);
-  console.log(`  their lines: ${removed} removed and recorded, ${replaced} replaced in place`);
+  console.log(`  their lines: ${removed} removed unreplaced, ${replaced} replaced in place - counts, not evidence`);
   console.log(`  anchors: ${hooks} calls into our code across ${hooked.length} of their files — a new feature should add none`);
 
   const borrowed = used.filter((t) => t.borrowed > 0);

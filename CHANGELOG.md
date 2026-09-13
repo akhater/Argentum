@@ -115,9 +115,47 @@ came from — without it there's no way to tell later whether upstream moved on.
   logic out of the checker so it can be tested; `npm run test:checks` drives it
   against throwaway repositories, covering whole-file deletion, upstream editing
   borrowed code with no PR number, a landed and a pending borrow together, and
-  reviewing after the merge. `.github/workflows/upstream.yml` runs all of it as
-  a required check and fails — rather than skipping quietly — when the upstream
-  remote or the full history is missing.
+  reviewing after the merge. `.github/workflows/upstream.yml` runs all of it and
+  fails — rather than skipping quietly — when the upstream remote or the full
+  history is missing.
+
+- **Then the line counts stopped being evidence, and an inventory took over as
+  the gate.** The removal count had become the thing standing between us and a
+  bad merge, and it cannot bear that weight: `get_all_adjustments_from_json`
+  gained a fifth parameter and five call sites across four of their files were
+  rewritten one line for one. Nothing added, nothing removed, and every export
+  path now depends on a signature upstream owns. Equal counts prove the diff is
+  tidy and nothing else, so all three counts are warnings now.
+
+  `scripts/upstream-registry.mjs` replaces them: seventeen entries covering every
+  Argentum feature, borrowed fix and deliberate behaviour change, each naming the
+  upstream files, symbols and keys it depends on and what proves it still works —
+  including where the answer is nothing, which is recorded rather than tidied
+  away. Touching a file of theirs that no entry claims now fails the build, and
+  overlaps are derived from that inventory rather than from two hand-kept lists.
+
+  Two records were wrong and are corrected: the `exif_processing.rs` exception
+  described a call into a `mods::sidecar` that has never existed and claimed
+  legacy `.rrdata` files are still read, which they are not — the orphaning is
+  deliberate and is registered as such; and the `file_management.rs` note read
+  "31 replaced, nothing missing" about a rename that deliberately orphans every
+  sidecar RapidRAW has ever written.
+
+  A review requirement can no longer be erased by removing what created it.
+  Deleting a `// upstream #NNNN` marker used to delete the reason anyone had to
+  think about it; the tree and the registry must now agree, entries are retired
+  rather than deleted, and an entry retired *during* the window under review
+  still owes that window its decision.
+
+  Last, the part no detector does: a file match finds upstream changing something
+  we registered, never upstream building the same feature somewhere we have never
+  touched. Every review entry now carries a `featureReview` verdict and reasoning
+  — a person's claim that the batch was read for duplicates. Nothing verifies the
+  sentence. It is required so the claim is made rather than assumed, which is the
+  same mistake as reading a clean merge as proof of safety.
+
+  `npm run test:checks` covers all three gaps plus post-merge review and a mixed
+  batch of landed and pending borrowed fixes: 17 tests.
 
 ---
 

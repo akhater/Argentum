@@ -22,7 +22,8 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { SENSITIVE, borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
+import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
+import { REGISTRY, activeFor, dependencyIndex } from './upstream-registry.mjs';
 import { reviewedThrough } from './upstream-decisions.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -81,8 +82,12 @@ if (mergedCount > 0) {
 }
 console.log('');
 
+// The inventory as it stood before this window: an entry retired during it still
+// owes its review, because retiring it is the decision under review.
+const entries = activeFor(REGISTRY, base);
+const index = dependencyIndex(entries);
 const marks = borrowMarkers(git);
-const overlaps = detectOverlaps(git, base, head, { borrow: marks });
+const overlaps = detectOverlaps(git, base, head, { entries, index });
 const isMerged = (sha) => {
   if (mergedCount === 0) return false;
   try {
@@ -93,13 +98,16 @@ const isMerged = (sha) => {
 };
 
 const gated = overlaps.filter((o) => o.gated);
-if (gated.length === 0) {
-  console.log('  nothing upstream lands on code of ours in this batch.');
+const deps = gated.filter((o) => o.kind === 'dep');
+const features = gated.filter((o) => o.kind === 'feature');
+
+if (deps.length === 0) {
+  console.log('  nothing upstream touches a registered dependency in this batch.');
   console.log('');
 } else {
-  console.log(`  OVERLAPS - each of these needs a decision (${gated.length}):`);
+  console.log(`  DEPENDENCY OVERLAPS - mechanical, and each needs a decision (${deps.length}):`);
   console.log('');
-  for (const o of gated) {
+  for (const o of deps) {
     console.log(`    ${o.key}${isMerged(o.commit) ? '   [already merged]' : ''}`);
     console.log(`      ${o.commit}  ${o.subject}`);
     console.log(`      ${o.detail}`);
@@ -107,27 +115,30 @@ if (gated.length === 0) {
   }
 }
 
-const areas = overlaps.filter((o) => o.kind === 'area');
-if (areas.length > 0) {
-  console.log('  commits in areas where a clean merge proves least - read, but not gated:');
-  for (const a of areas) {
-    const what = SENSITIVE.find((x) => x.slug === a.target)?.what ?? a.target;
-    console.log(`    ${a.commit}  ${what}: ${a.subject}`);
-  }
+if (features.length > 0) {
+  console.log(`  POSSIBLE FEATURE OVERLAPS - a hint from the subject line only (${features.length}):`);
   console.log('');
+  for (const o of features) {
+    console.log(`    ${o.key}${isMerged(o.commit) ? '   [already merged]' : ''}`);
+    console.log(`      ${o.commit}  ${o.subject}`);
+    console.log(`      ${o.detail}`);
+    console.log('');
+  }
 }
 
 // Borrowed fixes. Matching the pull request number finds a squash merge and
 // nothing else: most RapidRAW commits are the maintainer's own and name no
-// number, so a fix of theirs for the same bug is invisible to a grep. The file
-// overlaps above are what actually catch that; this is the cheap extra check.
+// number, so a fix of theirs for the same bug is invisible to a grep. The
+// dependency overlaps above are what actually catch that; this is the cheap
+// extra check, reported per pull request so one landing cannot silence another.
 for (const { pr, landedIn } of borrowStatus(git, base, head, marks.prs)) {
   if (landedIn.length > 0) {
     console.log(`  BORROWED #${pr} names a commit upstream (${landedIn.join(', ')})`);
-    console.log('    If their block is now identical to ours, delete the markers.');
+    console.log('    If their block is now identical to ours, retire the registry entry in');
+    console.log('    the review that says so - deleting the markers alone will fail the check.');
   } else {
     console.log(`  borrowed #${pr}: no commit in this batch names it - which is not proof`);
-    console.log('    it is still pending. Check the overlaps above for edits to the file it sits in.');
+    console.log('    it is still pending. Check the dependency overlaps for its file.');
   }
 }
 console.log('');
@@ -142,25 +153,33 @@ for (const line of commits) {
 }
 
 console.log('');
-console.log('  When the merge is done and each overlap above is decided, add this to');
+console.log('  READ THAT LIST FOR FEATURES WE ALREADY HAVE. Nothing here detects that: a');
+console.log('  file match finds upstream changing something we registered, never upstream');
+console.log('  building the same thing somewhere we have never touched.');
+console.log('');
+console.log('  When the merge is done and each overlap is decided, add this to');
 console.log('  scripts/upstream-decisions.mjs - check:merge fails until it is there:');
 console.log('');
-console.log('    {');
-console.log(`      through: '${head}',`);
 const today = new Date();
 const stamp = [
   today.getFullYear(),
   String(today.getMonth() + 1).padStart(2, '0'),
   String(today.getDate()).padStart(2, '0'),
 ].join('-');
+console.log('    {');
+console.log(`      through: '${head}',`);
 console.log(`      date: '${stamp}',`);
 console.log('      decisions: [');
 for (const o of gated) {
   console.log(`        { overlap: '${o.key}',`);
-  console.log(`          verdict: 'adopt | keep-ours | combine | not-applicable',`);
-  console.log(`          why: '' },`);
+  console.log("          verdict: 'adopt | keep-ours | combine | not-applicable',");
+  console.log("          why: '' },");
 }
 console.log('      ],');
+console.log('      featureReview: {');
+console.log("        verdict: 'none | overlap-found',");
+console.log("        why: 'What you read the batch for, and what you concluded.',");
+console.log('      },');
 console.log('    },');
 console.log('');
 console.log(`  and make CHANGELOG.md say: **Based on RapidRAW \`x.y.z\` @ \`${short(head)}\`**`);

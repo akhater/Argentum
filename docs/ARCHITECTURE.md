@@ -267,11 +267,29 @@ Three kinds of change merge cleanly and still break us:
   a boolean in their `Waveform.tsx`. The day they write `=== true`, our control
   reads as off and nothing errors.
 
-So the overlaps are derived mechanically from git, keyed to the exact upstream
-commit, and `scripts/upstream-decisions.mjs` records a verdict and a reason for
-each. `npm run check:merge` re-derives them and fails until the decisions are
-there. It cannot check that the reasoning is any good — it can make sure the
-question was asked, which is the part that was being skipped.
+A fourth merges cleanly and breaks nothing, which is worse: **upstream builds
+the feature we built**, in files we have never touched. Nothing detects that.
+Not a diff, not a file match, not a regular expression over commit subjects —
+a commit called "improve colour handling" matches nothing and could be our
+entire white balance module arriving from the other direction.
+
+So there are two halves, and only one of them is mechanical.
+
+`scripts/upstream-registry.mjs` is the inventory: every feature, borrowed fix
+and deliberate behaviour change, with the upstream files, symbols and keys it
+rests on, and what proves it works. Overlaps are derived from that and from git,
+keyed to the exact upstream commit, and `scripts/upstream-decisions.mjs` records
+a verdict and a reason for each. `npm run check:merge` re-derives them and fails
+until the decisions are there.
+
+The other half is a sentence. Every review entry carries a `featureReview`
+saying that a person read the incoming batch for things we already have, and
+what they concluded. Nothing verifies it. It is required so that the claim is
+made explicitly by someone rather than implied by a green check — which is the
+same mistake, one level up, as reading a clean merge as proof of safety.
+
+Neither half checks that the reasoning is any good. They make sure the question
+was asked, which is the part that was being skipped.
 
 ---
 
