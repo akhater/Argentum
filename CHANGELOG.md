@@ -53,6 +53,20 @@ It also makes the in-app update check behave by accident: a development build is
 *newer* than the latest release, so it stays quiet instead of offering to
 "update" you to something older than what you are running.
 
+**The bumped number is a placeholder, not a prediction.** It says "unreleased,
+and ahead of what shipped" - nothing more. It cannot say which week the next
+release will land in, because nobody knows: bump to `26.37.21` on a Saturday and
+release the following Tuesday and the real number is `26.38.1`. So **the release
+commit sets the true `yy.ww.n`**, and the number sitting in the tree between
+releases is only ever a marker.
+
+Nothing breaks when the week rolls over, because `compareVersions` in
+`MainLibrary.tsx` compares the parts numerically, left to right: `26.38.1` is
+newer than `26.37.21`, and `27.1.1` is newer than `26.52.9`. Both properties the
+convention exists for survive it - a development build stays newer than the last
+release, so the update check stays quiet, and every number on the Releases page
+is still a real release.
+
 **Two digits, not four, and that is not a style choice.** It was `yyyy` until
 `26.37.19`, whose Windows build failed with
 
