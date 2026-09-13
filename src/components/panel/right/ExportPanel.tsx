@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useTiffDepth } from '../../../argentum/exportDepth';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { FileInput, CheckCircle, XCircle, Loader, Ban, ChevronDown, ChevronRight, Settings, X } from 'lucide-react';
@@ -274,6 +275,7 @@ export default function ExportPanel({
   );
 
   const [estimatedSize, setEstimatedSize] = useState<number | null>(null);
+  const tiffDepth = useTiffDepth();
   const [isEstimating, setIsEstimating] = useState<boolean>(false);
   const [watermarkImageAspectRatio, setWatermarkImageAspectRatio] = useState(1);
   const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
@@ -444,6 +446,7 @@ export default function ExportPanel({
     exportMasks,
     preserveFolders,
     isLibraryContext,
+    tiffDepth,
   ]);
 
   const handleVariableClick = (variable: string) => {
@@ -613,6 +616,7 @@ export default function ExportPanel({
                   </button>
                 ))}
               </div>
+              {fileFormat === FileFormats.Tiff && <div data-argentum="export-precision" />}
               {[FileFormats.Jpeg, FileFormats.Webp, FileFormats.Jxl].includes(fileFormat as FileFormats) && (
                 <div className={isExporting ? 'opacity-50 pointer-events-none' : ''}>
                   <Slider

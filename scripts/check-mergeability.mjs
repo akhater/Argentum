@@ -149,139 +149,8 @@ const EXCEPTIONS = [
 ];
 
 
-/**
- * THE ANCHORS — the real rule, of which the budgets above are only a backstop.
- *
- * A line budget answers "how much of their code have we touched". It does not
- * answer the question that decides whether this fork is still alive in two
- * years: **what does the next feature cost?**
- *
- * If every feature adds a line to one of their files, the budget is a countdown.
- * Four commands is four lines of `lib.rs` and looks free; a hundred is a hundred
- * lines in the file upstream also edits every release.
- *
- * So each of their files gets a *fixed* number of hooks into our code — an
- * anchor — and everything after that is routed through it on our side. The
- * count below is the number of lines in that file that may mention Argentum.
- * It is not a budget to spend. It does not go up when a feature is added,
- * because a feature must not need it to.
- *
- * Rebrand lines (`.agdata`, "Argentum" inside their own sentences) are counted
- * separately and ignored here: they happened once and do not grow.
- */
-const ANCHORS = [
-  {
-    file: 'src-tauri/src/lib.rs',
-    hooks: 5,
-    what:
-      '`mod mods`, the cache-version check, the single `ag` command, the display '
-      + 'conversion for the screen the window is on, and the refresh when the window '
-      + 'moves to another screen',
-    instead: 'add a match arm to mods/dispatch.rs — commands cost nothing here',
-  },
-  {
-    file: 'src-tauri/src/shaders/display.wgsl',
-    hooks: 1,
-    what: 'one call to ag_stage_present, the presentation stage',
-    instead: 'add your tool inside ag_stage_present in shaders/ag_display.wgsl',
-  },
-  {
-    file: 'src-tauri/src/shaders/shader.wgsl',
-    hooks: 2,
-    what: 'one call to ag_stage_scene_linear, one to ag_stage_display',
-    instead: 'add your tool inside one of those two stages in shaders/modules.wgsl',
-  },
-  {
-    file: 'src-tauri/src/raw_processing.rs',
-    hooks: 1,
-    what: 'one call to mods::decode::on_raw_decoded',
-    instead: 'add a step to mods/decode.rs',
-  },
-  {
-    // One import, and it has to stay one. Everything the export render does
-    // differently is reachable from the Precision value it carries: the storage
-    // format, the shader text, the pipeline constant that silences the dither,
-    // the bytes per pixel of the readback. A second hook here would mean some of
-    // that decision had been written into their file instead of ours.
-    file: 'src-tauri/src/gpu_processing.rs',
-    hooks: 1,
-    what: 'the import of Precision, which the processor carries and reads from',
-    instead: 'add a method to mods/export_precision.rs - the processor already has a Precision',
-  },
-  {
-    file: 'src-tauri/src/export_processing.rs',
-    hooks: 1,
-    what: 'the import of Precision and render_high_precision',
-    instead: 'which format gets which precision is decided in Precision::for_path - change it there',
-  },
-  {
-    file: 'src-tauri/src/image_processing.rs',
-    hooks: 4,
-    what: 'the CPU preview encode interception, and the clipping view mode',
-    instead: 'change mods/preview_encode.rs, or mods/clipping.rs',
-  },
-  {
-    file: 'src/App.tsx',
-    hooks: 2,
-    what: 'the single <Argentum /> mount',
-    instead: 'add a portal in src/argentum/Argentum.tsx',
-  },
-  // UI markers. One per panel, never one per feature: everything Argentum shows
-  // in that panel portals into the same marker.
-  {
-    file: 'src/components/panel/right/MetadataPanel.tsx',
-    hooks: 1,
-    what: 'the data-argentum="camera-details" marker',
-    instead: 'portal into [data-argentum="camera-details"] from Argentum.tsx',
-  },
-  {
-    // Two, and two is the ceiling: a panel has an inline slot (in a heading
-    // row, for buttons) and a block slot (below the controls, for a section).
-    // Those are positions, not features — every Argentum colour control mounts
-    // into one of them. A third would mean a feature bought its own, which is
-    // the growth this whole file exists to prevent.
-    file: 'src/components/adjustments/Color.tsx',
-    hooks: 2,
-    what: 'the color-tools (inline) and camera-profile (block) markers',
-    instead: 'portal into one of the two existing markers from Argentum.tsx',
-  },
-  {
-    file: 'src/components/panel/SettingsPanel.tsx',
-    hooks: 1,
-    what: 'the About tab, an empty div Argentum fills',
-    instead: 'add a section to src/argentum/AboutPanel.tsx — or a card of its own '
-      + 'inside [data-argentum="settings-about"]',
-  },
-  // Behaviour, not UI. A portal can add a control; it cannot change what
-  // happens when the user clicks one of theirs. These replace the body of an
-  // existing handler, so they are one-time replacements rather than additions —
-  // if one of these ever needs a *second* hook, the injection is in the wrong
-  // place and should become an event our code listens for.
-  {
-    file: 'src/components/panel/editor/ImageCanvas.tsx',
-    hooks: 2,
-    what: 'the white balance picker solving in Rust',
-    instead: 'change src/argentum/whiteBalance.ts',
-  },
-  {
-    file: 'src/components/panel/right/CropPanel.tsx',
-    hooks: 1,
-    what: 'lens auto-detection running on load, not only on click',
-    instead: 'change src/argentum/useAutoDetectOnLoad.ts',
-  },
-  {
-    file: 'src-tauri/src/exif_processing.rs',
-    hooks: 1,
-    what: 'reading the lens name out of the maker note',
-    instead: 'change mods/makernote_lens.rs',
-  },
-  {
-    file: 'src-tauri/src/lens_correction.rs',
-    hooks: 1,
-    what: 'matching a lens profile for the body that shot the frame',
-    instead: 'change mods/lens_crop.rs',
-  },
-];
+import { ANCHORS } from './upstream-anchors.mjs';
+
 
 /**
  * Files that carry the fork's identity rather than its features.
@@ -571,6 +440,48 @@ for (const [file, st] of stats) {
         : 'This file has no anchor at all, and should have none.',
       lines: st.hooks,
     });
+  }
+}
+
+// --- Gate: the wiring an anchor exists for -----------------------------------
+//
+// An anchor says how many lines of theirs may mention us. It says nothing about
+// whether those lines still do their job. `ExportPanel.tsx` is the case that
+// taught us the difference: its import and hook could survive while the one
+// dependency entry that makes the estimate re-run was dropped as unused, and
+// every gate here would have stayed green.
+//
+// Asserting only our own identifiers is what keeps this from being brittle.
+// Upstream may rename anything of theirs.
+for (const anchor of ANCHORS) {
+  if (!anchor.requires) continue;
+
+  // A tree without the file is not a tree that lost the wiring. The fixture
+  // repositories in the e2e tests hold two files and a registry, and upstream
+  // genuinely deleting one of theirs breaks the import at build time long before
+  // this gate would have an opinion. Caught by those tests, which went 0/7 the
+  // moment this said otherwise.
+  //
+  // The case this skip could hide is a typo in `anchor.file`, which would make
+  // the gate pass forever on a path that does not exist. That is closed from the
+  // other side: `every required pattern matches the file it guards` in
+  // test-upstream-checks.mjs reads the path unguarded, so a wrong one throws and
+  // fails `npm run test:checks`, which CI runs.
+  const full = join(root, anchor.file);
+  if (!existsSync(full)) continue;
+
+  const text = readFileSync(full, 'utf8');
+  for (const need of anchor.requires) {
+    if (!need.pattern.test(text)) {
+      errors.push({
+        file: anchor.file,
+        detail: `lost the wiring its anchor exists for: ${need.why}`,
+        fix:
+          `Restore the line matching ${need.pattern}. If upstream has genuinely `
+          + 'made it unnecessary, remove it from `requires` in the same commit '
+          + 'and say why in the registry entry.',
+      });
+    }
   }
 }
 

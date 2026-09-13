@@ -35,5 +35,10 @@
   "gearNoProfilesFor": "No profiles yet",
   "recoveryLabel": "Highlight recovery",
   "recoveryHelp": "Rebuilds a colour channel that blew out from the two that survived. Applies to the next photo you open.",
-  "thresholdHint": "Hold Ctrl while dragging to see what is about to clip"
+  "thresholdHint": "Hold Ctrl while dragging to see what is about to clip",
+  "tiffDepthLabel": "Bit depth",
+  "tiffDepth8": "8-bit",
+  "tiffDepth16": "16-bit",
+  "tiffDepth8Help": "Smaller file. The same precision as a JPEG — right for a delivery, not for re-editing.",
+  "tiffDepth16Help": "For re-editing elsewhere. 1024 tonal levels in every stop of exposure."
 }

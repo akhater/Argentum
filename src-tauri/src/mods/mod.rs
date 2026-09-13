@@ -8,6 +8,7 @@
 //! See `docs/ARCHITECTURE.md` for why the split matters, and
 //! `docs/ADDING_A_TOOL.md` for the recipe.
 
+pub mod ag_settings;
 pub mod auto_wb;
 pub mod cache_key;
 pub mod cache_version;

@@ -164,6 +164,123 @@ pub fn sample_to_u16(v: f32) -> u16 {
     (clamped * 65535.0).round() as u16
 }
 
+/// What bit depth a TIFF is written at.
+///
+/// A choice, because the two answers are for different jobs rather than one
+/// being better: 8 bits is a delivery, 16 is a master somebody will edit again.
+/// Every other format here is 8-bit by its own definition, so this applies to
+/// TIFF and nothing else.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TiffDepth {
+    /// The same precision a JPEG gets, in a TIFF container. Smaller file.
+    Eight,
+    /// What Argentum exported before there was a choice, and still the default.
+    Sixteen,
+}
+
+impl TiffDepth {
+    /// How the frontend names it, and how it is stored.
+    pub fn as_u8(self) -> u8 {
+        match self {
+            TiffDepth::Eight => 8,
+            TiffDepth::Sixteen => 16,
+        }
+    }
+
+    /// Anything that is not a depth we support is 16, which is what an export
+    /// did before the setting existed. A preferences file written by a newer
+    /// Argentum must not make an older one export at a depth it cannot render.
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            8 => TiffDepth::Eight,
+            _ => TiffDepth::Sixteen,
+        }
+    }
+}
+
+/// The chosen depth, read on every export and written when the user picks one.
+///
+/// An atomic rather than a lock: it is read on a render thread and written from
+/// the UI, and it is one byte.
+static TIFF_DEPTH: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(16);
+
+/// The key in `argentum-processing.json`.
+const TIFF_DEPTH_KEY: &str = "tiffBitDepth";
+
+/// What an export will use right now.
+pub fn tiff_depth() -> TiffDepth {
+    TiffDepth::from_u8(TIFF_DEPTH.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Read the preference at startup. Missing or unreadable means 16-bit, which is
+/// what every export did before this setting existed - so upgrading changes
+/// nobody's output until they ask for it.
+pub fn load(library: &std::path::Path) {
+    let depth = depth_from(crate::mods::ag_settings::get(library, TIFF_DEPTH_KEY));
+    TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// What a stored value means, with no file and no global involved.
+///
+/// Pure so the awkward values can be tested without writing to `TIFF_DEPTH`.
+/// The first version of that test did write to it, and since `for_extension`
+/// reads the same global and `cargo test` runs in parallel, it was a flake that
+/// would have passed hundreds of times and then failed once on CI for a commit
+/// that touched nothing near it. That is the whole reason `for_extension_at`
+/// exists, and the test went round it.
+///
+/// `try_from` rather than `as`: a hand-edited or future preferences file saying
+/// 264 would truncate to 8 and silently export at half the depth that was asked
+/// for. Out of range means "not a depth we know", which is 16 - what an export
+/// did before the setting existed.
+fn depth_from(stored: Option<serde_json::Value>) -> TiffDepth {
+    stored
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u8::try_from(v).ok())
+        .map(TiffDepth::from_u8)
+        .unwrap_or(TiffDepth::Sixteen)
+}
+
+/// Write it, and apply it now.
+pub fn save(library: &std::path::Path, depth: TiffDepth) -> Result<(), String> {
+    TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
+    crate::mods::ag_settings::set(
+        library,
+        TIFF_DEPTH_KEY,
+        serde_json::Value::from(depth.as_u8()),
+    )
+}
+
+/// Write a TIFF at the depth its pixels are already carrying.
+///
+/// BORROWED, and deliberately not the way they wrote it.
+///
+/// The encoder arm is upstream #1466's: 8-bit images are written as `Rgb8`,
+/// everything else as `Rgb16`, and the match covers `"tif"` as well as
+/// `"tiff"` - a gap that has always been here, where exporting to a `.tif` path
+/// failed with "Unsupported file format".
+///
+/// What is not borrowed is how the decision arrives. Theirs adds a fourth
+/// parameter to `encode_image_to_bytes` and threads it through six call sites in
+/// their files, which is the exact pattern `CLAUDE.md` names as the thing that
+/// kills a fork. Here the depth is already in the image: an 8-bit export renders
+/// to `ImageRgba8` and a 16-bit one to `ImageRgba32F`, so the encoder reads what
+/// it was handed and their file keeps one call.
+pub fn encode_tiff<W: std::io::Write + std::io::Seek>(
+    image: &DynamicImage,
+    into: &mut W,
+) -> Result<(), String> {
+    let to_encode = match image {
+        DynamicImage::ImageRgb8(_) | DynamicImage::ImageRgba8(_) => {
+            DynamicImage::ImageRgb8(image.to_rgb8())
+        }
+        _ => DynamicImage::ImageRgb16(image.to_rgb16()),
+    };
+    to_encode
+        .write_to(into, image::ImageFormat::Tiff)
+        .map_err(|e| e.to_string())
+}
+
 /// Which render target a pipeline is built for.
 ///
 /// Everything that differs between the preview render and the export render is
@@ -245,11 +362,15 @@ impl Precision {
     /// Which precision an export to this file should render at.
     ///
     /// The policy lives here rather than in the export code so that adding a
-    /// format costs nothing in a file upstream owns. TIFF only: it is the one
-    /// container in the list that carries more than eight bits per channel and
-    /// that the encoder here already writes as 16-bit. JPEG and WebP are 8-bit
-    /// formats, and PNG's branch in `encode_image_to_bytes` only widens for
-    /// `Rgb32F`, so routing it here would change what that branch does.
+    /// format, or a third precision, costs nothing in a file upstream owns. TIFF
+    /// only: it is the one container in the list that carries more than eight
+    /// bits per channel. JPEG and WebP are 8-bit formats, and PNG's branch in
+    /// `encode_image_to_bytes` only widens for `Rgb32F`, so routing it here would
+    /// change what that branch does.
+    ///
+    /// A TIFF the user has asked for at 8 bits renders on the preview path, which
+    /// is the same render a JPEG export gets - dither included, because at 8 bits
+    /// the dither is right.
     pub fn for_path(path: &std::path::Path) -> Self {
         Self::for_extension(path.extension().and_then(|e| e.to_str()).unwrap_or(""))
     }
@@ -261,8 +382,21 @@ impl Precision {
     /// took the high-precision path while every `_mask_N_image.tiff` written
     /// beside it still carried the exact bug this feature exists to fix.
     pub fn for_extension(extension: &str) -> Self {
+        Self::for_extension_at(extension, tiff_depth())
+    }
+
+    /// The same decision with the depth passed in.
+    ///
+    /// Split out so the policy can be tested without writing to the global the
+    /// user's preference lives in - tests run in parallel, and one of them
+    /// setting a depth while another reads it is a flake that would show up
+    /// once a month and never reproduce.
+    pub fn for_extension_at(extension: &str, depth: TiffDepth) -> Self {
         match extension.to_ascii_lowercase().as_str() {
-            "tif" | "tiff" => Precision::High,
+            "tif" | "tiff" => match depth {
+                TiffDepth::Sixteen => Precision::High,
+                TiffDepth::Eight => Precision::Preview,
+            },
             _ => Precision::Preview,
         }
     }
@@ -358,6 +492,54 @@ pub fn render_high_precision(
         .map(|b| f32::from_ne_bytes(*b))
         .collect();
     pixels_to_image(out_w, out_h, samples)
+}
+
+/// Render for a size estimate, which needs the right *size* and not the right
+/// pixels.
+///
+/// WHY THIS IS NOT JUST `render_for_export`
+///
+/// The estimate runs on every adjustment change while the export panel is open.
+/// Routing it through the export renderer means building a throwaway
+/// `GpuProcessor` each time - every pipeline compiled and dropped - which
+/// measures at about 57 ms on an Arc 140T. That is not a disaster and it is not
+/// free, and an estimate is a number under a button.
+///
+/// It is also unnecessary, and that is measurable rather than assumed: the TIFF
+/// encoder here writes uncompressed, so a file's size is its dimensions times
+/// its depth and does not depend at all on what the pixels are. A ramp encoded
+/// from real 16-bit data and the same ramp widened from 8-bit come to the same
+/// 3282 bytes - there is a test that asserts exactly that, and it fails if the
+/// encoder ever starts compressing, which is the day this shortcut stops being
+/// safe.
+///
+/// So an estimate renders on the preview path always, and is widened to 16-bit
+/// when that is the depth the export will write. The container is right, the
+/// size is right, and the pixels are nobody's business.
+pub fn render_for_estimate(
+    context: &GpuContext,
+    state: &tauri::State<AppState>,
+    base_image: &DynamicImage,
+    transform_hash: u64,
+    request: RenderRequest,
+    debug_tag: &str,
+    precision: Precision,
+) -> Result<DynamicImage, String> {
+    let rendered = process_and_get_dynamic_image(
+        context,
+        state,
+        base_image,
+        transform_hash,
+        request,
+        debug_tag,
+    )?;
+
+    Ok(match precision {
+        // Not `Rgba8`, so `encode_tiff` writes the 16-bit branch and the size
+        // comes out as the real export's will.
+        Precision::High => DynamicImage::ImageRgba16(rendered.to_rgba16()),
+        Precision::Preview => rendered,
+    })
 }
 
 /// Composite a watermark without dragging the photograph through 8 bits.
@@ -648,6 +830,166 @@ mod tests {
             ours.to_rgba8().as_raw(),
             theirs.to_rgba8().as_raw(),
             "the 8-bit path diverged from upstream's overlay",
+        );
+    }
+
+    /// A stored depth that does not fit in a byte must not wrap into one that
+    /// does. 264 truncates to 8, which would export at half the depth the user
+    /// chose and look like the setting being ignored.
+    #[test]
+    fn an_out_of_range_stored_depth_does_not_wrap() {
+        for stored in [264u64, 272, 65544, u64::from(u32::MAX)] {
+            assert_eq!(
+                depth_from(Some(serde_json::Value::from(stored))),
+                TiffDepth::Sixteen,
+                "{stored} should read as 16, not wrap into a depth nobody chose",
+            );
+        }
+        assert_eq!(
+            depth_from(Some(serde_json::Value::from(8u64))),
+            TiffDepth::Eight
+        );
+        assert_eq!(
+            depth_from(Some(serde_json::Value::from(16u64))),
+            TiffDepth::Sixteen
+        );
+
+        // Anything that is not a number at all, and nothing stored at all.
+        assert_eq!(depth_from(None), TiffDepth::Sixteen);
+        assert_eq!(
+            depth_from(Some(serde_json::Value::from("8"))),
+            TiffDepth::Sixteen
+        );
+        assert_eq!(
+            depth_from(Some(serde_json::Value::Bool(true))),
+            TiffDepth::Sixteen
+        );
+        assert_eq!(
+            depth_from(Some(serde_json::Value::from(-8i64))),
+            TiffDepth::Sixteen
+        );
+    }
+
+    #[test]
+    fn an_unknown_depth_is_sixteen_rather_than_a_failure() {
+        assert_eq!(TiffDepth::from_u8(8), TiffDepth::Eight);
+        assert_eq!(TiffDepth::from_u8(16), TiffDepth::Sixteen);
+        // A preferences file written by a newer Argentum, or a hand-edited one.
+        for odd in [0u8, 1, 12, 24, 32, 255] {
+            assert_eq!(
+                TiffDepth::from_u8(odd),
+                TiffDepth::Sixteen,
+                "{odd} should fall back to what an export did before the setting                  existed, not to something nobody chose",
+            );
+        }
+    }
+
+    #[test]
+    fn the_chosen_depth_decides_which_pipeline_runs() {
+        assert_eq!(
+            Precision::for_extension_at("tiff", TiffDepth::Sixteen),
+            Precision::High,
+        );
+        assert_eq!(
+            Precision::for_extension_at("tiff", TiffDepth::Eight),
+            Precision::Preview,
+            "an 8-bit TIFF should take the ordinary render, dither and all",
+        );
+        // The depth is a TIFF setting and must not leak into other formats.
+        for ext in ["jpg", "png", "webp", "avif", "jxl"] {
+            assert_eq!(
+                Precision::for_extension_at(ext, TiffDepth::Sixteen),
+                Precision::Preview,
+                "{ext} is an 8-bit format and the TIFF depth must not touch it",
+            );
+        }
+    }
+
+    /// The borrowed encoder arm: the depth of the file follows the depth of the
+    /// pixels it was handed, which is what lets their file keep one call.
+    #[test]
+    fn the_encoder_writes_the_depth_the_image_carries() {
+        let eight = DynamicImage::ImageRgba8(ImageBuffer::from_fn(4, 2, |x, y| {
+            image::Rgba([(x * 60) as u8, (y * 90) as u8, 20, 255])
+        }));
+        let mut bytes = Vec::new();
+        encode_tiff(&eight, &mut std::io::Cursor::new(&mut bytes)).expect("encode 8-bit");
+        let back = image::load_from_memory_with_format(&bytes, image::ImageFormat::Tiff)
+            .expect("decode 8-bit");
+        assert!(
+            back.as_rgb8().is_some(),
+            "an 8-bit image should produce an 8-bit TIFF, not a widened one",
+        );
+        assert_eq!(back.to_rgb8(), eight.to_rgb8(), "the pixels changed");
+
+        let deep = ramp(4);
+        let mut bytes16 = Vec::new();
+        encode_tiff(&deep, &mut std::io::Cursor::new(&mut bytes16)).expect("encode 16-bit");
+        let back16 = image::load_from_memory_with_format(&bytes16, image::ImageFormat::Tiff)
+            .expect("decode 16-bit");
+        assert!(
+            back16.as_rgb16().is_some(),
+            "a float image should still produce a 16-bit TIFF",
+        );
+        assert!(
+            back16.to_rgb16().pixels().any(|p| p[0] % 257 != 0),
+            "the 16-bit branch produced 8-bit data",
+        );
+    }
+
+    /// Does a TIFF's size depend on what is in it?
+    ///
+    /// It decides whether a size *estimate* has to render at the precision it
+    /// will encode at. If the encoder is uncompressed, size is width x height x
+    /// depth and the estimate can render however it likes; if it compresses,
+    /// real 16-bit data and 8-bit data widened to 16 compress very differently
+    /// and an estimate taking the cheap path would lie.
+    #[test]
+    fn whether_a_tiff_size_depends_on_its_content() {
+        let real = ramp(512);
+        let widened = DynamicImage::ImageRgba8(real.to_rgba8());
+
+        let mut deep = Vec::new();
+        encode_tiff(&real, &mut std::io::Cursor::new(&mut deep)).expect("16-bit");
+        let mut shallow_widened = Vec::new();
+        DynamicImage::ImageRgb16(widened.to_rgb16())
+            .write_to(
+                &mut std::io::Cursor::new(&mut shallow_widened),
+                image::ImageFormat::Tiff,
+            )
+            .expect("widened to 16-bit");
+
+        println!("MEASURED: real 16-bit  = {} bytes", deep.len());
+        println!("MEASURED: widened 8-bit = {} bytes", shallow_widened.len());
+        println!(
+            "MEASURED: uncompressed expectation = {} bytes of pixels",
+            512 * 3 * 2
+        );
+
+        assert_eq!(
+            deep.len(),
+            shallow_widened.len(),
+            "a TIFF's size depends on its content, so a size estimate cannot              take a cheaper render than the export will",
+        );
+    }
+
+    /// An 8-bit TIFF is smaller than a 16-bit one, which is the reason to offer
+    /// it. If this ever stops being true the option is pointless.
+    #[test]
+    fn eight_bit_is_the_smaller_file() {
+        let deep = ramp(256);
+        let flat = DynamicImage::ImageRgba8(deep.to_rgba8());
+
+        let mut small = Vec::new();
+        encode_tiff(&flat, &mut std::io::Cursor::new(&mut small)).expect("8-bit");
+        let mut large = Vec::new();
+        encode_tiff(&deep, &mut std::io::Cursor::new(&mut large)).expect("16-bit");
+
+        assert!(
+            small.len() < large.len(),
+            "8-bit TIFF was {} bytes against 16-bit's {}",
+            small.len(),
+            large.len(),
         );
     }
 
@@ -975,6 +1317,123 @@ mod gpu_tests {
                  downwards",
                 y - 1,
             );
+        }
+    }
+
+    /// What actually limits the precision, asserted rather than eyeballed.
+    ///
+    /// THE MISTAKE THIS REPLACES
+    ///
+    /// The first version of this test printed "distinct levels" for one ramp
+    /// width and called the result a ceiling. It is not a ceiling: half-float
+    /// holds 1024 values in *every* octave, so a full-range ramp of W samples
+    /// returns 1024 for each octave the ramp out-resolves plus everything below
+    /// it, and the count climbs by 1024 on every doubling of W. Reading one
+    /// number as "about 12 bits" produced a release headline that was wrong, and
+    /// `log2(count)` of a sampling artefact is not a bit depth.
+    ///
+    /// WHAT IS TRUE
+    ///
+    /// The render is limited by the half-float upload and by nothing else. So the
+    /// assertion is equality with a CPU half-float round-trip of the same ramp:
+    /// if the GPU result matches it exactly, the pipeline adds no error of its
+    /// own, and the precision of an export is exactly the precision of its input.
+    ///
+    /// This test is *expected to fail* the day the export input becomes f32 - see
+    /// the roadmap. That is the point. It fails with a number that says how much
+    /// better things got, rather than quietly passing because it only ever asked
+    /// whether the output beat 8 bits.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn precision_is_limited_by_the_upload_and_by_nothing_else() {
+        let Some(context) = device() else {
+            panic!("no wgpu adapter - this test cannot tell you anything here");
+        };
+
+        for width in [2048u32, 4096, 8192, 16384] {
+            let mut buf = ImageBuffer::<Rgba<f32>, Vec<f32>>::new(width, 1);
+            for (x, _y, px) in buf.enumerate_pixels_mut() {
+                let v = x as f32 / (width - 1) as f32;
+                *px = Rgba([v, v, v, 1.0]);
+            }
+
+            let out = render_high_precision(
+                &context,
+                &DynamicImage::ImageRgba32F(buf),
+                RenderRequest {
+                    adjustments: neutral(),
+                    mask_bitmaps: &[],
+                    lut: None,
+                    roi: None,
+                },
+            )
+            .expect("the high-precision render should succeed");
+
+            let encoded = out.to_rgb16();
+            let rendered: std::collections::HashSet<u16> =
+                (0..width).map(|x| encoded.get_pixel(x, 0)[0]).collect();
+
+            // The same ramp, quantised to half-float on the CPU and nowhere else.
+            let through_half: std::collections::HashSet<u16> = (0..width)
+                .map(|x| {
+                    let v = x as f32 / (width - 1) as f32;
+                    sample_to_u16(half::f16::from_f32(v).to_f32())
+                })
+                .collect();
+
+            assert_eq!(
+                rendered.len(),
+                through_half.len(),
+                "at {width} samples the render produced {} distinct levels where a \
+                 pure half-float round-trip gives {}. If the render is LOWER, \
+                 something in the pipeline is losing precision the upload had not \
+                 already lost. If it is HIGHER, the upload is no longer half-float \
+                 and this test has done its job - update it and the roadmap.",
+                rendered.len(),
+                through_half.len(),
+            );
+
+            // And the floor, so this can never silently regress to 8-bit.
+            assert!(
+                rendered.len() > 1024,
+                "only {} distinct levels at {width} samples - that is at or below \
+                 8-bit territory",
+                rendered.len(),
+            );
+        }
+    }
+
+    /// What a size estimate now costs, in milliseconds, measured.
+    ///
+    /// Routing the estimate through `render_for_export` means that with TIFF at
+    /// 16-bit selected, every debounced estimate builds a throwaway
+    /// `GpuProcessor` - three shader modules and every pipeline compiled, then
+    /// dropped. On DX12 that is naga to HLSL to DXC for a two-thousand-line
+    /// shader. Whether that is fine or unusable is a number, not an opinion, and
+    /// the estimate runs on every adjustment change while the export panel is
+    /// open.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn report_what_building_an_export_processor_costs() {
+        let Some(context) = device() else {
+            panic!("no wgpu adapter");
+        };
+
+        for (label, precision) in [("Preview", Precision::Preview), ("High", Precision::High)] {
+            // One outside the timing, so shader-cache warmth is not measured as
+            // build time on the first iteration.
+            let _warm = GpuProcessor::new_with_precision(context.clone(), 2304, 2304, precision)
+                .expect("warm-up");
+
+            let start = std::time::Instant::now();
+            const ROUNDS: u32 = 5;
+            for _ in 0..ROUNDS {
+                let p = GpuProcessor::new_with_precision(context.clone(), 2304, 2304, precision)
+                    .expect("build");
+                drop(p);
+            }
+            let each = start.elapsed() / ROUNDS;
+            println!("MEASURED: {label} processor build = {each:?} each");
         }
     }
 

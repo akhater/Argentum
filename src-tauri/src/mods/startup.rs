@@ -36,8 +36,10 @@ pub fn init(app: &AppHandle) {
         && let Ok(library) = super::profiles::library_dir(&data)
     {
         // Highlight recovery's on/off lives beside them, for the same reason:
-        // it is ours, and it is a preference rather than a cache.
+        // it is ours, and it is a preference rather than a cache. So does the
+        // TIFF export depth.
         super::highlights::load(&library);
+        super::export_precision::load(&library);
         super::profiles::set_library(library);
     }
 }

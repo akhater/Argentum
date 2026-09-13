@@ -103,7 +103,12 @@ function scenario({ entries, reviews, dropEntryAndMarkers = false }) {
     '}',
   ]);
   mkdirSync(join(dir, 'scripts'), { recursive: true });
-  for (const f of ['check-mergeability.mjs', 'upstream-diff.mjs', 'upstream-overlaps.mjs']) {
+  for (const f of [
+    'check-mergeability.mjs',
+    'upstream-anchors.mjs',
+    'upstream-diff.mjs',
+    'upstream-overlaps.mjs',
+  ]) {
     copyFileSync(join(here, f), join(dir, 'scripts', f));
   }
 

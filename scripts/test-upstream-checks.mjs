@@ -25,15 +25,20 @@
 
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+/** The real repository, for the gates that read files of theirs in place. */
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 import { accountDiff } from './upstream-diff.mjs';
 import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
 import {
   REGISTRY, activeFor, borrowsOf, dependencyIndex, shadowsOf, validateRetirements,
 } from './upstream-registry.mjs';
+import { ANCHORS } from './upstream-anchors.mjs';
 
 let ran = 0;
 let failed = 0;
@@ -424,6 +429,110 @@ test('a landed borrowed fix still produces its dependency overlap', () => {
   assert.equal(
     overlaps.some((o) => o.commit === theirs.slice(0, 8) && o.kind === 'dep'), true,
   );
+});
+
+// --- the wiring an anchor exists for ----------------------------------------
+//
+// `requires` is the only gate here that asserts a file of *theirs* still
+// contains something, so it is the one most able to be quietly wrong: a pattern
+// matching nothing fails forever, a pattern matching anything protects nothing.
+// These check both directions against the real patterns rather than a copy, so
+// editing an anchor without editing the test cannot pass.
+
+const wired = ANCHORS.filter((a) => a.requires?.length);
+
+/**
+ * The one line whose removal stops a pattern matching, or -1.
+ *
+ * Not "the line the pattern matches": a dependency array spans several lines, so
+ * the pattern matches the file and no single line of it. The first version of
+ * this test filtered lines by the pattern, removed nothing, and then reported
+ * that the gate had failed to notice - a broken test accusing working code,
+ * which is the most expensive colour of red there is.
+ */
+const lineThatCarries = (text, pattern) => {
+  const lines = text.split('\n');
+  return lines.findIndex(
+    (_, i) => !pattern.test(lines.filter((__, j) => j !== i).join('\n')),
+  );
+};
+
+test('every required pattern matches the file it guards, as it stands today', () => {
+  assert.ok(wired.length > 0, 'no anchor records required wiring - is that right?');
+  for (const anchor of wired) {
+    const text = readFileSync(join(root, anchor.file), 'utf8');
+    for (const need of anchor.requires) {
+      assert.ok(
+        need.pattern.test(text),
+        `${anchor.file} no longer matches ${need.pattern} (${need.why}). Either the `
+        + 'wiring is gone, or the pattern has drifted from the code.',
+      );
+    }
+  }
+});
+
+test('a required pattern is specific enough to fail on an empty file', () => {
+  // A pattern like /./ would pass the test above and guard nothing whatsoever.
+  for (const anchor of wired) {
+    for (const need of anchor.requires) {
+      assert.equal(
+        need.pattern.test(''), false,
+        `${anchor.file}: ${need.pattern} matches an empty file, so it cannot detect `
+        + 'the wiring being deleted',
+      );
+    }
+  }
+});
+
+test('removing any one required line is caught, one line at a time', () => {
+  // The case that matters: the import and the hook call can both survive while
+  // the dependency entry is dropped as unused, and the estimate silently freezes
+  // on the old depth. That is the bug this whole gate exists for.
+  for (const anchor of wired) {
+    const text = readFileSync(join(root, anchor.file), 'utf8');
+    for (const need of anchor.requires) {
+      assert.notEqual(
+        lineThatCarries(text, need.pattern), -1,
+        `${anchor.file}: no single line's removal stops ${need.pattern} matching, so `
+        + 'the gate cannot tell this wiring from its absence',
+      );
+    }
+  }
+});
+
+test('the gate itself fails, not merely the pattern', () => {
+  // End to end: a working tree with the dependency line gone must make
+  // check-mergeability exit non-zero, and say which wiring went.
+  const anchor = wired.find((a) => a.file.endsWith('ExportPanel.tsx'));
+  assert.ok(anchor, 'the ExportPanel wiring anchor is the one this was built for');
+  const dependency = anchor.requires.at(-1);
+
+  const full = join(root, anchor.file);
+  const original = readFileSync(full, 'utf8');
+  const cut = lineThatCarries(original, dependency.pattern);
+  assert.notEqual(cut, -1, 'nothing to remove');
+
+  writeFileSync(full, original.split('\n').filter((_, i) => i !== cut).join('\n'));
+  try {
+    let exitCode = 0;
+    let output = '';
+    try {
+      output = execSync('node scripts/check-mergeability.mjs', {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      exitCode = error.status ?? 1;
+      output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+    }
+    assert.notEqual(exitCode, 0, 'the gate passed with the wiring removed');
+    assert.match(output, /lost the wiring its anchor exists for/);
+  } finally {
+    // Always, including when an assertion above threw: a test that leaves a file
+    // of theirs mutilated turns one red into a confusing dozen.
+    writeFileSync(full, original);
+  }
 });
 
 for (const dir of repos) {

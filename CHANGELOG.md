@@ -53,6 +53,20 @@ It also makes the in-app update check behave by accident: a development build is
 *newer* than the latest release, so it stays quiet instead of offering to
 "update" you to something older than what you are running.
 
+**The bumped number is a placeholder, not a prediction.** It says "unreleased,
+and ahead of what shipped" - nothing more. It cannot say which week the next
+release will land in, because nobody knows: bump to `26.37.21` on a Saturday and
+release the following Tuesday and the real number is `26.38.1`. So **the release
+commit sets the true `yy.ww.n`**, and the number sitting in the tree between
+releases is only ever a marker.
+
+Nothing breaks when the week rolls over, because `compareVersions` in
+`MainLibrary.tsx` compares the parts numerically, left to right: `26.38.1` is
+newer than `26.37.21`, and `27.1.1` is newer than `26.52.9`. Both properties the
+convention exists for survive it - a development build stays newer than the last
+release, so the update check stays quiet, and every number on the Releases page
+is still a real release.
+
 **Two digits, not four, and that is not a style choice.** It was `yyyy` until
 `26.37.19`, whose Windows build failed with
 
@@ -188,6 +202,24 @@ came from — without it there's no way to tell later whether upstream moved on.
   and for every row agreeing (a wrong *row* stride is invisible in one row).
   Those are `#[ignore]`d, because CI has no adapter and a test that fails for
   want of a GPU teaches nobody anything: `cargo test --lib -- --ignored`.
+
+  **What none of those tests asked, and should have:** how many bits actually
+  arrive. Every one of them asks "better than 8-bit?" or "f32 rather than f16?",
+  which is the right question for catching a fake and the wrong one for measuring
+  a real thing - and a 16-bit headline shipped over an 11-bit pipeline with a
+  green board behind it. There is now a test that renders a full-range ramp at
+  four sampling densities and asserts the result is *equal* to a CPU half-float
+  round-trip of the same ramp: 2048 inputs give 2048 levels, 4096 give 3073, 8192
+  give 4097, 16384 give 5121. Exact agreement at every density, which says two
+  things - the precision of an export is exactly the precision of its upload, and
+  the rest of the render adds no error of its own.
+
+  It also kills a misreading. Those counts are not a ceiling: half-float holds
+  1024 values in *every* octave, so the count climbs by 1024 on each doubling of
+  the ramp, and `log2` of one of them is a property of the sampling rather than a
+  bit depth. The honest number is the one this file already carried - 11
+  significant bits, 1024 levels per stop. The test is expected to fail the day the
+  export input becomes f32, which is the point of writing it as an equality.
 - **Two AI patches of the same base64 length shared a cache entry**, and the
   first one rendered was served for both. `calculate_transform_hash` hashed
   `.len()` of the patch data rather than the data. Carried early from upstream

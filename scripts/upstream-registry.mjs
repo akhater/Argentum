@@ -447,6 +447,59 @@ export const REGISTRY = [
     tests: ['src-tauri/src/mods/export_precision.rs #[cfg(test)]'],
     keywords: /tiff|16.?bit|32.?bit|float|precision|bit.?depth|dither|export.?format|rgba32|half/i,
   },
+  {
+    id: 'export-precision-selector',
+    kind: 'feature',
+    what:
+      'A TIFF can be exported at 8 or 16 bits, chosen in the export panel and '
+      + 'remembered between runs.',
+    ours: [
+      'src/argentum/ExportPrecision.tsx',
+      'src/argentum/Argentum.tsx',
+      'src/argentum/locales/en.json',
+      'src-tauri/src/mods/ag_settings.rs',
+      'src-tauri/src/mods/export_precision.rs',
+    ],
+    dependsOn: [
+      { file: 'src/components/panel/right/ExportPanel.tsx', how: 'calls',
+        note:
+          'One data-argentum="export-precision" marker, rendered only while TIFF is the '
+          + 'chosen format, so the control appears and disappears with no state of theirs '
+          + 'read from our side. Upstream #1466 does the same job by putting tiffBitDepth '
+          + 'on ExportSettings and threading it through six of their files.' },
+      { file: 'src-tauri/src/export_processing.rs', pr: '1466', how: 'borrows',
+        note:
+          'Their encoder arm, between // upstream #1466 and // end upstream #1466: 8-bit '
+          + 'images write Rgb8, everything else Rgb16, and the match covers "tif" as well '
+          + 'as "tiff" - a path that always failed here with "Unsupported file format". '
+          + 'The depth arrives as the image type rather than as their fourth parameter on '
+          + 'encode_image_to_bytes, so their file keeps one call.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'estimate_export_sizes', how: 'extends',
+        note:
+          'Both estimate sites go through render_for_estimate, which renders on the '
+          + 'preview path and widens to 16-bit when that is the depth the export will '
+          + 'write. Without it the size shown for a 16-bit TIFF would be the 8-bit one, '
+          + 'because the estimate renders its own preview. Rendering them at High instead '
+          + 'would be correct and costs a throwaway GpuProcessor per estimate - measured '
+          + 'at ~57ms on an Arc 140T - which is unnecessary because this TIFF encoder '
+          + 'writes uncompressed, so size is dimensions times depth and does not depend '
+          + 'on the pixels. A test asserts that and fails the day it starts compressing.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/export_precision.rs #[cfg(test)] - depth policy, the encoder, and that a TIFF size does not depend on its content',
+      'src-tauri/src/mods/ag_settings.rs #[cfg(test)] - one preference does not erase another, including from two threads at once',
+    ],
+    notes: [
+      'run_headless_export takes the persisted depth through Precision::for_path and has '
+      + 'no --tiff-bit-depth flag. Upstream #1466 adds one; borrow it if a headless caller '
+      + 'ever needs to differ from the interface. A decision, not an omission.',
+      'The one case where the image type does not carry the user intent: an image past '
+      + 'max_texture_dimension_2d returns unedited from gpu_processing as Rgba32F, so an '
+      + '8-bit TIFF export of it writes a 16-bit container. The export was already wrong '
+      + 'there - it is unedited - and this only puts the wrong depth on top.',
+    ],
+    keywords: /tiff|bit.?depth|8.?bit|export.?panel|export.?settings|preset|selector|dropdown/i,
+  },
 ];
 
 /**
