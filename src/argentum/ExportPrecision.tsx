@@ -32,6 +32,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ag } from './ag';
+import { publishTiffDepth } from './exportDepth';
 import { useAgTranslation } from './locales';
 
 /** The depths Argentum can write. Matches `TiffDepth` on the Rust side. */
@@ -49,7 +50,9 @@ export default function ExportPrecision() {
       // Anything we do not recognise is 16, which is what an export did before
       // this control existed. A preference file from a newer Argentum must not
       // leave an older one with no selection at all.
-      setDepth(value === 8 ? 8 : 16);
+      const known: Depth = value === 8 ? 8 : 16;
+      setDepth(known);
+      publishTiffDepth(known);
     } catch {
       setDepth(null);
     }
@@ -68,10 +71,14 @@ export default function ExportPrecision() {
     // click reads as broken.
     const previous = depth;
     setDepth(next);
+    // Before the await, so the size estimate moves with the control rather than
+    // a round trip later.
+    publishTiffDepth(next);
     try {
       await ag('set_tiff_bit_depth', { depth: next });
     } catch {
       setDepth(previous);
+      publishTiffDepth(previous);
     } finally {
       setBusy(false);
     }

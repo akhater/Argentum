@@ -253,9 +253,16 @@ const ANCHORS = [
     // ExportSettings and threads it through six of their files; this is the same
     // feature for one line.
     file: 'src/components/panel/right/ExportPanel.tsx',
-    hooks: 1,
-    what: 'the data-argentum="export-precision" marker, rendered only for TIFF',
-    instead: 'portal into it from Argentum.tsx — every future export control mounts there',
+    hooks: 2,
+    what:
+      'the data-argentum="export-precision" marker rendered only for TIFF, and the '
+      + 'useTiffDepth import that lets their size estimate see the depth change',
+    instead:
+      'portal into the marker from Argentum.tsx — every future export control mounts '
+      + 'there. The second hook is not a second feature and does not go up again: '
+      + 'estimatedSize is useState inside their component and the debounced estimator '
+      + 'is a useMemo beside it, so an effect dependency is the only way in. Any later '
+      + 'control publishes into src/argentum/exportDepth.ts and rides the same one.',
   },
   {
     file: 'src/components/panel/SettingsPanel.tsx',
