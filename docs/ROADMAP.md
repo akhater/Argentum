@@ -265,5 +265,32 @@ release is actually on the table. Listed so it stays a choice, not an oversight.
 
 - **`.agdata` next to photos, or in the data folder?** Next to photos = edits
   travel with the pictures. In the folder = nothing left behind if you bin the project.
+- **Does white balance decode RAW that was never encoded?** Found 2026-09-13
+  while scoping the high-precision export, and *not confirmed* - written down so
+  it is checked rather than forgotten.
+
+  `modules.wgsl` (`dt_white_balance`) calls `ag_to_scene_linear(color)` when
+  `is_raw_image != 0`, with the comment "Only RAW arrives encoded. A JPEG has
+  already been through srgb_to_linear at the top of main()". That assumption
+  holds for the CPU auto-WB path, which reads the warped cache that `lib.rs`
+  encodes with `apply_cpu_default_raw_processing` before caching.
+
+  It may not hold for the render. `raw_processing.rs` develops to `ImageRgba32F`
+  in scene-linear, and neither `compute_full_transformed_res` nor
+  `process_image_for_export_pipeline` calls `apply_cpu_default_raw_processing` -
+  the only call on that side is the mask-warp cache. If RAW reaches the GPU
+  already linear, the shader decodes it a second time and every white balance on
+  a RAW is solved against the wrong signal.
+
+  Against that: `shader.wgsl` main() treats the texel as linear for
+  `is_raw == 1`, so something may already compensate, and the auto-WB tests pass
+  today. Which means either the two paths disagree and the tests only cover one,
+  or there is a compensation that makes this comment misleading rather than
+  wrong. Both are worth knowing.
+
+  **To settle it:** render one RAW with a known illuminant, log the value
+  reaching `dt_white_balance` and compare it against the same photo's decoded
+  scene-linear pixel. One number tells you which it is.
+
 - **History depth in the sidecar** — full snapshots bloat the file. Cap it,
   store deltas, or both. Decide when building it.
