@@ -332,11 +332,15 @@ export const REGISTRY = [
   {
     id: 'ci-desktop-only',
     kind: 'behaviour-change',
-    what: 'No Android build, and the full matrix runs on release rather than every push.',
+    what: 'No Android build, and the full matrix runs on release rather than on every push or pull request.',
     ours: ['.github/workflows/upstream.yml'],
     dependsOn: [
       { file: '.github/workflows/ci.yml', how: 'replaces' },
-      { file: '.github/workflows/pr-ci.yml', how: 'replaces' },
+      { file: '.github/workflows/pr-ci.yml', how: 'replaces',
+        note: 'The Android matrix entry, and the pull_request trigger. Twelve desktop '
+          + 'targets compiled for a docs-only change is a queue, not a check: the one '
+          + 'that decides whether a change is safe is upstream.yml, and lint.yml is '
+          + 'what catches the cheap mistakes. Run by hand when the build itself changes.' },
       { file: '.github/workflows/release.yml', how: 'replaces' },
       { file: '.github/workflows/lint.yml', how: 'extends',
         note: 'rustfmt runs over mods/ only: reformatting their files would cost lines against the anchors.' },
