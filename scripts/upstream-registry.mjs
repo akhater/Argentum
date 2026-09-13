@@ -447,6 +447,43 @@ export const REGISTRY = [
     tests: ['src-tauri/src/mods/export_precision.rs #[cfg(test)]'],
     keywords: /tiff|16.?bit|32.?bit|float|precision|bit.?depth|dither|export.?format|rgba32|half/i,
   },
+  {
+    id: 'export-precision-selector',
+    kind: 'feature',
+    what:
+      'A TIFF can be exported at 8 or 16 bits, chosen in the export panel and '
+      + 'remembered between runs.',
+    ours: [
+      'src/argentum/ExportPrecision.tsx',
+      'src-tauri/src/mods/ag_settings.rs',
+      'src-tauri/src/mods/export_precision.rs',
+    ],
+    dependsOn: [
+      { file: 'src/components/panel/right/ExportPanel.tsx', how: 'calls',
+        note:
+          'One data-argentum="export-precision" marker, rendered only while TIFF is the '
+          + 'chosen format, so the control appears and disappears with no state of theirs '
+          + 'read from our side. Upstream #1466 does the same job by putting tiffBitDepth '
+          + 'on ExportSettings and threading it through six of their files.' },
+      { file: 'src-tauri/src/export_processing.rs', pr: '1466', how: 'borrows',
+        note:
+          'Their encoder arm, between // upstream #1466 and // end upstream #1466: 8-bit '
+          + 'images write Rgb8, everything else Rgb16, and the match covers "tif" as well '
+          + 'as "tiff" - a path that always failed here with "Unsupported file format". '
+          + 'The depth arrives as the image type rather than as their fourth parameter on '
+          + 'encode_image_to_bytes, so their file keeps one call.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'estimate_export_sizes', how: 'extends',
+        note:
+          'Both estimate sites render through render_for_export at the precision the '
+          + 'export will actually use. Without it the size shown for a 16-bit TIFF would '
+          + 'be the 8-bit one, because the estimate renders its own preview.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/export_precision.rs #[cfg(test)] - depth policy and the encoder',
+      'src-tauri/src/mods/ag_settings.rs #[cfg(test)] - one preference does not erase another',
+    ],
+    keywords: /tiff|bit.?depth|8.?bit|export.?panel|export.?settings|preset|selector|dropdown/i,
+  },
 ];
 
 /**

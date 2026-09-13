@@ -613,6 +613,7 @@ export default function ExportPanel({
                   </button>
                 ))}
               </div>
+              {fileFormat === FileFormats.Tiff && <div data-argentum="export-precision" />}
               {[FileFormats.Jpeg, FileFormats.Webp, FileFormats.Jxl].includes(fileFormat as FileFormats) && (
                 <div className={isExporting ? 'opacity-50 pointer-events-none' : ''}>
                   <Slider

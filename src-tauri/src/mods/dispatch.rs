@@ -74,6 +74,17 @@ struct OnArgs {
     on: bool,
 }
 
+/// A TIFF bit depth as the interface names it: 8 or 16.
+///
+/// A plain `u8` rather than an enum over the wire, because the value crossing
+/// this boundary comes from a browser and any number is possible. It is narrowed
+/// to a depth we support by `TiffDepth::from_u8`, which treats anything
+/// unrecognised as 16 - what an export did before the setting existed.
+#[derive(Deserialize)]
+struct DepthArgs {
+    depth: u8,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelArgs {
@@ -154,6 +165,14 @@ pub async fn ag(
         "set_highlight_recovery" => {
             let a: OnArgs = args_for(&name, args)?;
             commands::set_highlight_recovery(a.on)?;
+            Ok(serde_json::Value::Null)
+        }
+        "tiff_bit_depth" => {
+            serde_json::to_value(commands::tiff_bit_depth()).map_err(|e| e.to_string())
+        }
+        "set_tiff_bit_depth" => {
+            let a: DepthArgs = args_for(&name, args)?;
+            commands::set_tiff_bit_depth(a.depth)?;
             Ok(serde_json::Value::Null)
         }
         "profiles_for_camera" => {

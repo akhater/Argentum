@@ -246,6 +246,18 @@ const ANCHORS = [
     instead: 'portal into one of the two existing markers from Argentum.tsx',
   },
   {
+    // One marker, and their file renders it only while TIFF is the chosen
+    // format — so the control appears and disappears without Argentum reading
+    // any state of theirs, and without a second hook to tell it when to show.
+    // Upstream's own version of this feature (#1466) instead puts the setting on
+    // ExportSettings and threads it through six of their files; this is the same
+    // feature for one line.
+    file: 'src/components/panel/right/ExportPanel.tsx',
+    hooks: 1,
+    what: 'the data-argentum="export-precision" marker, rendered only for TIFF',
+    instead: 'portal into it from Argentum.tsx — every future export control mounts there',
+  },
+  {
     file: 'src/components/panel/SettingsPanel.tsx',
     hooks: 1,
     what: 'the About tab, an empty div Argentum fills',

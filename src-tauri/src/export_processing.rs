@@ -37,7 +37,9 @@ use crate::lut_processing::{
 use crate::mask_generation::{MaskDefinition, generate_mask_bitmap};
 
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
-use crate::mods::export_precision::{Precision, overlay_preserving_precision, render_for_export};
+use crate::mods::export_precision::{
+    Precision, encode_tiff, overlay_preserving_precision, render_for_export,
+};
 use crate::{
     apply_all_transformations, generate_transformed_preview, get_cached_or_generate_mask,
     hydrate_adjustments, load_settings, resolve_warped_image_for_masks,
@@ -668,11 +670,9 @@ fn encode_image_to_bytes(
                 .write_to(&mut cursor, image::ImageFormat::Png)
                 .map_err(|e| e.to_string())?;
         }
-        "tiff" => {
-            DynamicImage::ImageRgb16(image.to_rgb16())
-                .write_to(&mut cursor, image::ImageFormat::Tiff)
-                .map_err(|e| e.to_string())?;
-        }
+        // upstream #1466
+        "tif" | "tiff" => encode_tiff(image, &mut cursor)?,
+        // end upstream #1466
         "avif" => {
             image
                 .write_to(&mut cursor, image::ImageFormat::Avif)
@@ -1585,7 +1585,7 @@ pub async fn estimate_export_sizes(
         let unique_hash =
             calculate_full_job_hash(&loaded_image.path, &adjustments_clone).wrapping_add(1);
 
-        let processed_preview = process_and_get_dynamic_image(
+        let processed_preview = render_for_export(
             &context,
             &state,
             &preview_image,
@@ -1597,6 +1597,7 @@ pub async fn estimate_export_sizes(
                 roi: None,
             },
             "estimate_export_size",
+            Precision::for_extension(&output_format),
         )?;
 
         let preview_bytes = encode_image_to_bytes(
@@ -1723,7 +1724,7 @@ pub async fn estimate_export_sizes(
         let unique_hash =
             calculate_full_job_hash(&source_path_str, &js_adjustments).wrapping_add(1);
 
-        let processed_preview = process_and_get_dynamic_image(
+        let processed_preview = render_for_export(
             &context,
             &state,
             &preview_base,
@@ -1735,6 +1736,7 @@ pub async fn estimate_export_sizes(
                 roi: None,
             },
             "estimate_batch_export_size",
+            Precision::for_extension(&output_format),
         )?;
 
         let preview_bytes = encode_image_to_bytes(

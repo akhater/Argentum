@@ -35,6 +35,7 @@ import RenderStatus from './RenderStatus';
 import RefreshMetadataButton from './RefreshMetadataButton';
 import AutoWhiteBalanceButton from './AutoWhiteBalanceButton';
 import AboutPanel from './AboutPanel';
+import ExportPrecision from './ExportPrecision';
 import CameraProfile from './CameraProfile';
 import HighlightRecovery from './HighlightRecovery';
 import MyGear from './MyGear';
@@ -123,6 +124,11 @@ export default function Argentum() {
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
   const gear = useAnchor('[data-argentum="gear"]');
 
+  // Under the format buttons in the export panel. Their file renders this marker
+  // only while TIFF is selected, so the control appearing and disappearing costs
+  // no state of ours and no polling.
+  const exportPrecision = useAnchor('[data-argentum="export-precision"]');
+
   return (
     <>
       {toolbar &&
@@ -136,6 +142,7 @@ export default function Argentum() {
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
       {colorTools && createPortal(<AutoWhiteBalanceButton />, colorTools)}
       {about && createPortal(<AboutPanel />, about)}
+      {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
       {cameraProfile &&
         createPortal(
           <>

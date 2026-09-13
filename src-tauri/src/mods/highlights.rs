@@ -1090,21 +1090,18 @@ pub fn enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
-/// Where the preference is kept between runs.
+/// The key this preference is stored under.
 ///
-/// Beside the profile library, in our own directory, because it is ours. One
-/// line of JSON rather than a key in their settings file, which would be a line
-/// of theirs and a merge conflict every time upstream touches it.
-fn settings_path(library: &std::path::Path) -> std::path::PathBuf {
-    library.join("argentum-processing.json")
-}
+/// The file itself, and the read-modify-write that keeps other preferences
+/// alive, are in `mods/ag_settings.rs`. This module used to own both, and wrote
+/// the whole file on every save - which was correct while Argentum had exactly
+/// one preference and would have quietly erased it the moment there were two.
+const KEY: &str = "highlightRecovery";
 
 /// Read the preference at startup. Missing or unreadable means on.
 pub fn load(library: &std::path::Path) {
-    let on = std::fs::read_to_string(settings_path(library))
-        .ok()
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-        .and_then(|json| json.get("highlightRecovery").and_then(|v| v.as_bool()))
+    let on = super::ag_settings::get(library, KEY)
+        .and_then(|v| v.as_bool())
         .unwrap_or(true);
     set_enabled(on);
 }
@@ -1112,10 +1109,7 @@ pub fn load(library: &std::path::Path) {
 /// Write it, and apply it now.
 pub fn save(library: &std::path::Path, on: bool) -> Result<(), String> {
     set_enabled(on);
-    std::fs::create_dir_all(library).map_err(|e| e.to_string())?;
-    let text = serde_json::to_string_pretty(&serde_json::json!({ "highlightRecovery": on }))
-        .map_err(|e| e.to_string())?;
-    std::fs::write(settings_path(library), text).map_err(|e| e.to_string())
+    super::ag_settings::set(library, KEY, serde_json::Value::Bool(on))
 }
 
 #[cfg(test)]

@@ -164,6 +164,105 @@ pub fn sample_to_u16(v: f32) -> u16 {
     (clamped * 65535.0).round() as u16
 }
 
+/// What bit depth a TIFF is written at.
+///
+/// A choice, because the two answers are for different jobs rather than one
+/// being better: 8 bits is a delivery, 16 is a master somebody will edit again.
+/// Every other format here is 8-bit by its own definition, so this applies to
+/// TIFF and nothing else.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TiffDepth {
+    /// The same precision a JPEG gets, in a TIFF container. Smaller file.
+    Eight,
+    /// What Argentum exported before there was a choice, and still the default.
+    Sixteen,
+}
+
+impl TiffDepth {
+    /// How the frontend names it, and how it is stored.
+    pub fn as_u8(self) -> u8 {
+        match self {
+            TiffDepth::Eight => 8,
+            TiffDepth::Sixteen => 16,
+        }
+    }
+
+    /// Anything that is not a depth we support is 16, which is what an export
+    /// did before the setting existed. A preferences file written by a newer
+    /// Argentum must not make an older one export at a depth it cannot render.
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            8 => TiffDepth::Eight,
+            _ => TiffDepth::Sixteen,
+        }
+    }
+}
+
+/// The chosen depth, read on every export and written when the user picks one.
+///
+/// An atomic rather than a lock: it is read on a render thread and written from
+/// the UI, and it is one byte.
+static TIFF_DEPTH: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(16);
+
+/// The key in `argentum-processing.json`.
+const TIFF_DEPTH_KEY: &str = "tiffBitDepth";
+
+/// What an export will use right now.
+pub fn tiff_depth() -> TiffDepth {
+    TiffDepth::from_u8(TIFF_DEPTH.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Read the preference at startup. Missing or unreadable means 16-bit, which is
+/// what every export did before this setting existed - so upgrading changes
+/// nobody's output until they ask for it.
+pub fn load(library: &std::path::Path) {
+    let depth = crate::mods::ag_settings::get(library, TIFF_DEPTH_KEY)
+        .and_then(|v| v.as_u64())
+        .map(|v| TiffDepth::from_u8(v as u8))
+        .unwrap_or(TiffDepth::Sixteen);
+    TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Write it, and apply it now.
+pub fn save(library: &std::path::Path, depth: TiffDepth) -> Result<(), String> {
+    TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
+    crate::mods::ag_settings::set(
+        library,
+        TIFF_DEPTH_KEY,
+        serde_json::Value::from(depth.as_u8()),
+    )
+}
+
+/// Write a TIFF at the depth its pixels are already carrying.
+///
+/// BORROWED, and deliberately not the way they wrote it.
+///
+/// The encoder arm is upstream #1466's: 8-bit images are written as `Rgb8`,
+/// everything else as `Rgb16`, and the match covers `"tif"` as well as
+/// `"tiff"` - a gap that has always been here, where exporting to a `.tif` path
+/// failed with "Unsupported file format".
+///
+/// What is not borrowed is how the decision arrives. Theirs adds a fourth
+/// parameter to `encode_image_to_bytes` and threads it through six call sites in
+/// their files, which is the exact pattern `CLAUDE.md` names as the thing that
+/// kills a fork. Here the depth is already in the image: an 8-bit export renders
+/// to `ImageRgba8` and a 16-bit one to `ImageRgba32F`, so the encoder reads what
+/// it was handed and their file keeps one call.
+pub fn encode_tiff<W: std::io::Write + std::io::Seek>(
+    image: &DynamicImage,
+    into: &mut W,
+) -> Result<(), String> {
+    let to_encode = match image {
+        DynamicImage::ImageRgb8(_) | DynamicImage::ImageRgba8(_) => {
+            DynamicImage::ImageRgb8(image.to_rgb8())
+        }
+        _ => DynamicImage::ImageRgb16(image.to_rgb16()),
+    };
+    to_encode
+        .write_to(into, image::ImageFormat::Tiff)
+        .map_err(|e| e.to_string())
+}
+
 /// Which render target a pipeline is built for.
 ///
 /// Everything that differs between the preview render and the export render is
@@ -245,11 +344,15 @@ impl Precision {
     /// Which precision an export to this file should render at.
     ///
     /// The policy lives here rather than in the export code so that adding a
-    /// format costs nothing in a file upstream owns. TIFF only: it is the one
-    /// container in the list that carries more than eight bits per channel and
-    /// that the encoder here already writes as 16-bit. JPEG and WebP are 8-bit
-    /// formats, and PNG's branch in `encode_image_to_bytes` only widens for
-    /// `Rgb32F`, so routing it here would change what that branch does.
+    /// format, or a third precision, costs nothing in a file upstream owns. TIFF
+    /// only: it is the one container in the list that carries more than eight
+    /// bits per channel. JPEG and WebP are 8-bit formats, and PNG's branch in
+    /// `encode_image_to_bytes` only widens for `Rgb32F`, so routing it here would
+    /// change what that branch does.
+    ///
+    /// A TIFF the user has asked for at 8 bits renders on the preview path, which
+    /// is the same render a JPEG export gets - dither included, because at 8 bits
+    /// the dither is right.
     pub fn for_path(path: &std::path::Path) -> Self {
         Self::for_extension(path.extension().and_then(|e| e.to_str()).unwrap_or(""))
     }
@@ -261,8 +364,21 @@ impl Precision {
     /// took the high-precision path while every `_mask_N_image.tiff` written
     /// beside it still carried the exact bug this feature exists to fix.
     pub fn for_extension(extension: &str) -> Self {
+        Self::for_extension_at(extension, tiff_depth())
+    }
+
+    /// The same decision with the depth passed in.
+    ///
+    /// Split out so the policy can be tested without writing to the global the
+    /// user's preference lives in - tests run in parallel, and one of them
+    /// setting a depth while another reads it is a flake that would show up
+    /// once a month and never reproduce.
+    pub fn for_extension_at(extension: &str, depth: TiffDepth) -> Self {
         match extension.to_ascii_lowercase().as_str() {
-            "tif" | "tiff" => Precision::High,
+            "tif" | "tiff" => match depth {
+                TiffDepth::Sixteen => Precision::High,
+                TiffDepth::Eight => Precision::Preview,
+            },
             _ => Precision::Preview,
         }
     }
@@ -648,6 +764,93 @@ mod tests {
             ours.to_rgba8().as_raw(),
             theirs.to_rgba8().as_raw(),
             "the 8-bit path diverged from upstream's overlay",
+        );
+    }
+
+    #[test]
+    fn an_unknown_depth_is_sixteen_rather_than_a_failure() {
+        assert_eq!(TiffDepth::from_u8(8), TiffDepth::Eight);
+        assert_eq!(TiffDepth::from_u8(16), TiffDepth::Sixteen);
+        // A preferences file written by a newer Argentum, or a hand-edited one.
+        for odd in [0u8, 1, 12, 24, 32, 255] {
+            assert_eq!(
+                TiffDepth::from_u8(odd),
+                TiffDepth::Sixteen,
+                "{odd} should fall back to what an export did before the setting                  existed, not to something nobody chose",
+            );
+        }
+    }
+
+    #[test]
+    fn the_chosen_depth_decides_which_pipeline_runs() {
+        assert_eq!(
+            Precision::for_extension_at("tiff", TiffDepth::Sixteen),
+            Precision::High,
+        );
+        assert_eq!(
+            Precision::for_extension_at("tiff", TiffDepth::Eight),
+            Precision::Preview,
+            "an 8-bit TIFF should take the ordinary render, dither and all",
+        );
+        // The depth is a TIFF setting and must not leak into other formats.
+        for ext in ["jpg", "png", "webp", "avif", "jxl"] {
+            assert_eq!(
+                Precision::for_extension_at(ext, TiffDepth::Sixteen),
+                Precision::Preview,
+                "{ext} is an 8-bit format and the TIFF depth must not touch it",
+            );
+        }
+    }
+
+    /// The borrowed encoder arm: the depth of the file follows the depth of the
+    /// pixels it was handed, which is what lets their file keep one call.
+    #[test]
+    fn the_encoder_writes_the_depth_the_image_carries() {
+        let eight = DynamicImage::ImageRgba8(ImageBuffer::from_fn(4, 2, |x, y| {
+            image::Rgba([(x * 60) as u8, (y * 90) as u8, 20, 255])
+        }));
+        let mut bytes = Vec::new();
+        encode_tiff(&eight, &mut std::io::Cursor::new(&mut bytes)).expect("encode 8-bit");
+        let back = image::load_from_memory_with_format(&bytes, image::ImageFormat::Tiff)
+            .expect("decode 8-bit");
+        assert!(
+            back.as_rgb8().is_some(),
+            "an 8-bit image should produce an 8-bit TIFF, not a widened one",
+        );
+        assert_eq!(back.to_rgb8(), eight.to_rgb8(), "the pixels changed");
+
+        let deep = ramp(4);
+        let mut bytes16 = Vec::new();
+        encode_tiff(&deep, &mut std::io::Cursor::new(&mut bytes16)).expect("encode 16-bit");
+        let back16 = image::load_from_memory_with_format(&bytes16, image::ImageFormat::Tiff)
+            .expect("decode 16-bit");
+        assert!(
+            back16.as_rgb16().is_some(),
+            "a float image should still produce a 16-bit TIFF",
+        );
+        assert!(
+            back16.to_rgb16().pixels().any(|p| p[0] % 257 != 0),
+            "the 16-bit branch produced 8-bit data",
+        );
+    }
+
+    /// An 8-bit TIFF is smaller than a 16-bit one, which is the reason to offer
+    /// it. If this ever stops being true the option is pointless.
+    #[test]
+    fn eight_bit_is_the_smaller_file() {
+        let deep = ramp(256);
+        let flat = DynamicImage::ImageRgba8(deep.to_rgba8());
+
+        let mut small = Vec::new();
+        encode_tiff(&flat, &mut std::io::Cursor::new(&mut small)).expect("8-bit");
+        let mut large = Vec::new();
+        encode_tiff(&deep, &mut std::io::Cursor::new(&mut large)).expect("16-bit");
+
+        assert!(
+            small.len() < large.len(),
+            "8-bit TIFF was {} bytes against 16-bit's {}",
+            small.len(),
+            large.len(),
         );
     }
 

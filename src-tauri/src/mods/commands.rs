@@ -352,3 +352,16 @@ pub fn highlight_recovery() -> Result<bool, String> {
 pub fn set_highlight_recovery(on: bool) -> Result<(), String> {
     crate::mods::highlights::save(profile_library()?, on)
 }
+
+/// What depth a TIFF export writes at, as the number the interface shows.
+pub fn tiff_bit_depth() -> u8 {
+    crate::mods::export_precision::tiff_depth().as_u8()
+}
+
+/// Choose the depth. Applies to the next export, not to anything already queued.
+pub fn set_tiff_bit_depth(depth: u8) -> Result<(), String> {
+    crate::mods::export_precision::save(
+        profile_library()?,
+        crate::mods::export_precision::TiffDepth::from_u8(depth),
+    )
+}
