@@ -20,9 +20,11 @@ import { dirname, join } from 'node:path';
 
 import { accountDiff } from './upstream-diff.mjs';
 import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
-import { REGISTRY, activeFor, borrowsOf, dependencyIndex, shadowsOf }
-  from './upstream-registry.mjs';
-import { VERDICTS, newestRange, reviewedThrough } from './upstream-decisions.mjs';
+import {
+  REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, shadowsOf,
+  validateRetirements,
+} from './upstream-registry.mjs';
+import { REVIEWS, VERDICTS, newestRange, reviewedThrough } from './upstream-decisions.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -467,8 +469,10 @@ for (const [file, st] of stats) {
       fix: 'Add a borrowed-fix entry in scripts/upstream-registry.mjs, or remove the marker.',
     });
   }
+  const live = new Set(activeFor(REGISTRY, REVIEWS, null).map((e) => e.id));
   for (const { entry, file, pr } of registered) {
-    if (entry.retired) continue;
+    // Retired and behind us: the marker is expected to be gone.
+    if (entry.retired && !live.has(entry.id)) continue;
     if (marks.pairs.some((m) => m.file === file && m.pr === pr)) continue;
     errors.push({
       file: 'scripts/upstream-registry.mjs',
@@ -492,6 +496,48 @@ for (const t of touched) {
       + '- see the registry entry that claims this file for what it means',
     );
   }
+}
+
+// --- Gate: the inventory is append-only -------------------------------------
+//
+// Retiring an entry keeps its requirement in sight. Deleting the entry and its
+// markers in the same commit did not: with nothing in the tree and nothing in
+// the registry there was nothing left to disagree about, and the requirement
+// stopped existing. The thing under review could delete its own review.
+//
+// So every id this file has ever held, read back out of our own history, must
+// still be here. git is the previous inventory - there is no second register to
+// drift, and no way to edit what we used to depend on without rewriting history.
+{
+  const ever = historicalIds(git);
+  if (ever === null) {
+    warnings.push('cannot read the history of scripts/upstream-registry.mjs, so '
+      + 'a deleted entry would go unnoticed in this run');
+  } else {
+    const now = new Set(REGISTRY.map((e) => e.id));
+    for (const id of ever) {
+      if (now.has(id)) continue;
+      errors.push({
+        file: 'scripts/upstream-registry.mjs',
+        detail: `${id} was in the inventory and has been deleted from it`,
+        fix: 'Entries are never deleted. Put it back and retire it with '
+          + 'retired: { recordedIn, why }, plus a retire: decision in that review.',
+      });
+    }
+  }
+}
+
+// --- Gate: retirements must hold up ----------------------------------------
+//
+// A retirement is how an entry stops generating requirements, so it is the
+// obvious thing to fake. It names a review that exists, and that review records
+// the decision, with a reason, like any other.
+for (const problem of validateRetirements(REGISTRY, REVIEWS)) {
+  errors.push({
+    file: 'scripts/upstream-registry.mjs',
+    detail: `${problem.id} ${problem.detail}`,
+    fix: problem.fix,
+  });
 }
 
 // --- Gate: anchors ----------------------------------------------------------
@@ -556,7 +602,7 @@ const short = (sha) => sha.slice(0, 8);
   if (from) {
     // The inventory as it stood BEFORE this window. An entry retired during the
     // window still owes its review: retiring it is the decision under review.
-    const entries = activeFor(REGISTRY, from);
+    const entries = activeFor(REGISTRY, REVIEWS, to);
     let overlaps = [];
     try {
       overlaps = detectOverlaps(git, from, to, { entries, index: dependencyIndex(entries) });
@@ -659,7 +705,9 @@ const short = (sha) => sha.slice(0, 8);
 try {
   const head = git('git rev-parse upstream/main').trim();
   if (head !== base) {
-    const entries = activeFor(REGISTRY, reviewedThrough());
+    // The window nobody has recorded yet: every retirement on the books is
+    // behind it, so retired entries are out.
+    const entries = activeFor(REGISTRY, REVIEWS, null);
     const ahead = detectOverlaps(git, base, head, { entries, index: dependencyIndex(entries) })
       .filter((o) => o.gated);
     if (ahead.length > 0) {

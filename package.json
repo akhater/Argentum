@@ -9,7 +9,7 @@
     "start": "node scripts/check-identity.mjs && node scripts/check-mergeability.mjs && tauri dev",
     "check:merge": "node scripts/check-mergeability.mjs",
     "review:upstream": "node scripts/upstream-review.mjs",
-    "test:checks": "node scripts/test-upstream-checks.mjs",
+    "test:checks": "node scripts/test-upstream-checks.mjs && node scripts/test-upstream-e2e.mjs",
     "start:tethering": "node scripts/check-identity.mjs && tauri dev -- --features tethering",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
