@@ -37,6 +37,7 @@ use crate::lut_processing::{
 use crate::mask_generation::{MaskDefinition, generate_mask_bitmap};
 
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
+use crate::mods::export_precision::{Precision, overlay_preserving_precision, render_for_export};
 use crate::{
     apply_all_transformations, generate_transformed_preview, get_cached_or_generate_mask,
     hydrate_adjustments, load_settings, resolve_warped_image_for_masks,
@@ -169,7 +170,7 @@ fn apply_watermark(
         | WatermarkAnchor::BottomRight => base_h as i64 - wm_h as i64 - spacing_pixels,
     };
 
-    image::imageops::overlay(base_image, &final_watermark, x, y);
+    overlay_preserving_precision(base_image, &final_watermark, x, y);
 
     Ok(())
 }
@@ -418,6 +419,7 @@ fn process_image_for_export_pipeline(
     is_raw: bool,
     debug_tag: &str,
     app_handle: &tauri::AppHandle,
+    precision: Precision,
 ) -> Result<DynamicImage, String> {
     let (transformed_image, unscaled_crop_offset) =
         apply_all_transformations(Cow::Borrowed(base_image), js_adjustments);
@@ -452,18 +454,21 @@ fn process_image_for_export_pipeline(
 
     let unique_hash = calculate_full_job_hash(path, js_adjustments);
 
-    process_and_get_dynamic_image(
+    let request = RenderRequest {
+        adjustments: all_adjustments,
+        mask_bitmaps: &mask_bitmaps,
+        lut,
+        roi: None,
+    };
+
+    render_for_export(
         context,
         state,
         transformed_image.as_ref(),
         unique_hash,
-        RenderRequest {
-            adjustments: all_adjustments,
-            mask_bitmaps: &mask_bitmaps,
-            lut,
-            roi: None,
-        },
+        request,
         debug_tag,
+        precision,
     )
 }
 
@@ -553,6 +558,7 @@ fn process_image_for_export(
     state: &tauri::State<AppState>,
     is_raw: bool,
     app_handle: &tauri::AppHandle,
+    precision: Precision,
 ) -> Result<DynamicImage, String> {
     let processed_image = process_image_for_export_pipeline(
         path,
@@ -563,6 +569,7 @@ fn process_image_for_export(
         is_raw,
         "process_image_for_export",
         app_handle,
+        precision,
     )?;
 
     apply_export_resize_and_watermark(processed_image, export_settings)
@@ -738,7 +745,7 @@ fn export_masks_for_image(
             let full_white_mask = ImageBuffer::from_fn(img_w, img_h, |_, _| Luma([255u8]));
             let single_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = vec![full_white_mask];
 
-            let processed = process_and_get_dynamic_image(
+            let processed = render_for_export(
                 context,
                 state,
                 transformed_image.as_ref(),
@@ -750,6 +757,7 @@ fn export_masks_for_image(
                     roi: None,
                 },
                 "export_mask_image",
+                Precision::for_extension(extension),
             )?;
             ensure_export_not_cancelled(cancellation_token)?;
 
@@ -1201,6 +1209,7 @@ pub(crate) async fn export_images_impl(
                         &state,
                         is_raw,
                         &app_handle_clone,
+                        Precision::for_path(&output_path),
                     )?;
                     ensure_export_not_cancelled(&cancellation_token_clone)?;
                     save_image_with_metadata(

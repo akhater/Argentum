@@ -19,6 +19,7 @@ pub mod decode;
 pub mod dispatch;
 pub mod display_monitor;
 pub mod display_profile;
+pub mod export_precision;
 pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;

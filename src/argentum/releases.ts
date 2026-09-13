@@ -32,6 +32,19 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.37.20',
+    date: '2026-09-13',
+    notes: [
+      'Exporting a 16-bit TIFF now puts real high-precision data inside it. The file '
+      + 'said 16-bit before and the picture in it was 8-bit, which showed up the moment '
+      + 'you took it somewhere else and pushed it — skies and skin banding under a '
+      + 'curve that should have had room to move.',
+      'The rest of the export got the same treatment: a watermark no longer coarsens '
+      + 'the photograph underneath it, and the per-mask images saved alongside a TIFF '
+      + 'carry the same precision as the main file.',
+    ],
+  },
+  {
     version: '26.37.18',
     date: '2026-09-12',
     notes: [
