@@ -370,15 +370,116 @@ export const REGISTRY = [
   },
 ];
 
-/** Entries whose review requirement is live for a window closing at `to`. */
-export function activeFor(entries, previousThrough) {
+/**
+ * Entries whose review requirement is live for the window closing at `through`.
+ *
+ * The first version compared `recordedIn` against the *previous* review's sha,
+ * which made a retirement last exactly one window: an entry retired in R2 was
+ * correctly dropped from R3's window and then came back, active again, for R4
+ * and every review after it. Retirement has to be ordered against the review
+ * history, not matched against one sha.
+ *
+ * An entry is live for a window iff that window is at or before the review that
+ * retired it. At the retiring review it is still live, because retiring it is
+ * the decision under review; after it, never again.
+ *
+ * `through` of null means the window being prepared but not yet recorded — the
+ * one `npm run review:upstream` is printing. Every recorded retirement is behind
+ * it, so retired entries are out.
+ *
+ * An unrecognised `recordedIn` keeps the entry live. It is not this function's
+ * job to decide whether a retirement is real; validateRetirements says so, and
+ * the safe reading in the meantime is that nothing has been retired.
+ */
+export function activeFor(entries, reviews, through) {
+  const order = new Map(reviews.map((r, i) => [r.through, i]));
+  const window = through === null || through === undefined
+    ? reviews.length
+    : order.get(through);
   return entries.filter((e) => {
     if (!e.retired) return true;
-    // Retired in the review that closed the previous window: no longer required.
-    // Retired in the window being recorded now: still required, because retiring
-    // it IS the decision under review.
-    return e.retired.recordedIn !== previousThrough;
+    const retiredAt = order.get(e.retired.recordedIn);
+    if (retiredAt === undefined) return true;
+    if (window === undefined) return true;
+    return window <= retiredAt;
   });
+}
+
+/**
+ * Retirements that do not hold up: an unknown review, no reasoning, or no
+ * decision in that review recording why.
+ *
+ * A retirement is how an entry stops generating review requirements, so it is
+ * the obvious thing to fake. It has to name a review that exists and carry a
+ * `retire:<id>` decision in that same review, with a verdict and a reason, like
+ * any other decision.
+ */
+export function validateRetirements(entries, reviews) {
+  const byThrough = new Map(reviews.map((r) => [r.through, r]));
+  const problems = [];
+  for (const entry of entries) {
+    if (!entry.retired) continue;
+    const { recordedIn, why } = entry.retired;
+    const review = byThrough.get(recordedIn);
+    if (!review) {
+      problems.push({
+        id: entry.id,
+        detail: `retired: { recordedIn: '${String(recordedIn).slice(0, 12)}' } names no review in REVIEWS`,
+        fix: 'recordedIn is the `through` sha of the review that decided the retirement.',
+      });
+      continue;
+    }
+    if (!why || why.trim().length < 20) {
+      problems.push({
+        id: entry.id,
+        detail: 'is retired with no reasoning',
+        fix: 'Say what happened to it: upstream merged the fix, the feature was dropped, it moved.',
+      });
+    }
+    const decision = (review.decisions ?? []).find((d) => d.overlap === `retire:${entry.id}`);
+    if (!decision) {
+      problems.push({
+        id: entry.id,
+        detail: `is retired in ${String(recordedIn).slice(0, 8)}, and that review records no retire:${entry.id} decision`,
+        fix: `Add { overlap: 'retire:${entry.id}', verdict, why } to that review. `
+          + 'Retiring an entry is a decision and is recorded like one.',
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * Every entry id this file has ever held, read out of our own git history.
+ *
+ * Retiring an entry keeps its requirement visible. Deleting the entry and its
+ * markers in one commit did not: with nothing in the tree and nothing in the
+ * registry, there was nothing left to disagree about and the requirement simply
+ * stopped existing. So the inventory is append-only and git is what says so —
+ * no second register to drift, and no way to edit the record of what we used to
+ * depend on without rewriting history.
+ *
+ * The walk is over one small file's revisions. If that ever gets slow, the fix
+ * is not to look at fewer of them.
+ */
+export function historicalIds(run, path = 'scripts/upstream-registry.mjs') {
+  let revisions = [];
+  try {
+    revisions = run(`git log --format=%H -- ${path}`).trim().split('\n').filter(Boolean);
+  } catch {
+    return null;
+  }
+  const ids = new Set();
+  for (const sha of revisions) {
+    let text = '';
+    try {
+      text = run(`git show ${sha}:${path}`, true);
+    } catch {
+      continue;
+    }
+    for (const m of text.matchAll(/^\s{4}id: '([A-Za-z0-9-]+)',$/gm)) ids.add(m[1]);
+  }
+  return ids;
 }
 
 /** file -> entries, plus the symbols and keys those entries name. */
