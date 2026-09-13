@@ -62,8 +62,13 @@
 //!
 //! The *idea* is borrowed, not the text: their override is a `u32` tested with
 //! `== 0u`, this is a `bool` and a negation. Same behaviour, different source. So
-//! the `// upstream #1466` markers record where the thinking came from; they do
-//! not promise git will merge their version without an argument.
+//! the borrow markers in `shader.wgsl` record where the thinking came from; they
+//! do not promise git will merge their version without an argument.
+//!
+//! Those markers are written out only in the file that carries their code. Quoting
+//! one here made this file look like it held a borrowed fix of its own, and the
+//! integrity check said so - correctly - the moment a stricter version of it
+//! arrived from main.
 //!
 //! No ICC profile is attached, here or anywhere else in the export: nothing in
 //! this tree writes one for any format, and giving TIFF alone a profile would
