@@ -55,8 +55,26 @@ pub fn get(library: &Path, key: &str) -> Option<Value> {
     read_all(library).remove(key)
 }
 
+/// Serialises the read-modify-write below.
+///
+/// Reading the file, changing one key and writing it back is only safe against
+/// losing a neighbour if no one else does it at the same time. Every writer is
+/// an `ag` command, and those run on Tauri's multi-threaded runtime: two
+/// controls saved a few milliseconds apart would both read the old file, each
+/// insert its own key, and the second write would drop the first - the exact
+/// failure this module exists to prevent, in a narrower window and therefore
+/// harder to reproduce than the one it replaced.
+///
+/// Renders never take this lock; they read an atomic that `save` has already
+/// set, so nothing on a hot path waits for a file.
+static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Set one preference, leaving every other key exactly as it was.
 pub fn set(library: &Path, key: &str, value: Value) -> Result<(), String> {
+    let _serialised = WRITING
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let mut all = read_all(library);
     all.insert(key.to_string(), value);
 
@@ -125,6 +143,47 @@ mod tests {
         // And writing over it recovers, rather than failing forever.
         set(&dir, "highlightRecovery", Value::from(true)).expect("write");
         assert_eq!(get(&dir, "highlightRecovery"), Some(Value::from(true)));
+    }
+
+    #[test]
+    fn an_empty_file_reads_as_no_preferences() {
+        let dir = scratch("empty");
+        std::fs::write(path(&dir), "").expect("write");
+        assert_eq!(get(&dir, "highlightRecovery"), None);
+        set(&dir, "tiffBitDepth", Value::from(8)).expect("write");
+        assert_eq!(get(&dir, "tiffBitDepth"), Some(Value::from(8)));
+    }
+
+    /// Two preferences written at the same moment must both survive.
+    ///
+    /// Without the lock this fails intermittently: both threads read the file
+    /// before either writes, and whichever writes second drops the other's key.
+    /// Intermittently is the problem - it would have passed in review and lost
+    /// somebody's setting in the field.
+    #[test]
+    fn two_threads_writing_at_once_do_not_lose_each_other() {
+        let dir = scratch("concurrent");
+
+        for round in 0..40 {
+            let _ = std::fs::remove_file(path(&dir));
+            let a = dir.clone();
+            let b = dir.clone();
+            let one = std::thread::spawn(move || set(&a, "highlightRecovery", Value::from(true)));
+            let two = std::thread::spawn(move || set(&b, "tiffBitDepth", Value::from(8)));
+            one.join().expect("thread a").expect("write a");
+            two.join().expect("thread b").expect("write b");
+
+            assert_eq!(
+                get(&dir, "highlightRecovery"),
+                Some(Value::from(true)),
+                "round {round}: the export depth's write erased highlight recovery",
+            );
+            assert_eq!(
+                get(&dir, "tiffBitDepth"),
+                Some(Value::from(8)),
+                "round {round}: highlight recovery's write erased the export depth",
+            );
+        }
     }
 
     /// A file holding valid JSON that is not an object - an array, say - must

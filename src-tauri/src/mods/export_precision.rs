@@ -216,9 +216,13 @@ pub fn tiff_depth() -> TiffDepth {
 /// what every export did before this setting existed - so upgrading changes
 /// nobody's output until they ask for it.
 pub fn load(library: &std::path::Path) {
+    // `try_from` rather than `as`: a hand-edited or future preferences file
+    // saying 264 would truncate to 8 and silently export at the wrong depth.
+    // Out of range means "not a depth we know", which is 16.
     let depth = crate::mods::ag_settings::get(library, TIFF_DEPTH_KEY)
         .and_then(|v| v.as_u64())
-        .map(|v| TiffDepth::from_u8(v as u8))
+        .and_then(|v| u8::try_from(v).ok())
+        .map(TiffDepth::from_u8)
         .unwrap_or(TiffDepth::Sixteen);
     TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
 }
@@ -474,6 +478,54 @@ pub fn render_high_precision(
         .map(|b| f32::from_ne_bytes(*b))
         .collect();
     pixels_to_image(out_w, out_h, samples)
+}
+
+/// Render for a size estimate, which needs the right *size* and not the right
+/// pixels.
+///
+/// WHY THIS IS NOT JUST `render_for_export`
+///
+/// The estimate runs on every adjustment change while the export panel is open.
+/// Routing it through the export renderer means building a throwaway
+/// `GpuProcessor` each time - every pipeline compiled and dropped - which
+/// measures at about 57 ms on an Arc 140T. That is not a disaster and it is not
+/// free, and an estimate is a number under a button.
+///
+/// It is also unnecessary, and that is measurable rather than assumed: the TIFF
+/// encoder here writes uncompressed, so a file's size is its dimensions times
+/// its depth and does not depend at all on what the pixels are. A ramp encoded
+/// from real 16-bit data and the same ramp widened from 8-bit come to the same
+/// 3282 bytes - there is a test that asserts exactly that, and it fails if the
+/// encoder ever starts compressing, which is the day this shortcut stops being
+/// safe.
+///
+/// So an estimate renders on the preview path always, and is widened to 16-bit
+/// when that is the depth the export will write. The container is right, the
+/// size is right, and the pixels are nobody's business.
+pub fn render_for_estimate(
+    context: &GpuContext,
+    state: &tauri::State<AppState>,
+    base_image: &DynamicImage,
+    transform_hash: u64,
+    request: RenderRequest,
+    debug_tag: &str,
+    precision: Precision,
+) -> Result<DynamicImage, String> {
+    let rendered = process_and_get_dynamic_image(
+        context,
+        state,
+        base_image,
+        transform_hash,
+        request,
+        debug_tag,
+    )?;
+
+    Ok(match precision {
+        // Not `Rgba8`, so `encode_tiff` writes the 16-bit branch and the size
+        // comes out as the real export's will.
+        Precision::High => DynamicImage::ImageRgba16(rendered.to_rgba16()),
+        Precision::Preview => rendered,
+    })
 }
 
 /// Composite a watermark without dragging the photograph through 8 bits.
@@ -767,6 +819,36 @@ mod tests {
         );
     }
 
+    /// A stored depth that does not fit in a byte must not wrap into one that
+    /// does. 264 truncates to 8, which would export at half the depth the user
+    /// chose and look like the setting being ignored.
+    #[test]
+    fn an_out_of_range_stored_depth_does_not_wrap() {
+        let dir = std::env::temp_dir().join("argentum-depth-range");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch");
+
+        for stored in [264u64, 272, 65544, u64::from(u32::MAX)] {
+            crate::mods::ag_settings::set(&dir, "tiffBitDepth", serde_json::Value::from(stored))
+                .expect("write");
+            load(&dir);
+            assert_eq!(
+                tiff_depth(),
+                TiffDepth::Sixteen,
+                "{stored} should read as 16, not wrap into a depth nobody chose",
+            );
+        }
+
+        // And a value that does fit is still honoured.
+        crate::mods::ag_settings::set(&dir, "tiffBitDepth", serde_json::Value::from(8u64))
+            .expect("write");
+        load(&dir);
+        assert_eq!(tiff_depth(), TiffDepth::Eight);
+
+        // Leave the global as the rest of the suite expects to find it.
+        TIFF_DEPTH.store(16, std::sync::atomic::Ordering::Relaxed);
+    }
+
     #[test]
     fn an_unknown_depth_is_sixteen_rather_than_a_failure() {
         assert_eq!(TiffDepth::from_u8(8), TiffDepth::Eight);
@@ -831,6 +913,42 @@ mod tests {
         assert!(
             back16.to_rgb16().pixels().any(|p| p[0] % 257 != 0),
             "the 16-bit branch produced 8-bit data",
+        );
+    }
+
+    /// Does a TIFF's size depend on what is in it?
+    ///
+    /// It decides whether a size *estimate* has to render at the precision it
+    /// will encode at. If the encoder is uncompressed, size is width x height x
+    /// depth and the estimate can render however it likes; if it compresses,
+    /// real 16-bit data and 8-bit data widened to 16 compress very differently
+    /// and an estimate taking the cheap path would lie.
+    #[test]
+    fn whether_a_tiff_size_depends_on_its_content() {
+        let real = ramp(512);
+        let widened = DynamicImage::ImageRgba8(real.to_rgba8());
+
+        let mut deep = Vec::new();
+        encode_tiff(&real, &mut std::io::Cursor::new(&mut deep)).expect("16-bit");
+        let mut shallow_widened = Vec::new();
+        DynamicImage::ImageRgb16(widened.to_rgb16())
+            .write_to(
+                &mut std::io::Cursor::new(&mut shallow_widened),
+                image::ImageFormat::Tiff,
+            )
+            .expect("widened to 16-bit");
+
+        println!("MEASURED: real 16-bit  = {} bytes", deep.len());
+        println!("MEASURED: widened 8-bit = {} bytes", shallow_widened.len());
+        println!(
+            "MEASURED: uncompressed expectation = {} bytes of pixels",
+            512 * 3 * 2
+        );
+
+        assert_eq!(
+            deep.len(),
+            shallow_widened.len(),
+            "a TIFF's size depends on its content, so a size estimate cannot              take a cheaper render than the export will",
         );
     }
 
@@ -1261,6 +1379,40 @@ mod gpu_tests {
                  8-bit territory",
                 rendered.len(),
             );
+        }
+    }
+
+    /// What a size estimate now costs, in milliseconds, measured.
+    ///
+    /// Routing the estimate through `render_for_export` means that with TIFF at
+    /// 16-bit selected, every debounced estimate builds a throwaway
+    /// `GpuProcessor` - three shader modules and every pipeline compiled, then
+    /// dropped. On DX12 that is naga to HLSL to DXC for a two-thousand-line
+    /// shader. Whether that is fine or unusable is a number, not an opinion, and
+    /// the estimate runs on every adjustment change while the export panel is
+    /// open.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn report_what_building_an_export_processor_costs() {
+        let Some(context) = device() else {
+            panic!("no wgpu adapter");
+        };
+
+        for (label, precision) in [("Preview", Precision::Preview), ("High", Precision::High)] {
+            // One outside the timing, so shader-cache warmth is not measured as
+            // build time on the first iteration.
+            let _warm = GpuProcessor::new_with_precision(context.clone(), 2304, 2304, precision)
+                .expect("warm-up");
+
+            let start = std::time::Instant::now();
+            const ROUNDS: u32 = 5;
+            for _ in 0..ROUNDS {
+                let p = GpuProcessor::new_with_precision(context.clone(), 2304, 2304, precision)
+                    .expect("build");
+                drop(p);
+            }
+            let each = start.elapsed() / ROUNDS;
+            println!("MEASURED: {label} processor build = {each:?} each");
         }
     }
 

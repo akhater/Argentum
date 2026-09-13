@@ -38,7 +38,7 @@ use crate::mask_generation::{MaskDefinition, generate_mask_bitmap};
 
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
 use crate::mods::export_precision::{
-    Precision, encode_tiff, overlay_preserving_precision, render_for_export,
+    Precision, encode_tiff, overlay_preserving_precision, render_for_estimate, render_for_export,
 };
 use crate::{
     apply_all_transformations, generate_transformed_preview, get_cached_or_generate_mask,
@@ -1585,7 +1585,7 @@ pub async fn estimate_export_sizes(
         let unique_hash =
             calculate_full_job_hash(&loaded_image.path, &adjustments_clone).wrapping_add(1);
 
-        let processed_preview = render_for_export(
+        let processed_preview = render_for_estimate(
             &context,
             &state,
             &preview_image,
@@ -1724,7 +1724,7 @@ pub async fn estimate_export_sizes(
         let unique_hash =
             calculate_full_job_hash(&source_path_str, &js_adjustments).wrapping_add(1);
 
-        let processed_preview = render_for_export(
+        let processed_preview = render_for_estimate(
             &context,
             &state,
             &preview_base,
