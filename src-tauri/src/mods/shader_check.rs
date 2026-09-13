@@ -20,8 +20,8 @@
 /// Not a second copy of the concatenation: it is the same constant the renderer
 /// compiles. This file used to hold its own `concat!` of the same two includes,
 /// which was fine until a third caller appeared and the whole point of the check
-/// - that the text under test is the text that runs - stopped being guaranteed
-/// by anything but everyone remembering.
+/// (that the text under test is the text that runs) stopped being guaranteed by
+/// anything but everyone remembering.
 #[cfg(test)]
 pub use super::export_precision::SHADER_SOURCE as SOURCE;
 

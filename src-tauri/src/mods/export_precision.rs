@@ -147,13 +147,20 @@ pub const BYTES_PER_PIXEL: u32 = 16;
 /// compares them sample for sample. Note the comparison is `!(v < 1.0)` rather
 /// than `v.clamp(0.0, 1.0)`: clamp propagates NaN, and the encoder maps NaN to
 /// white. Two different answers for a NaN is exactly the sort of disagreement
-/// that would only ever show up in somebody's exported file.
+/// that would only ever show up in somebody's exported file. The `image` crate
+/// spells it `!(float < 1.0)`; this spells the same three cases out, because
+/// clippy is right that a negated comparison on a partially ordered type is hard
+/// to read - and the NaN case is the whole point of the line.
 /// Test-only, and that is the point: if it ever acquires a caller, the encode has
 /// stopped being upstream's and the parity test has stopped meaning anything.
 #[cfg(test)]
 #[inline]
 pub fn sample_to_u16(v: f32) -> u16 {
-    let clamped = if !(v < 1.0) { 1.0 } else { v.max(0.0) };
+    let clamped = if v.is_nan() || v >= 1.0 {
+        1.0
+    } else {
+        v.max(0.0)
+    };
     (clamped * 65535.0).round() as u16
 }
 
@@ -345,8 +352,10 @@ pub fn render_high_precision(
     // promises alignment. It happens to hold with this allocator, which is the
     // sort of thing that holds until it does not.
     let samples = bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_ne_bytes(*b))
         .collect();
     pixels_to_image(out_w, out_h, samples)
 }
