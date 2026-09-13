@@ -978,6 +978,89 @@ mod gpu_tests {
         }
     }
 
+    /// What actually limits the precision, asserted rather than eyeballed.
+    ///
+    /// THE MISTAKE THIS REPLACES
+    ///
+    /// The first version of this test printed "distinct levels" for one ramp
+    /// width and called the result a ceiling. It is not a ceiling: half-float
+    /// holds 1024 values in *every* octave, so a full-range ramp of W samples
+    /// returns 1024 for each octave the ramp out-resolves plus everything below
+    /// it, and the count climbs by 1024 on every doubling of W. Reading one
+    /// number as "about 12 bits" produced a release headline that was wrong, and
+    /// `log2(count)` of a sampling artefact is not a bit depth.
+    ///
+    /// WHAT IS TRUE
+    ///
+    /// The render is limited by the half-float upload and by nothing else. So the
+    /// assertion is equality with a CPU half-float round-trip of the same ramp:
+    /// if the GPU result matches it exactly, the pipeline adds no error of its
+    /// own, and the precision of an export is exactly the precision of its input.
+    ///
+    /// This test is *expected to fail* the day the export input becomes f32 - see
+    /// the roadmap. That is the point. It fails with a number that says how much
+    /// better things got, rather than quietly passing because it only ever asked
+    /// whether the output beat 8 bits.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn precision_is_limited_by_the_upload_and_by_nothing_else() {
+        let Some(context) = device() else {
+            panic!("no wgpu adapter - this test cannot tell you anything here");
+        };
+
+        for width in [2048u32, 4096, 8192, 16384] {
+            let mut buf = ImageBuffer::<Rgba<f32>, Vec<f32>>::new(width, 1);
+            for (x, _y, px) in buf.enumerate_pixels_mut() {
+                let v = x as f32 / (width - 1) as f32;
+                *px = Rgba([v, v, v, 1.0]);
+            }
+
+            let out = render_high_precision(
+                &context,
+                &DynamicImage::ImageRgba32F(buf),
+                RenderRequest {
+                    adjustments: neutral(),
+                    mask_bitmaps: &[],
+                    lut: None,
+                    roi: None,
+                },
+            )
+            .expect("the high-precision render should succeed");
+
+            let encoded = out.to_rgb16();
+            let rendered: std::collections::HashSet<u16> =
+                (0..width).map(|x| encoded.get_pixel(x, 0)[0]).collect();
+
+            // The same ramp, quantised to half-float on the CPU and nowhere else.
+            let through_half: std::collections::HashSet<u16> = (0..width)
+                .map(|x| {
+                    let v = x as f32 / (width - 1) as f32;
+                    sample_to_u16(half::f16::from_f32(v).to_f32())
+                })
+                .collect();
+
+            assert_eq!(
+                rendered.len(),
+                through_half.len(),
+                "at {width} samples the render produced {} distinct levels where a \
+                 pure half-float round-trip gives {}. If the render is LOWER, \
+                 something in the pipeline is losing precision the upload had not \
+                 already lost. If it is HIGHER, the upload is no longer half-float \
+                 and this test has done its job - update it and the roadmap.",
+                rendered.len(),
+                through_half.len(),
+            );
+
+            // And the floor, so this can never silently regress to 8-bit.
+            assert!(
+                rendered.len() > 1024,
+                "only {} distinct levels at {width} samples - that is at or below \
+                 8-bit territory",
+                rendered.len(),
+            );
+        }
+    }
+
     /// The same render at Preview precision must still be 8-bit, or the negative
     /// control above is measuring the ramp rather than the pipeline.
     #[test]
