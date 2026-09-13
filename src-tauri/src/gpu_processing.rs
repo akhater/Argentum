@@ -11,6 +11,7 @@ use wgpu::util::{DeviceExt, TextureDataOrder};
 
 use crate::image_processing::{AllAdjustments, GpuContext, MAX_MASKS};
 use crate::lut_processing::Lut;
+use crate::mods::export_precision::Precision;
 use crate::{AppState, GpuImageCache};
 
 #[derive(Clone, Copy, Debug)]
@@ -433,8 +434,9 @@ fn read_texture_data_roi(
     texture: &wgpu::Texture,
     origin: wgpu::Origin3d,
     size: wgpu::Extent3d,
+    bytes_per_pixel: u32,
 ) -> Result<Vec<u8>, String> {
-    let unpadded_bytes_per_row = 4 * size.width;
+    let unpadded_bytes_per_row = bytes_per_pixel * size.width;
     let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
     let padded_bytes_per_row = (unpadded_bytes_per_row + align - 1) & !(align - 1);
     let output_buffer_size = (padded_bytes_per_row * size.height) as u64;
@@ -497,7 +499,7 @@ fn read_texture_data_roi(
     }
 }
 
-fn to_rgba_f16(img: &DynamicImage) -> Vec<f16> {
+pub(crate) fn to_rgba_f16(img: &DynamicImage) -> Vec<f16> {
     let rgba_f32 = img.to_rgba32f();
     rgba_f32.into_raw().into_iter().map(f16::from_f32).collect()
 }
@@ -530,6 +532,7 @@ struct FlareParams {
 
 pub struct GpuProcessor {
     context: GpuContext,
+    precision: Precision,
     blur_bgl: wgpu::BindGroupLayout,
     h_blur_pipeline: wgpu::ComputePipeline,
     v_blur_pipeline: wgpu::ComputePipeline,
@@ -569,6 +572,15 @@ const FLARE_MAP_SIZE: u32 = 512;
 
 impl GpuProcessor {
     pub fn new(context: GpuContext, max_width: u32, max_height: u32) -> Result<Self, String> {
+        Self::new_with_precision(context, max_width, max_height, Precision::Preview)
+    }
+
+    pub fn new_with_precision(
+        context: GpuContext,
+        max_width: u32,
+        max_height: u32,
+        precision: Precision,
+    ) -> Result<Self, String> {
         let device = &context.device;
         const MAX_MASK_BINDINGS: u32 = 1;
 
@@ -790,13 +802,7 @@ impl GpuProcessor {
 
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Image Processing Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                concat!(
-                    include_str!("shaders/modules.wgsl"), // ours, harvested maths
-                    include_str!("shaders/shader.wgsl"),  // theirs, untouched
-                )
-                .into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(precision.shader_source()?),
         });
 
         let mut bind_group_layout_entries = vec![
@@ -815,7 +821,7 @@ impl GpuProcessor {
                 visibility: wgpu::ShaderStages::COMPUTE,
                 ty: wgpu::BindingType::StorageTexture {
                     access: wgpu::StorageTextureAccess::WriteOnly,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format: precision.storage_format(),
                     view_dimension: wgpu::TextureViewDimension::D2,
                 },
                 count: None,
@@ -934,7 +940,10 @@ impl GpuProcessor {
             layout: Some(&pipeline_layout),
             module: &shader_module,
             entry_point: Some("main"),
-            compilation_options: Default::default(),
+            compilation_options: wgpu::PipelineCompilationOptions {
+                constants: precision.shader_constants(),
+                ..Default::default()
+            },
             cache: None,
         });
 
@@ -1034,7 +1043,7 @@ impl GpuProcessor {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: precision.storage_format(),
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
@@ -1044,7 +1053,7 @@ impl GpuProcessor {
 
         let working_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Working Output Texture"),
-            size: full_image_size,
+            size: precision.scratch_size(full_image_size),
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -1058,7 +1067,7 @@ impl GpuProcessor {
 
         let output_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Full Output Texture"),
-            size: full_image_size,
+            size: precision.scratch_size(full_image_size),
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -1072,6 +1081,7 @@ impl GpuProcessor {
 
         Ok(Self {
             context,
+            precision,
             blur_bgl,
             h_blur_pipeline,
             v_blur_pipeline,
@@ -1311,12 +1321,13 @@ impl GpuProcessor {
         const TILE_SIZE: u32 = 2048;
         const TILE_OVERLAP: u32 = 128;
 
+        let bpp = self.precision.bytes_per_pixel();
         let mut final_pixels = vec![
             0u8;
             if skip_cpu_readback {
                 0
             } else {
-                (out_width * out_height * 4) as usize
+                out_width as usize * out_height as usize * bpp as usize
             }
         ];
 
@@ -1582,16 +1593,18 @@ impl GpuProcessor {
                         &self.tile_output_texture,
                         wgpu::Origin3d::ZERO,
                         input_texture_size,
+                        bpp,
                     )?;
 
                     for row in 0..tile_height {
                         let final_y = y_start + row - bounds.y;
                         let final_x = x_start - bounds.x;
-                        let final_row_offset = (final_y * out_width + final_x) as usize * 4;
+                        let final_row_offset =
+                            (final_y * out_width + final_x) as usize * bpp as usize;
                         let source_y = crop_y_start + row;
                         let source_row_offset =
-                            (source_y * input_width + crop_x_start) as usize * 4;
-                        let copy_bytes = (tile_width * 4) as usize;
+                            (source_y * input_width + crop_x_start) as usize * bpp as usize;
+                        let copy_bytes = (tile_width * bpp) as usize;
 
                         final_pixels[final_row_offset..final_row_offset + copy_bytes]
                             .copy_from_slice(

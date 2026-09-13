@@ -198,6 +198,23 @@ const ANCHORS = [
     instead: 'add a step to mods/decode.rs',
   },
   {
+    // One import, and it has to stay one. Everything the export render does
+    // differently is reachable from the Precision value it carries: the storage
+    // format, the shader text, the pipeline constant that silences the dither,
+    // the bytes per pixel of the readback. A second hook here would mean some of
+    // that decision had been written into their file instead of ours.
+    file: 'src-tauri/src/gpu_processing.rs',
+    hooks: 1,
+    what: 'the import of Precision, which the processor carries and reads from',
+    instead: 'add a method to mods/export_precision.rs - the processor already has a Precision',
+  },
+  {
+    file: 'src-tauri/src/export_processing.rs',
+    hooks: 1,
+    what: 'the import of Precision and render_high_precision',
+    instead: 'which format gets which precision is decided in Precision::for_path - change it there',
+  },
+  {
     file: 'src-tauri/src/image_processing.rs',
     hooks: 4,
     what: 'the CPU preview encode interception, and the clipping view mode',

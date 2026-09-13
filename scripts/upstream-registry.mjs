@@ -51,6 +51,20 @@ export const KINDS = ['feature', 'borrowed-fix', 'behaviour-change'];
 
 export const REGISTRY = [
   {
+    id: 'mask-stage-size-guard',
+    kind: 'behaviour-change',
+    what: 'Do not mount the mask canvas at zero size when the editor is hidden.',
+    ours: [],
+    dependsOn: [
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'extends',
+        note: 'Two positive-dimension checks on the mask Stage render condition. Retire when upstream prevents zero-sized Stage drawing.' },
+      { file: 'src/App.tsx', how: 'extends',
+        note: 'Lifecycle dependency: the editor remains mounted but is hidden on return to the library; no extra App change for this guard.' },
+    ],
+    tests: ['Manual: open photo 6577, show a mask, back to library, reopen and repeat from Crop; user confirmed stable on 2026-09-13.'],
+    keywords: /mask|canvas|stage|back.?arrow|editor|navigation/i,
+  },
+  {
     id: 'auto-white-balance',
     kind: 'feature',
     what: 'Auto white balance, and an eyedropper that agrees with it.',
@@ -371,6 +385,67 @@ export const REGISTRY = [
     ],
     tests: ['NONE — the constant is not covered by a test on either side'],
     keywords: /srgb|gamma|2\.4|transfer.?function|linear(ise|ize)/i,
+  },
+  {
+    id: 'high-precision-export',
+    kind: 'feature',
+    what:
+      'A TIFF export renders into a 32-bit float target instead of an 8-bit one, '
+      + 'so the 16-bit file it has always claimed to write now contains 16-bit data.',
+    ours: ['src-tauri/src/mods/export_precision.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'GpuProcessor::new', how: 'extends',
+        note:
+          'Their constructor body became new_with_precision(..., Precision) and new() is a '
+          + 'wrapper passing Preview, so their own call site is untouched. The render target '
+          + 'format, the shader text, the dither pipeline constant and the bytes per pixel of '
+          + 'the readback all come from that one value. If upstream changes the signature the '
+          + 'wrapper conflicts, which is the loud failure we want.' },
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'read_texture_data_roi', how: 'extends',
+        note: 'Gained a bytes_per_pixel parameter; its single call site passes self.precision.' },
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'to_rgba_f16', how: 'extends',
+        note: 'Made pub(crate) so the export path uploads its input exactly as previews do.' },
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'GpuProcessor::run', how: 'extends',
+        note:
+          'The readback strides multiply by bytes-per-pixel rather than 4. Upstream rewriting '
+          + 'that copy loop is the change that would silently tear an export.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', pr: '1466', how: 'borrows',
+        note:
+          'override HIGH_PRECISION_OUTPUT and the gate around the dither, between '
+          + '// upstream #1466 and // end upstream #1466. dimafa, commit 0e8cd15977001cee9f86d5efb6adccc105db4cb1.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'output_texture', how: 'retypes',
+        note:
+          'export_shader_source() rewrites the rgba8unorm storage declaration to rgba32float by '
+          + 'text. It errors rather than no-ops when the declaration is not found exactly once, so '
+          + 'a rename upstream fails the build instead of shipping 8-bit data in a 16-bit file.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'process_image_for_export', how: 'extends',
+        note: 'Gained a Precision parameter, chosen from the output extension by Precision::for_path.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'export_masks_for_image', how: 'extends',
+        note:
+          'Routed through render_for_export as well. Missed on the first pass and found by '
+          + 'review: the per-mask files take the same extension as the main export, so a TIFF '
+          + 'batch with masks on wrote one 16-bit file and N 8-bit companions.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'apply_watermark', how: 'replaces',
+        note:
+          'The image::imageops::overlay call is replaced by overlay_preserving_precision. Theirs '
+          + 'blends through Rgba<u8>, so it quantised every pixel in the stamp bounding box - '
+          + 'transparent ones included. Ours delegates straight back to theirs for any image that '
+          + 'is not Rgba32F, and a test asserts the 8-bit result is byte for byte identical.' },
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'process_and_get_dynamic_image_inner', how: 'shadows',
+        note:
+          'A TIFF export goes round it, so it does not reuse the cached processor or the cached '
+          + 'input texture. One deliberate behaviour change follows: an image past '
+          + 'max_texture_dimension_2d makes a TIFF export fail, where theirs logs a warning and '
+          + 'returns the image unedited - so every other format still silently exports an '
+          + 'unprocessed file and TIFF says so. Chosen, not overlooked.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'encode_image_to_bytes', how: 'shadows',
+        note:
+          'Deliberately NOT changed. DynamicImage::to_rgb16 already quantises f32 correctly; it '
+          + 'was being handed 8-bit data, which was the whole bug. A test asserts the image crate '
+          + 'still agrees with sample_to_u16, NaN included.' },
+    ],
+    tests: ['src-tauri/src/mods/export_precision.rs #[cfg(test)]'],
+    keywords: /tiff|16.?bit|32.?bit|float|precision|bit.?depth|dither|export.?format|rgba32|half/i,
   },
 ];
 

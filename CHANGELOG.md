@@ -2,7 +2,28 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.3` @ `ef25ba2a`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.3` @ `5ad3ba0b`** — updated whenever upstream is merged.
+
+## Unreleased — 2026-09-13
+
+### Added
+
+- Hold Ctrl while dragging on the photo to move its crop, or hold Ctrl and use
+  the wheel to resize the crop. Ctrl-double-click resets crop and rotation.
+  These gestures also work outside crop mode. Upstream `97cc7d5b`.
+
+### Internal
+
+- Prevent the mask overlay from drawing a zero-sized canvas when returning to
+  the library. The user confirmed the back arrow is stable after this fix.
+
+- Merged RapidRAW through `5ad3ba0b` and recorded the dependency review. The
+  later highlight recovery commit `40cfa3df` remains pending review. See
+  [the catch-up rationale and next steps](docs/UPSTREAM_CATCHUP.md).
+- Preview cropping reuses the patched/warped image, with upstream's follow-up
+  correction preserving lens blur and transformation order.
+- Upstream reviews now consider the interface and workflow separately from
+  processing, including when Argentum keeps its own implementation.
 
 ## Versioning: `yy.isoWeek.release`
 
@@ -83,6 +104,90 @@ came from — without it there's no way to tell later whether upstream moved on.
   one that decides whether a change is safe to merge.
 
 ### Fixed
+- **A 16-bit TIFF export contained 8-bit data.** `encode_image_to_bytes` wrote
+  `ImageRgb16(image.to_rgb16())` over an RGBA8 buffer, so every value in the file
+  was an 8-bit number multiplied by 257. The header said 16-bit, Photoshop said
+  16-bit, and nothing anywhere said otherwise - which is worse than exporting
+  8-bit honestly.
+
+  The encoder was never the broken part and has not been touched: it was being
+  handed 8-bit data. What changed is the render. Exporting to `.tiff` now
+  builds a second compute pipeline whose storage texture is `rgba32float` instead
+  of `rgba8unorm`, and quantises once at the encode - clamp, scale, round, no
+  dither - the way darktable goes from its f32 pixelpipe to a format plugin. What
+  that removes is the 8-bit *output* bottleneck and only that: the upload and the
+  intermediates are still f16, so "quantises once" describes the path from the
+  compute pass to the file rather than the whole pipeline.
+
+  Two things the first draft missed, both found in review, both fixed here. The
+  per-mask export wrote its `_mask_N_image.tiff` companions through the old 8-bit
+  path, so a TIFF batch with masks on produced one honest file and N dishonest
+  ones. And the watermark composited through `Rgba<u8>`, quantising every pixel in
+  its bounding box - transparent ones included, so a watermark at zero opacity
+  demoted a rectangle of the photograph and put nothing there in exchange. An
+  export render also now takes a lock of its own: it stopped holding the shared
+  processor mutex, and the batch scheduler sizes its workers from system RAM, not
+  from VRAM.
+
+  The approach is **dimafa's**, from upstream pull request
+  [#1466](https://github.com/CyberTimon/RapidRAW/pull/1466) @
+  `0e8cd15977001cee9f86d5efb6adccc105db4cb1`: build the export pipeline by
+  rewriting the storage format in the shader source, and gate the 8-bit dither
+  behind a pipeline constant. That gate is marked in
+  `src-tauri/src/shaders/shader.wgsl` between `// upstream #1466` and
+  `// end upstream #1466`. The *idea* is theirs, not the text - their override is a
+  `u32` tested with `== 0u`, this is a `bool` and a negation - so the markers
+  record where the thinking came from rather than promising a clean merge. Their target is `rgba16float`; ours is `rgba32float`, because
+  half-float carries 11 significant bits and so lands the brightest stop of an
+  encoded signal on a grid of roughly 32 steps out of 65535 - a large improvement
+  over 8-bit, and still not what the container promises. Nothing of
+  [#1395](https://github.com/CyberTimon/RapidRAW/pull/1395) is used: its bounded
+  intermediate textures already exist here as `clamped_tile_size`, and its
+  capability gate belongs to the half-float design this did not follow - not
+  re-read against a 32-bit target, so it is the first thing to look at if the f32
+  input on the roadmap is ever attempted.
+
+  Everything Argentum added is in `src-tauri/src/mods/export_precision.rs`, and
+  the three files of upstream's that take part get one line each that *mentions*
+  us - an import of `Precision` in the two Rust files, from which the storage
+  format, the shader text, the dither constant and the bytes per pixel of the
+  readback all follow, and in `shader.wgsl` the marked block rather than an
+  import, since WGSL has none. That is the anchor count, and it is not the
+  maintenance cost: their constructor gained a
+  parameter, four texture and pipeline descriptors read their format from that
+  value, the readback strides multiply by it, and four export call sites pass it.
+  The registry entry lists all of it, because "one import" is the cheap half of
+  the story.
+
+  **What it does not do, stated plainly:** the input is still uploaded as
+  `Rgba16Float`, exactly as upstream does it, so this is not f32 end to end. The
+  flare pass samples that texture through a filtering sampler, and a filtered
+  `Rgba32Float` needs the `FLOAT32_FILTERABLE` device feature - which would mean
+  either the same export producing different precision on different machines, or
+  changing a texture every preview also uses. That is a separate change and is on
+  the roadmap, as is EXIF in a TIFF - which this does not add, because
+  `write_image_with_metadata` returns early for TIFF behind an upstream FIXME that
+  wants a round-trip test of its own before it comes out.
+
+  An export builds its own processor and drops it, so a preview never pays for a
+  32-bit target, and the two full-resolution scratch textures that only the
+  display path writes to are allocated one pixel each instead of 407 MB each.
+  That last part was wrong when first written - a comment claimed the whole cost
+  was "about 50 MB" while an export was still asking for 814 MB of textures
+  nothing touches. A review caught it, along with a `u32` overflow in the
+  readback sizing that a 16384x16384 image - exactly what the dimension guard
+  permits - would have turned into a panic.
+
+  Tested on a GPU, and without one. Without: naga compiles and validates the rewritten shader, the
+  storage-format rewrite fails loudly rather than silently if upstream respells
+  the declaration, and the quantisation is checked against two negative controls
+  - 8-bit widened to 16 (every value a multiple of 257) and half-float rounding -
+  either of which would pass a test that merely asserted "16-bit". With: a real
+  device renders a ramp finer than 8 bits can carry and the result is checked for
+  being off the 8-bit lattice, for not reversing (a wrong stride is a sawtooth)
+  and for every row agreeing (a wrong *row* stride is invisible in one row).
+  Those are `#[ignore]`d, because CI has no adapter and a test that fails for
+  want of a GPU teaches nobody anything: `cargo test --lib -- --ignored`.
 - **Two AI patches of the same base64 length shared a cache entry**, and the
   first one rendered was served for both. `calculate_transform_hash` hashed
   `.len()` of the patch data rather than the data. Carried early from upstream

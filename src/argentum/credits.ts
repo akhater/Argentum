@@ -50,6 +50,37 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
+    heading: 'Carried early',
+    blurb:
+      "Work by RapidRAW's contributors that Argentum runs before upstream has "
+      + 'merged it. Each is marked in the source between `// upstream #NNNN` and '
+      + '`// end upstream #NNNN`, so when their pull request lands the two '
+      + 'converge instead of colliding — and so it stays obvious whose it is.',
+    entries: [
+      {
+        name: 'dimafa — #1466, high-precision export',
+        href: 'https://github.com/CyberTimon/RapidRAW/pull/1466',
+        what:
+          'Argentum’s 16-bit TIFF export is built on their idea: make the export '
+          + 'pipeline by rewriting the storage format in the shader source, and switch '
+          + 'the 8-bit dither off with a pipeline constant. The idea is theirs; the code '
+          + 'was written here, and the 32-bit target and the tests are ours.',
+      },
+      {
+        name: '#1307, the AI patch cache key',
+        href: 'https://github.com/CyberTimon/RapidRAW/pull/1307',
+        what:
+          'Two AI patches of the same length no longer share a cache entry, so the '
+          + 'wrong one is not rendered from cache.',
+      },
+      {
+        name: '#1633, the sRGB exponent',
+        href: 'https://github.com/CyberTimon/RapidRAW/pull/1633',
+        what: 'sRGB decoding uses an exponent of 2.4, which is what the standard says.',
+      },
+    ],
+  },
+  {
     heading: 'Camera profiles',
     blurb:
       'Argentum reads camera profiles but ships none — the free collections are '

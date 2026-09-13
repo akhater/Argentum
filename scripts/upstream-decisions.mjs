@@ -60,6 +60,26 @@ export const REVIEWS = [
       + 'about the ten commits merged before it. The first real review is the next '
       + 'one, and it starts here.',
   },
+  {
+    through: '5ad3ba0b000186c6c2ce4637530c6cdbe94c7cad',
+    date: '2026-09-13',
+    decisions: [
+      { overlap: '8737fc4e:dep:display-transform:src-tauri/src/lib.rs#ag_display_matrix', verdict: 'not-applicable', why: 'Upstream changes compute_full_transformed_res and compute_patched_and_warped, not the display matrix rows or monitor refresh hook. Both Argentum display hooks survive unchanged.' },
+      { overlap: '8737fc4e:dep:cache-keys:src-tauri/src/lib.rs#cache_version', verdict: 'not-applicable', why: 'This file overlap is mechanical: upstream changes spatial transform caching, while Argentum retains its own cache version stamp and key integration.' },
+      { overlap: '8737fc4e:dep:cache-keys:src-tauri/src/cache_utils.rs', verdict: 'combine', why: 'Adopt calculate_patched_warped_hash, including lens blur inputs, and move orientationSteps from the geometry key to the thumbnail base key. Geometry is computed before orientation. Argentum content hashing for the lens blur depth map and AI patches remains in calculate_transform_hash.' },
+      { overlap: '8737fc4e:dep:borrow-1307:src-tauri/src/cache_utils.rs', verdict: 'not-applicable', why: 'Upstream touches the surrounding cache module but does not replace the existing marked pull request 1307 correction, which remains intact.' },
+      { overlap: '97cc7d5b:dep:display-transform:src-tauri/src/lib.rs#ag_display_matrix', verdict: 'not-applicable', why: 'This file overlap is mechanical: upstream adds crop transform caching, while Argentum retains its display matrix rows and monitor refresh hook.' },
+      { overlap: '97cc7d5b:dep:cache-keys:src-tauri/src/lib.rs#cache_version', verdict: 'not-applicable', why: 'Upstream adds a patched/warped intermediate cache. It does not alter Argentum startup thumbnail invalidation or the pipeline stamp; RAW decoding and colour processing are unchanged in this batch.' },
+      { overlap: '97cc7d5b:dep:adjustments-path-argument:src-tauri/src/image_loader.rs', verdict: 'not-applicable', why: 'Upstream clears patched_warped_cache when loading a photo. It does not change the adjustment-loading calls that carry Argentum photo path arguments.' },
+      { overlap: '97cc7d5b:dep:cache-keys:src-tauri/src/cache_utils.rs', verdict: 'combine', why: 'Adopt clearing the new patched_warped_cache in clear_image_caches. Existing Argentum content hashing for lens blur depth maps and AI patches is unchanged.' },
+      { overlap: '97cc7d5b:dep:borrow-1307:src-tauri/src/cache_utils.rs', verdict: 'not-applicable', why: 'Upstream touches the surrounding cache module but does not replace the existing marked pull request 1307 correction, which remains intact.' },
+      { overlap: '97cc7d5b:feature:preview-encode', verdict: 'not-applicable', why: 'The crop pan and zoom commit changes transform caching and editor gestures, with no preview encode implementation or behavior duplicated.' },
+    ],
+    featureReview: {
+      verdict: 'none',
+      why: 'Read all three commits for processing and UI/UX overlap. Adopt upstream Ctrl/Meta crop pan, wheel crop zoom and double-click crop/rotation reset, including their interface. Canvas gestures are separate from Argentum Ctrl-drag clipping previews on sliders. Adopt the intermediate preview cache and follow-up spatial-order/blur-key fix; keep Argentum processing and borrowed fixes. No white balance, highlight recovery, display conversion or preview encoding implementation is replaced. The newer highlight commit 40cfa3df is outside this review. Interactive masking/picker checks remain part of candidate validation, not a claim made by this source review.',
+    },
+  },
 ];
 
 /** The commit every upstream change up to which has been reviewed. */

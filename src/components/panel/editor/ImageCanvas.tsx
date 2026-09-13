@@ -3217,7 +3217,7 @@ const ImageCanvas = memo(
             </div>
           </div>
 
-          {(isMasking || isAiEditing || isWbPickerActive) && (
+          {(isMasking || isAiEditing || isWbPickerActive) && stageWidth > 0 && stageHeight > 0 && (
             <div
               style={{
                 position: 'absolute',

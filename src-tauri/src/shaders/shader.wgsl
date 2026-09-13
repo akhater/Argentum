@@ -201,6 +201,13 @@ const HSL_RANGES: array<HslRange, 8> = array<HslRange, 8>(
 @group(0) @binding(1) var output_texture: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(2) var<storage, read> adjustments: AllAdjustments;
 
+// upstream #1466
+// Set from the pipeline when the render target is not 8-bit. The idea of gating
+// the dither on a pipeline constant is dimafa's; if their pull request lands this
+// block converges with theirs instead of conflicting.
+override HIGH_PRECISION_OUTPUT: bool = false;
+// end upstream #1466
+
 @group(0) @binding(3) var mask_textures: texture_2d_array<f32>;
 
 @group(0) @binding(4) var lut_texture: texture_3d<f32>;
@@ -1896,8 +1903,12 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping);  // Argentum: the display-referred anchor, see modules.wgsl
 
-    let dither_amount = 1.0 / 255.0;
-    final_rgb += dither(id.xy) * dither_amount;
+    // upstream #1466
+    if (!HIGH_PRECISION_OUTPUT) {
+        let dither_amount = 1.0 / 255.0;
+        final_rgb += dither(id.xy) * dither_amount;
+    }
+    // end upstream #1466
 
     textureStore(output_texture, id.xy, vec4<f32>(clamp(final_rgb, vec3<f32>(0.0), vec3<f32>(1.0)), original_alpha));
 }

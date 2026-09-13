@@ -17,13 +17,13 @@
 
 /// The shader source, exactly as `gpu_processing.rs` assembles it.
 ///
-/// Concatenated in the same order, because an error's line number is only
-/// useful if the file it points into is the file that ran.
+/// Not a second copy of the concatenation: it is the same constant the renderer
+/// compiles. This file used to hold its own `concat!` of the same two includes,
+/// which was fine until a third caller appeared and the whole point of the check
+/// (that the text under test is the text that runs) stopped being guaranteed by
+/// anything but everyone remembering.
 #[cfg(test)]
-pub const SOURCE: &str = concat!(
-    include_str!("../shaders/modules.wgsl"),
-    include_str!("../shaders/shader.wgsl"),
-);
+pub use super::export_precision::SHADER_SOURCE as SOURCE;
 
 /// The display shader, assembled the same way.
 ///
@@ -97,6 +97,25 @@ mod tests {
                 e.emit_to_string(SOURCE)
             );
         }
+    }
+
+    /// The export pipeline compiles too.
+    ///
+    /// This is the check the feature most needs and the one a GPU-free test can
+    /// still make. `export_shader_source` rewrites the storage declaration to
+    /// `rgba32float` by text and the dither is gated behind an `override`; either
+    /// could produce a shader that parses and then fails to validate, and the
+    /// first anyone would hear of it is a user pressing Export. naga is the same
+    /// compiler wgpu will use, so a failure here is the failure they would get.
+    #[test]
+    fn the_export_shader_compiles() {
+        let source = crate::mods::export_precision::export_shader_source()
+            .expect("the storage declaration should still be found");
+        compiles(&source, "high-precision export");
+        assert!(
+            source.contains("rgba32float, write>"),
+            "the export shader compiled, but at 8 bits",
+        );
     }
 
     /// The stages exist and are called, which is the whole mergeability
