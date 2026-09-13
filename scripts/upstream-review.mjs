@@ -24,7 +24,7 @@ import { dirname, join } from 'node:path';
 
 import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
 import { REGISTRY, activeFor, dependencyIndex } from './upstream-registry.mjs';
-import { reviewedThrough } from './upstream-decisions.mjs';
+import { REVIEWS, reviewedThrough } from './upstream-decisions.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const git = (cmd, big = false) =>
@@ -82,9 +82,10 @@ if (mergedCount > 0) {
 }
 console.log('');
 
-// The inventory as it stood before this window: an entry retired during it still
-// owes its review, because retiring it is the decision under review.
-const entries = activeFor(REGISTRY, base);
+// The window being prepared has no recorded review yet, so every retirement on
+// the books is behind it. An entry retired in the review about to be written is
+// still unretired here, which is why retiring one does not hide it.
+const entries = activeFor(REGISTRY, REVIEWS, null);
 const index = dependencyIndex(entries);
 const marks = borrowMarkers(git);
 const overlaps = detectOverlaps(git, base, head, { entries, index });

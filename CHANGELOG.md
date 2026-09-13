@@ -2,7 +2,27 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.3` @ `ef25ba2a`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.3` @ `5ad3ba0b`** — updated whenever upstream is merged.
+
+## Unreleased — 2026-09-13
+
+### Added
+
+- Hold Ctrl while dragging on the photo to move its crop, or hold Ctrl and use
+  the wheel to resize the crop. Ctrl-double-click resets crop and rotation.
+  These gestures also work outside crop mode. Upstream `97cc7d5b`.
+
+### Internal
+
+- Prevent the mask overlay from drawing a zero-sized canvas when returning to
+  the library. The user confirmed the back arrow is stable after this fix.
+
+- Merged RapidRAW through `5ad3ba0b` and recorded the dependency review. The
+  later highlight recovery commit `40cfa3df` remains pending review.
+- Preview cropping reuses the patched/warped image, with upstream's follow-up
+  correction preserving lens blur and transformation order.
+- Upstream reviews now consider the interface and workflow separately from
+  processing, including when Argentum keeps its own implementation.
 
 ## Versioning: `yy.isoWeek.release`
 
@@ -71,6 +91,16 @@ came from — without it there's no way to tell later whether upstream moved on.
 ---
 
 ## 26.37.20 — 2026-09-13
+
+### Internal
+- **`pr-ci.yml` is manual now, like `ci.yml`.** It still carried RapidRAW's
+  `on: pull_request` with no path filter, so opening the first pull request this
+  repository has ever had compiled the application on twelve desktop targets to
+  land a twenty-seven line roadmap note. `ci.yml` was made manual in 26.37.19 for
+  exactly this reason and `pr-ci.yml` was missed, because until branch protection
+  arrived nothing here went through a pull request at all. `lint.yml` still runs
+  on every push and pull request, and `upstream.yml` — the required check — is the
+  one that decides whether a change is safe to merge.
 
 ### Fixed
 - **A 16-bit TIFF export contained 8-bit data.** `encode_image_to_bytes` wrote
@@ -239,7 +269,30 @@ came from — without it there's no way to tell later whether upstream moved on.
   same mistake as reading a clean merge as proof of safety.
 
   `npm run test:checks` covers all three gaps plus post-merge review and a mixed
-  batch of landed and pending borrowed fixes: 17 tests.
+  batch of landed and pending borrowed fixes.
+
+- **Two ways round the new gates, found in review and both reproduced first.**
+  A retirement worked for exactly one window. `activeFor` compared `recordedIn`
+  against a single sha, so an entry retired in review 2 went quiet for review 3
+  and was live again for review 4 and everything after it — a resurrection, in a
+  mechanism whose whole job is not to forget. Retirement is ordered against the
+  review history now: live up to and including the review that retires it, dead
+  in every window after.
+
+  And deleting a registry entry together with its markers erased the requirement
+  outright: nothing in the tree, nothing in the registry, nothing left to
+  disagree. The inventory is append-only, and our own git history is what says
+  so — every id the file has ever held must still be in it. A retirement must
+  also name a review that exists and carry a matching `retire:<id>` decision in
+  it, because a retirement is how an entry stops generating work and was
+  therefore the obvious thing to fake.
+
+  `scripts/test-upstream-e2e.mjs` builds a fork in a throwaway repository, writes
+  a real registry and review register into it, and runs the actual checker as a
+  subprocess: seven scenarios asserting it fails for each bypass and passes for
+  the cases that are legitimate, including a retirement tracked across four
+  review windows. Both regressions were confirmed by putting the old code back
+  and watching the matching test fail. 27 tests in total.
 
 ---
 
