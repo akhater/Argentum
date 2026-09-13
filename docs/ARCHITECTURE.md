@@ -291,6 +291,29 @@ same mistake, one level up, as reading a clean merge as proof of safety.
 Neither half checks that the reasoning is any good. They make sure the question
 was asked, which is the part that was being skipped.
 
+### Review the interface separately from the processing
+
+**Keeping our implementation does not mean rejecting RapidRAW's interface.**
+Whenever upstream changes a feature we also have, review both how it works
+underneath and how a person uses it: controls, layout, shortcuts, feedback and
+the steps needed to finish an edit.
+
+We may have good reasons to keep Argentum's processing while adopting
+RapidRAW's better controls or workflow. For example, keeping our highlight
+recovery would not prevent us from adopting a useful upstream highlight
+control, provided that control makes sense for our recovery method.
+
+Prefer reusing their interface through the existing anchors over maintaining
+a second interface of our own. Check that labels, ranges, defaults, saved
+settings and undo still mean what the interface promises when connected to our
+logic. If the combination requires extensive changes to upstream files, weigh
+that maintenance cost before adopting it.
+
+Record both conclusions in the upstream review: what happens to the processing,
+and what happens to the interface and workflow. A decision to keep ours must
+still say whether upstream's UI/UX offers anything worth taking; if it does not,
+say why. A feature is not an all-or-nothing choice between two implementations.
+
 ---
 
 ## Where code comes from

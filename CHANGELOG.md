@@ -2,7 +2,24 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.3` @ `ef25ba2a`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.3` @ `5ad3ba0b`** — updated whenever upstream is merged.
+
+## Unreleased — 2026-09-13
+
+### Added
+
+- Hold Ctrl while dragging on the photo to move its crop, or hold Ctrl and use
+  the wheel to resize the crop. Ctrl-double-click resets crop and rotation.
+  These gestures also work outside crop mode. Upstream `97cc7d5b`.
+
+### Internal
+
+- Merged RapidRAW through `5ad3ba0b` and recorded the dependency review. The
+  later highlight recovery commit `40cfa3df` remains pending review.
+- Preview cropping reuses the patched/warped image, with upstream's follow-up
+  correction preserving lens blur and transformation order.
+- Upstream reviews now consider the interface and workflow separately from
+  processing, including when Argentum keeps its own implementation.
 
 ## Versioning: `yy.isoWeek.release`
 
