@@ -14,6 +14,9 @@ Newest first.
 
 ### Internal
 
+- Prevent the mask overlay from drawing a zero-sized canvas when returning to
+  the library. The user confirmed the back arrow is stable after this fix.
+
 - Merged RapidRAW through `5ad3ba0b` and recorded the dependency review. The
   later highlight recovery commit `40cfa3df` remains pending review.
 - Preview cropping reuses the patched/warped image, with upstream's follow-up

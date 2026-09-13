@@ -51,6 +51,20 @@ export const KINDS = ['feature', 'borrowed-fix', 'behaviour-change'];
 
 export const REGISTRY = [
   {
+    id: 'mask-stage-size-guard',
+    kind: 'behaviour-change',
+    what: 'Do not mount the mask canvas at zero size when the editor is hidden.',
+    ours: [],
+    dependsOn: [
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'extends',
+        note: 'Two positive-dimension checks on the mask Stage render condition. Retire when upstream prevents zero-sized Stage drawing.' },
+      { file: 'src/App.tsx', how: 'extends',
+        note: 'Lifecycle dependency: the editor remains mounted but is hidden on return to the library; no extra App change for this guard.' },
+    ],
+    tests: ['Manual: open photo 6577, show a mask, back to library, reopen and repeat from Crop; user confirmed stable on 2026-09-13.'],
+    keywords: /mask|canvas|stage|back.?arrow|editor|navigation/i,
+  },
+  {
     id: 'auto-white-balance',
     kind: 'feature',
     what: 'Auto white balance, and an eyedropper that agrees with it.',
