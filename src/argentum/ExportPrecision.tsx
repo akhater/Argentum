@@ -70,15 +70,19 @@ export default function ExportPrecision() {
     // Shown at once: the write is one line of JSON, and a control that lags a
     // click reads as broken.
     const previous = depth;
+    // The control's own highlight moves at once - local state, and a control that
+    // lags a click reads as broken.
     setDepth(next);
-    // Before the await, so the size estimate moves with the control rather than
-    // a round trip later.
-    publishTiffDepth(next);
     try {
       await ag('set_tiff_bit_depth', { depth: next });
+      // Published only once Rust has it. The estimate is recomputed from the
+      // stored preference, so announcing the new depth first would let that
+      // recompute start against the old one - the same bug this store was added
+      // to fix, in a 500ms window instead of forever. The round trip it waits
+      // for is a one-line write, invisible under the estimate's own debounce.
+      publishTiffDepth(next);
     } catch {
       setDepth(previous);
-      publishTiffDepth(previous);
     } finally {
       setBusy(false);
     }

@@ -298,6 +298,27 @@ title even then.
 
 ## Open questions
 
+### A toggle in the export panel does not stay where you put it
+
+**Noticed 2026-09-13 by AK, inherited, undecided.**
+
+Turn "image resizing" off, restart, and it is on again. Not a regression and not
+ours: `useExportSettings` starts every switch at its default, and on opening the
+panel `ExportPanel.tsx` applies a hidden `__last_used__` preset. That preset is
+written by `saveLastUsedPreset`, which is called from `handleExport` **and
+nowhere else** - so the panel restores the settings you last *exported* with, and
+a switch you changed but never exported with is forgotten. Verified untouched by
+us: zero commits and an empty diff against `5ad3ba0b` for that file.
+
+Defensible as "remember my last export". It also reads as a broken switch, which
+is how AK found it.
+
+If it is changed, it is a line or two in their file plus a registry entry, and the
+question to answer first is which behaviour is wanted: persist on toggle, or keep
+persisting on export and make the panel say that is what it does. **Decide before
+building.** Left alone for now.
+
+
 - **`.agdata` next to photos, or in the data folder?** Next to photos = edits
   travel with the pictures. In the folder = nothing left behind if you bin the project.
 - **Does white balance decode RAW that was never encoded?** Found 2026-09-13
