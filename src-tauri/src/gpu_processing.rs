@@ -11,8 +11,8 @@ use wgpu::util::{DeviceExt, TextureDataOrder};
 
 use crate::image_processing::{AllAdjustments, GpuContext, MAX_MASKS};
 use crate::lut_processing::Lut;
-use crate::{AppState, GpuImageCache};
 use crate::mods::export_precision::Precision;
+use crate::{AppState, GpuImageCache};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Roi {

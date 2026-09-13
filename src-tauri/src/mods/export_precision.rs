@@ -364,12 +364,7 @@ pub fn render_high_precision(
 /// The arithmetic is theirs, taken from `Blend for Rgba<T>` so that an 8-bit
 /// export is unchanged: premultiply, source-over, unmultiply. Only the precision
 /// and the transparent-pixel short circuit differ.
-pub fn overlay_preserving_precision(
-    base: &mut DynamicImage,
-    top: &DynamicImage,
-    x: i64,
-    y: i64,
-) {
+pub fn overlay_preserving_precision(base: &mut DynamicImage, top: &DynamicImage, x: i64, y: i64) {
     let Some(canvas) = base.as_mut_rgba32f() else {
         // Not a high-precision render: theirs, untouched, byte for byte.
         image::imageops::overlay(base, top, x, y);
@@ -386,8 +381,7 @@ pub fn overlay_preserving_precision(
             continue;
         }
 
-        let (Ok(bx), Ok(by)) = (u32::try_from(x + sx as i64), u32::try_from(y + sy as i64))
-        else {
+        let (Ok(bx), Ok(by)) = (u32::try_from(x + sx as i64), u32::try_from(y + sy as i64)) else {
             continue;
         };
         if bx >= width || by >= height {
@@ -449,7 +443,6 @@ pub fn pixels_to_image(width: u32, height: u32, pixels: Vec<f32>) -> Result<Dyna
         .ok_or_else(|| "could not build a 32-bit image from the readback".to_string())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,7 +465,10 @@ mod tests {
             0,
             "an 8-bit storage declaration survived into the high-precision shader",
         );
-        assert!(src.contains("fn ag_to_scene_linear"), "our modules were lost");
+        assert!(
+            src.contains("fn ag_to_scene_linear"),
+            "our modules were lost"
+        );
     }
 
     /// The guard that matters: if upstream renames the declaration, fail loudly
@@ -513,7 +509,9 @@ mod tests {
         );
 
         // A gradient finer than 8 bits can express.
-        let ours: Vec<u16> = (0..1024).map(|i| sample_to_u16(i as f32 / 1023.0)).collect();
+        let ours: Vec<u16> = (0..1024)
+            .map(|i| sample_to_u16(i as f32 / 1023.0))
+            .collect();
         let off_lattice = ours.iter().filter(|v| *v % 257 != 0).count();
         assert!(
             off_lattice > 900,
@@ -538,10 +536,16 @@ mod tests {
         let via_f16: Vec<u16> = (0..512)
             .map(|i| sample_to_u16(half::f16::from_f32(at(i)).to_f32()))
             .collect();
-        let distinct_f16 = via_f16.iter().collect::<std::collections::HashSet<_>>().len();
+        let distinct_f16 = via_f16
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
 
         let direct: Vec<u16> = (0..512).map(|i| sample_to_u16(at(i))).collect();
-        let distinct_f32 = direct.iter().collect::<std::collections::HashSet<_>>().len();
+        let distinct_f32 = direct
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
 
         assert!(
             distinct_f16 < 100,
@@ -571,11 +575,8 @@ mod tests {
         let before = buf.clone();
         let mut base = DynamicImage::ImageRgba32F(buf);
 
-        let clear = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
-            8,
-            4,
-            image::Rgba([255u8, 0, 0, 0]),
-        ));
+        let clear =
+            DynamicImage::ImageRgba8(ImageBuffer::from_pixel(8, 4, image::Rgba([255u8, 0, 0, 0])));
         overlay_preserving_precision(&mut base, &clear, 0, 0);
 
         assert_eq!(
@@ -920,7 +921,10 @@ mod gpu_tests {
         // Exactly what encode_image_to_bytes does for "tiff".
         let mut bytes = Vec::new();
         DynamicImage::ImageRgb16(rendered.to_rgb16())
-            .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Tiff)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Tiff,
+            )
             .expect("the TIFF should encode");
 
         let reopened = image::load_from_memory_with_format(&bytes, image::ImageFormat::Tiff)
@@ -983,7 +987,11 @@ mod gpu_tests {
             &context.queue,
             &wgpu::TextureDescriptor {
                 label: Some("preview control input"),
-                size: wgpu::Extent3d { width: 512, height: 8, depth_or_array_layers: 1 },
+                size: wgpu::Extent3d {
+                    width: 512,
+                    height: 8,
+                    depth_or_array_layers: 1,
+                },
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
