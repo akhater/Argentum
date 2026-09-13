@@ -1,7 +1,13 @@
 name: CI Build
 
+# Manual only, the same as ci.yml and for the same reason: the full matrix
+# belongs on a release, not on every pull request. Twelve desktop targets were
+# compiled to merge a 27-line roadmap note, which is not a check, it is a queue.
+# Fast checks run on every push and pull request in lint.yml, and the gate that
+# actually decides whether a change is safe is upstream.yml. Run this by hand
+# from the Actions tab when a change touches the build itself.
 on:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
