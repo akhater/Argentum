@@ -293,6 +293,10 @@ was asked, which is the part that was being skipped.
 
 ### Review the interface separately from the processing
 
+For the exact merged boundary, pending updates, reasons and resumption steps,
+read [UPSTREAM_CATCHUP.md](UPSTREAM_CATCHUP.md). Update that handoff when a
+temporary deferral is resolved; do not infer a permanent rejection from it.
+
 **Keeping our implementation does not mean rejecting RapidRAW's interface.**
 Whenever upstream changes a feature we also have, review both how it works
 underneath and how a person uses it: controls, layout, shortcuts, feedback and

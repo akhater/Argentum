@@ -18,7 +18,8 @@ Newest first.
   the library. The user confirmed the back arrow is stable after this fix.
 
 - Merged RapidRAW through `5ad3ba0b` and recorded the dependency review. The
-  later highlight recovery commit `40cfa3df` remains pending review.
+  later highlight recovery commit `40cfa3df` remains pending review. See
+  [the catch-up rationale and next steps](docs/UPSTREAM_CATCHUP.md).
 - Preview cropping reuses the patched/warped image, with upstream's follow-up
   correction preserving lens blur and transformation order.
 - Upstream reviews now consider the interface and workflow separately from
