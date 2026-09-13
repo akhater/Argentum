@@ -131,11 +131,16 @@ export const ANCHORS = [
         why: 'and read it',
       },
       {
-        pattern: /\[[^\]]*\btiffDepth\b[^\]]*\]/,
+        pattern: /\[[^\]]*\btiffDepth\b[^\]]*\]\s*\)/,
         why:
           'and list it as a dependency. Without this the size estimate froze on '
           + 'the depth you had before — found by AK on 2026-09-13, after four '
           + 'review passes and a full green suite missed it',
+        // The trailing `\s*\)` is load-bearing: without it any future bracketed
+        // mention of the name — an index, a tuple, `// see [tiffDepth]` in a
+        // comment — satisfies the pattern while the dependency itself is gone.
+        // An array literal that closes a call is the shape of a hook dependency
+        // list and of nothing else in that file.
       },
     ],
     what:

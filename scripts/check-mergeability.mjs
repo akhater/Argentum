@@ -461,6 +461,12 @@ for (const anchor of ANCHORS) {
   // genuinely deleting one of theirs breaks the import at build time long before
   // this gate would have an opinion. Caught by those tests, which went 0/7 the
   // moment this said otherwise.
+  //
+  // The case this skip could hide is a typo in `anchor.file`, which would make
+  // the gate pass forever on a path that does not exist. That is closed from the
+  // other side: `every required pattern matches the file it guards` in
+  // test-upstream-checks.mjs reads the path unguarded, so a wrong one throws and
+  // fails `npm run test:checks`, which CI runs.
   const full = join(root, anchor.file);
   if (!existsSync(full)) continue;
 
