@@ -93,11 +93,9 @@ const MILESTONES: Milestone[] = [
     stage: 'planned',
     what: 'Group by date, camera or lens',
     why:
-      'The library is one flat list. You can sort it and filter it, but not break '
-      + 'it into days, or cameras, or lenses, which is how a shoot is actually '
-      + 'looked for. And sorting by date uses the file’s modified time — which '
-      + 'copying or re-editing changes — while the moment the shutter fired sits '
-      + 'in the EXIF, read for display and never used for ordering.',
+      'The library is one flat list. You can sort it, filter it, and fold a RAW and '
+      + 'its JPEG into one card, but not break it into days, or cameras, or lenses, '
+      + 'which is how a shoot is actually looked for.',
   },
   {
     stage: 'planned',
@@ -110,9 +108,9 @@ const MILESTONES: Milestone[] = [
     why:
       'Export wrote 8 bits a channel, which threw away most of what a RAW holds '
       + 'and showed as banding in skies once anything was edited afterwards. A '
-      + 'TIFF now carries 16, and that half shipped in 26.37.20 — but the photo '
-      + 'still reaches the renderer at half precision, so the file has room the '
-      + 'pipeline cannot yet fill. Not done until it can.',
+      + 'TIFF now carries 16, shipped in 26.37.20, and since 26.38.1 you choose 8 '
+      + 'or 16 — but the photo still reaches the renderer at half precision, so '
+      + 'the file has room the pipeline cannot yet fill. Not done until it can.',
   },
   {
     stage: 'planned',
@@ -120,9 +118,10 @@ const MILESTONES: Milestone[] = [
     why:
       'Nobody has measured what Argentum costs on a large RAW, and the pipeline '
       + 'has been gaining full-resolution copies of the photo rather than losing '
-      + 'them — the newest of which, the 16-bit export target, is twice the size '
-      + 'of the one it sits beside. Measure it on a 45MP file first; a machine '
-      + 'that swaps is slower than any shader is fast.',
+      + 'them — the 16-bit export target is twice the size of the one it sits '
+      + 'beside, and keeping metadata on a TIFF rewrites the whole file through '
+      + 'memory to do it. Measure it on a 45MP file first; a machine that swaps '
+      + 'is slower than any shader is fast.',
   },
   {
     stage: 'done',

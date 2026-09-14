@@ -32,6 +32,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.38.1',
+    date: '2026-09-14',
+    notes: [
+      'An exported TIFF now keeps the camera details: camera, lens, exposure, date '
+      + 'and copyright — and your location only if you leave that switch on. The '
+      + 'Keep metadata switch was ticked by default, not shown for TIFF, and did '
+      + 'nothing for it, so exactly the format you would hand to another editor was '
+      + 'the one that arrived with nothing attached.',
+      'You can now choose 8 or 16 bits when exporting a TIFF. Every TIFF was 16-bit '
+      + 'before, whether that was wanted or not. A file going to a client is a '
+      + 'delivery rather than a master, and 8 bits is the right size for it.',
+      'Hold Ctrl and drag on the photo to move its crop, or Ctrl and scroll to '
+      + 'resize it; Ctrl-double-click puts crop and rotation back. These work '
+      + 'outside crop mode too.',
+    ],
+  },
+  {
     version: '26.37.20',
     date: '2026-09-13',
     notes: [
