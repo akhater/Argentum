@@ -54,14 +54,34 @@ const STRUCTURAL: &[u16] = &[
     0x0115, // SamplesPerPixel
     0x0116, // RowsPerStrip
     0x0117, // StripByteCounts
-    0x011A, // XResolution
-    0x011B, // YResolution
     0x011C, // PlanarConfiguration
-    0x0128, // ResolutionUnit
     0x013D, // Predictor
+    0x0142, // TileWidth
+    0x0143, // TileLength
+    0x0144, // TileOffsets
+    0x0145, // TileByteCounts
+    0x014A, // SubIFDs
+    0x0152, // ExtraSamples
     0x0153, // SampleFormat
+    0x0201, // JPEGInterchangeFormat — a source's embedded thumbnail
+    0x0202, // JPEGInterchangeFormatLength
     0x8769, // ExifOffset — a pointer; `encode()` writes its own
     0x8825, // GPSInfo — likewise
+];
+
+/// Resolution, which is the photograph's and not the file's.
+///
+/// These three are structural in the sense that `little_exif` will not write a
+/// TIFF without them — but nothing about decoding consults them, and our
+/// encoder writes a meaningless `1/1, 1/1, none`. Left at that, a TIFF opens as
+/// "unspecified" where the same shot exported as JPEG says 300 dpi.
+///
+/// So they are carried over, but only as a set: two thirds of a resolution is
+/// worse than none.
+const RESOLUTION: [u16; 3] = [
+    0x011A, // XResolution
+    0x011B, // YResolution
+    0x0128, // ResolutionUnit
 ];
 
 /// True for the two spellings of TIFF.
@@ -122,10 +142,22 @@ fn merge_into_tiff(
         .map_err(|e| format!("could not read back the TIFF we just encoded: {e}"))?;
 
     for tag in &carrier {
-        if STRUCTURAL.contains(&tag.as_u16()) || !tag.is_writable() {
+        let number = tag.as_u16();
+        if STRUCTURAL.contains(&number) || RESOLUTION.contains(&number) || !tag.is_writable() {
             continue;
         }
         metadata.set_tag(tag.clone());
+    }
+
+    // All three or none of them.
+    let resolution: Vec<&ExifTag> = RESOLUTION
+        .iter()
+        .filter_map(|wanted| (&carrier).into_iter().find(|tag| tag.as_u16() == *wanted))
+        .collect();
+    if resolution.len() == RESOLUTION.len() {
+        for tag in resolution {
+            metadata.set_tag(tag.clone());
+        }
     }
 
     // The carrier is one pixel, so whatever upstream put in these is wrong for
@@ -180,6 +212,7 @@ fn gather_via_carrier(original_path_str: &str, strip_gps: bool) -> Result<Metada
 mod tests {
     use super::*;
     use image::GenericImageView;
+    use little_exif::rational::uR64;
     use std::path::{Path, PathBuf};
 
     fn scratch(name: &str) -> PathBuf {
@@ -377,6 +410,146 @@ mod tests {
         write_export_metadata(&mut bytes, missing.to_str().unwrap(), "tiff", true, true).unwrap();
 
         assert_image_unchanged(&original, &bytes, "missing source");
+    }
+
+    /// The path every real export takes, and the one the small tests miss.
+    ///
+    /// `tiff-0.11.3` sizes a strip at about a megabyte
+    /// (`rows_per_strip = 1_000_000 / row_bytes`), so every image in the other
+    /// tests is a *single* strip: `StripOffsets` holds one value, small enough
+    /// to sit inline in the IFD entry. Nothing about the multi-strip case runs.
+    ///
+    /// A real export is not like that. A 60MP 16-bit TIFF is some 360 strips,
+    /// which puts the offsets in the area *after* the strips they point at,
+    /// each one computed while that area is still growing. That arithmetic is
+    /// the whole risk in seeding from an encoded file, and it deserves a test
+    /// rather than a reading of the library.
+    ///
+    /// 1024x768 RGB16 is 6144 bytes a row, so 163 rows a strip: five strips,
+    /// the last one short.
+    #[test]
+    fn a_multi_strip_tiff_survives_metadata() {
+        let source = source_jpeg("source-multistrip.jpg", &[]);
+
+        for original in [rgb16_image(1024, 768), rgb8_image(1024, 768)] {
+            let mut bytes = encode(&original);
+            let label = format!("{:?}", original.color());
+
+            write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true)
+                .unwrap();
+
+            assert_image_unchanged(&original, &bytes, &label);
+            assert_eq!(
+                field(&read_back(&bytes), exif::Tag::Make).as_deref(),
+                Some("TestCam Industries"),
+                "{label}: metadata missing"
+            );
+        }
+    }
+
+    /// The switch has a child switch, and it has to mean something.
+    #[test]
+    fn gps_is_kept_or_removed_as_asked() {
+        let source = source_jpeg(
+            "source-gps.jpg",
+            &[
+                ExifTag::GPSVersionID(vec![2, 3, 0, 0]),
+                ExifTag::GPSLatitudeRef("N".to_string()),
+                ExifTag::GPSLatitude(vec![
+                    uR64 {
+                        nominator: 48,
+                        denominator: 1,
+                    },
+                    uR64 {
+                        nominator: 51,
+                        denominator: 1,
+                    },
+                    uR64 {
+                        nominator: 2924,
+                        denominator: 100,
+                    },
+                ]),
+                ExifTag::GPSLongitudeRef("E".to_string()),
+                ExifTag::GPSLongitude(vec![
+                    uR64 {
+                        nominator: 2,
+                        denominator: 1,
+                    },
+                    uR64 {
+                        nominator: 21,
+                        denominator: 1,
+                    },
+                    uR64 {
+                        nominator: 435,
+                        denominator: 100,
+                    },
+                ]),
+            ],
+        );
+        let original = rgb8_image(32, 24);
+
+        let mut kept = encode(&original);
+        write_export_metadata(&mut kept, source.to_str().unwrap(), "tiff", true, false).unwrap();
+        let exif = read_back(&kept);
+        assert!(
+            exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY)
+                .is_some(),
+            "GPS was dropped even though the user asked to keep it"
+        );
+
+        let mut stripped = encode(&original);
+        write_export_metadata(&mut stripped, source.to_str().unwrap(), "tiff", true, true).unwrap();
+        let exif = read_back(&stripped);
+        assert!(
+            exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY)
+                .is_none(),
+            "GPS survived Remove GPS - the export leaks where the photo was taken"
+        );
+    }
+
+    /// The sub-IFD, and the two values the carrier gets wrong by construction.
+    #[test]
+    fn the_exif_ifd_describes_this_photograph_and_not_the_carrier() {
+        let source = source_jpeg(
+            "source-exififd.jpg",
+            &[
+                ExifTag::ExposureTime(vec![uR64 {
+                    nominator: 1,
+                    denominator: 250,
+                }]),
+                ExifTag::DateTimeOriginal("2026:09:14 11:32:07".to_string()),
+            ],
+        );
+        let original = rgb16_image(64, 48);
+        let mut bytes = encode(&original);
+
+        write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true).unwrap();
+
+        let exif = read_back(&bytes);
+        assert_eq!(
+            field(&exif, exif::Tag::ExposureTime).as_deref(),
+            Some("1/250"),
+            "an ExifIFD tag did not survive the merge"
+        );
+        assert_eq!(
+            field(&exif, exif::Tag::DateTimeOriginal).as_deref(),
+            Some("2026-09-14 11:32:07")
+        );
+
+        // The carrier is one pixel. Without the override these would say 1.
+        assert_eq!(
+            field(&exif, exif::Tag::PixelXDimension).as_deref(),
+            Some("64")
+        );
+        assert_eq!(
+            field(&exif, exif::Tag::PixelYDimension).as_deref(),
+            Some("48")
+        );
+
+        assert_eq!(
+            field(&exif, exif::Tag::Software).as_deref(),
+            Some("Argentum")
+        );
     }
 
     /// Anything that is not a TIFF is upstream's, unchanged.

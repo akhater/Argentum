@@ -556,6 +556,17 @@ export const REGISTRY = [
       'A TIFF *source* is still skipped by their gathering for every output format '
       + '(exif_processing.rs, "Skip TIFF sources to avoid potential tag corruption '
       + 'issues"). Unrelated to this and untouched.',
+      'MakerNote is copied with its internal offsets still relative to the source file, '
+      + 'so a reader that walks into it can read the wrong thing - a garbage lens name in '
+      + 'Lightroom is the shape this takes. Exactly what their JPEG export already does, '
+      + 'so it is inherited rather than introduced, and fixing it means rewriting '
+      + 'per-manufacturer offset tables. Written down so the next person does not think '
+      + 'the TIFF path caused it.',
+      'XResolution, YResolution and ResolutionUnit are carried from the source as a set. '
+      + 'Our encoder writes 1/1, 1/1, none, which opens as "unspecified" where the same '
+      + 'shot exported as JPEG says 300 dpi. Nothing about decoding consults them, so '
+      + 'overwriting is safe; all three or none, because two thirds of a resolution is '
+      + 'worse than none.',
     ],
     keywords: /tiff|exif|metadata|little_exif|keep.?metadata|strip.?gps|gps|software.?tag|export/i,
   },
