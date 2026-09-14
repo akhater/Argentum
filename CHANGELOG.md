@@ -4,9 +4,66 @@ Newest first.
 
 **Based on RapidRAW `1.6.3` @ `5ad3ba0b`** — updated whenever upstream is merged.
 
+## Unreleased — 2026-09-14
+
+### Internal
+
+- **Made the three roadmaps agree with what has shipped.** Reviewed against the
+  three releases that exist (`26.37.19`, `26.37.20`, `26.38.1`) rather than
+  against the plan:
+
+  - The Releases page in the app had stopped at `26.37.20` while the application
+    reported `26.38.1` - the one drift a user can see. It now carries the TIFF
+    metadata, the bit-depth choice and upstream's Ctrl crop gestures. `26.37.21`
+    correctly gets no entry: a bumped number between releases is a placeholder,
+    and every number on that page is a real release.
+  - The 8/16-bit selector shipped in `26.38.1` with no changelog entry at all,
+    and `docs/ROADMAP.md` still had it as not started. Both fixed; the entry is
+    under `26.38.1`, where the work actually landed.
+  - **Upstream has built half of a roadmap item and nothing said so.**
+    `useSortedLibrary.ts` groups RAW/JPEG pairs through `utils/imageGrouping.ts`,
+    so "the grid is one flat list and nothing groups" was wrong; and sorting by
+    capture time, which the in-app roadmap still listed as a reason to want
+    grouping, arrived in upstream's `0e8029bd`. Grouping by date, camera or lens
+    is still not done - pair grouping is a different thing - but the argument for
+    it no longer rests on a fault that has been fixed. This is the failure mode
+    `featureReview` exists for, found by reading the tree rather than the diff.
+  - The #1466 triage row said its encoder "was not needed". True when written,
+    and no longer: its encoder arm is what the 8-bit mode borrows.
+  - The memory row now names the cost `26.38.1` added - a TIFF metadata write
+    re-serialises the whole encoded file, 3-4x its size, about 2.5GB on a 60MP
+    16-bit export.
+
 ## 26.38.1 — 2026-09-14
 
 ### Added
+
+- **Choose 8 or 16 bits for a TIFF.** Every TIFF Argentum wrote was 16-bit
+  whether that was wanted or not, and a file going to a client is a delivery
+  rather than a master. The control appears under Export for TIFF and no other
+  format.
+
+  The encoder arm is upstream [#1466](https://github.com/CyberTimon/RapidRAW/pull/1466)'s,
+  marked between `// upstream #1466` and `// end upstream #1466` in
+  `export_processing.rs`: an 8-bit image writes `Rgb8`, everything else `Rgb16`.
+  What is *not* theirs is where the depth lives. Theirs puts `tiffBitDepth` on
+  `ExportSettings`, into their presets, and threads a fourth parameter on
+  `encode_image_to_bytes` through six of their files and three strings in
+  thirteen locales - the counter-example CLAUDE.md names. Here it is Argentum's
+  own preference, stored beside the profile library as highlight recovery is,
+  and the encoder reads the depth from the image it was handed: an 8-bit export
+  renders `ImageRgba8`, a 16-bit one `ImageRgba32F`. `src/argentum/ExportPrecision.tsx`,
+  one marker in their panel. See the `export-precision-selector` registry entry.
+
+  **Two bugs this would have shipped, both found in review.** Dispatching on the
+  image type means a size estimate has to render at the precision it will encode
+  at, or a 16-bit TIFF is quoted at the 8-bit size; both estimate sites now go
+  through `render_for_export`. And `argentum-processing.json` was written whole
+  on every save, which is correct for one setting and silently destroys the
+  rest - saving an export depth would have switched highlight recovery back on,
+  and the bug report would have been about highlight recovery. Reads and writes
+  go through `mods/ag_settings.rs` now, which changes one key and leaves the
+  others alone; highlights moved onto it.
 
 - **An exported TIFF keeps its EXIF.** Camera, lens, exposure, date, copyright
   and — unless you ask for them to go — GPS. The Keep metadata switch is now

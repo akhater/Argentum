@@ -48,6 +48,16 @@ export const KNOWN_ISSUES: KnownIssue[] = [
       + 'right on an sRGB screen and over-saturated on a wide-gamut one.',
   },
   {
+    what: 'Keeping metadata on a large TIFF needs a lot of memory',
+    detail:
+      'Writing the camera details into an exported TIFF rewrites the whole file '
+      + 'through memory, so the export briefly needs three to four times the size '
+      + 'of the file it is writing — around 2.5GB for a 60-megapixel 16-bit TIFF. '
+      + 'On a machine short of memory that can make a large export slow or fail. '
+      + 'Turning Keep metadata off skips it entirely, and the file is then written '
+      + 'exactly as it was before.',
+  },
+  {
     what: 'Tested against one camera',
     detail:
       'Every colour measurement so far comes from a Canon EOS 5D Mark II. The RAW '
