@@ -105,12 +105,32 @@ const MILESTONES: Milestone[] = [
     why: 'Browse and search photos with the drive unplugged, and relink folders that move.',
   },
   {
-    stage: 'planned',
+    stage: 'building',
     what: '16-bit TIFF export',
     why:
-      'Export currently writes 8 bits a channel, which throws away most of what '
-      + 'a RAW holds and shows as banding in skies once anything is edited '
-      + 'afterwards. Needed before Argentum can hand work to another editor.',
+      'Export wrote 8 bits a channel, which threw away most of what a RAW holds '
+      + 'and showed as banding in skies once anything was edited afterwards. A '
+      + 'TIFF now carries 16, and that half shipped in 26.37.20 — but the photo '
+      + 'still reaches the renderer at half precision, so the file has room the '
+      + 'pipeline cannot yet fill. Not done until it can.',
+  },
+  {
+    stage: 'planned',
+    what: 'Use less memory',
+    why:
+      'Nobody has measured what Argentum costs on a large RAW, and the pipeline '
+      + 'has been gaining full-resolution copies of the photo rather than losing '
+      + 'them — the newest of which, the 16-bit export target, is twice the size '
+      + 'of the one it sits beside. Measure it on a 45MP file first; a machine '
+      + 'that swaps is slower than any shader is fast.',
+  },
+  {
+    stage: 'building',
+    what: 'EXIF in an exported TIFF',
+    why:
+      'Camera, lens, exposure, date, copyright and GPS now survive a TIFF export, '
+      + 'and the Keep metadata switch is shown for TIFF rather than hidden while '
+      + 'ticked. Written and tested; not yet released.',
   },
   {
     stage: 'planned',

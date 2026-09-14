@@ -37,8 +37,12 @@ use crate::lut_processing::{
 use crate::mask_generation::{MaskDefinition, generate_mask_bitmap};
 
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
-use crate::mods::export_precision::{
-    Precision, encode_tiff, overlay_preserving_precision, render_for_estimate, render_for_export,
+use crate::mods::{
+    export_metadata::write_export_metadata,
+    export_precision::{
+        Precision, encode_tiff, overlay_preserving_precision, render_for_estimate,
+        render_for_export,
+    },
 };
 use crate::{
     apply_all_transformations, generate_transformed_preview, get_cached_or_generate_mask,
@@ -508,7 +512,7 @@ fn save_image_with_metadata(
 
     let mut image_bytes = encode_image_to_bytes(image, &extension, export_settings.jpeg_quality)?;
 
-    exif_processing::write_image_with_metadata(
+    write_export_metadata(
         &mut image_bytes,
         source_path_str,
         &extension,

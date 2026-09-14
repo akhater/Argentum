@@ -8,9 +8,46 @@ Newest first.
 
 ### Added
 
+- **An exported TIFF keeps its EXIF.** Camera, lens, exposure, date, copyright
+  and — unless you ask for them to go — GPS. The Keep metadata switch is now
+  shown for TIFF and means it; before, it was ticked by default, hidden for
+  TIFF, and silently did nothing on exactly the format chosen for handing work
+  to another editor.
+
+  Upstream returns early for TIFF behind a `FIXME: temporary solution until I
+  find a way to write metadata to TIFF`. The reason is structural:
+  `little_exif` 0.6.23 treats a TIFF as one big EXIF structure, so writing to
+  one replaces the whole file with an encoding of the metadata, strip data and
+  all — and the fresh `Metadata::new()` that is right for JPEG holds no strips
+  and none of the ten structural tags a TIFF must carry. So
+  `mods/export_metadata.rs` seeds from the TIFF we just encoded instead, and
+  merges upstream's tags into that. Their tag gathering is reused rather than
+  reimplemented, by handing their own writer a one-pixel JPEG and reading the
+  tags back out of it. `exif_processing.rs` is not touched.
+
+  Also fixes a gap the bit-depth work opened: their encoder accepts `.tif` as
+  well as `.tiff`, and the metadata writer matched only the longer spelling.
+
+  Exported TIFFs are stamped `Software = Argentum`. Other formats still say
+  `RapidRAW`, which is a rebrand question rather than part of this.
+
+- **Use less memory** to the roadmap. The pipeline keeps gaining
+  full-resolution copies of the photo and has never been measured; the 16-bit
+  export target is four bytes a channel where the preview is two, and going f32
+  on the input doubles that too. Measure a 45MP file first — deciding what to
+  drop before knowing what it costs is guessing.
+
 - Hold Ctrl while dragging on the photo to move its crop, or hold Ctrl and use
   the wheel to resize the crop. Ctrl-double-click resets crop and rotation.
   These gestures also work outside crop mode. Upstream `97cc7d5b`.
+
+### Changed
+
+- **16-bit TIFF export is in progress, not done.** It shipped in `26.37.20` and
+  both roadmaps called it finished. The container is 16 bits; the content is
+  about 11, because the photo is still uploaded as `Rgba16Float`. A row that
+  claims a depth the pipeline cannot fill is the kind of promise this roadmap
+  exists to avoid making.
 
 ### Internal
 

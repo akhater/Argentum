@@ -66,10 +66,31 @@ export const ANCHORS = [
     instead: 'add a method to mods/export_precision.rs - the processor already has a Precision',
   },
   {
+    // Still one, and it stays one: a single `use crate::mods::{...}` block. The
+    // metadata writer joined it rather than bringing its own line, because two
+    // imports here would be two features each holding a piece of their file.
     file: 'src-tauri/src/export_processing.rs',
     hooks: 1,
-    what: 'the import of Precision and render_high_precision',
-    instead: 'which format gets which precision is decided in Precision::for_path - change it there',
+    // The old wording named render_high_precision, which this import has never
+    // held - it has render_for_export and render_for_estimate. Corrected here
+    // rather than left, because an anchor nobody can check against the file is
+    // a comment, not a gate.
+    what:
+      'the one import block: Precision, encode_tiff, overlay_preserving_precision, '
+      + 'render_for_export, render_for_estimate, write_export_metadata',
+    instead:
+      'precision: which format gets which is decided in Precision::for_path. '
+      + 'metadata: mods/export_metadata.rs - their call already routes through it',
+    requires: [
+      {
+        // The call is not a hook - it mentions no module of ours - so nothing
+        // else notices if an upstream merge resolves it back to theirs. A TIFF
+        // would export with no metadata, every gate green, and the only symptom
+        // is a missing tag nobody looks for.
+        pattern: /write_export_metadata\(/,
+        why: 'the export has to go through ours or a TIFF silently loses its metadata again',
+      },
+    ],
   },
   {
     file: 'src-tauri/src/image_processing.rs',
