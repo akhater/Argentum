@@ -125,12 +125,12 @@ const MILESTONES: Milestone[] = [
       + 'that swaps is slower than any shader is fast.',
   },
   {
-    stage: 'building',
+    stage: 'done',
     what: 'EXIF in an exported TIFF',
+    release: '26.38.1',
     why:
-      'Camera, lens, exposure, date, copyright and GPS now survive a TIFF export, '
-      + 'and the Keep metadata switch is shown for TIFF rather than hidden while '
-      + 'ticked. Written and tested; not yet released.',
+      'Camera, lens, exposure, date, copyright and GPS survive a TIFF export, and '
+      + 'the Keep metadata switch is shown for TIFF rather than hidden while ticked.',
   },
   {
     stage: 'planned',
