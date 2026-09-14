@@ -500,6 +500,65 @@ export const REGISTRY = [
     ],
     keywords: /tiff|bit.?depth|8.?bit|export.?panel|export.?settings|preset|selector|dropdown/i,
   },
+  {
+    id: 'tiff-export-metadata',
+    kind: 'feature',
+    what:
+      'An exported TIFF carries its camera, lens, exposure, date and GPS. The '
+      + 'Keep metadata switch, which was shown only for JPEG and silently did '
+      + 'nothing for TIFF, now appears for TIFF and means it.',
+    ours: ['src-tauri/src/mods/export_metadata.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'save_image_with_metadata', how: 'extends',
+        note:
+          'One call changed: write_export_metadata instead of '
+          + 'exif_processing::write_image_with_metadata. Ours delegates every format but '
+          + 'TIFF straight back to theirs, so a JPEG export is byte-for-byte what it was '
+          + '- asserted by a test. The call names no module of ours and so is not a hook, '
+          + 'which is why the anchor carries a `requires` for it: an upstream merge that '
+          + 'resolved this line back to theirs would pass every other gate.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'write_image_with_metadata', how: 'calls',
+        note:
+          'Called twice, and their file is not edited. Once as the passthrough for every '
+          + 'format they already handle. Once against a one-pixel JPEG carrier, purely to '
+          + 'reuse the ~250 lines of tag gathering they own - full EXIF from a non-RAW '
+          + 'source, the .agexif sidecar, rawler for a RAW, GPS - which the function '
+          + 'writes but never returns. We read the tags back out of the carrier. '
+          + 'Depends on the signature and on JPEG staying a format they write; both break '
+          + 'at compile time or in tests, not silently. Their TIFF guard and their '
+          + 'Metadata::new() are never on our path, so the FIXME can stay where it is.' },
+      { file: 'src/components/panel/right/ExportPanel.tsx', how: 'extends',
+        note:
+          'One condition widened, from fileFormat == FileFormats.Jpeg to a list holding '
+          + 'Jpeg and Tiff. Not a portal: keepMetadata and stripGps are their useState in '
+          + 'useExportSettings.ts and are already sent to Rust for every format, so a '
+          + 'portal could not reach them and would need a second Argentum-only preference '
+          + '- two switches for one idea. Upstream #1322 asks for this same line to cover '
+          + 'JXL and WebP, so they will probably edit it; that is a one-line conflict '
+          + 'resolved by taking theirs and adding Tiff back.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/export_metadata.rs #[cfg(test)] - pixels, dimensions and bit '
+      + 'depth survive at 8 and 16 bits; a source that carries its own ImageWidth cannot '
+      + 'stamp it on ours; both spellings of the extension; the switch off rewrites '
+      + 'nothing; a JPEG is unchanged from upstream',
+    ],
+    notes: [
+      'Software is written as "Argentum" for a TIFF. Every other format still gets '
+      + '"RapidRAW" from their line in exif_processing.rs, which is a rebrand question '
+      + 'rather than part of this feature.',
+      'The TIFF path parses and re-serialises the whole file, because little_exif owns '
+      + 'the strip bytes while the metadata is being edited. Peak memory is roughly 3-4x '
+      + 'the encoded size for the duration of the write - about 2.5GB on a 60MP 16-bit '
+      + 'export against 1.7GB without. The alternative is writing the Exif IFD ourselves '
+      + 'through the tiff crate (TiffEncoder::extra_directory), which is a day of work '
+      + 'and belongs with the memory row on the roadmap, not here.',
+      'A TIFF *source* is still skipped by their gathering for every output format '
+      + '(exif_processing.rs, "Skip TIFF sources to avoid potential tag corruption '
+      + 'issues"). Unrelated to this and untouched.',
+    ],
+    keywords: /tiff|exif|metadata|little_exif|keep.?metadata|strip.?gps|gps|software.?tag|export/i,
+  },
 ];
 
 /**
