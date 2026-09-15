@@ -32,6 +32,20 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.38.2',
+    date: '2026-09-15',
+    notes: [
+      'Photos from the original Canon EOS-1D and 1Ds open properly. They came out '
+      + 'heavily green, and no amount of white balance would pull them back, because '
+      + 'the camera\'s own white balance was never being read at all — those bodies '
+      + 'are from 2002 and keep it somewhere newer Canons do not.',
+      'Those cameras also named their raw files .TIF, years before .CR2 existed, and '
+      + 'Argentum was treating them as ordinary pictures. What you got was the small '
+      + 'preview buried in the file — a few hundred pixels across, opened as though it '
+      + 'were the photograph. A .TIF that is really a raw is now recognised as one.',
+    ],
+  },
+  {
     version: '26.38.1',
     date: '2026-09-14',
     notes: [
