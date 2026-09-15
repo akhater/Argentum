@@ -87,6 +87,7 @@ pub fn is_raw_file<P: AsRef<Path>>(path: P) -> bool {
     RAW_EXTENSIONS
         .iter()
         .any(|(raw_ext, _)| raw_ext.eq_ignore_ascii_case(ext))
+        || crate::mods::tif_raw::is_camera_raw(&path) // Argentum
 }
 
 pub fn is_supported_image_file<P: AsRef<Path>>(path: P) -> bool {

@@ -210,4 +210,32 @@ export const ANCHORS = [
     what: 'matching a lens profile for the body that shot the frame',
     instead: 'change mods/lens_crop.rs',
   },
+  {
+    // Taken deliberately on 2026-09-15, from a budget of zero. See DEC in the
+    // brain. The anchor is not for one camera: it is for "the extension is not
+    // the answer". Canon's 2002 1D and 1Ds wrote raws called .TIF, and so did
+    // Kodak, Leaf and Phase One backs. Every one of those costs zero further
+    // lines of theirs — they are decided inside is_camera_raw.
+    //
+    // There is no shape without it. is_raw_file is theirs, it is a pure
+    // extension test, and it is asked from thirty-odd places; nothing outside
+    // their file can change its answer. Hooking only the loader costs the same
+    // permission and fixes only the picture, leaving export and EXIF still
+    // believing the file is not a raw.
+    file: 'src-tauri/src/formats.rs',
+    hooks: 1,
+    what: 'asking the contents when the extension cannot say - a .tif may be a raw',
+    instead: 'change mods/tif_raw.rs, which decides every ambiguous extension',
+    requires: [
+      {
+        // Counting is not enough here. If an upstream merge resolves this line
+        // back to theirs the hook count becomes zero, which is under the budget,
+        // and every gate goes green - while a 1Ds quietly shows its 288x192
+        // thumbnail as the photograph again. Silent, and exactly the failure the
+        // anchor was taken for.
+        pattern: /tif_raw::is_camera_raw\(/,
+        why: 'without it a .TIF raw silently opens as its embedded thumbnail',
+      },
+    ],
+  },
 ];

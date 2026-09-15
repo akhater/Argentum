@@ -37,6 +37,32 @@ Newest first.
   walk finds nothing, and the answer is a polite "no white balance here", which
   is precisely the symptom being fixed. Now in `mods/canon_makernote.rs`, shared
   by both callers, with the order taken from the file's own magic.
+- **A `.TIF` that is really a raw now opens as one.** Canon's original EOS-1D
+  and 1Ds predate the CR2 container: they wrote raws as TIFF files with a `.TIF`
+  extension, a real Bayer mosaic reached through a MakerNote offset, with two
+  small RGB previews sitting in front of it in the IFD chain.
+
+  `formats.rs` decides raw-ness by extension and `tif` is in
+  `NON_RAW_EXTENSIONS`, so those files never reached the raw decoder. They went
+  to the ordinary image loader, which read the first image in the chain — on the
+  file from [RapidRAW #1678](https://github.com/CyberTimon/RapidRAW/issues/1678)
+  that is a 288x192 thumbnail — and the app presented it as an 11 megapixel
+  photograph. No error, no warning: just the wrong picture, small.
+
+  The extension cannot settle this and has not been able to since 2002, so
+  `mods/tif_raw.rs` asks the contents instead. Not "is the Make Canon" — an
+  ordinary TIFF exported from a Canon photo inherits that, and can inherit a
+  whole MakerNote with it — but whether a raw decoder will actually open the
+  file. `rawler::get_decoder` parses the container and checks the camera against
+  its own table without decoding a pixel, so the test and the consequence are
+  the same code path and cannot drift apart. Verified both ways: it accepts the
+  1Ds file and rejects an ordinary TIFF. Only `.tif` and `.tiff` are ever
+  sniffed, the answer is cached against size and modification time, and every
+  other extension still answers without touching the disk.
+
+  This also covers the Kodak, Leaf and Phase One backs that named their raws the
+  same way; each costs no further line of upstream's.
+
 
 ### Internal
 

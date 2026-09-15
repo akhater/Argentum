@@ -185,6 +185,20 @@ export const REGISTRY = [
     keywords: /white.?balance|wb|canon|1ds|1d|makernote|colordata|rawler|greenish/i,
   },
   {
+    id: 'tif-raw-sniffing',
+    kind: 'behaviour-change',
+    what: 'A .TIF that a raw decoder can open is treated as a raw, not as a picture.',
+    ours: ['src-tauri/src/mods/tif_raw.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/formats.rs', symbol: 'is_raw_file', how: 'extends',
+        note: 'One disjunct on their extension test, on an anchor taken 2026-09-15 from a budget of zero. They keep the fast path and decide everything else; ours only ever says yes to a .tif rawler will open. Retire if upstream adds content sniffing of its own.' },
+      { file: 'src-tauri/src/formats.rs', symbol: 'NON_RAW_EXTENSIONS', how: 'extends',
+        note: 'tif and tiff stay on their list and we do not move them - an ordinary TIFF must keep loading as a picture. We only override the answer per file. If upstream ever moves tif to RAW_EXTENSIONS, every ordinary TIFF goes to the raw decoder and this entry is the place that says so.' },
+    ],
+    tests: ['src-tauri/src/mods/tif_raw.rs #[cfg(test)]'],
+    keywords: /\.tif|tiff|is_raw_file|RAW_EXTENSIONS|raw.?detect|sniff|1ds/i,
+  },
+  {
     id: 'display-transform',
     kind: 'feature',
     what: 'sRGB converted to whichever screen the window is actually on.',
