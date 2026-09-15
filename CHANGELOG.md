@@ -6,6 +6,38 @@ Newest first.
 
 ## Unreleased — 2026-09-14
 
+### Fixed
+
+- **Canon EOS-1D and 1Ds files are no longer green.** Reported against upstream
+  as [RapidRAW #1678](https://github.com/CyberTimon/RapidRAW/issues/1678), with
+  a sample frame from the reporter; it reproduced here exactly.
+
+  Those bodies predate Canon's ColorData block, so they keep their white balance
+  in MakerNote `0x00a4`. rawler knows the tag — `Cr2Decoder::get_wb` falls back
+  to it by name as `Cr2OldWB` — but looks for it with `self.tiff.get_entry`,
+  which walks the root IFD chain, and `0x00a4` is a *MakerNote* tag. Every other
+  makernote read in that decoder goes through `self.makernote`; this one does
+  not. So it is never found, `get_wb` returns `[NaN; 4]`, and rawler's
+  `develop_intermediate` substitutes `[1, 1, 1, 1]`. A Bayer frame developed
+  with no white balance at all is green — that was the whole of it. It also
+  explains why the reporter could not dial it out: the slider is a relative
+  adjustment on top of a frame that never received the camera's multipliers.
+
+  `mods/canon_old_wb.rs` reads the table itself and green-normalises it — the
+  stored triple is scaled to green = 512, and rawler's `0x00a4` branch does not
+  normalise, so passing it through unchanged would be a uniform 512x gain. On
+  the reporter's `91BX8040.TIF`: `[842, 512, 633]` → `[1.645, 1.0, 1.236]`.
+  Gated on rawler having come back with NaN, so it names no camera and cannot
+  override a body that already has coefficients.
+
+- **The Canon MakerNote reader now honours the file's byte order.** It came out
+  of `sraw_levels` and read little-endian, which CR2 always is. The 1Ds writes
+  `MM` — a big-endian TIFF older than the CR2 container — and a big-endian IFD
+  read the wrong way round does not fail: the entry count reads as nonsense, the
+  walk finds nothing, and the answer is a polite "no white balance here", which
+  is precisely the symptom being fixed. Now in `mods/canon_makernote.rs`, shared
+  by both callers, with the order taken from the file's own magic.
+
 ### Internal
 
 - **Made the three roadmaps agree with what has shipped.** Reviewed against the

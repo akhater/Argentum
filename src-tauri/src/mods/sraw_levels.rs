@@ -74,11 +74,8 @@ use rawler::rawimage::{BlackLevel, RawImage, WhiteLevel};
 /// Canon MakerNote tag 0x4001: ColorData, an array of u16.
 const CANON_COLOR_DATA: u16 = 0x4001;
 
-/// TIFF field type 3: SHORT.
-const TYPE_SHORT: u16 = 3;
-
-/// Sanity bound on the MakerNote IFD, as in `makernote_lens`.
-const MAX_ENTRIES: u16 = 512;
+/// ColorData is hundreds of shorts; a tiny or absurd count is not it.
+const PLAUSIBLE_LENGTH: std::ops::RangeInclusive<usize> = 64..=8192;
 
 /// Set the levels an sRAW / mRAW actually has. A no-op for everything else.
 pub fn fix(raw: &mut RawImage, file_bytes: &[u8]) {
@@ -155,72 +152,8 @@ fn specular_white(file_bytes: &[u8]) -> Option<u16> {
 }
 
 /// Read ColorData out of the Canon MakerNote as a vector of u16.
-///
-/// Same route as `makernote_lens`: standard EXIF hands us the MakerNote blob,
-/// which on Canon is a bare little-endian IFD whose value offsets are relative
-/// to the start of the file.
 fn color_data(file_bytes: &[u8]) -> Option<Vec<u16>> {
-    let mut cursor = std::io::Cursor::new(file_bytes);
-    let exif = exif::Reader::new().read_from_container(&mut cursor).ok()?;
-
-    let make = exif
-        .get_field(exif::Tag::Make, exif::In::PRIMARY)
-        .map(|f| f.display_value().to_string())?;
-    if !make.to_ascii_lowercase().contains("canon") {
-        return None;
-    }
-
-    let field = exif.get_field(exif::Tag::MakerNote, exif::In::PRIMARY)?;
-    let blob = match &field.value {
-        exif::Value::Undefined(bytes, _) => bytes.as_slice(),
-        _ => return None,
-    };
-    parse_color_data(blob, file_bytes)
-}
-
-/// Walk the IFD for tag 0x4001 and decode its SHORT array.
-fn parse_color_data(blob: &[u8], file_bytes: &[u8]) -> Option<Vec<u16>> {
-    let u16_at =
-        |i: usize| -> Option<u16> { Some(u16::from_le_bytes([*blob.get(i)?, *blob.get(i + 1)?])) };
-    let u32_at = |i: usize| -> Option<u32> {
-        Some(u32::from_le_bytes([
-            *blob.get(i)?,
-            *blob.get(i + 1)?,
-            *blob.get(i + 2)?,
-            *blob.get(i + 3)?,
-        ]))
-    };
-
-    let count = u16_at(0)?;
-    if count == 0 || count > MAX_ENTRIES {
-        return None;
-    }
-
-    for i in 0..count as usize {
-        let entry = 2 + i * 12;
-        if u16_at(entry)? != CANON_COLOR_DATA {
-            continue;
-        }
-        if u16_at(entry + 2)? != TYPE_SHORT {
-            return None;
-        }
-        let n = u32_at(entry + 4)? as usize;
-        // ColorData is hundreds of shorts; a tiny or absurd count is not it.
-        if !(64..=8192).contains(&n) {
-            return None;
-        }
-        let at = u32_at(entry + 8)? as usize;
-        let bytes = file_bytes.get(at..at.checked_add(n * 2)?)?;
-        return Some(
-            bytes
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|b| u16::from_le_bytes([b[0], b[1]]))
-                .collect(),
-        );
-    }
-    None
+    super::canon_makernote::shorts(file_bytes, CANON_COLOR_DATA, PLAUSIBLE_LENGTH)
 }
 
 #[cfg(test)]
@@ -252,34 +185,5 @@ mod tests {
             None,
             "unknown layouts are declined"
         );
-    }
-
-    /// An IFD without ColorData, or with garbage in it, yields nothing rather
-    /// than a made-up white level.
-    #[test]
-    fn declines_what_it_does_not_understand() {
-        assert!(parse_color_data(&[0xff; 32], &[]).is_none());
-        assert!(parse_color_data(&[], &[]).is_none());
-        let mut blob = vec![0u8; 2 + 12];
-        blob[0] = 1;
-        blob[2..4].copy_from_slice(&0x0101u16.to_le_bytes());
-        assert!(parse_color_data(&blob, &[]).is_none());
-    }
-
-    /// A hand-built IFD pointing at a SHORT array is read back exactly.
-    #[test]
-    fn reads_a_short_array_through_a_file_offset() {
-        let values: Vec<u16> = (0..100u16).collect();
-        let mut file = vec![0u8; 64];
-        for v in &values {
-            file.extend_from_slice(&v.to_le_bytes());
-        }
-        let mut blob = vec![0u8; 2 + 12];
-        blob[0] = 1;
-        blob[2..4].copy_from_slice(&CANON_COLOR_DATA.to_le_bytes());
-        blob[4..6].copy_from_slice(&TYPE_SHORT.to_le_bytes());
-        blob[6..10].copy_from_slice(&(values.len() as u32).to_le_bytes());
-        blob[10..14].copy_from_slice(&64u32.to_le_bytes());
-        assert_eq!(parse_color_data(&blob, &file), Some(values));
     }
 }

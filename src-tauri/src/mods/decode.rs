@@ -26,6 +26,11 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // Must be first — it decides what every pixel value means.
     super::sraw_levels::fix(raw, file_bytes);
 
+    // Canon bodies older than ColorData keep their white balance somewhere
+    // rawler looks for it but cannot reach. Before the highlights, which read
+    // pixels, and before the matrix, which multiplies whatever they are.
+    super::canon_old_wb::fix(raw, file_bytes);
+
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and
     // before anything reads a pixel as colour.

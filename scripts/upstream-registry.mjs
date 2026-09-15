@@ -162,6 +162,29 @@ export const REGISTRY = [
     keywords: /raw|decode|demosaic|rawler|black.?level|white.?level|sraw/i,
   },
   {
+    id: 'canon-old-wb',
+    kind: 'feature',
+    what: 'As-shot white balance for Canon bodies older than ColorData (1D, 1Ds).',
+    ours: [
+      'src-tauri/src/mods/canon_makernote.rs',
+      'src-tauri/src/mods/canon_old_wb.rs',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/raw_processing.rs', symbol: 'on_raw_decoded', how: 'calls',
+        note: 'Runs behind the decode anchor; adds no line of theirs of its own.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/canon_makernote.rs #[cfg(test)]',
+      'src-tauri/src/mods/canon_old_wb.rs #[cfg(test)]',
+    ],
+    // Not expressible as a dependency, because it is not their code: rawler's
+    // Cr2Decoder::get_wb looks for MakerNote 0x00a4 in the root IFD chain and
+    // so never finds it. If that is ever fixed upstream this becomes a no-op
+    // rather than a conflict — it only runs when wb_coeffs came back NaN — but
+    // it should then be retired rather than left lying around.
+    keywords: /white.?balance|wb|canon|1ds|1d|makernote|colordata|rawler|greenish/i,
+  },
+  {
     id: 'display-transform',
     kind: 'feature',
     what: 'sRGB converted to whichever screen the window is actually on.',
