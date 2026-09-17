@@ -3,7 +3,7 @@ name = "Argentum"
 description = "A blazingly-fast, non-destructive, and GPU-accelerated RAW image editor built with performance in mind."
 authors = ["Timon Käch"]
 edition = "2024"
-version = "26.38.3"
+version = "26.38.4"
 rust-version = "1.98"
 
 [lib]
