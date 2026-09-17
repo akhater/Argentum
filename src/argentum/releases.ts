@@ -32,6 +32,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.38.3',
+    date: '2026-09-17',
+    notes: [
+      'Canon EOS C50 .CR3 photos now open properly. This fixes the unknown-camera '
+      + 'error reported in RapidRAW issue #1735: '
+      + 'https://github.com/CyberTimon/RapidRAW/issues/1735.',
+      'Canon 1D and 1Ds raw files stored as .TIF are now recognised as raw '
+      + 'photographs instead of opening the small preview buried in the file. '
+      + 'Ordinary TIFFs continue to open as ordinary TIFFs.',
+    ],
+  },
+  {
     version: '26.38.2',
     date: '2026-09-15',
     notes: [
