@@ -123,7 +123,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    use rawler::decoders::{Decoder, RawDecodeParams};
+    use rawler::decoders::RawDecodeParams;
 
     fn temp(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join("argentum-tif-raw-tests");
