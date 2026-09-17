@@ -24,10 +24,11 @@
 //! Not "is the Make Canon" — an ordinary TIFF exported from a Canon photo
 //! inherits that, and can inherit a whole MakerNote with it. The question is
 //! whether a raw decoder will actually open the file, so the honest way to ask
-//! is to ask the decoder. `get_decoder` parses the container and checks the
-//! camera against rawler's own table; it does not decode a pixel. Something
-//! that a raw decoder cannot open is not a raw, whatever its metadata claims,
-//! and something it can open will be opened by exactly this code path later.
+//! is to ask the decoder. `get_decoder` only identifies a decoder; for a Canon
+//! TIFF it can succeed from Make/Model alone, even when the file has no raw
+//! payload. The probe therefore also asks that decoder for a dummy raw image.
+//! This validates the raw-specific payload without doing the full pixel decode,
+//! and keeps this decision aligned with the code path that opens the image.
 //!
 //! The test and the consequence are then the same function, and cannot drift
 //! apart.
@@ -95,13 +96,21 @@ pub fn is_camera_raw<P: AsRef<Path>>(path: P) -> bool {
     answer
 }
 
-/// The whole test: will rawler open this file as a raw?
+/// The whole test: can rawler initialize a raw image from this file?
 fn a_raw_decoder_opens_it(path: &Path) -> bool {
     let Ok(source) = rawler::rawsource::RawSource::new(path) else {
         return false;
     };
     match rawler::get_decoder(&source) {
-        Ok(_) => true,
+        Ok(decoder) => {
+            match decoder.raw_image(&source, &rawler::decoders::RawDecodeParams::default(), true) {
+                Ok(_) => true,
+                Err(e) => {
+                    log::debug!("{} is not a usable raw TIFF: {e:?}", path.display());
+                    false
+                }
+            }
+        }
         Err(e) => {
             log::debug!("{} is an ordinary TIFF: {e:?}", path.display());
             false
@@ -113,6 +122,8 @@ fn a_raw_decoder_opens_it(path: &Path) -> bool {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    use rawler::decoders::{Decoder, RawDecodeParams};
 
     fn temp(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join("argentum-tif-raw-tests");
@@ -131,6 +142,41 @@ mod tests {
         path
     }
 
+    /// A normal TIFF exported from a Canon photo can retain Canon camera
+    /// metadata while containing no sensor RAW payload. rawler's decoder
+    /// selection accepts this from Make/Model, but its raw-image probe must
+    /// reject it so the normal TIFF loader gets the file.
+    fn write_canon_tiff_without_raw(name: &str) -> std::path::PathBuf {
+        let path = temp(name);
+        let make = b"Canon\0";
+        let model = b"Canon EOS-1DS\0";
+
+        // Little-endian TIFF with two ASCII fields: Make and Model. The IFD
+        // ends at byte 38, so the strings follow immediately after it.
+        let make_offset = 38u32;
+        let model_offset = make_offset + make.len() as u32;
+        let mut bytes = Vec::with_capacity(model_offset as usize + model.len());
+        bytes.extend_from_slice(b"II");
+        bytes.extend_from_slice(&42u16.to_le_bytes());
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes());
+
+        for (tag, count, offset) in [
+            (0x010f_u16, make.len() as u32, make_offset),
+            (0x0110_u16, model.len() as u32, model_offset),
+        ] {
+            bytes.extend_from_slice(&tag.to_le_bytes());
+            bytes.extend_from_slice(&2u16.to_le_bytes());
+            bytes.extend_from_slice(&count.to_le_bytes());
+            bytes.extend_from_slice(&offset.to_le_bytes());
+        }
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(make);
+        bytes.extend_from_slice(model);
+        std::fs::write(&path, bytes).expect("write Canon TIFF");
+        path
+    }
+
     /// The case the whole module exists for, stated as a test: a TIFF that no
     /// raw decoder will open is not a raw, however it is spelled.
     #[test]
@@ -144,6 +190,21 @@ mod tests {
             !is_camera_raw(&upper),
             "case and .tiff must behave the same"
         );
+    }
+
+    #[test]
+    fn a_canon_tiff_without_raw_payload_is_not_a_raw() {
+        let path = write_canon_tiff_without_raw("canon-export.tif");
+        let source = rawler::rawsource::RawSource::new(&path).expect("source");
+        let decoder =
+            rawler::get_decoder(&source).expect("Canon Make/Model should select the CR2 decoder");
+        assert!(
+            decoder
+                .raw_image(&source, &RawDecodeParams::default(), true)
+                .is_err(),
+            "the fixture must have no raw payload"
+        );
+        assert!(!is_camera_raw(&path));
     }
 
     /// Nothing but a `.tif` is ever sniffed, and a path that does not exist is
