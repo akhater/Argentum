@@ -4,6 +4,22 @@ Newest first.
 
 **Based on RapidRAW `1.6.3` @ `5ad3ba0b`** — updated whenever upstream is merged.
 
+## 26.38.3 — 2026-09-17
+
+### Fixed
+
+- **Canon EOS C50 `.CR3` files are now recognised.** RapidRAW issue [#1735](https://github.com/CyberTimon/RapidRAW/issues/1735)
+  reported that stills from the C50 opened with an unknown-camera error because
+  the rawler fork did not yet contain the camera's data. Argentum now pins an
+  Ag-owned rawler revision containing only the Canon EOS C50 camera definition.
+  No decoder or UI changes were needed.
+- **Canon 1D and 1Ds raw `.TIF` files are routed to the raw decoder.** These
+  cameras wrote real Bayer raws in TIFF containers before `.CR2` existed, so
+  treating every `.TIF` as an ordinary image opened the small embedded preview
+  instead of the photograph. Argentum now asks the decoder whether an ambiguous
+  TIFF is actually a raw file, while leaving ordinary TIFFs on the normal image
+  path.
+
 ## 26.38.2 — 2026-09-15
 
 ### Fixed
