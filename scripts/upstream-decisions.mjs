@@ -80,6 +80,24 @@ export const REVIEWS = [
       why: 'Read all three commits for processing and UI/UX overlap. Adopt upstream Ctrl/Meta crop pan, wheel crop zoom and double-click crop/rotation reset, including their interface. Canvas gestures are separate from Argentum Ctrl-drag clipping previews on sliders. Adopt the intermediate preview cache and follow-up spatial-order/blur-key fix; keep Argentum processing and borrowed fixes. No white balance, highlight recovery, display conversion or preview encoding implementation is replaced. The newer highlight commit 40cfa3df is outside this review. Interactive masking/picker checks remain part of candidate validation, not a claim made by this source review.',
     },
   },
+  {
+    through: '40cfa3df9c039f9f6adfd77a2c759b1ae788a3cd',
+    date: '2026-09-19',
+    decisions: [
+      { overlap: '40cfa3df:dep:camera-profile:src-tauri/src/image_processing.rs#GlobalAdjustments', verdict: 'not-applicable', why: 'The upstream commit changes RAW highlight processing in this file, not Argentum camera-profile fields or their scene-linear anchor.' },
+      { overlap: '40cfa3df:dep:clipping-view:src-tauri/src/image_processing.rs#show_clipping', verdict: 'not-applicable', why: 'The upstream commit does not change Argentum clipping-view state; the overlap is surrounding-file context only.' },
+      { overlap: '40cfa3df:dep:preview-encode:src-tauri/src/image_processing.rs#apply_cpu_default_raw_processing', verdict: 'not-applicable', why: 'The upstream commit changes remove_raw_artifacts_and_enhance and detail enhancement, not Argentum preview encoding, which remains the output boundary.' },
+      { overlap: '40cfa3df:dep:adjustments-path-argument:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', verdict: 'not-applicable', why: 'The upstream commit does not change adjustment parsing or the photo-path argument required by Argentum profile correction.' },
+      { overlap: '40cfa3df:dep:raw-decode:src-tauri/src/raw_processing.rs#on_raw_decoded', verdict: 'not-applicable', why: 'The upstream post-demosaic recovery is intentionally excluded; Argentum keeps its single pre-demosaic decode anchor unchanged.' },
+      { overlap: '40cfa3df:dep:canon-old-wb:src-tauri/src/raw_processing.rs#on_raw_decoded', verdict: 'not-applicable', why: 'The upstream post-demosaic recovery is intentionally excluded; Argentum keeps the Canon old-WB ordering unchanged.' },
+      { overlap: '40cfa3df:dep:borrow-1633:src-tauri/src/raw_processing.rs', verdict: 'not-applicable', why: 'The upstream hunk is separate from Argentum\'s retained sRGB exponent correction; the marked borrowed fix remains unchanged.' },
+      { overlap: '40cfa3df:feature:highlight-recovery', verdict: 'combine', why: 'Adopt the upstream unbounded scene-linear handling in image_processing.rs, keep Argentum\'s pre-demosaic recovery as the sole RAW recovery, and exclude RapidRAW\'s overlapping post-demosaic recovery and rawler lockfile revision.' },
+    ],
+    featureReview: {
+      verdict: 'overlap-found',
+      why: 'The commit contains two separable concerns. Its image_processing upper-clamp removal is compatible with Argentum\'s scene-linear pipeline and is adopted. Its raw_processing RGB recovery runs after demosaicing and would stack on Argentum\'s measured pre-demosaic recovery, so it is explicitly excluded. The rawler lockfile revision is also excluded pending an independent decoder review. Numerical tests cover headroom preservation, lower-floor behavior and nonzero above-white detail changes.',
+    },
+  },
 ];
 
 /** The commit every upstream change up to which has been reviewed. */
