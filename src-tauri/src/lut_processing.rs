@@ -6,10 +6,13 @@ use crate::android_integration::{
 use anyhow::anyhow;
 use image::{DynamicImage, GenericImageView, Rgb, Rgb32FImage};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::{File, copy, create_dir_all, read_dir};
 use std::io::{BufRead, BufReader, Cursor};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::UNIX_EPOCH;
+use uuid::Uuid;
 
 use base64::{Engine as _, engine::general_purpose};
 use mozjpeg_rs::{Encoder, Preset};
@@ -34,6 +37,33 @@ pub struct LutEntry {
     pub name: String,
     pub path: String,
     pub is_built_in: bool,
+    pub library_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LutLibrary {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LutLibraryManifest {
+    version: u32,
+    libraries: Vec<LutLibrary>,
+    assignments: HashMap<String, String>,
+}
+
+const LUT_LIBRARY_MANIFEST_VERSION: u32 = 1;
+const UNCATEGORIZED_LIBRARY_ID: &str = "uncategorized";
+static LUT_LIBRARY_MANIFEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn library_manifest_lock() -> std::sync::MutexGuard<'static, ()> {
+    LUT_LIBRARY_MANIFEST_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -75,6 +105,166 @@ pub fn get_luts_dir(app_data_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(luts_dir)
 }
 
+fn library_manifest_path(luts_dir: &Path) -> PathBuf {
+    luts_dir.join("library.json")
+}
+
+fn default_library_manifest() -> LutLibraryManifest {
+    LutLibraryManifest {
+        version: LUT_LIBRARY_MANIFEST_VERSION,
+        libraries: vec![LutLibrary {
+            id: UNCATEGORIZED_LIBRARY_ID.to_string(),
+            name: "Uncategorized".to_string(),
+        }],
+        assignments: HashMap::new(),
+    }
+}
+
+fn parse_library_manifest(content: &str) -> anyhow::Result<LutLibraryManifest> {
+    let mut manifest: LutLibraryManifest = serde_json::from_str(content)?;
+    if manifest.version > LUT_LIBRARY_MANIFEST_VERSION {
+        return Err(anyhow!(
+            "Unsupported LUT library manifest version: {}",
+            manifest.version
+        ));
+    }
+    if manifest.version == 0 {
+        manifest.version = LUT_LIBRARY_MANIFEST_VERSION;
+    }
+    if !manifest
+        .libraries
+        .iter()
+        .any(|library| library.id == UNCATEGORIZED_LIBRARY_ID)
+    {
+        manifest.libraries.insert(
+            0,
+            LutLibrary {
+                id: UNCATEGORIZED_LIBRARY_ID.to_string(),
+                name: "Uncategorized".to_string(),
+            },
+        );
+    }
+    Ok(manifest)
+}
+
+fn load_latest_manifest_backup(luts_dir: &Path) -> Option<LutLibraryManifest> {
+    let mut candidates: Vec<(std::time::SystemTime, PathBuf)> = read_dir(luts_dir)
+        .ok()?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let name = path.file_name()?.to_str()?;
+            if !name.starts_with("library.json.bak.") {
+                return None;
+            }
+            let modified = path
+                .metadata()
+                .ok()
+                .and_then(|metadata| metadata.modified().ok())
+                .unwrap_or(UNIX_EPOCH);
+            Some((modified, path))
+        })
+        .collect();
+    candidates.sort_by_key(|(modified, _)| *modified);
+    candidates.reverse();
+
+    candidates.into_iter().find_map(|(_, path)| {
+        let content = std::fs::read_to_string(path).ok()?;
+        parse_library_manifest(&content).ok()
+    })
+}
+
+fn declares_unsupported_manifest_version(content: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|value| value.get("version").and_then(|version| version.as_u64()))
+        .is_some_and(|version| version > LUT_LIBRARY_MANIFEST_VERSION as u64)
+}
+
+fn load_library_manifest(luts_dir: &Path) -> anyhow::Result<LutLibraryManifest> {
+    let path = library_manifest_path(luts_dir);
+    match std::fs::read_to_string(&path) {
+        Ok(content) => match parse_library_manifest(&content) {
+            Ok(manifest) => Ok(manifest),
+            Err(primary_error) if declares_unsupported_manifest_version(&content) => {
+                Err(primary_error)
+            }
+            Err(primary_error) => load_latest_manifest_backup(luts_dir)
+                .ok_or(primary_error),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(load_latest_manifest_backup(luts_dir).unwrap_or_else(default_library_manifest))
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn save_library_manifest(luts_dir: &Path, manifest: &LutLibraryManifest) -> anyhow::Result<()> {
+    let path = library_manifest_path(luts_dir);
+    let suffix = Uuid::new_v4();
+    let temp_path = luts_dir.join(format!("library.json.tmp.{}", suffix));
+    let backup_path = luts_dir.join(format!("library.json.bak.{}", suffix));
+    let json = serde_json::to_string_pretty(manifest)?;
+    std::fs::write(&temp_path, json)?;
+
+    if path.exists() {
+        std::fs::rename(&path, &backup_path)?;
+        if let Err(rename_error) = std::fs::rename(&temp_path, &path) {
+            let _ = std::fs::rename(&backup_path, &path);
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(rename_error.into());
+        }
+        let _ = std::fs::remove_file(&backup_path);
+    } else if let Err(rename_error) = std::fs::rename(&temp_path, &path) {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(rename_error.into());
+    }
+    Ok(())
+}
+
+fn library_id_exists(manifest: &LutLibraryManifest, library_id: &str) -> bool {
+    manifest
+        .libraries
+        .iter()
+        .any(|library| library.id == library_id)
+}
+
+fn ensure_lut_assignments(
+    entries: &mut [LutEntry],
+    manifest: &mut LutLibraryManifest,
+    luts_dir: &Path,
+) -> bool {
+    let mut changed = false;
+    for entry in entries.iter_mut().filter(|entry| !entry.is_built_in) {
+        let key = manifest_key(luts_dir, &entry.path);
+        if !manifest.assignments.contains_key(&key)
+            && let Some(legacy_assignment) = manifest.assignments.remove(&entry.path)
+        {
+            manifest.assignments.insert(key.clone(), legacy_assignment);
+            changed = true;
+        }
+        let assignment = manifest
+            .assignments
+            .entry(key.clone())
+            .or_insert_with(|| {
+                changed = true;
+                UNCATEGORIZED_LIBRARY_ID.to_string()
+            })
+            .clone();
+
+        let library_id = if library_id_exists(manifest, &assignment) {
+            assignment
+        } else {
+            changed = true;
+            manifest
+                .assignments
+                .insert(key, UNCATEGORIZED_LIBRARY_ID.to_string());
+            UNCATEGORIZED_LIBRARY_ID.to_string()
+        };
+        entry.library_id = Some(library_id);
+    }
+    changed
+}
+
 pub fn list_luts_in_dir(dir: &Path, is_built_in: bool) -> anyhow::Result<Vec<LutEntry>> {
     let mut entries: Vec<LutEntry> = Vec::new();
     if !dir.exists() {
@@ -104,6 +294,7 @@ pub fn list_luts_in_dir(dir: &Path, is_built_in: bool) -> anyhow::Result<Vec<Lut
                 name,
                 path: strip_verbatim(&path).to_string_lossy().into_owned(),
                 is_built_in,
+                library_id: None,
             });
         }
     }
@@ -121,7 +312,8 @@ fn unique_lut_destination(dir: &Path, stem: &str, extension: &str) -> PathBuf {
     candidate
 }
 
-pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result<Vec<LutEntry>> {
+pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result<Vec<String>> {
+    let mut imported_paths = Vec::new();
     for source in source_paths {
         if let Err(error) = parse_lut_file(source) {
             log::warn!("Skipping invalid LUT '{}': {}", source, error);
@@ -130,8 +322,13 @@ pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result
 
         #[cfg(target_os = "android")]
         if is_android_content_uri(source) {
-            if let Err(error) = import_android_lut(source) {
-                log::error!("Failed to import LUT from '{}': {}", source, error);
+            match import_android_lut(source) {
+                Ok(path) => {
+                    imported_paths.push(strip_verbatim(&path).to_string_lossy().into_owned())
+                }
+                Err(error) => {
+                    log::error!("Failed to import LUT from '{}': {}", source, error);
+                }
             }
             continue;
         }
@@ -147,15 +344,20 @@ pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result
             .unwrap_or("cube")
             .to_lowercase();
         let destination = unique_lut_destination(dir, stem, &extension);
-        if let Err(error) = copy(source_path, &destination) {
-            log::error!("Failed to copy LUT '{}': {}", source, error);
+        match copy(source_path, &destination) {
+            Ok(_) => {
+                imported_paths.push(strip_verbatim(&destination).to_string_lossy().into_owned())
+            }
+            Err(error) => {
+                log::error!("Failed to copy LUT '{}': {}", source, error);
+            }
         }
     }
-    list_luts_in_dir(dir, false)
+    Ok(imported_paths)
 }
 
 #[cfg(target_os = "android")]
-fn import_android_lut(source: &str) -> anyhow::Result<()> {
+fn import_android_lut(source: &str) -> anyhow::Result<PathBuf> {
     let resolved_name = resolve_android_content_uri_name(source)
         .map_err(|e| anyhow!("Failed to resolve content URI: {}", e))?;
     let stem = Path::new(&resolved_name)
@@ -178,7 +380,7 @@ fn import_android_lut(source: &str) -> anyhow::Result<()> {
         .to_path_buf();
     let destination = unique_lut_destination(&cache_dir, &stem, &extension);
     std::fs::write(&destination, &bytes)?;
-    Ok(())
+    Ok(destination)
 }
 
 fn parse_cube(reader: impl BufRead) -> anyhow::Result<Lut> {
@@ -486,9 +688,14 @@ pub fn get_or_load_lut(state: &State<AppState>, path: &str) -> Result<Arc<Lut>, 
 
 #[tauri::command]
 pub fn list_luts(app_handle: AppHandle) -> Result<Vec<LutEntry>, String> {
+    let _manifest_guard = library_manifest_lock();
+    list_luts_unlocked(&app_handle)
+}
+
+fn list_luts_unlocked(app_handle: &AppHandle) -> Result<Vec<LutEntry>, String> {
     let mut all_luts = Vec::new();
 
-    if let Some(resource_path) = film_luts_dir(&app_handle)
+    if let Some(resource_path) = film_luts_dir(app_handle)
         && let Ok(built_in) = list_luts_in_dir(&resource_path, true)
     {
         all_luts.extend(built_in);
@@ -516,7 +723,164 @@ pub fn list_luts(app_handle: AppHandle) -> Result<Vec<LutEntry>, String> {
         }
     }
 
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    if ensure_lut_assignments(&mut all_luts, &mut manifest, &luts_dir) {
+        save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
+    }
+
     Ok(all_luts)
+}
+
+fn manifest_key(luts_dir: &Path, path: &str) -> String {
+    let normalized_path = strip_verbatim(Path::new(path));
+    let normalized_luts_dir = strip_verbatim(luts_dir);
+    if let Ok(relative_path) = normalized_path.strip_prefix(&normalized_luts_dir) {
+        return relative_path.to_string_lossy().replace('\\', "/");
+    }
+    format!(
+        "external:{}",
+        normalized_path.to_string_lossy().replace('\\', "/")
+    )
+}
+
+#[tauri::command]
+pub fn list_lut_libraries(app_handle: AppHandle) -> Result<Vec<LutLibrary>, String> {
+    let _manifest_guard = library_manifest_lock();
+    let _ = list_luts_unlocked(&app_handle)?;
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    Ok(manifest.libraries)
+}
+
+#[tauri::command]
+pub fn create_lut_library(app_handle: AppHandle, name: String) -> Result<LutLibrary, String> {
+    let _manifest_guard = library_manifest_lock();
+    let trimmed_name = name.trim();
+    if trimmed_name.is_empty() {
+        return Err("Library name cannot be empty".to_string());
+    }
+
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+
+    if manifest
+        .libraries
+        .iter()
+        .any(|library| library.name.eq_ignore_ascii_case(trimmed_name))
+    {
+        return Err("A LUT library with that name already exists".to_string());
+    }
+
+    let library = LutLibrary {
+        id: Uuid::new_v4().to_string(),
+        name: trimmed_name.to_string(),
+    };
+    manifest.libraries.push(library.clone());
+    save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
+    Ok(library)
+}
+
+#[tauri::command]
+pub fn rename_lut_library(
+    app_handle: AppHandle,
+    library_id: String,
+    name: String,
+) -> Result<Vec<LutLibrary>, String> {
+    let _manifest_guard = library_manifest_lock();
+    let trimmed_name = name.trim();
+    if trimmed_name.is_empty() {
+        return Err("Library name cannot be empty".to_string());
+    }
+    if library_id == UNCATEGORIZED_LIBRARY_ID {
+        return Err("The Uncategorized library cannot be renamed".to_string());
+    }
+
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    if manifest
+        .libraries
+        .iter()
+        .any(|library| library.id != library_id && library.name.eq_ignore_ascii_case(trimmed_name))
+    {
+        return Err("A LUT library with that name already exists".to_string());
+    }
+
+    let library = manifest
+        .libraries
+        .iter_mut()
+        .find(|library| library.id == library_id)
+        .ok_or_else(|| "LUT library not found".to_string())?;
+    library.name = trimmed_name.to_string();
+    save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
+    Ok(manifest.libraries)
+}
+
+#[tauri::command]
+pub fn delete_lut_library(
+    app_handle: AppHandle,
+    library_id: String,
+) -> Result<Vec<LutLibrary>, String> {
+    let _manifest_guard = library_manifest_lock();
+    if library_id == UNCATEGORIZED_LIBRARY_ID {
+        return Err("The Uncategorized library cannot be deleted".to_string());
+    }
+
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    let original_len = manifest.libraries.len();
+    manifest
+        .libraries
+        .retain(|library| library.id != library_id);
+    if manifest.libraries.len() == original_len {
+        return Err("LUT library not found".to_string());
+    }
+    for assignment in manifest.assignments.values_mut() {
+        if assignment == &library_id {
+            *assignment = UNCATEGORIZED_LIBRARY_ID.to_string();
+        }
+    }
+    save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
+    Ok(manifest.libraries)
+}
+
+#[tauri::command]
+pub fn set_lut_library(
+    app_handle: AppHandle,
+    path: String,
+    library_id: String,
+) -> Result<Vec<LutEntry>, String> {
+    let manifest_guard = library_manifest_lock();
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    if !library_id_exists(&manifest, &library_id) {
+        return Err("LUT library not found".to_string());
+    }
+    manifest
+        .assignments
+        .insert(manifest_key(&luts_dir, &path), library_id);
+    save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
+    drop(manifest_guard);
+    list_luts(app_handle)
 }
 
 #[cfg(target_os = "android")]
@@ -560,6 +924,7 @@ fn list_luts_in_cache() -> anyhow::Result<Vec<LutEntry>> {
                 name,
                 path: strip_verbatim(&path).to_string_lossy().into_owned(),
                 is_built_in: false,
+                library_id: None,
             });
         }
     }
@@ -571,24 +936,41 @@ fn list_luts_in_cache() -> anyhow::Result<Vec<LutEntry>> {
 pub fn import_luts(
     app_handle: AppHandle,
     source_paths: Vec<String>,
+    library_id: Option<String>,
 ) -> Result<Vec<LutEntry>, String> {
+    let manifest_guard = library_manifest_lock();
     let data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?;
     let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
-    import_luts_to_dir(&luts_dir, &source_paths).map_err(|e| e.to_string())?;
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    let target_library_id = library_id.unwrap_or_else(|| UNCATEGORIZED_LIBRARY_ID.to_string());
+    if !library_id_exists(&manifest, &target_library_id) {
+        return Err("LUT library not found".to_string());
+    }
+    let imported_paths = import_luts_to_dir(&luts_dir, &source_paths).map_err(|e| e.to_string())?;
+    for imported_path in imported_paths {
+        manifest.assignments.insert(
+            manifest_key(&luts_dir, &imported_path),
+            target_library_id.clone(),
+        );
+    }
+    save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
 
+    drop(manifest_guard);
     list_luts(app_handle)
 }
 
 #[tauri::command]
 pub fn remove_lut(app_handle: AppHandle, path: String) -> Result<Vec<LutEntry>, String> {
+    let manifest_guard = library_manifest_lock();
     let data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?;
-    let luts_dir = strip_verbatim(&get_luts_dir(&data_dir).map_err(|e| e.to_string())?);
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let normalized_luts_dir = strip_verbatim(&luts_dir);
     let target_path = strip_verbatim(Path::new(&path));
 
     if let Some(resource_path) = film_luts_dir(&app_handle)
@@ -600,25 +982,42 @@ pub fn remove_lut(app_handle: AppHandle, path: String) -> Result<Vec<LutEntry>, 
     #[cfg(target_os = "android")]
     {
         let cache_dir = strip_verbatim(&get_lut_cache_dir().map_err(|e| e.to_string())?);
-        if !target_path.starts_with(&luts_dir) && !target_path.starts_with(&cache_dir) {
+        if !target_path.starts_with(&normalized_luts_dir) && !target_path.starts_with(&cache_dir) {
             return Err(
                 "Access denied: Cannot remove files outside the user LUT directory".to_string(),
             );
         }
     }
     #[cfg(not(target_os = "android"))]
-    if !target_path.starts_with(&luts_dir) {
+    if !target_path.starts_with(&normalized_luts_dir) {
         return Err(
             "Access denied: Cannot remove files outside the user LUT directory".to_string(),
         );
     }
 
-    if target_path.exists() {
-        std::fs::remove_file(&target_path).map_err(|e| e.to_string())?;
-    } else {
+    if !target_path.exists() {
         return Err("LUT file not found".to_string());
     }
 
+    let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
+    let assignment_key = manifest_key(&luts_dir, &path);
+    let previous_assignment = manifest.assignments.remove(&assignment_key);
+    save_library_manifest(&luts_dir, &manifest).map_err(|e| e.to_string())?;
+
+    if let Err(delete_error) = trash::delete(&target_path) {
+        if let Some(previous_assignment) = previous_assignment {
+            manifest
+                .assignments
+                .insert(assignment_key, previous_assignment);
+        }
+        let _ = save_library_manifest(&luts_dir, &manifest);
+        return Err(format!(
+            "Failed to move LUT to the recycle bin: {}",
+            delete_error
+        ));
+    }
+
+    drop(manifest_guard);
     list_luts(app_handle)
 }
 
@@ -690,8 +1089,12 @@ pub fn generate_lut_previews(
                 "lutIsSceneReferred": request.is_built_in,
                 "sectionVisibility": { "effects": true }
             });
-            let swatch_adjustments =
-                get_all_adjustments_from_json(&swatch_lut_json, is_raw, tm_override, Some(loaded_image.path.as_str()));
+            let swatch_adjustments = get_all_adjustments_from_json(
+                &swatch_lut_json,
+                is_raw,
+                tm_override,
+                Some(loaded_image.path.as_str()),
+            );
 
             let thumb = render_lut_swatch(
                 &context,
