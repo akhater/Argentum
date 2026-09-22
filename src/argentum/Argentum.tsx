@@ -122,9 +122,6 @@ export default function Argentum() {
   // and an import when there is none.
   const cameraProfile = useAnchor('[data-argentum="camera-profile"]');
 
-  // Below the existing Basic-panel Tone Mapper: the RAW rendering choice.
-  const rawTone = useAnchor('[data-argentum="raw-tone"]');
-
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
   const gear = useAnchor('[data-argentum="gear"]');
 
@@ -147,11 +144,11 @@ export default function Argentum() {
       {colorTools && createPortal(<AutoWhiteBalanceButton />, colorTools)}
       {about && createPortal(<AboutPanel />, about)}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
-      {rawTone && createPortal(<RawToneRendering />, rawTone)}
       {cameraProfile &&
         createPortal(
           <>
             <CameraProfile />
+            <RawToneRendering />
             <HighlightRecovery />
           </>,
           cameraProfile,
