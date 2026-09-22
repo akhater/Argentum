@@ -32,6 +32,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.39.1',
+    date: '2026-09-22',
+    notes: [
+      'Custom LUTs can now be organized into named libraries. Create groups, '
+      + 'import into one, collapse them, and move, rename or delete them without '
+      + 'moving the LUT files your edits use.',
+      'Bright RAW detail is preserved further through editing instead of being '
+      + 'cut down early while noise reduction and sharpening run.',
+    ],
+  },
+  {
     version: '26.38.3',
     date: '2026-09-17',
     notes: [

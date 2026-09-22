@@ -4,6 +4,20 @@ Newest first.
 
 **Based on RapidRAW `1.6.3` @ `40cfa3df`** — updated whenever upstream is merged.
 
+## 26.39.1 — 2026-09-22
+
+### Added
+
+- **Custom LUTs can now be organized into libraries.** Create named groups,
+  import into a chosen group, collapse groups, and move, rename or delete them
+  without moving the underlying LUT files.
+
+### Fixed
+
+- **Bright RAW detail is preserved further through editing.** Highlight values
+  are no longer cut down too early while noise reduction and sharpening run,
+  leaving the final display mapping to handle them.
+
 ## 26.38.3 — 2026-09-17
 
 ### Fixed
