@@ -15,7 +15,8 @@
       "reset": "Zurücksetzen",
       "shadows": "Tiefen",
       "toneMapper": "Tonemapper",
-      "whites": "Weiß"
+      "whites": "Weiß",
+      "brightness": "Helligkeit"
     },
     "color": {
       "ariaSelectColor": "{{name}}-Farbe auswählen",
@@ -800,7 +801,10 @@
     },
     "file": {
       "quality": "Qualität",
-      "qualityLossless": "Qualität (Verlustfrei)"
+      "qualityLossless": "Qualität (Verlustfrei)",
+      "tiffBitDepth": "TIFF-Bittiefe",
+      "tiffBitDepth16": "16 Bit",
+      "tiffBitDepth8": "8 Bit"
     },
     "labels": {
       "image": "Bild",
@@ -1567,7 +1571,10 @@
       "themeDesc": "Ändern Sie das Aussehen und Gefühl der Anwendung.",
       "title": "Allgemeine Einstellungen",
       "xmpSync": "XMP-Metadaten-Sync",
-      "xmpSyncDesc": "Synchronisieren Sie Bewertungen, Farbmarkierungen und Tags in Standard-XMP-Filialdateien für Kompatibilität mit anderen Foto-Editoren."
+      "xmpSyncDesc": "Synchronisieren Sie Bewertungen, Farbmarkierungen und Tags in Standard-XMP-Filialdateien für Kompatibilität mit anderen Foto-Editoren.",
+      "enableNeutralGreyCanvas": "Neutralgrauen Hintergrund aktivieren",
+      "neutralGreyCanvas": "Neutralgraue Arbeitsfläche",
+      "neutralGreyCanvasDesc": "Verwenden Sie eine neutralgraue Arbeitsfläche für eine genauere Farb- und Belichtungskorrektur, ohne das App-Design zu ändern."
     },
     "keybinds": {
       "actions": {

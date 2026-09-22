@@ -40,8 +40,9 @@ use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
 use crate::mods::{
     export_metadata::write_export_metadata,
     export_precision::{
-        Precision, encode_tiff, overlay_preserving_precision, render_for_estimate,
+        Precision, TiffDepth, encode_tiff, overlay_preserving_precision, render_for_estimate,
         render_for_export,
+        set_runtime_depth,
     },
 };
 use crate::{
@@ -1367,6 +1368,7 @@ pub async fn run_headless_export(
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     println!("Starting headless export...");
+    set_runtime_depth(TiffDepth::from_u8(session.tiff_bit_depth));
     let state = app_handle.state::<crate::AppState>();
 
     let source_path = std::path::Path::new(&session.source);

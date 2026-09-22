@@ -485,6 +485,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub use_wgpu_renderer: Option<bool>,
     #[serde(default)]
+    pub editor_neutral_grey_bg: Option<bool>,
+    #[serde(default)]
     pub canvas_input_mode: Option<String>,
     #[serde(default)]
     pub zoom_speed_multiplier: Option<f32>,
@@ -599,6 +601,7 @@ impl Default for AppSettings {
             use_wgpu_renderer: Some(false),
             #[cfg(not(any(target_os = "linux", target_os = "android")))]
             use_wgpu_renderer: Some(true),
+            editor_neutral_grey_bg: Some(false),
             canvas_input_mode: Some("mouse".to_string()),
             zoom_speed_multiplier: Some(1.0),
             zoom_photo_to_pixel_click: Some(false),
@@ -733,4 +736,22 @@ pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(),
         .unwrap()
         .set_capacity(cache_size);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+
+    #[test]
+    fn legacy_raw_highlight_compression_setting_survives_load_and_save() {
+        let mut legacy = AppSettings::default();
+        legacy.raw_highlight_compression = Some(2.5);
+
+        let saved = serde_json::to_string(&legacy).expect("serialize old setting");
+        let loaded: AppSettings = serde_json::from_str(&saved).expect("load old setting");
+        assert_eq!(loaded.raw_highlight_compression, Some(2.5));
+
+        let saved_again = serde_json::to_value(loaded).expect("save loaded setting");
+        assert_eq!(saved_again["rawHighlightCompression"], 2.5);
+    }
 }

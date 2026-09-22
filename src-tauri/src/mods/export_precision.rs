@@ -212,6 +212,13 @@ pub fn tiff_depth() -> TiffDepth {
     TiffDepth::from_u8(TIFF_DEPTH.load(std::sync::atomic::Ordering::Relaxed))
 }
 
+/// Override the process-local depth without changing the saved preference.
+/// Headless exports run in their own application process and use this for an
+/// explicit `--tiff-bit-depth` request.
+pub fn set_runtime_depth(depth: TiffDepth) {
+    TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Read the preference at startup. Missing or unreadable means 16-bit, which is
 /// what every export did before this setting existed - so upgrading changes
 /// nobody's output until they ask for it.

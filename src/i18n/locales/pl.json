@@ -15,7 +15,8 @@
       "reset": "Resetuj",
       "shadows": "Cienie",
       "toneMapper": "Mapowanie tonów",
-      "whites": "Biele"
+      "whites": "Biele",
+      "brightness": "Jasność"
     },
     "color": {
       "ariaSelectColor": "Wybierz kolor {{name}}",
@@ -844,7 +845,10 @@
     },
     "file": {
       "quality": "Jakość",
-      "qualityLossless": "Jakość (Bezstratna)"
+      "qualityLossless": "Jakość (Bezstratna)",
+      "tiffBitDepth": "Głębia bitowa TIFF",
+      "tiffBitDepth16": "16 bitów",
+      "tiffBitDepth8": "8 bitów"
     },
     "labels": {
       "image": "Obraz",
@@ -1635,7 +1639,10 @@
       "themeDesc": "Zmień wygląd aplikacji.",
       "title": "Ustawienia ogólne",
       "xmpSync": "Synchronizacja metadanych XMP",
-      "xmpSyncDesc": "Synchronizuj oceny, etykiety kolorów i tagi do standardowych plików XMP w celu zachowania kompatybilności z innymi edytorami zdjęć."
+      "xmpSyncDesc": "Synchronizuj oceny, etykiety kolorów i tagi do standardowych plików XMP w celu zachowania kompatybilności z innymi edytorami zdjęć.",
+      "enableNeutralGreyCanvas": "Włącz neutralne szare tło",
+      "neutralGreyCanvas": "Neutralne szare płótno",
+      "neutralGreyCanvasDesc": "Użyj neutralnego, szarego płótna do dokładniejszej korekcji kolorów i ekspozycji bez zmiany motywu aplikacji."
     },
     "keybinds": {
       "actions": {

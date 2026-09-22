@@ -38,6 +38,10 @@ fn is_linear_raw_format(raw_image: &RawImage) -> bool {
     )
 }
 
+fn decode_clamp_limit(fast_demosaic: bool) -> f32 {
+    if fast_demosaic { 1.0 } else { 1000.0 }
+}
+
 #[inline]
 fn srgb_to_linear(value: f32) -> f32 {
     if value <= 0.04045 {
@@ -53,7 +57,7 @@ fn srgb_to_linear(value: f32) -> f32 {
 fn develop_internal(
     file_bytes: &[u8],
     fast_demosaic: bool,
-    highlight_compression: f32,
+    _highlight_compression: f32,
     linear_mode: String,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
     photo_path: Option<&str>, // Argentum
@@ -135,12 +139,14 @@ fn develop_internal(
     let denominator = (original_white_level - original_black_level).max(1.0);
     let rescale_factor = (u32::MAX as f32 - original_black_level) / denominator;
 
-    let safe_highlight_compression = highlight_compression.max(1.01);
+    // Keep old `raw_highlight_compression` preferences readable, but no longer
+    // use them to compress decoded values. The editor handles scene-linear
+    // headroom; fast/thumbnail decode retains its existing 1.0 ceiling.
+    let clamp_limit = decode_clamp_limit(fast_demosaic);
 
-    let clamp_limit = if fast_demosaic {
-        1.0
-    } else {
-        safe_highlight_compression
+    let (width, height) = {
+        let dim = developed_intermediate.dim();
+        (dim.w as u32, dim.h as u32)
     };
 
     check_cancel()?;
@@ -150,7 +156,7 @@ fn develop_internal(
             pixels.data.iter_mut().for_each(|p| {
                 let mut linear_val = *p * rescale_factor;
                 if is_linear_format && apply_ungamma {
-                    linear_val = srgb_to_linear(linear_val.clamp(0.0, 1.0));
+                    linear_val = srgb_to_linear(linear_val.max(0.0));
                 }
                 *p = linear_val.clamp(0.0, clamp_limit);
             });
@@ -162,39 +168,18 @@ fn develop_internal(
                 let mut b = (p[2] * rescale_factor).max(0.0);
 
                 if is_linear_format && apply_ungamma {
-                    r = srgb_to_linear(r.clamp(0.0, 1.0));
-                    g = srgb_to_linear(g.clamp(0.0, 1.0));
-                    b = srgb_to_linear(b.clamp(0.0, 1.0));
+                    r = srgb_to_linear(r.max(0.0));
+                    g = srgb_to_linear(g.max(0.0));
+                    b = srgb_to_linear(b.max(0.0));
                 }
 
-                let max_c = r.max(g).max(b);
-
-                let (final_r, final_g, final_b) = if max_c > 1.0 {
-                    let min_c = r.min(g).min(b);
-                    let compression_factor =
-                        (1.0 - (max_c - 1.0) / (safe_highlight_compression - 1.0)).clamp(0.0, 1.0);
-                    let compressed_r = min_c + (r - min_c) * compression_factor;
-                    let compressed_g = min_c + (g - min_c) * compression_factor;
-                    let compressed_b = min_c + (b - min_c) * compression_factor;
-                    let compressed_max = compressed_r.max(compressed_g).max(compressed_b);
-
-                    if compressed_max > 1e-6 {
-                        let rescale = max_c / compressed_max;
-                        (
-                            compressed_r * rescale,
-                            compressed_g * rescale,
-                            compressed_b * rescale,
-                        )
-                    } else {
-                        (max_c, max_c, max_c)
-                    }
-                } else {
-                    (r, g, b)
-                };
-
-                p[0] = final_r.clamp(0.0, clamp_limit);
-                p[1] = final_g.clamp(0.0, clamp_limit);
-                p[2] = final_b.clamp(0.0, clamp_limit);
+                // Keep scene-linear values above nominal white for the editor's
+                // tone mapping. Argentum's pre-demosaic recovery ran earlier in
+                // Argentum's earlier decode hook; do not stack RapidRAW's
+                // post-demosaic recovery or the superseded compression pass here.
+                p[0] = r.clamp(0.0, clamp_limit);
+                p[1] = g.clamp(0.0, clamp_limit);
+                p[2] = b.clamp(0.0, clamp_limit);
             });
         }
         Intermediate::FourColor(pixels) => {
@@ -202,18 +187,13 @@ fn develop_internal(
                 p.iter_mut().for_each(|c| {
                     let mut linear_val = *c * rescale_factor;
                     if is_linear_format && apply_ungamma {
-                        linear_val = srgb_to_linear(linear_val.clamp(0.0, 1.0));
+                        linear_val = srgb_to_linear(linear_val.max(0.0));
                     }
                     *c = linear_val.clamp(0.0, clamp_limit);
                 });
             });
         }
     }
-
-    let (width, height) = {
-        let dim = developed_intermediate.dim();
-        (dim.w as u32, dim.h as u32)
-    };
 
     check_cancel()?;
 
@@ -238,6 +218,21 @@ fn develop_internal(
     };
 
     Ok((dynamic_image, orientation))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_clamp_limit;
+
+    #[test]
+    fn full_quality_decode_keeps_headroom_to_the_v164_limit() {
+        assert_eq!(decode_clamp_limit(false), 1000.0);
+    }
+
+    #[test]
+    fn fast_decode_keeps_its_existing_one_white_limit() {
+        assert_eq!(decode_clamp_limit(true), 1.0);
+    }
 }
 
 pub fn get_fast_demosaic_scale_factor(
