@@ -2694,9 +2694,14 @@ pub fn remove_raw_artifacts_and_enhance(
                     let (r, g, b) = yc_to_rgb(cy, out_cb, out_cr);
 
                     let o = x * 3;
-                    row[o] = r.clamp(0.0, 1.0);
-                    row[o + 1] = g.clamp(0.0, 1.0);
-                    row[o + 2] = b.clamp(0.0, 1.0);
+                    // Keep scene-linear headroom here.  `1.0` is nominal
+                    // white, not the upper bound of the working signal; the
+                    // display/output boundary performs the eventual gamut
+                    // and range mapping.  The lower bound is still required
+                    // because negative RGB is not useful downstream.
+                    row[o] = r.max(0.0);
+                    row[o + 1] = g.max(0.0);
+                    row[o + 2] = b.max(0.0);
                 }
             });
     }
@@ -2776,26 +2781,26 @@ fn apply_gentle_detail_enhance(
                 let new_g = g + boost;
                 let new_b = b + boost;
 
-                let max_val = new_r.max(new_g).max(new_b);
                 let min_val = new_r.min(new_g).min(new_b);
 
-                let scale = if max_val > 1.0 || min_val < 0.0 {
-                    if max_val > 1.0 && min_val < 0.0 {
-                        0.0
-                    } else if max_val > 1.0 {
-                        (1.0 - r.max(g).max(b)) / boost.max(0.001)
-                    } else {
-                        r.min(g).min(b) / (-boost).max(0.001)
-                    }
+                let scale = if min_val < 0.0 {
+                    // `1.0` is nominal white, so it is not a ceiling for an
+                    // intermediate scene-linear detail operation.  Only
+                    // prevent a negative excursion from the boost itself.
+                    r.min(g).min(b) / (-boost).max(0.001)
                 } else {
                     1.0
                 };
 
                 let safe_boost = boost * scale.clamp(0.0, 1.0);
 
-                rgb_row[r_idx] = (r + safe_boost).clamp(0.0, 1.0);
-                rgb_row[g_idx] = (g + safe_boost).clamp(0.0, 1.0);
-                rgb_row[b_idx] = (b + safe_boost).clamp(0.0, 1.0);
+                // Do not destroy scene-linear values above nominal white in
+                // an intermediate enhancement pass.  The safety calculation
+                // above still limits the detail boost itself; this floor only
+                // prevents negative working values.
+                rgb_row[r_idx] = (r + safe_boost).max(0.0);
+                rgb_row[g_idx] = (g + safe_boost).max(0.0);
+                rgb_row[b_idx] = (b + safe_boost).max(0.0);
             }
         });
 }
@@ -3509,4 +3514,48 @@ pub fn calculate_auto_adjustments(
     let results = perform_auto_analysis(&original_image);
 
     Ok(auto_results_to_json(&results))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{ImageBuffer, Rgb};
+
+    #[test]
+    fn artifact_removal_preserves_scene_linear_headroom() {
+        let mut image = DynamicImage::ImageRgb32F(ImageBuffer::from_pixel(
+            1,
+            1,
+            Rgb([1.5_f32, 1.2_f32, -0.2_f32]),
+        ));
+
+        remove_raw_artifacts_and_enhance(&mut image, 1.0, 0.0);
+
+        let pixel = image.to_rgb32f().get_pixel(0, 0).0;
+        assert!((pixel[0] - 1.5).abs() < 1e-4);
+        assert!((pixel[1] - 1.2).abs() < 1e-4);
+        assert!(pixel[2] >= 0.0);
+    }
+
+    #[test]
+    fn detail_enhancement_preserves_existing_headroom() {
+        let input = [1.2_f32, 1.5_f32, 1.8_f32];
+        let pixels = input.map(|value| Rgb([value, value, value]));
+        let mut buffer = ImageBuffer::from_fn(3, 1, |x, _| pixels[x as usize]);
+        let ycbcr_source = input
+            .into_iter()
+            .flat_map(|value| {
+                let (y, cb, cr) = rgb_to_yc_only(value, value, value);
+                [y, cb, cr]
+            })
+            .collect::<Vec<_>>();
+
+        apply_gentle_detail_enhance(&mut buffer, &ycbcr_source, 1.0);
+
+        let darker = buffer.get_pixel(0, 0).0;
+        let brighter = buffer.get_pixel(2, 0).0;
+        assert!(darker[0] < input[0], "negative detail was suppressed");
+        assert!(brighter[0] > input[2], "positive detail was suppressed");
+        assert!(brighter[0] > 1.0, "above-white headroom was lost");
+    }
 }
