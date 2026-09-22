@@ -198,6 +198,7 @@ export default function BasicAdjustments({
           onDragStateChange={onDragStateChange}
         />
       )}
+      {!isForMask && <div data-argentum="raw-tone" />}
       <Slider
         label={t('adjustments.basic.exposure')}
         max={5}

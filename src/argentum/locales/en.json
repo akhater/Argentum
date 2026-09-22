@@ -30,7 +30,7 @@
   "gearNotPublished": "No published profile for this camera. You can still import one you have.",
   "profileBuiltIn": "Built-in",
   "profileFindTooltip": "Look for a published profile for this camera",
-  "rawToneLabel": "RAW tone rendering",
+  "rawToneLabel": "RAW rendering",
   "rawToneHelp": "Choose the RAW tone rendering; your curves remain after it",
   "rawToneDefault": "Default (RapidRAW)",
   "rawToneBaseCurve": "Base Curve (darktable-style)",
