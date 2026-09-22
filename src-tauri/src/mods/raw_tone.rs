@@ -158,9 +158,11 @@ mod tests {
     #[test]
     fn base_curve_is_monotonic_and_bounded() {
         let curve = base_curve();
-        assert!(curve
-            .windows(2)
-            .all(|w| w[0].x <= w[1].x && w[0].y <= w[1].y));
+        assert!(
+            curve
+                .windows(2)
+                .all(|w| w[0].x <= w[1].x && w[0].y <= w[1].y)
+        );
         assert_eq!(curve.first().unwrap().x, 0.0);
         assert_eq!(curve.last().unwrap().y, 255.0);
     }
