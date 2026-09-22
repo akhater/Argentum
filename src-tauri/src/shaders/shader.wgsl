@@ -1489,9 +1489,15 @@ fn apply_all_curves(
     green_curve: array<Point, 16>, green_curve_count: u32,
     blue_curve: array<Point, 16>, blue_curve_count: u32
 ) -> vec3<f32> {
-    var r = apply_curve(color.r, luma_curve, luma_curve_count);
-    var g = apply_curve(color.g, luma_curve, luma_curve_count);
-    var b = apply_curve(color.b, luma_curve, luma_curve_count);
+    var r = color.r;
+    var g = color.g;
+    var b = color.b;
+
+    if (!is_default_curve(luma_curve, luma_curve_count)) {
+        r = apply_curve(r, luma_curve, luma_curve_count);
+        g = apply_curve(g, luma_curve, luma_curve_count);
+        b = apply_curve(b, luma_curve, luma_curve_count);
+    }
 
     if (!is_default_curve(red_curve, red_curve_count)) {
         r = apply_curve(r, red_curve, red_curve_count);

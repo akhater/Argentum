@@ -99,6 +99,38 @@ mod tests {
         }
     }
 
+    fn compact_shader(source: &str) -> String {
+        source.chars().filter(|ch| !ch.is_whitespace()).collect()
+    }
+
+    #[test]
+    fn neutral_brightness_is_an_exact_noop() {
+        assert!(compact_shader(SOURCE).contains("if(brightness_adj==0.0){returncolor_in;}"));
+    }
+
+    #[test]
+    fn neutral_highlights_are_an_exact_noop() {
+        assert!(compact_shader(SOURCE).contains("if(abs(highlights_adj)<0.001){returncolor_in;}"));
+    }
+
+    #[test]
+    fn neutral_vibrance_is_an_exact_noop() {
+        assert!(compact_shader(SOURCE).contains("if(sat==0.0&&vib==0.0){returncolor;}"));
+    }
+
+    #[test]
+    fn identity_rgb_curves_bypass_curve_interpolation() {
+        assert!(compact_shader(SOURCE).contains(
+            "if(!is_default_curve(luma_curve,luma_curve_count)){r=apply_curve(r,luma_curve,luma_curve_count);g=apply_curve(g,luma_curve,luma_curve_count);b=apply_curve(b,luma_curve,luma_curve_count);}"
+        ));
+        assert!(compact_shader(SOURCE)
+            .contains("if(!is_default_curve(red_curve,red_curve_count)){r=apply_curve(r,red_curve,red_curve_count);}"));
+        assert!(compact_shader(SOURCE)
+            .contains("if(!is_default_curve(green_curve,green_curve_count)){g=apply_curve(g,green_curve,green_curve_count);}"));
+        assert!(compact_shader(SOURCE)
+            .contains("if(!is_default_curve(blue_curve,blue_curve_count)){b=apply_curve(b,blue_curve,blue_curve_count);}"));
+    }
+
     /// The export pipeline compiles too.
     ///
     /// This is the check the feature most needs and the one a GPU-free test can

@@ -562,6 +562,12 @@ export const REGISTRY = [
           + 'chosen format, so the control appears and disappears with no state of theirs '
           + 'read from our side. Upstream #1466 does the same job by putting tiffBitDepth '
           + 'on ExportSettings and threading it through six of their files.' },
+      { file: 'src/components/ui/ExportImportProperties.tsx', how: 'shadows',
+        note: 'Do not add TIFF depth to ExportSettings or ExportPreset; Argentum keeps the output-depth preference global rather than per preset.' },
+      { file: 'src/hooks/useExportSettings.ts', how: 'shadows',
+        note: 'Do not copy TIFF depth into export-panel or preset state; the independent Argentum depth control owns this preference.' },
+      { file: 'src/hooks/useExternalEditSession.ts', how: 'shadows',
+        note: 'External edit sessions keep the existing export-settings shape; they do not override the user’s global TIFF-depth preference.' },
       { file: 'src-tauri/src/export_processing.rs', pr: '1466', how: 'borrows',
         note:
           'Their encoder arm, between // upstream #1466 and // end upstream #1466: 8-bit '

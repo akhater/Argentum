@@ -57,6 +57,12 @@ review command and mergeability check are part of the final verification.
   upstream `934af4b` negative-only clipping change on top. This is decoder
   synchronization, not a proven R6 III fix: Argentum's `u32::MAX` white level
   may mean the changed clipping function does not receive values above 1.0.
+  The port is committed locally as `34eeaadc` on companion branch
+  `codex/c50-1-6-4-sync`. Argentum's lockfile intentionally still points at
+  `94818b0`: the companion commit is not published, so switching the lockfile
+  now would make other checkouts and CI unable to fetch it. Activating this
+  decoder sync requires review, then user approval to publish the companion
+  branch and update Argentum's lockfile.
 
 Validation must distinguish automated checks from the requested camera
 comparison. The exact R6 III CR3 and matching DPP reference were not available

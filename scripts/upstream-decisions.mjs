@@ -388,15 +388,25 @@ const review164CatchupDecisions = [
   review164Decision('ad179a45', 'rapidraw-164-catchup:src-tauri/src/launch_request.rs', 'combine', 'Adopt a headless bit-depth option, but validate 8/16 and default to 16 without moving depth into export presets.'),
 ];
 
+const review164PresetDecisions = [
+  review164Decision('0e8cd159', 'export-precision-selector:src/components/ui/ExportImportProperties.tsx', 'keep-ours', 'Reject TIFF depth on export presets; retain Argentum’s global preference.'),
+  review164Decision('0e8cd159', 'export-precision-selector:src/hooks/useExportSettings.ts', 'keep-ours', 'Reject per-export depth state; the global Argentum control remains the single setting.'),
+  review164Decision('0e8cd159', 'export-precision-selector:src/hooks/useExternalEditSession.ts', 'keep-ours', 'External edits do not override the saved global TIFF depth.'),
+  review164Decision('ad179a45', 'export-precision-selector:src/components/ui/ExportImportProperties.tsx', 'keep-ours', 'Reject RapidRAW’s preset field and keep TIFF depth as Argentum’s existing global preference.'),
+  review164Decision('ad179a45', 'export-precision-selector:src/hooks/useExportSettings.ts', 'keep-ours', 'Do not duplicate the global TIFF-depth preference in per-export UI state.'),
+  review164Decision('ad179a45', 'export-precision-selector:src/hooks/useExternalEditSession.ts', 'keep-ours', 'Do not force external edit exports to 16-bit; keep the global preference authoritative.'),
+];
+
 export const REVIEW_164_DECISIONS = [
   ...review164ShaderDecisions,
   ...review164OtherDecisions,
   ...review164FeatureDecisions,
   ...review164CatchupDecisions,
+  ...review164PresetDecisions,
 ];
 
-if (REVIEW_164_DECISIONS.length !== 206) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 206 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+if (REVIEW_164_DECISIONS.length !== 212) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 212 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
@@ -454,7 +464,7 @@ export const REVIEWS = [
     decisions: REVIEW_164_DECISIONS,
     featureReview: {
       verdict: 'overlap-found',
-      why: 'Read the upstream range through v1.6.4, including the final Brightness sequence, the separate RAW decoder and clipping-boundary changes, the complete TIFF PR chain, the final Android workflow, and UI/shader commits. Adopt the neutral-grey canvas, persistent Quick Filter, Vibrance and RGB-curve updates, while retaining Argentum-specific shell, profile, and export paths. Preserve Argentum highlight recovery and its 32-bit-float TIFF output path; handle TIFF headless support separately. This records the overlap audit, not a claim that implementation or image-quality tests are complete.',
+      why: 'Read the upstream range through v1.6.4, including the final Brightness sequence, separate RAW decoder and clipping-boundary changes, full TIFF PR chain, final Android workflow, and UI/shader commits. Adopt the neutral-grey canvas, persistent Quick Filter, Vibrance and RGB curves; retain Argentum highlight recovery and 32-bit-float TIFF output. Keep TIFF depth global, add validated headless 8/16-bit selection, and preserve Argentum identity. Automated validation is recorded separately from the still-unavailable exact R6 III CR3/DPP visual A/B.',
     },
   },
 ];

@@ -477,8 +477,7 @@ pub fn render_high_precision(
         Precision::High,
     )?;
 
-    let (bytes, out_w, out_h, _, _) =
-        processor.run(&input_view, width, height, request, false, false)?;
+    let (bytes, out_w, out_h, _, _) = processor.run(&input_view, width, height, request, false)?;
 
     let expected = out_w as usize * out_h as usize * BYTES_PER_PIXEL as usize;
     if bytes.len() != expected {
@@ -1486,7 +1485,7 @@ mod gpu_tests {
             roi: None,
         };
         let (bytes, w, h, _, _) = processor
-            .run(&view, 512, 8, request, false, false)
+            .run(&view, 512, 8, request, false)
             .expect("the preview render should succeed");
 
         assert_eq!(
