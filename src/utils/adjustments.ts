@@ -235,6 +235,8 @@ export interface Adjustments {
   lensMaker: string | null;
   lensModel: string | null;
   lumaNoiseReduction: number;
+  rawToneRendering: 'default' | 'baseCurve' | 'autoMatched';
+  rawToneCurve: Coord[] | null;
   lutData?: string | null;
   lutIntensity?: number;
   lutName?: string | null;
@@ -574,6 +576,8 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   lensMaker: null,
   lensModel: null,
   lumaNoiseReduction: 0,
+  rawToneRendering: 'default',
+  rawToneCurve: null,
   lutData: null,
   lutIntensity: 100,
   lutName: null,
@@ -731,6 +735,12 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     lensBlurMinFade: loadedAdjustments.lensBlurMinFade ?? INITIAL_ADJUSTMENTS.lensBlurMinFade,
     lensCorrectionMode: loadedAdjustments.lensCorrectionMode || 'manual',
     cameraProfile: loadedAdjustments.cameraProfile ?? null, // Argentum
+    rawToneRendering: ['default', 'baseCurve', 'autoMatched'].includes(loadedAdjustments.rawToneRendering)
+      ? loadedAdjustments.rawToneRendering
+      : INITIAL_ADJUSTMENTS.rawToneRendering,
+    rawToneCurve: Array.isArray(loadedAdjustments.rawToneCurve)
+      ? loadedAdjustments.rawToneCurve
+      : INITIAL_ADJUSTMENTS.rawToneCurve,
     lensMaker: loadedAdjustments.lensMaker ?? INITIAL_ADJUSTMENTS.lensMaker,
     lensModel: loadedAdjustments.lensModel ?? INITIAL_ADJUSTMENTS.lensModel,
     lensDistortionAmount: loadedAdjustments.lensDistortionAmount ?? INITIAL_ADJUSTMENTS.lensDistortionAmount,

@@ -37,6 +37,7 @@ import AutoWhiteBalanceButton from './AutoWhiteBalanceButton';
 import AboutPanel from './AboutPanel';
 import ExportPrecision from './ExportPrecision';
 import CameraProfile from './CameraProfile';
+import RawToneRendering from './RawToneRendering';
 import HighlightRecovery from './HighlightRecovery';
 import MyGear from './MyGear';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
@@ -147,6 +148,7 @@ export default function Argentum() {
         createPortal(
           <>
             <CameraProfile />
+            <RawToneRendering />
             <HighlightRecovery />
           </>,
           cameraProfile,
