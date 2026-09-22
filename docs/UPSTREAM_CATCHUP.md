@@ -5,31 +5,6 @@ This is the handoff for future upstream reviews. Read it alongside
 [ARCHITECTURE.md](ARCHITECTURE.md). A clean Git merge does not establish that
 image processing still behaves correctly.
 
-## 2026-09-19: split the highlight boundary by responsibility
-
-**Decision:** adopt RapidRAW's scene-linear headroom change, keep Argentum's
-pre-demosaic RAW recovery and explicit highlight-compression policy, and do
-not stack RapidRAW's overlapping post-demosaic highlight recovery on top.
-
-The adopted part is limited to `src-tauri/src/image_processing.rs`: the RAW
-artifact-removal and detail-enhancement passes now floor intermediate RGB at
-zero without an upper clamp at `1.0`. Values above nominal white therefore
-survive until the later display/output mapping. This is deliberately a
-separate change from RapidRAW's `raw_processing.rs` recovery algorithm.
-
-Argentum's `mods::highlights::recover` remains the recovery authority. It runs
-on the decoded CFA data before demosaicing and uses measured unclipped channel
-ratios. RapidRAW's post-demosaic RGB correction is not imported because it
-cannot distinguish a genuinely clipped pixel from a valid bright colour or a
-pixel already reconstructed by Argentum. The upstream rawler lockfile change
-also remains pending review rather than being pulled in as incidental
-bookkeeping.
-
-Numerical regression tests cover preservation of values above `1.0` and the
-continued lower floor at zero. This resolves only the processing boundary;
-the remaining upstream history still requires the normal feature-by-feature
-review and mergeability checks.
-
 ## 2026-09-13: crop update merged; highlight update temporarily deferred
 
 **Decision:** merge the tested crop/cache update, but stop before the next

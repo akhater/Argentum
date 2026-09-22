@@ -299,18 +299,6 @@ export const REGISTRY = [
     keywords: /get_all_adjustments|adjustment.*signature|tonemapper|hydrate_adjustments/i,
   },
   {
-    id: 'lut-library',
-    kind: 'feature',
-    what: 'Persistent logical LUT libraries with collapsible groups and safe reassignment.',
-    ours: ['src-tauri/src/lut_processing.rs'],
-    dependsOn: [
-      { file: 'src/components/ui/LUTControl.tsx', how: 'extends',
-        note: 'Adds the library selector, collapsible library groups, and move/rename/delete controls around their LUT surface. The LUT files stay in app storage; this UI only manages the logical manifest.' },
-    ],
-    tests: ['Manual: import LUTs, create/rename/delete a library, move a LUT, restart, and verify the grouping and existing .agdata application survive.'],
-    keywords: /lut|lookup.?table|colour.?grade|color.?grade/i,
-  },
-  {
     id: 'cache-keys',
     kind: 'behaviour-change',
     what: 'Our own cache key and a cache version that invalidates on our changes, not theirs.',

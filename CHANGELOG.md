@@ -2,7 +2,7 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.3` @ `40cfa3df`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.3` @ `5ad3ba0b`** — updated whenever upstream is merged.
 
 ## 26.38.3 — 2026-09-17
 
