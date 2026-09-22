@@ -398,7 +398,10 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const scaleFor100Percent = 1 / imageRenderSize.scale;
 
-    const minScale = (0.1 / dpr) * scaleFor100Percent;
+    // Never make the minimum zoom larger than the fit-to-window scale. Very
+    // large images (including AI-upscaled images) can have a 10% pixel zoom
+    // that is still more magnified than the full image fitting in the editor.
+    const minScale = Math.min(1, (0.1 / dpr) * scaleFor100Percent);
     const maxScale = (2.0 / dpr) * scaleFor100Percent;
 
     return {

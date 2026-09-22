@@ -42,6 +42,8 @@ import MyGear from './MyGear';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
+import SuperResolutionModal from './SuperResolutionModal';
+import SuperResolutionButton from './SuperResolutionButton';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -71,7 +73,12 @@ function useAnchor(selector: string, pick: (el: Element) => Element | null = (el
   return anchor;
 }
 
-export default function Argentum() {
+interface ArgentumProps {
+  onLibraryRefresh: () => Promise<void>;
+  onImageSelect: (path: string) => void;
+}
+
+export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumProps) {
   // Their namespace, not ours: what is needed here is the label they already
   // print on the Whites and Blacks sliders, in whichever of the thirteen
   // languages is showing.
@@ -136,6 +143,7 @@ export default function Argentum() {
           <>
             <RenderStatus />
             <RgbReadoutButton />
+            <SuperResolutionButton />
           </>,
           toolbar,
         )}
@@ -153,6 +161,7 @@ export default function Argentum() {
         )}
       {gear && createPortal(<MyGear />, gear)}
       <RgbReadout />
+      <SuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
     </>
   );
 }

@@ -842,6 +842,7 @@ function App() {
 
   return (
     <>
+      <Argentum onImageSelect={handleImageSelect} onLibraryRefresh={handleLibraryRefresh} />
       <ImageProcessingManager
         transformWrapperRef={transformWrapperRef}
         prevAdjustmentsRef={prevAdjustmentsRef}
@@ -1065,7 +1066,6 @@ const AppWrapper = () => (
   <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} routerPush={(to) => {}} routerReplace={(to) => {}}>
     <ContextMenuProvider>
       <App />
-      <Argentum />
       <GlobalTooltip />
     </ContextMenuProvider>
   </ClerkProvider>
