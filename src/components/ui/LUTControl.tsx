@@ -1,7 +1,7 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ImageOff, Upload, X, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, ImageOff, Plus, Upload, X, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useContextMenu } from '../../context/ContextMenuContext';
@@ -14,6 +14,12 @@ interface LutEntry {
   name: string;
   path: string;
   isBuiltIn: boolean;
+  libraryId: string | null;
+}
+
+interface LutLibrary {
+  id: string;
+  name: string;
 }
 
 interface LutPreview {
@@ -34,6 +40,7 @@ interface LUTControlProps {
 
 const PREVIEW_SIZE = 112;
 const SUPPORTED_EXTENSIONS = ['cube', '3dl', 'png', 'jpg', 'jpeg', 'tiff'];
+const UNCATEGORIZED_LIBRARY_ID = 'uncategorized';
 
 export default function LUTControl({
   lutPath,
@@ -52,6 +59,9 @@ export default function LUTControl({
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [entries, setEntries] = useState<LutEntry[]>([]);
+  const [libraries, setLibraries] = useState<LutLibrary[]>([]);
+  const [selectedLibraryId, setSelectedLibraryId] = useState(UNCATEGORIZED_LIBRARY_ID);
+  const [collapsedLibraries, setCollapsedLibraries] = useState<Record<string, boolean>>({});
   const [previews, setPreviews] = useState<Record<string, string | null>>({});
   const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
   const previewCache = useRef<Map<string, Record<string, string | null>>>(new Map());
@@ -62,12 +72,46 @@ export default function LUTControl({
     event.preventDefault();
     event.stopPropagation();
 
+    const moveOptions = libraries
+      .filter((library) => library.id !== entry.libraryId)
+      .map((library) => ({
+        label: library.name,
+        onClick: async () => {
+          try {
+            const updatedList = await invoke<LutEntry[]>('set_lut_library', {
+              path: entry.path,
+              libraryId: library.id,
+            });
+            setEntries(updatedList);
+            previewCache.current.clear();
+          } catch (err) {
+            console.error('Failed to move LUT:', err);
+            toast.error(String(err));
+          }
+        },
+      }));
+
     showContextMenu(event.clientX, event.clientY, [
+      ...(moveOptions.length > 0
+        ? [
+            {
+              label: t('ui.lut.moveToLibrary', 'Move to library'),
+              submenu: moveOptions,
+            },
+          ]
+        : []),
       {
         label: t('ui.lut.removeLut'),
         icon: Trash2,
         isDestructive: true,
         onClick: async () => {
+          const confirmed = window.confirm(
+            t(
+              'ui.lut.removeConfirm',
+              'Remove this LUT from the library? Existing edits that use it may stop rendering if the file is deleted.',
+            ),
+          );
+          if (!confirmed) return;
           try {
             const updatedList = await invoke<LutEntry[]>('remove_lut', { path: entry.path });
             setEntries(updatedList);
@@ -91,12 +135,74 @@ export default function LUTControl({
 
   const refreshList = useCallback(async () => {
     try {
+      const libraryList = await invoke<LutLibrary[]>('list_lut_libraries');
       const list = await invoke<LutEntry[]>('list_luts');
+      setLibraries(libraryList);
+      setSelectedLibraryId((current) =>
+        libraryList.some((library) => library.id === current) ? current : UNCATEGORIZED_LIBRARY_ID,
+      );
       setEntries(list);
     } catch (err) {
       console.error('Failed to list LUTs:', err);
     }
   }, []);
+
+  const handleCreateLibrary = async () => {
+    const name = window.prompt(t('ui.lut.newLibraryPrompt', 'Name for the new LUT library'))?.trim();
+    if (!name) return;
+
+    try {
+      const library = await invoke<LutLibrary>('create_lut_library', { name });
+      setLibraries((current) => [...current, library]);
+      setSelectedLibraryId(library.id);
+      setCollapsedLibraries((current) => ({ ...current, [library.id]: false }));
+    } catch (err) {
+      console.error('Failed to create LUT library:', err);
+      toast.error(String(err));
+    }
+  };
+
+  const handleLibraryContextMenu = (event: React.MouseEvent, library: LutLibrary) => {
+    if (library.id === UNCATEGORIZED_LIBRARY_ID) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: t('ui.lut.renameLibrary', 'Rename library'),
+        onClick: async () => {
+          const name = window.prompt(t('ui.lut.renameLibraryPrompt', 'New name for this LUT library'), library.name)?.trim();
+          if (!name) return;
+          try {
+            const updatedLibraries = await invoke<LutLibrary[]>('rename_lut_library', {
+              libraryId: library.id,
+              name,
+            });
+            setLibraries(updatedLibraries);
+          } catch (err) {
+            console.error('Failed to rename LUT library:', err);
+            toast.error(String(err));
+          }
+        },
+      },
+      {
+        label: t('ui.lut.deleteLibrary', 'Delete library'),
+        isDestructive: true,
+        onClick: async () => {
+          try {
+            const updatedLibraries = await invoke<LutLibrary[]>('delete_lut_library', { libraryId: library.id });
+            const updatedEntries = await invoke<LutEntry[]>('list_luts');
+            setLibraries(updatedLibraries);
+            setEntries(updatedEntries);
+            setSelectedLibraryId((current) => (current === library.id ? UNCATEGORIZED_LIBRARY_ID : current));
+          } catch (err) {
+            console.error('Failed to delete LUT library:', err);
+            toast.error(String(err));
+          }
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     refreshList();
@@ -139,7 +245,7 @@ export default function LUTControl({
     };
   }, [isExpanded, selectedImagePath, isImageReady, entries]);
 
-  const handleImport = async () => {
+  const handleImport = async (targetLibraryId = selectedLibraryId) => {
     try {
       const { osPlatform } = useSettingsStore.getState();
       const isAndroid = osPlatform === 'android';
@@ -186,7 +292,10 @@ export default function LUTControl({
         }
       }
 
-      const list = await invoke<LutEntry[]>('import_luts', { sourcePaths: validPaths });
+      const list = await invoke<LutEntry[]>('import_luts', {
+        sourcePaths: validPaths,
+        libraryId: targetLibraryId,
+      });
       previewCache.current.clear();
       setEntries(list);
       setPreviews({});
@@ -207,6 +316,8 @@ export default function LUTControl({
 
   const builtInLuts = entries.filter((e) => e.isBuiltIn);
   const customLuts = entries.filter((e) => !e.isBuiltIn);
+  const visibleLibraries =
+    libraries.length > 0 ? libraries : [{ id: UNCATEGORIZED_LIBRARY_ID, name: 'Uncategorized' }];
 
   const renderSwatch = (entry: LutEntry) => {
     const thumb = previews[entry.path];
@@ -236,6 +347,52 @@ export default function LUTControl({
           {entry.name}
         </span>
       </button>
+    );
+  };
+
+  const renderLibrarySection = (library: LutLibrary) => {
+    const libraryLuts = customLuts.filter(
+      (entry) => (entry.libraryId || UNCATEGORIZED_LIBRARY_ID) === library.id,
+    );
+    const isCollapsed = collapsedLibraries[library.id] ?? false;
+
+    return (
+      <div key={library.id} className="space-y-2">
+        <div
+          className="flex items-center gap-1"
+          onContextMenu={(event) => handleLibraryContextMenu(event, library)}
+        >
+          <button
+            onClick={() =>
+              setCollapsedLibraries((current) => ({ ...current, [library.id]: !isCollapsed }))
+            }
+            className="flex min-w-0 flex-1 items-center gap-1 text-left text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            <span className="truncate">{library.name}</span>
+            <span className="text-xs text-text-secondary/70">{libraryLuts.length}</span>
+          </button>
+          <button
+            onClick={() => handleImport(library.id)}
+            className="p-1 text-text-secondary hover:text-accent transition-colors"
+            data-tooltip={t('ui.lut.import')}
+          >
+            <Upload size={13} />
+          </button>
+        </div>
+
+        {!isCollapsed &&
+          (libraryLuts.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2 pl-1">{libraryLuts.map(renderSwatch)}</div>
+          ) : (
+            <button
+              onClick={() => handleImport(library.id)}
+              className="w-full rounded-md border border-dashed border-text-secondary/20 py-3 text-xs text-text-secondary hover:border-text-secondary/40 hover:text-text-primary transition-colors"
+            >
+              {t('ui.lut.empty')}
+            </button>
+          ))}
+      </div>
     );
   };
 
@@ -312,39 +469,39 @@ export default function LUTControl({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-text-secondary select-none">{t('ui.lut.customLuts')}</span>
-                  {customLuts.length > 0 && (
-                    <button
-                      onClick={handleImport}
-                      className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 transition-colors"
-                      data-tooltip={t('ui.lut.import')}
-                    >
-                      <Upload size={12} />
-                      {t('ui.lut.import')}
-                    </button>
-                  )}
+                  <button
+                    onClick={handleCreateLibrary}
+                    className="text-xs text-text-secondary hover:text-accent flex items-center gap-1 transition-colors"
+                    data-tooltip={t('ui.lut.newLibrary', 'New library')}
+                  >
+                    <Plus size={12} />
+                    {t('ui.lut.newLibrary', 'New library')}
+                  </button>
                 </div>
 
-                {customLuts.length === 0 ? (
-                  <button
-                    onClick={handleImport}
-                    className="w-full flex items-center justify-center gap-1.5 py-4 rounded-md bg-bg-tertiary hover:bg-surface border-2 border-dashed border-text-secondary/20 hover:border-text-secondary/40 text-sm text-text-primary transition-colors cursor-pointer"
+                <div className="flex items-center gap-2 mb-3">
+                  <select
+                    value={selectedLibraryId}
+                    onChange={(event) => setSelectedLibraryId(event.target.value)}
+                    className="min-w-0 flex-1 rounded-md bg-bg-tertiary border border-surface px-2 py-1.5 text-xs text-text-primary focus:border-accent focus:outline-none"
+                    aria-label={t('ui.lut.importLibrary', 'Import into library')}
                   >
-                    <Upload size={16} />
+                    {visibleLibraries.map((library) => (
+                      <option key={library.id} value={library.id}>
+                        {t('ui.lut.importInto', 'Import into')}: {library.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => handleImport()}
+                    className="flex items-center gap-1 rounded-md bg-bg-tertiary px-2 py-1.5 text-xs text-text-secondary hover:text-accent transition-colors"
+                  >
+                    <Upload size={12} />
                     {t('ui.lut.import')}
                   </button>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {customLuts.map(renderSwatch)}
+                </div>
 
-                    <button
-                      onClick={handleImport}
-                      className="aspect-square rounded-md bg-bg-tertiary border-2 border-dashed border-text-secondary/25 hover:border-accent flex items-center justify-center text-text-secondary hover:text-text-primary transition-all duration-150 cursor-pointer"
-                      data-tooltip={t('ui.lut.import')}
-                    >
-                      <Upload size={18} />
-                    </button>
-                  </div>
-                )}
+                <div className="space-y-4">{visibleLibraries.map(renderLibrarySection)}</div>
               </div>
             </div>
           </motion.div>
