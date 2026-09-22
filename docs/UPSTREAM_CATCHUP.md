@@ -34,7 +34,7 @@ v1.6.4 catch-up below.
 
 The isolated branch `codex/rapidraw-1-6-4-catchup` reviews the exact upstream
 range `40cfa3df..71a07921`. The overlap register contains one explicit
-decision for every detected overlap (170 entries). The required upstream
+decision for every detected overlap (212 entries). The required upstream
 review command and mergeability check are part of the final verification.
 
 - Adopt the final Brightness implementation from `86884cc9`, which applies
