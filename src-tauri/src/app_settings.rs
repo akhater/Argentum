@@ -744,8 +744,10 @@ mod tests {
 
     #[test]
     fn legacy_raw_highlight_compression_setting_survives_load_and_save() {
-        let mut legacy = AppSettings::default();
-        legacy.raw_highlight_compression = Some(2.5);
+        let legacy = AppSettings {
+            raw_highlight_compression: Some(2.5),
+            ..AppSettings::default()
+        };
 
         let saved = serde_json::to_string(&legacy).expect("serialize old setting");
         let loaded: AppSettings = serde_json::from_str(&saved).expect("load old setting");

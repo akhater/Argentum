@@ -220,21 +220,6 @@ fn develop_internal(
     Ok((dynamic_image, orientation))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::decode_clamp_limit;
-
-    #[test]
-    fn full_quality_decode_keeps_headroom_to_the_v164_limit() {
-        assert_eq!(decode_clamp_limit(false), 1000.0);
-    }
-
-    #[test]
-    fn fast_decode_keeps_its_existing_one_white_limit() {
-        assert_eq!(decode_clamp_limit(true), 1.0);
-    }
-}
-
 pub fn get_fast_demosaic_scale_factor(
     file_bytes: &[u8],
     decoded_width: u32,
@@ -256,4 +241,19 @@ pub fn get_fast_demosaic_scale_factor(
         }
     }
     1.0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_clamp_limit;
+
+    #[test]
+    fn full_quality_decode_keeps_headroom_to_the_v164_limit() {
+        assert_eq!(decode_clamp_limit(false), 1000.0);
+    }
+
+    #[test]
+    fn fast_decode_keeps_its_existing_one_white_limit() {
+        assert_eq!(decode_clamp_limit(true), 1.0);
+    }
 }
