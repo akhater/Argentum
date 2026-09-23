@@ -1319,14 +1319,19 @@
       "title": "合并为 HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "对每张图像应用自动编辑",
+      "applyPreset": "对每张图像应用预设",
       "cancel": "取消",
       "dateFormat": "日期格式",
       "dateFormatPlaceholder": "例如，YYYY/MM-DD",
       "deleteAfterImport": "成功导入后删除原始文件",
       "deleteWarning": "文件将被移至系统回收站。",
+      "editsOnImport": "导入时编辑",
+      "editsOnImportHint": "如果可以从 EXIF 识别镜头，自动编辑会包含镜头校正；无法匹配的图像不会进行校正。",
       "fileNaming": "文件命名",
       "folderOrganization": "文件夹组织",
       "organizeByDate": "按日期组织到子文件夹",
+      "presetNone": "无",
       "sourceFiles": "源文件",
       "startImport": "开始导入",
       "title": "导入设置"

@@ -397,16 +397,26 @@ const review164PresetDecisions = [
   review164Decision('ad179a45', 'export-precision-selector:src/hooks/useExternalEditSession.ts', 'keep-ours', 'Do not force external edit exports to 16-bit; keep the global preference authoritative.'),
 ];
 
+const review164CompositionDecisions = [
+  review164Decision('e50cfb6b', 'import-dialogue-1714:src/components/ui/AppProperties.tsx#ImportSettings', 'combine', 'Keep both additive UI-state extensions: RapidRAW persists Quick Filter visibility, while import-dialogue-1714 adds the persisted import settings shape.'),
+  review164Decision('40a112e1', 'import-dialogue-1714:src-tauri/src/app_settings.rs#last_import_settings', 'combine', 'Keep both persisted settings extensions: RapidRAW adds the neutral-grey canvas preference, while import-dialogue-1714 stores the last import choices.'),
+  review164Decision('40a112e1', 'import-dialogue-1714:src/components/ui/AppProperties.tsx#ImportSettings', 'combine', 'Keep both shared UI-property extensions: the neutral-grey editor setting and the import dialog settings remain separate fields.'),
+  review164Decision('e9d6cc74', 'import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', 'combine', 'Keep the upstream TIFF/export compatibility changes and import-dialogue-1714’s reuse of calculate_auto_adjustments; the import feature calls the existing analysis rather than replacing its processing behavior.'),
+  review164Decision('0e8cd159', 'import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', 'combine', 'Keep the upstream processing changes and the import feature’s call into calculate_auto_adjustments; the two changes occupy separate responsibilities in the same function family.'),
+  review164Decision('ad179a45', 'import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', 'combine', 'Retain Argentum’s precision-aware processing and import-dialogue-1714’s reuse of calculate_auto_adjustments; neither feature replaces the other.'),
+];
+
 export const REVIEW_164_DECISIONS = [
   ...review164ShaderDecisions,
   ...review164OtherDecisions,
   ...review164FeatureDecisions,
   ...review164CatchupDecisions,
   ...review164PresetDecisions,
+  ...review164CompositionDecisions,
 ];
 
-if (REVIEW_164_DECISIONS.length !== 212) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 212 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+if (REVIEW_164_DECISIONS.length !== 218) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 218 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
@@ -451,6 +461,7 @@ export const REVIEWS = [
       { overlap: '40cfa3df:dep:raw-decode:src-tauri/src/raw_processing.rs#on_raw_decoded', verdict: 'not-applicable', why: 'The upstream post-demosaic recovery is intentionally excluded; Argentum keeps its single pre-demosaic decode anchor unchanged.' },
       { overlap: '40cfa3df:dep:canon-old-wb:src-tauri/src/raw_processing.rs#on_raw_decoded', verdict: 'not-applicable', why: 'The upstream post-demosaic recovery is intentionally excluded; Argentum keeps the Canon old-WB ordering unchanged.' },
       { overlap: '40cfa3df:dep:borrow-1633:src-tauri/src/raw_processing.rs', verdict: 'not-applicable', why: 'The upstream hunk is separate from Argentum\'s retained sRGB exponent correction; the marked borrowed fix remains unchanged.' },
+      { overlap: '40cfa3df:dep:import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', verdict: 'not-applicable', why: 'The highlight-recovery commit changes scene-linear clamping and RAW recovery, not calculate_auto_adjustments. The import feature continues to call Argentum\'s existing auto-edit and lens-resolution path.' },
       { overlap: '40cfa3df:feature:highlight-recovery', verdict: 'combine', why: 'Adopt the upstream unbounded scene-linear handling in image_processing.rs, keep Argentum\'s pre-demosaic recovery as the sole RAW recovery, and exclude RapidRAW\'s overlapping post-demosaic recovery and rawler lockfile revision.' },
     ],
     featureReview: {

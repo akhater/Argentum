@@ -1319,14 +1319,19 @@
       "title": "HDR로 병합"
     },
     "importSettings": {
+      "applyAutoAdjustments": "각 이미지에 자동 편집 적용",
+      "applyPreset": "각 이미지에 프리셋 적용",
       "cancel": "취소",
       "dateFormat": "날짜 형식",
       "dateFormatPlaceholder": "예: YYYY/MM-DD",
       "deleteAfterImport": "가져오기 성공 후 원본 삭제",
       "deleteWarning": "파일이 시스템 휴지통으로 이동됩니다.",
+      "editsOnImport": "가져올 때 편집",
+      "editsOnImportHint": "EXIF에서 렌즈를 식별할 수 있으면 자동 편집에 렌즈 보정이 포함됩니다. 일치하는 렌즈가 없으면 보정하지 않습니다.",
       "fileNaming": "파일 이름 지정",
       "folderOrganization": "폴더 정리",
       "organizeByDate": "날짜별 하위 폴더로 정리",
+      "presetNone": "없음",
       "sourceFiles": "원본 파일",
       "startImport": "가져오기 시작",
       "title": "가져오기 설정"

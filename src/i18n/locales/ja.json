@@ -1319,14 +1319,19 @@
       "title": "HDRに統合"
     },
     "importSettings": {
+      "applyAutoAdjustments": "各画像に自動編集を適用",
+      "applyPreset": "各画像にプリセットを適用",
       "cancel": "キャンセル",
       "dateFormat": "日付形式",
       "dateFormatPlaceholder": "例: YYYY/MM-DD",
       "deleteAfterImport": "インポート完了後に元のファイルを削除",
       "deleteWarning": "ファイルはシステムのゴミ箱に移動されます。",
+      "editsOnImport": "インポート時の編集",
+      "editsOnImportHint": "EXIFからレンズを特定できる場合、自動編集にレンズ補正も含まれます。一致しない画像は補正されません。",
       "fileNaming": "ファイル名の命名",
       "folderOrganization": "フォルダ構成",
       "organizeByDate": "日付ごとにサブフォルダに整理する",
+      "presetNone": "なし",
       "sourceFiles": "ソースファイル",
       "startImport": "インポートを開始",
       "title": "インポート設定"

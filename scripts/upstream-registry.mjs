@@ -345,6 +345,37 @@ export const REGISTRY = [
     keywords: /sidecar|rrdata|agdata|\.xmp|metadata.?file/i,
   },
   {
+    id: 'import-dialogue-1714',
+    kind: 'feature',
+    what:
+      'Import remembers its options, can apply automatic edits or a preset, '
+      + 'captures embedded XMP metadata, and removes associated sidecars cleanly.',
+    ours: [],
+    dependsOn: [
+      { file: 'src-tauri/src/app_settings.rs', symbol: 'last_import_settings', how: 'extends',
+        note: 'Stores the import dialog choices between sessions.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'ImportSettings', how: 'extends',
+        note: 'Carries the auto-edit/preset request, embedded XMP capture, import-sidecar copy, and associated-file deletion through the Argentum .agdata/.agexif naming.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'calculate_auto_adjustments', how: 'extends',
+        note: 'The import auto-edit uses the same automatic analysis and lens-correction result as the editor action.' },
+      { file: 'src/components/modals/AppModals.tsx', symbol: 'ImportSettingsModal', how: 'extends',
+        note: 'Passes the persisted choices into the existing import dialog.' },
+      { file: 'src/components/modals/ImportSettingsModal.tsx', how: 'extends',
+        note: 'Adds the Edits on Import controls and preset selection.' },
+      { file: 'src/components/ui/AppProperties.tsx', symbol: 'ImportSettings', how: 'extends',
+        note: 'Keeps the frontend command and persisted-settings shapes aligned with Rust.' },
+      { file: 'src/hooks/useFileOperations.ts', symbol: 'handleStartImport', how: 'extends',
+        note: 'Persists the import choices and refreshes folder counts after deletion.' },
+      { pattern: /^src\/i18n\/locales\/(de|en)\.json$/, how: 'extends',
+        note: 'Adds translations for the import-edit controls.' },
+    ],
+    tests: [
+      'src-tauri/src/file_management.rs #[cfg(test)] for embedded XMP packet parsing',
+      'Manual: reopen import dialog and verify options persist; import with auto edits and a preset; verify embedded rating/label/tags and .xmp/.agexif cleanup.',
+    ],
+    keywords: /import|embedded.?xmp|xmp|preset|auto.?adjust|rating|color.?label|sidecar|delete/i,
+  },
+  {
     id: 'argentum-shell',
     kind: 'feature',
     what: 'The Argentum panels: about, roadmap, known issues, credits, our own locales.',

@@ -1348,14 +1348,19 @@
       "title": "Fusionner en HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "Appliquer les retouches automatiques à chaque image",
+      "applyPreset": "Appliquer un préréglage à chaque image",
       "cancel": "Annuler",
       "dateFormat": "Format de date",
       "dateFormatPlaceholder": "ex. : AAAA/MM-JJ",
       "deleteAfterImport": "Supprimer les originaux après importation réussie",
       "deleteWarning": "Les fichiers seront déplacés vers la corbeille du système.",
+      "editsOnImport": "Retouches à l'importation",
+      "editsOnImportHint": "Les retouches automatiques incluent la correction de l'objectif lorsqu'il peut être identifié à partir des données EXIF ; les images sans correspondance ne sont pas corrigées.",
       "fileNaming": "Nommage des fichiers",
       "folderOrganization": "Organisation des dossiers",
       "organizeByDate": "Organiser dans des sous-dossiers par date",
+      "presetNone": "Aucun",
       "sourceFiles": "Fichiers sources",
       "startImport": "Démarrer l'importation",
       "title": "Paramètres d'importation"

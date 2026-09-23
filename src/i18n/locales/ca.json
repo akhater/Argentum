@@ -1321,14 +1321,19 @@
       "title": "Fusionar a HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "Aplicar ajustaments automàtics a cada imatge",
+      "applyPreset": "Aplicar un predefinit a cada imatge",
       "cancel": "Cancel·lar",
       "dateFormat": "Format de data",
       "dateFormatPlaceholder": "p. ex., AAAA/MM-DD",
       "deleteAfterImport": "Eliminar els originals després d'una importació correcta",
       "deleteWarning": "Els fitxers es mouran a la paperera del sistema.",
+      "editsOnImport": "Edicions en importar",
+      "editsOnImportHint": "Els ajustaments automàtics inclouen la correcció de l'objectiu quan es pot identificar a partir de les dades EXIF; les imatges sense coincidència no es corregeixen.",
       "fileNaming": "Nomenclatura de fitxers",
       "folderOrganization": "Organització de carpetes",
       "organizeByDate": "Organitzar en subcarpetes per data",
+      "presetNone": "Cap",
       "sourceFiles": "Fitxers d'origen",
       "startImport": "Iniciar importació",
       "title": "Configuració d'importació"

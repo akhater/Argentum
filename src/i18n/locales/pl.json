@@ -1377,14 +1377,19 @@
       "title": "Scal do HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "Zastosuj automatyczne edycje do każdego obrazu",
+      "applyPreset": "Zastosuj ustawienie wstępne do każdego obrazu",
       "cancel": "Anuluj",
       "dateFormat": "Format daty",
       "dateFormatPlaceholder": "np. RRRR/MM-DD",
       "deleteAfterImport": "Usuń oryginały po pomyślnym imporcie",
       "deleteWarning": "Pliki zostaną przeniesione do systemowego kosza.",
+      "editsOnImport": "Edycje podczas importowania",
+      "editsOnImportHint": "Automatyczne edycje obejmują korekcję obiektywu, gdy można go rozpoznać na podstawie danych EXIF; obrazy bez dopasowania pozostają bez korekcji.",
       "fileNaming": "Nazewnictwo plików",
       "folderOrganization": "Organizacja folderów",
       "organizeByDate": "Organizuj w podfolderach według daty",
+      "presetNone": "Brak",
       "sourceFiles": "Pliki źródłowe",
       "startImport": "Rozpocznij import",
       "title": "Ustawienia importu"

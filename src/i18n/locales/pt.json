@@ -1349,14 +1349,19 @@
       "title": "Mesclar para HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "Aplicar edições automáticas a cada imagem",
+      "applyPreset": "Aplicar uma predefinição a cada imagem",
       "cancel": "Cancelar",
       "dateFormat": "Formato de Data",
       "dateFormatPlaceholder": "ex.: AAAA/MM-DD",
       "deleteAfterImport": "Excluir originais após importação bem-sucedida",
       "deleteWarning": "Os arquivos serão movidos para a lixeira do sistema.",
+      "editsOnImport": "Edições na importação",
+      "editsOnImportHint": "As edições automáticas incluem a correção da lente quando ela pode ser identificada pelos dados EXIF; imagens sem correspondência não são corrigidas.",
       "fileNaming": "Nomeação de Arquivos",
       "folderOrganization": "Organização de Pastas",
       "organizeByDate": "Organizar em subpastas por data",
+      "presetNone": "Nenhuma",
       "sourceFiles": "Arquivos de Origem",
       "startImport": "Iniciar Importação",
       "title": "Configurações de Importação"

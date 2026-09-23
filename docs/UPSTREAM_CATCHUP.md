@@ -5,6 +5,22 @@ This is the handoff for future upstream reviews. Read it alongside
 [ARCHITECTURE.md](ARCHITECTURE.md). A clean Git merge does not establish that
 image processing still behaves correctly.
 
+## 2026-09-23: integrate import dialogue PR #1714
+
+**Decision:** integrate the six-commit upstream PR as a normal merge on an
+Argentum branch, after adapting its RapidRAW sidecar references to Argentum's
+`.agdata` and `.agexif` extensions. Keep the import settings persistence,
+automatic edits and preset application, embedded/sibling XMP metadata capture,
+and associated-file cleanup. Register the feature's dependencies in
+`scripts/upstream-registry.mjs`; do not advance the upstream reviewed-through
+marker because PR #1714 is not yet part of `upstream/main`.
+
+The merge's only textual conflict was the sidecar extension boundary in
+`deletion_stem_for`. The resolution retains Argentum's extension and adds the
+PR's lowercase/uppercase XMP association cases. The feature review still needs
+manual import-dialog and metadata checks before the branch is considered ready
+for merge.
+
 ## 2026-09-19: split the highlight boundary by responsibility
 
 **Decision:** adopt RapidRAW's scene-linear headroom change, keep Argentum's
