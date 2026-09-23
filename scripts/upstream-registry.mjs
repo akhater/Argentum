@@ -436,6 +436,52 @@ export const REGISTRY = [
     keywords: /srgb|gamma|2\.4|transfer.?function|linear(ise|ize)/i,
   },
   {
+    id: 'rapidraw-164-catchup',
+    kind: 'behaviour-change',
+    what: 'Carry the reviewed RapidRAW 1.6.4 updates while preserving Argentum-specific rendering, identity, and export behaviour.',
+    ours: [],
+    dependsOn: [
+      { file: '.github/workflows/build.yml', how: 'extends',
+        note: 'The final Android build setup requests platform-tools; keep the v1.6.4 workflow fix.' },
+      { file: 'data/io.github.CyberTimon.RapidRAW.metainfo.xml', how: 'shadows',
+        note: 'Retained because Argentum’s existing Flatpak manifest still installs this path. Upstream deletes it; removing it would break packaging. The pre-existing RapidRAW app label is left for a separate full packaging-identity migration.' },
+      { file: 'src-tauri/src/app_settings.rs', how: 'extends',
+        note: 'Carries the editorNeutralGreyBg setting, with a migration test ensuring legacy highlight-compression values still round-trip.' },
+      { file: 'src-tauri/src/launch_request.rs', how: 'extends',
+        note: 'Adds validated headless TIFF depth (8/16, default 16) as a plain byte value; it must not import Argentum modules.' },
+      { file: 'src-tauri/src/export_processing.rs', how: 'extends',
+        note: 'Retains Argentum’s TIFF pipeline and sets the process-local depth for headless export through the existing single mods import block.' },
+      { file: 'src-tauri/src/raw_processing.rs', how: 'extends',
+        note: 'Keeps Argentum’s pre-demosaic recovery hook and applies the reviewed full-quality headroom policy without stacking RapidRAW recovery.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', how: 'extends',
+        note: 'Adopts the final post-tone-map Brightness implementation, Vibrance and RGB curves while retaining Argentum’s 32-bit TIFF target and dither control.' },
+      { file: 'src-tauri/src/gpu_processing.rs', how: 'extends',
+        note: 'Keeps Argentum’s high-precision TIFF rendering path and removes the redundant readback boolean.' },
+      { file: 'src/components/adjustments/Basic.tsx', how: 'extends',
+        note: 'Adopts the final Brightness label and control placement from the reviewed v1.6.4 UI.' },
+      { file: 'src/components/panel/BottomBar.tsx', how: 'extends',
+        note: 'Persists Quick Filter visibility through Argentum’s UI store rather than a component-local flag.' },
+      { file: 'src/components/panel/Editor.tsx', how: 'extends',
+        note: 'Adds the optional neutral-grey editor canvas without changing the app theme.' },
+      { file: 'src/components/panel/right/FolderTree.tsx', how: 'extends',
+        note: 'Applies the reviewed fixed search-field height.' },
+      { file: 'src/components/ui/AppProperties.tsx', how: 'extends',
+        note: 'Adds the neutral-canvas setting and persistent Quick Filter visibility to the UI types.' },
+      { file: 'src/store/useUIStore.ts', how: 'extends',
+        note: 'Stores Quick Filter visibility with UI state and initializes it safely on workspace changes.' },
+      { file: 'src/i18n/update_translations.py', how: 'extends',
+        note: 'Carries the upstream translation extraction update.' },
+      { pattern: /^src\/i18n\/locales\/[\w-]+\.json$/, how: 'extends',
+        note: 'The 13 shipped locales receive the Brightness, TIFF-depth and neutral-grey-canvas labels.' },
+    ],
+    tests: [
+      'src-tauri/src/launch_request.rs #[cfg(test)]',
+      'src-tauri/src/app_settings.rs #[cfg(test)]',
+      'scripts/test-upstream-checks.mjs and scripts/test-upstream-e2e.mjs',
+    ],
+    keywords: /brightness|tone.?map|vibrance|curve|quick.?filter|neutral.?grey|neutral.?gray|platform.?tools|tiff.?bit.?depth|highlight|raw/i,
+  },
+  {
     id: 'high-precision-export',
     kind: 'feature',
     what:
@@ -516,6 +562,12 @@ export const REGISTRY = [
           + 'chosen format, so the control appears and disappears with no state of theirs '
           + 'read from our side. Upstream #1466 does the same job by putting tiffBitDepth '
           + 'on ExportSettings and threading it through six of their files.' },
+      { file: 'src/components/ui/ExportImportProperties.tsx', how: 'shadows',
+        note: 'Do not add TIFF depth to ExportSettings or ExportPreset; Argentum keeps the output-depth preference global rather than per preset.' },
+      { file: 'src/hooks/useExportSettings.ts', how: 'shadows',
+        note: 'Do not copy TIFF depth into export-panel or preset state; the independent Argentum depth control owns this preference.' },
+      { file: 'src/hooks/useExternalEditSession.ts', how: 'shadows',
+        note: 'External edit sessions keep the existing export-settings shape; they do not override the user’s global TIFF-depth preference.' },
       { file: 'src-tauri/src/export_processing.rs', pr: '1466', how: 'borrows',
         note:
           'Their encoder arm, between // upstream #1466 and // end upstream #1466: 8-bit '
@@ -539,9 +591,9 @@ export const REGISTRY = [
       'src-tauri/src/mods/ag_settings.rs #[cfg(test)] - one preference does not erase another, including from two threads at once',
     ],
     notes: [
-      'run_headless_export takes the persisted depth through Precision::for_path and has '
-      + 'no --tiff-bit-depth flag. Upstream #1466 adds one; borrow it if a headless caller '
-      + 'ever needs to differ from the interface. A decision, not an omission.',
+      'Headless export accepts --tiff-bit-depth 8 or 16, defaults to 16, and rejects invalid '
+      + 'values before startup. It overrides only the process-local depth in the headless '
+      + 'process; the saved global UI preference is not changed.',
       'The one case where the image type does not carry the user intent: an image past '
       + 'max_texture_dimension_2d returns unedited from gpu_processing as Rgba32F, so an '
       + '8-bit TIFF export of it writes a 16-bit container. The export was already wrong '

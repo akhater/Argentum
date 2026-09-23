@@ -8,27 +8,110 @@ image processing still behaves correctly.
 ## 2026-09-19: split the highlight boundary by responsibility
 
 **Decision:** adopt RapidRAW's scene-linear headroom change, keep Argentum's
-pre-demosaic RAW recovery and explicit highlight-compression policy, and do
-not stack RapidRAW's overlapping post-demosaic highlight recovery on top.
+pre-demosaic RAW recovery, remove the obsolete highlight-compression operation,
+and do not stack RapidRAW's overlapping post-demosaic highlight recovery on top.
 
-The adopted part is limited to `src-tauri/src/image_processing.rs`: the RAW
-artifact-removal and detail-enhancement passes now floor intermediate RGB at
-zero without an upper clamp at `1.0`. Values above nominal white therefore
-survive until the later display/output mapping. This is deliberately a
-separate change from RapidRAW's `raw_processing.rs` recovery algorithm.
+The application processing stages floor intermediate RGB at zero without an
+upper clamp at `1.0`. RAW decode also retains above-white values before inverse
+sRGB conversion. Values above nominal white therefore survive until the later
+display/output mapping. This is deliberately separate from RapidRAW's
+`raw_processing.rs` post-demosaic recovery algorithm.
 
 Argentum's `mods::highlights::recover` remains the recovery authority. It runs
 on the decoded CFA data before demosaicing and uses measured unclipped channel
 ratios. RapidRAW's post-demosaic RGB correction is not imported because it
-cannot distinguish a genuinely clipped pixel from a valid bright colour or a
-pixel already reconstructed by Argentum. The upstream rawler lockfile change
-also remains pending review rather than being pulled in as incidental
-bookkeeping.
+could stack on pixels already reconstructed by Argentum. The legacy
+`raw_highlight_compression` setting remains readable and is preserved on save,
+but no longer drives a compression calculation. Full-quality decode retains
+the upstream 1000.0 scene-linear ceiling; fast/thumbnail decode retains its
+existing 1.0 ceiling.
 
 Numerical regression tests cover preservation of values above `1.0` and the
-continued lower floor at zero. This resolves only the processing boundary;
-the remaining upstream history still requires the normal feature-by-feature
-review and mergeability checks.
+continued lower floor at zero. This boundary was reconciled as part of the
+v1.6.4 catch-up below.
+
+## 2026-09-22: RapidRAW v1.6.4 catch-up decisions
+
+The isolated branch `codex/rapidraw-1-6-4-catchup` reviews the exact upstream
+range `40cfa3df..71a07921`. The overlap register contains one explicit
+decision for every detected overlap (212 entries). The required upstream
+review command and mergeability check are part of the final verification.
+
+- Adopt the final Brightness implementation from `86884cc9`, which applies
+  Brightness to `base_srgb` after tone mapping. Do not use the superseded
+  intermediate shader implementations.
+- From `85bf424a`, retain above-white LinearRaw values before inverse sRGB
+  conversion and remove the old compression calculation. Keep Argentum's
+  pre-demosaic recovery and do not import the overlapping post-demosaic
+  recovery. Keep the legacy compression setting only for migration.
+- Keep full-quality's 1000.0 ceiling and fast/thumbnail's 1.0 ceiling.
+- Preserve Argentum's TIFF rendering implementation: a 32-bit-float output
+  target followed by 16-bit integer TIFF quantization. Keep bit depth as the
+  existing global preference, not a per-preset property. Add headless
+  `--tiff-bit-depth` (8 or 16, default 16; invalid values fail before startup)
+  and remove the redundant GPU readback flag.
+- Adopt the reviewed neutral-grey canvas, persistent Quick Filter, Vibrance,
+  RGB curves, folder-tree sizing, labels, and final Android workflow changes;
+  keep Argentum branding and version identity.
+- For rawler, keep Argentum's Canon EOS C50 camera data and use upstream
+  `934af4b` as the base, where negative-only clipping is already implemented.
+  The published companion branch `codex/c50-v164-minimal` adds the C50 TOML
+  definition, a one-line test type annotation needed for current Rust test
+  compilation, and a camera-catalog test for both C50 modes (`16b9b010`).
+  Argentum pins that exact reachable commit in both
+  `Cargo.toml` and `Cargo.lock`. This is decoder synchronization, not a proven
+  R6 III rendering fix.
+
+Earlier full-quality 1400-pixel renders of the R6 III `100_0088.CR3`, using
+the existing `94818b0` decoder and the equivalent clipping port at `34eeaadc`,
+were byte-for-byte identical (mean, p99, and maximum RGB difference all 0).
+The final `16b9b010` branch uses that same upstream clipping implementation
+directly from `934af4b`; it differs from the tested port only in camera data
+and tests. The source CR3 is no longer present, so the exact 0088 render could
+not be rerun on the final commit. This result does not explain the appearance
+difference on that frame. The user clarified that the comparison was against
+DPP Auto; Argentum looks close to DPP Faithful, slightly darker, while DPP Auto
+is substantially brighter. Do not claim this v1.6.4 catch-up makes Argentum
+match DPP Auto.
+
+The final-pin RAW-to-preview helper and headless JPEG export both succeeded on
+the available R6 III `100_0075.CR3`; the export produced a 6.3 MB JPEG. The
+headless run used temporary app-data directories. This is a decode/preview and
+export smoke test, not a pixel-equality claim. The original `100_0088.CR3` is
+no longer available for a fresh render. The screenshot comparison and decoder
+A/B are evidence about one photo, not a camera-wide color match or proof that
+every export path is visually identical to the editor.
+
+## 2026-09-22: preserve Argentum's TIFF precision implementation
+
+**Decision:** keep Argentum's separate 32-bit-float TIFF render path. Do not
+replace it with RapidRAW PR [#1466](https://github.com/CyberTimon/RapidRAW/pull/1466).
+The PR was discussed and its approach was not dismissed: it fixed the false
+8-bit-in-a-16-bit-container output by adding a half-float (`rgba16float`)
+render target and writing actual 16-bit TIFF samples. The limitation is that
+half-float carries about 11 significant bits, not the full precision of a
+16-bit integer render; near the brightest encoded stop its values fall on a
+grid of roughly 32 out of 65,535 possible codes.
+
+Argentum therefore built its own path: use an `rgba32float` output render
+target, then quantise once to 16-bit integer samples when writing the TIFF.
+This is a different implementation, not an unreviewed copy of PR #1466. It
+removes the half-float **output-target** bottleneck, but is not end-to-end
+32-bit: the input upload and some intermediate textures are still half-float,
+so do not describe the whole export as full 16-bit precision or claim its
+pixels are always more accurate without a direct comparison. The code's
+precision limits and rationale are documented in
+[`export_precision.rs`](../src-tauri/src/mods/export_precision.rs); the
+implementation history and comparison are in [`ROADMAP.md`](ROADMAP.md),
+under the #1466 entry.
+
+**Catch-up instruction:** retain Argentum's implementation and tests while
+reviewing RapidRAW's TIFF changes. Keep the work on the isolated catch-up
+branch. Do not merge it into Argentum `main`, push it, or publish a PR before
+the user has reviewed and explicitly approved that next step. Once the work
+and tests are complete, send the result to SOL for the requested final review;
+SOL's approval is a separate gate, not permission to merge without the user's
+approval.
 
 ## 2026-09-13: crop update merged; highlight update temporarily deferred
 

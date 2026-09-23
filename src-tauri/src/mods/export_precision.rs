@@ -212,6 +212,13 @@ pub fn tiff_depth() -> TiffDepth {
     TiffDepth::from_u8(TIFF_DEPTH.load(std::sync::atomic::Ordering::Relaxed))
 }
 
+/// Override the process-local depth without changing the saved preference.
+/// Headless exports run in their own application process and use this for an
+/// explicit `--tiff-bit-depth` request.
+pub fn set_runtime_depth(depth: TiffDepth) {
+    TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Read the preference at startup. Missing or unreadable means 16-bit, which is
 /// what every export did before this setting existed - so upgrading changes
 /// nobody's output until they ask for it.
@@ -470,8 +477,7 @@ pub fn render_high_precision(
         Precision::High,
     )?;
 
-    let (bytes, out_w, out_h, _, _) =
-        processor.run(&input_view, width, height, request, false, false)?;
+    let (bytes, out_w, out_h, _, _) = processor.run(&input_view, width, height, request, false)?;
 
     let expected = out_w as usize * out_h as usize * BYTES_PER_PIXEL as usize;
     if bytes.len() != expected {
@@ -1479,7 +1485,7 @@ mod gpu_tests {
             roi: None,
         };
         let (bytes, w, h, _, _) = processor
-            .run(&view, 512, 8, request, false, false)
+            .run(&view, 512, 8, request, false)
             .expect("the preview render should succeed");
 
         assert_eq!(

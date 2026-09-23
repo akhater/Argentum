@@ -15,7 +15,8 @@
       "reset": "リセット",
       "shadows": "シャドウ",
       "toneMapper": "トーンマッパー",
-      "whites": "白レベル"
+      "whites": "白レベル",
+      "brightness": "明るさ"
     },
     "color": {
       "ariaSelectColor": "{{name}}色を選択",
@@ -798,7 +799,10 @@
     },
     "file": {
       "quality": "画質",
-      "qualityLossless": "画質 (ロスレス)"
+      "qualityLossless": "画質 (ロスレス)",
+      "tiffBitDepth": "TIFF ビット深度",
+      "tiffBitDepth16": "16 ビット",
+      "tiffBitDepth8": "8 ビット"
     },
     "labels": {
       "image": "画像",
@@ -1565,7 +1569,10 @@
       "themeDesc": "アプリケーションのテーマ（外観）を変更します。",
       "title": "全般設定",
       "xmpSync": "XMPメタデータ同期",
-      "xmpSyncDesc": "他の写真編集ソフトとの互換性のために、評価、カラーラベル、タグを標準のXMPサイドカーファイルと同期します。"
+      "xmpSyncDesc": "他の写真編集ソフトとの互換性のために、評価、カラーラベル、タグを標準のXMPサイドカーファイルと同期します。",
+      "enableNeutralGreyCanvas": "ニュートラルグレーの背景を有効にする",
+      "neutralGreyCanvas": "ニュートラルグレーのキャンバス",
+      "neutralGreyCanvasDesc": "アプリのテーマを変更せずに、より正確な色と露出のグレーディングを行うために、ニュートラルグレーのキャンバスを使用します。"
     },
     "keybinds": {
       "actions": {
