@@ -404,6 +404,7 @@ const review164CompositionDecisions = [
   review164Decision('e9d6cc74', 'import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', 'combine', 'Keep the upstream TIFF/export compatibility changes and import-dialogue-1714’s reuse of calculate_auto_adjustments; the import feature calls the existing analysis rather than replacing its processing behavior.'),
   review164Decision('0e8cd159', 'import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', 'combine', 'Keep the upstream processing changes and the import feature’s call into calculate_auto_adjustments; the two changes occupy separate responsibilities in the same function family.'),
   review164Decision('ad179a45', 'import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', 'combine', 'Retain Argentum’s precision-aware processing and import-dialogue-1714’s reuse of calculate_auto_adjustments; neither feature replaces the other.'),
+  review164Decision('40a112e1', 'ai-super-resolution:src/components/panel/Editor.tsx', 'combine', 'Keep both independent editor changes: RapidRAW adds the optional neutral-grey canvas, while super-resolution adjusts the minimum zoom bound so enlarged images can fit back into the viewport.'),
 ];
 
 export const REVIEW_164_DECISIONS = [
@@ -415,8 +416,8 @@ export const REVIEW_164_DECISIONS = [
   ...review164CompositionDecisions,
 ];
 
-if (REVIEW_164_DECISIONS.length !== 218) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 218 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+if (REVIEW_164_DECISIONS.length !== 219) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 219 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
