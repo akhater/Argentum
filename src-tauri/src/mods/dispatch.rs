@@ -65,6 +65,13 @@ struct PathArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RawToneArgs {
+    path: String,
+    mode: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FileArgs {
     file: String,
 }
@@ -147,6 +154,11 @@ pub async fn ag(
             let a: PathArgs = args_for(&name, args)?;
             let r = commands::refresh_image_metadata(a.path, app_handle)?;
             serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "raw_tone_curve" => {
+            let a: RawToneArgs = args_for(&name, args)?;
+            serde_json::to_value(commands::raw_tone_curve(a.path, a.mode, app_handle)?)
+                .map_err(|e| e.to_string())
         }
         "camera_profile_status" => {
             let a: PathArgs = args_for(&name, args)?;

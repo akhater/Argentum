@@ -485,6 +485,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub use_wgpu_renderer: Option<bool>,
     #[serde(default)]
+    pub editor_neutral_grey_bg: Option<bool>,
+    #[serde(default)]
     pub canvas_input_mode: Option<String>,
     #[serde(default)]
     pub zoom_speed_multiplier: Option<f32>,
@@ -534,6 +536,8 @@ pub struct AppSettings {
     pub group_preferred_type: Option<String>,
     #[serde(default)]
     pub always_decode_raw_thumbnails: Option<bool>,
+    #[serde(default)]
+    pub last_import_settings: Option<Value>,
     #[serde(default)]
     pub workspace: WorkspaceState,
 }
@@ -599,6 +603,7 @@ impl Default for AppSettings {
             use_wgpu_renderer: Some(false),
             #[cfg(not(any(target_os = "linux", target_os = "android")))]
             use_wgpu_renderer: Some(true),
+            editor_neutral_grey_bg: Some(false),
             canvas_input_mode: Some("mouse".to_string()),
             zoom_speed_multiplier: Some(1.0),
             zoom_photo_to_pixel_click: Some(false),
@@ -629,6 +634,7 @@ impl Default for AppSettings {
             group_associated_files: Some(false),
             group_preferred_type: Some("raw".to_string()),
             always_decode_raw_thumbnails: Some(false),
+            last_import_settings: None,
             workspace: WorkspaceState::default(),
         }
     }
@@ -733,4 +739,24 @@ pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(),
         .unwrap()
         .set_capacity(cache_size);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+
+    #[test]
+    fn legacy_raw_highlight_compression_setting_survives_load_and_save() {
+        let legacy = AppSettings {
+            raw_highlight_compression: Some(2.5),
+            ..AppSettings::default()
+        };
+
+        let saved = serde_json::to_string(&legacy).expect("serialize old setting");
+        let loaded: AppSettings = serde_json::from_str(&saved).expect("load old setting");
+        assert_eq!(loaded.raw_highlight_compression, Some(2.5));
+
+        let saved_again = serde_json::to_value(loaded).expect("save loaded setting");
+        assert_eq!(saved_again["rawHighlightCompression"], 2.5);
+    }
 }

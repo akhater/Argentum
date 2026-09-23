@@ -15,7 +15,8 @@
       "reset": "초기화",
       "shadows": "섀도우",
       "toneMapper": "톤 매퍼",
-      "whites": "화이트"
+      "whites": "화이트",
+      "brightness": "밝기"
     },
     "color": {
       "ariaSelectColor": "{{name}} 색상 선택",
@@ -798,7 +799,10 @@
     },
     "file": {
       "quality": "품질",
-      "qualityLossless": "품질 (무손실)"
+      "qualityLossless": "품질 (무손실)",
+      "tiffBitDepth": "TIFF 비트 심도",
+      "tiffBitDepth16": "16비트",
+      "tiffBitDepth8": "8비트"
     },
     "labels": {
       "image": "이미지",
@@ -1315,14 +1319,19 @@
       "title": "HDR로 병합"
     },
     "importSettings": {
+      "applyAutoAdjustments": "각 이미지에 자동 편집 적용",
+      "applyPreset": "각 이미지에 프리셋 적용",
       "cancel": "취소",
       "dateFormat": "날짜 형식",
       "dateFormatPlaceholder": "예: YYYY/MM-DD",
       "deleteAfterImport": "가져오기 성공 후 원본 삭제",
       "deleteWarning": "파일이 시스템 휴지통으로 이동됩니다.",
+      "editsOnImport": "가져올 때 편집",
+      "editsOnImportHint": "EXIF에서 렌즈를 식별할 수 있으면 자동 편집에 렌즈 보정이 포함됩니다. 일치하는 렌즈가 없으면 보정하지 않습니다.",
       "fileNaming": "파일 이름 지정",
       "folderOrganization": "폴더 정리",
       "organizeByDate": "날짜별 하위 폴더로 정리",
+      "presetNone": "없음",
       "sourceFiles": "원본 파일",
       "startImport": "가져오기 시작",
       "title": "가져오기 설정"
@@ -1565,7 +1574,10 @@
       "themeDesc": "애플리케이션의 모양과 느낌을 변경합니다.",
       "title": "일반 설정",
       "xmpSync": "XMP 메타데이터 동기화",
-      "xmpSyncDesc": "다른 사진 편집기와의 호환성을 위해 평점, 색상 레이블, 태그를 표준 XMP 사이드카 파일에 동기화합니다."
+      "xmpSyncDesc": "다른 사진 편집기와의 호환성을 위해 평점, 색상 레이블, 태그를 표준 XMP 사이드카 파일에 동기화합니다.",
+      "enableNeutralGreyCanvas": "뉴트럴 그레이 배경 활성화",
+      "neutralGreyCanvas": "뉴트럴 그레이 캔버스",
+      "neutralGreyCanvasDesc": "앱 테마를 변경하지 않고 더 정확한 색상 및 노출 보정을 위해 뉴트럴 그레이 캔버스를 사용합니다."
     },
     "keybinds": {
       "actions": {

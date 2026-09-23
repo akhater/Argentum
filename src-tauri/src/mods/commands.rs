@@ -4,6 +4,24 @@ use crate::app_state::AppState;
 use crate::get_cached_full_warped_image;
 use crate::mods::auto_wb::{self, AutoWhiteBalance, DetectMode};
 
+/// Build a per-photo RAW tone curve. Base Curve is a small camera-style
+/// default; Auto-Matched compares the decoded RAW with its embedded JPEG.
+pub fn raw_tone_curve(
+    path: String,
+    mode: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Vec<crate::mods::raw_tone::ToneCurvePoint>, String> {
+    let (source_path, _) = crate::file_management::parse_virtual_path(&path);
+    if !crate::formats::is_raw_file(&source_path) {
+        return Err("RAW tone rendering requires a RAW file".to_string());
+    }
+    let bytes = crate::file_management::read_file_mapped(&source_path)
+        .map_err(|e| format!("could not read RAW: {e}"))?;
+    let settings = crate::app_settings::load_settings(app_handle)?;
+    let source_path_string = source_path.to_string_lossy().to_string();
+    crate::mods::raw_tone::curve_for(&bytes, &source_path_string, &mode, &settings)
+}
+
 /// Solve white balance from the point the user clicked, in normalised image
 /// coordinates (0..1, origin top-left).
 ///

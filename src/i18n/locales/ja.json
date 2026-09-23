@@ -15,7 +15,8 @@
       "reset": "リセット",
       "shadows": "シャドウ",
       "toneMapper": "トーンマッパー",
-      "whites": "白レベル"
+      "whites": "白レベル",
+      "brightness": "明るさ"
     },
     "color": {
       "ariaSelectColor": "{{name}}色を選択",
@@ -798,7 +799,10 @@
     },
     "file": {
       "quality": "画質",
-      "qualityLossless": "画質 (ロスレス)"
+      "qualityLossless": "画質 (ロスレス)",
+      "tiffBitDepth": "TIFF ビット深度",
+      "tiffBitDepth16": "16 ビット",
+      "tiffBitDepth8": "8 ビット"
     },
     "labels": {
       "image": "画像",
@@ -1315,14 +1319,19 @@
       "title": "HDRに統合"
     },
     "importSettings": {
+      "applyAutoAdjustments": "各画像に自動編集を適用",
+      "applyPreset": "各画像にプリセットを適用",
       "cancel": "キャンセル",
       "dateFormat": "日付形式",
       "dateFormatPlaceholder": "例: YYYY/MM-DD",
       "deleteAfterImport": "インポート完了後に元のファイルを削除",
       "deleteWarning": "ファイルはシステムのゴミ箱に移動されます。",
+      "editsOnImport": "インポート時の編集",
+      "editsOnImportHint": "EXIFからレンズを特定できる場合、自動編集にレンズ補正も含まれます。一致しない画像は補正されません。",
       "fileNaming": "ファイル名の命名",
       "folderOrganization": "フォルダ構成",
       "organizeByDate": "日付ごとにサブフォルダに整理する",
+      "presetNone": "なし",
       "sourceFiles": "ソースファイル",
       "startImport": "インポートを開始",
       "title": "インポート設定"
@@ -1565,7 +1574,10 @@
       "themeDesc": "アプリケーションのテーマ（外観）を変更します。",
       "title": "全般設定",
       "xmpSync": "XMPメタデータ同期",
-      "xmpSyncDesc": "他の写真編集ソフトとの互換性のために、評価、カラーラベル、タグを標準のXMPサイドカーファイルと同期します。"
+      "xmpSyncDesc": "他の写真編集ソフトとの互換性のために、評価、カラーラベル、タグを標準のXMPサイドカーファイルと同期します。",
+      "enableNeutralGreyCanvas": "ニュートラルグレーの背景を有効にする",
+      "neutralGreyCanvas": "ニュートラルグレーのキャンバス",
+      "neutralGreyCanvasDesc": "アプリのテーマを変更せずに、より正確な色と露出のグレーディングを行うために、ニュートラルグレーのキャンバスを使用します。"
     },
     "keybinds": {
       "actions": {

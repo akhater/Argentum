@@ -19,6 +19,7 @@ pub use crate::gpu_processing::{
     process_and_get_dynamic_image_with_analytics,
 };
 use crate::{AppState, mask_generation::MaskDefinition};
+use crate::mods::raw_tone;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 pub trait IntoCowImage<'a> {
@@ -1562,6 +1563,14 @@ pub struct GlobalAdjustments {
     pub ag_profile_row0: [f32; 4],
     pub ag_profile_row1: [f32; 4],
     pub ag_profile_row2: [f32; 4],
+
+    // Argentum: RAW tone rendering, applied after the scene-linear pipeline
+    // has been converted to display RGB and before user curves.
+    pub raw_tone_mode: u32,
+    pub raw_tone_curve_count: u32,
+    _pad_raw_tone1: u32,
+    _pad_raw_tone2: u32,
+    pub raw_tone_curve: [Point; 16],
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -2230,6 +2239,26 @@ fn get_global_adjustments_from_json(
 
     let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
 
+    let raw_tone_mode = if is_raw {
+        match js_adjustments["rawToneRendering"].as_str().unwrap_or("default") {
+            "baseCurve" => 1,
+            "autoMatched" => 2,
+            _ => 0,
+        }
+    } else {
+        0
+    };
+    let mut raw_tone_points = js_adjustments["rawToneCurve"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if raw_tone_mode == 1 && raw_tone_points.len() < 2 {
+        raw_tone_points = raw_tone::base_curve()
+            .into_iter()
+            .map(|p| json!({"x": p.x, "y": p.y}))
+            .collect();
+    }
+
     GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),
         brightness: get_val("basic", "brightness", SCALES.brightness, None),
@@ -2397,6 +2426,16 @@ fn get_global_adjustments_from_json(
         ag_profile_row0: ag_profile.0,
         ag_profile_row1: ag_profile.1,
         ag_profile_row2: ag_profile.2,
+
+        raw_tone_mode,
+        raw_tone_curve_count: if raw_tone_mode == 0 {
+            0
+        } else {
+            raw_tone_points.len().min(16) as u32
+        },
+        _pad_raw_tone1: 0,
+        _pad_raw_tone2: 0,
+        raw_tone_curve: convert_points_to_aligned(raw_tone_points),
     }
 }
 
@@ -3502,18 +3541,50 @@ pub fn auto_results_to_json(results: &AutoAdjustmentResults) -> serde_json::Valu
 pub fn calculate_auto_adjustments(
     state: tauri::State<AppState>,
 ) -> Result<serde_json::Value, String> {
-    let original_image = state
-        .original_image
-        .lock()
-        .unwrap()
-        .as_ref()
-        .ok_or("No image loaded for auto adjustments")?
-        .image
-        .clone();
+    let (original_image, image_path) = {
+        let guard = state.original_image.lock().unwrap();
+        let loaded = guard
+            .as_ref()
+            .ok_or("No image loaded for auto adjustments")?;
+        (loaded.image.clone(), loaded.path.clone())
+    };
 
     let results = perform_auto_analysis(&original_image);
+    let mut adjustments = auto_results_to_json(&results);
 
-    Ok(auto_results_to_json(&results))
+    // Fold automatic lens correction into the auto-edit workflow. When the lens cannot be
+    // resolved from EXIF the lens keys are stripped again so the image is simply left uncorrected.
+    if let Some(map) = adjustments.as_object_mut() {
+        map.insert("lensCorrectionMode".to_string(), json!("auto"));
+    }
+
+    let (source_path, _) = crate::file_management::parse_virtual_path(&image_path);
+    let exif = crate::exif_processing::read_rrexif_sidecar(&source_path);
+    let lens_db = state.lens_db.lock().unwrap().clone();
+    crate::file_management::resolve_lens_params_in_adjustments(
+        &mut adjustments,
+        &exif,
+        lens_db.as_deref(),
+    );
+
+    let lens_resolved = adjustments
+        .get("lensDistortionParams")
+        .map(|v| !v.is_null())
+        .unwrap_or(false);
+    if let Some(map) = adjustments.as_object_mut() {
+        if lens_resolved {
+            map.insert("lensDistortionEnabled".to_string(), json!(true));
+            map.insert("lensTcaEnabled".to_string(), json!(true));
+            map.insert("lensVignetteEnabled".to_string(), json!(true));
+        } else {
+            map.remove("lensCorrectionMode");
+            map.remove("lensMaker");
+            map.remove("lensModel");
+            map.remove("lensDistortionParams");
+        }
+    }
+
+    Ok(adjustments)
 }
 
 #[cfg(test)]
