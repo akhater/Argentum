@@ -74,10 +74,13 @@ DPP Auto; Argentum looks close to DPP Faithful, slightly darker, while DPP Auto
 is substantially brighter. Do not claim this v1.6.4 catch-up makes Argentum
 match DPP Auto.
 
-Before merge, run the exact-CR3 editor/export smoke test and CI with the pinned
-dependency. The screenshot comparison and decoder A/B are evidence about this
-specific photo, not a camera-wide color match or proof that every export path
-is visually identical to the editor.
+The final-pin RAW-to-preview helper and headless JPEG export both succeeded on
+the available R6 III `100_0075.CR3`; the export produced a 6.3 MB JPEG. The
+headless run used temporary app-data directories. This is a decode/preview and
+export smoke test, not a pixel-equality claim. The original `100_0088.CR3` is
+no longer available for a fresh render. The screenshot comparison and decoder
+A/B are evidence about one photo, not a camera-wide color match or proof that
+every export path is visually identical to the editor.
 
 ## 2026-09-22: preserve Argentum's TIFF precision implementation
 
