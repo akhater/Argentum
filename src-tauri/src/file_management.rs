@@ -3965,7 +3965,7 @@ pub async fn import_files(
 
                 if let Some(source_xmp) = &source_xmp {
                     let dest_xmp = dest_file_path.with_extension("xmp");
-                    let _ = fs::copy(&source_xmp, &dest_xmp);
+                    let _ = fs::copy(source_xmp, &dest_xmp);
                 }
 
                 if settings.delete_after_import {
