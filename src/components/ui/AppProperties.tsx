@@ -226,6 +226,7 @@ export interface AppSettings {
   waveformHeight?: number;
   activeWaveformChannel?: string;
   useWgpuRenderer?: boolean;
+  editorNeutralGreyBg?: boolean;
   canvasInputMode?: 'mouse' | 'trackpad';
   zoomSpeedMultiplier?: number;
   zoomPhotoToPixelClick?: boolean;
@@ -248,6 +249,7 @@ export interface AppSettings {
   groupEditedFiles?: boolean;
   groupPreferredType?: GroupPreference; // legacy
   alwaysDecodeRawThumbnails?: boolean;
+  lastImportSettings?: ImportSettings;
   workspace?: WorkspaceState;
 }
 
@@ -324,6 +326,16 @@ export interface Preset {
   presetType?: 'tool' | 'style';
 }
 
+export interface ImportSettings {
+  filenameTemplate: string;
+  organizeByDate: boolean;
+  dateFolderFormat: string;
+  deleteAfterImport: boolean;
+  applyAutoAdjustments?: boolean;
+  presetId?: string | null;
+  presetAdjustments?: Partial<Adjustments> | null;
+}
+
 export interface Progress {
   completed?: number;
   current?: number;
@@ -376,6 +388,7 @@ export interface UiVisibility {
   filmstrip: boolean;
   leftPanel: boolean;
   rightPanel: boolean;
+  quickFilter?: boolean;
 }
 
 export interface WaveformData {

@@ -15,7 +15,8 @@
       "reset": "Réinitialiser",
       "shadows": "Ombres",
       "toneMapper": "Mappeur de tons",
-      "whites": "Blancs"
+      "whites": "Blancs",
+      "brightness": "Luminosité"
     },
     "color": {
       "ariaSelectColor": "Sélectionner la couleur {{name}}",
@@ -822,7 +823,10 @@
     },
     "file": {
       "quality": "Qualité",
-      "qualityLossless": "Qualité (Sans perte)"
+      "qualityLossless": "Qualité (Sans perte)",
+      "tiffBitDepth": "Profondeur de bits TIFF",
+      "tiffBitDepth16": "16 bits",
+      "tiffBitDepth8": "8 bits"
     },
     "labels": {
       "image": "Image",
@@ -1344,14 +1348,19 @@
       "title": "Fusionner en HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "Appliquer les retouches automatiques à chaque image",
+      "applyPreset": "Appliquer un préréglage à chaque image",
       "cancel": "Annuler",
       "dateFormat": "Format de date",
       "dateFormatPlaceholder": "ex. : AAAA/MM-JJ",
       "deleteAfterImport": "Supprimer les originaux après importation réussie",
       "deleteWarning": "Les fichiers seront déplacés vers la corbeille du système.",
+      "editsOnImport": "Retouches à l'importation",
+      "editsOnImportHint": "Les retouches automatiques incluent la correction de l'objectif lorsqu'il peut être identifié à partir des données EXIF ; les images sans correspondance ne sont pas corrigées.",
       "fileNaming": "Nommage des fichiers",
       "folderOrganization": "Organisation des dossiers",
       "organizeByDate": "Organiser dans des sous-dossiers par date",
+      "presetNone": "Aucun",
       "sourceFiles": "Fichiers sources",
       "startImport": "Démarrer l'importation",
       "title": "Paramètres d'importation"
@@ -1600,7 +1609,10 @@
       "themeDesc": "Modifier l'apparence et l'ergonomie de l'application.",
       "title": "Paramètres généraux",
       "xmpSync": "Synchronisation des métadonnées XMP",
-      "xmpSyncDesc": "Synchroniser les notes, les étiquettes de couleur et les tags vers des fichiers annexes XMP standard pour la compatibilité avec d'autres éditeurs de photos."
+      "xmpSyncDesc": "Synchroniser les notes, les étiquettes de couleur et les tags vers des fichiers annexes XMP standard pour la compatibilité avec d'autres éditeurs de photos.",
+      "enableNeutralGreyCanvas": "Activer le fond gris neutre",
+      "neutralGreyCanvas": "Toile gris neutre",
+      "neutralGreyCanvasDesc": "Utilisez une toile gris neutre pour un étalonnage des couleurs et de l'exposition plus précis sans modifier le thème de l'application."
     },
     "keybinds": {
       "actions": {
