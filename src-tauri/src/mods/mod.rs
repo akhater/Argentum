@@ -37,4 +37,5 @@ pub mod shader_check;
 pub mod sigmoid;
 pub mod sraw_levels;
 pub mod startup;
+pub mod super_resolution;
 pub mod tif_raw;

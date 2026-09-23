@@ -61,6 +61,17 @@ published it, not from us.
 
 ---
 
+## AI enlargement
+
+### [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
+
+The local 2x and 4x photo enlargement models. Argentum downloads the selected
+ONNX artifact on first use, verifies its SHA-256 digest, and runs it locally
+through ONNX Runtime. The original project is released under the BSD-3-Clause
+licence.
+
+---
+
 ## Inherited with RapidRAW
 
 Argentum ships all of RapidRAW's functionality, so everything he depends on,

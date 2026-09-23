@@ -702,6 +702,28 @@ export const REGISTRY = [
     ],
     keywords: /tiff|exif|metadata|little_exif|keep.?metadata|strip.?gps|gps|software.?tag|export/i,
   },
+  {
+    id: 'ai-super-resolution',
+    kind: 'feature',
+    what: 'Local AI image super-resolution with selectable 2x and 4x scaling.',
+    ours: [
+      'src-tauri/src/mods/super_resolution.rs',
+      'src/argentum/SuperResolutionButton.tsx',
+      'src/argentum/SuperResolutionModal.tsx',
+      'src/argentum/superResolution.ts',
+    ],
+    dependsOn: [
+      { file: 'src/components/panel/Editor.tsx', how: 'extends',
+        note:
+          'Caps minimum zoom at fit-to-window so a full-resolution upscaled image can '
+          + 'zoom back out to the whole image instead of stopping at a cropped view. '
+          + 'Keep this bound if upstream changes the editor zoom calculation.' },
+    ],
+    tests: [
+      'Manual: open an upscaled image, zoom in and back out with the mouse wheel, and verify the full image fits in the editor.',
+    ],
+    keywords: /upscale|super.?resolution|zoom|image.?size/i,
+  },
 ];
 
 /**

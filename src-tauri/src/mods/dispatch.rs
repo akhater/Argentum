@@ -81,6 +81,26 @@ struct OnArgs {
     on: bool,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuperResolutionPreviewArgs {
+    path: String,
+    scale: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuperResolutionSaveArgs {
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuperResolutionBatchArgs {
+    paths: Vec<String>,
+    scale: u32,
+}
+
 /// A TIFF bit depth as the interface names it: 8 or 16.
 ///
 /// A plain `u8` rather than an enum over the wire, because the value crossing
@@ -186,6 +206,29 @@ pub async fn ag(
             let a: DepthArgs = args_for(&name, args)?;
             commands::set_tiff_bit_depth(a.depth)?;
             Ok(serde_json::Value::Null)
+        }
+        "super_resolution_preview" => {
+            let a: SuperResolutionPreviewArgs = args_for(&name, args)?;
+            serde_json::to_value(
+                crate::mods::super_resolution::preview(a.path, a.scale, app_handle)
+                    .await
+                    .map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())
+        }
+        "save_super_resolution" => {
+            let a: SuperResolutionSaveArgs = args_for(&name, args)?;
+            serde_json::to_value(crate::mods::super_resolution::save(a.path).await?)
+                .map_err(|e| e.to_string())
+        }
+        "batch_super_resolution" => {
+            let a: SuperResolutionBatchArgs = args_for(&name, args)?;
+            serde_json::to_value(
+                crate::mods::super_resolution::batch(a.paths, a.scale, app_handle)
+                    .await
+                    .map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())
         }
         "profiles_for_camera" => {
             let a: ModelArgs = args_for(&name, args)?;
