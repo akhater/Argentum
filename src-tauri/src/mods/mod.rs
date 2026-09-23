@@ -32,6 +32,7 @@ pub mod profile_correction;
 pub mod profile_matrix;
 pub mod profiles;
 pub mod profiles_online;
+pub mod raw_tone;
 pub mod shader_check;
 pub mod sigmoid;
 pub mod sraw_levels;
