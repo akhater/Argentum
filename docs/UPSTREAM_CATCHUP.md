@@ -53,24 +53,31 @@ review command and mergeability check are part of the final verification.
 - Adopt the reviewed neutral-grey canvas, persistent Quick Filter, Vibrance,
   RGB curves, folder-tree sizing, labels, and final Android workflow changes;
   keep Argentum branding and version identity.
-- For rawler, preserve Argentum's `94818b0` Canon EOS C50 data and layer the
-  upstream `934af4b` negative-only clipping change on top. This is decoder
-  synchronization, not a proven R6 III fix: Argentum's `u32::MAX` white level
-  may mean the changed clipping function does not receive values above 1.0.
-  The port is committed locally as `34eeaadc` on companion branch
-  `codex/c50-1-6-4-sync`. Argentum's lockfile intentionally still points at
-  `94818b0`: the companion commit is not published, so switching the lockfile
-  now would make other checkouts and CI unable to fetch it. Activating this
-  decoder sync requires review, then user approval to publish the companion
-  branch and update Argentum's lockfile.
+- For rawler, keep Argentum's Canon EOS C50 camera data and use upstream
+  `934af4b` as the base, where negative-only clipping is already implemented.
+  The published companion branch `codex/c50-v164-minimal` adds the C50 TOML
+  definition, a one-line test type annotation needed for current Rust test
+  compilation, and a camera-catalog test for both C50 modes (`16b9b010`).
+  Argentum pins that exact reachable commit in both
+  `Cargo.toml` and `Cargo.lock`. This is decoder synchronization, not a proven
+  R6 III rendering fix.
 
-Validation must distinguish automated checks from the requested camera
-comparison. The exact R6 III CR3 and matching DPP reference were not available
-in this worktree, so no visual/A-B conclusion is claimed. The planned matrix
-remains: base vs. base+`934af4`, old vs. v1.6.4 ceiling, Argentum recovery
-on/off, full vs. fast decode, neutral and edited Brightness/Highlights, editor
-vs. export. Compare identical input/settings at equal-sized 100% output with
-cold caches, and record whether rawler's function receives above-one values.
+Earlier full-quality 1400-pixel renders of the R6 III `100_0088.CR3`, using
+the existing `94818b0` decoder and the equivalent clipping port at `34eeaadc`,
+were byte-for-byte identical (mean, p99, and maximum RGB difference all 0).
+The final `16b9b010` branch uses that same upstream clipping implementation
+directly from `934af4b`; it differs from the tested port only in camera data
+and tests. The source CR3 is no longer present, so the exact 0088 render could
+not be rerun on the final commit. This result does not explain the appearance
+difference on that frame. The user clarified that the comparison was against
+DPP Auto; Argentum looks close to DPP Faithful, slightly darker, while DPP Auto
+is substantially brighter. Do not claim this v1.6.4 catch-up makes Argentum
+match DPP Auto.
+
+Before merge, run the exact-CR3 editor/export smoke test and CI with the pinned
+dependency. The screenshot comparison and decoder A/B are evidence about this
+specific photo, not a camera-wide color match or proof that every export path
+is visually identical to the editor.
 
 ## 2026-09-22: preserve Argentum's TIFF precision implementation
 
