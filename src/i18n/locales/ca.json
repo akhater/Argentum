@@ -15,7 +15,8 @@
       "reset": "Restablir",
       "shadows": "Ombres",
       "toneMapper": "Mapejador de tons",
-      "whites": "Blancs"
+      "whites": "Blancs",
+      "brightness": "Brillantor"
     },
     "color": {
       "ariaSelectColor": "Seleccionar el color {{name}}",
@@ -800,7 +801,10 @@
     },
     "file": {
       "quality": "Qualitat",
-      "qualityLossless": "Qualitat (Sense pèrdua)"
+      "qualityLossless": "Qualitat (Sense pèrdua)",
+      "tiffBitDepth": "Profunditat de bits TIFF",
+      "tiffBitDepth16": "16 bits",
+      "tiffBitDepth8": "8 bits"
     },
     "labels": {
       "image": "Imatge",
@@ -1572,7 +1576,10 @@
       "themeDesc": "Canvia l'aspecte de l'aplicació.",
       "title": "Configuració general",
       "xmpSync": "Sincronització de metadades XMP",
-      "xmpSyncDesc": "Sincronitzar puntuacions, etiquetes de color i etiquetes amb fitxers sidecar XMP estàndard per a la compatibilitat amb altres editors de fotos."
+      "xmpSyncDesc": "Sincronitzar puntuacions, etiquetes de color i etiquetes amb fitxers sidecar XMP estàndard per a la compatibilitat amb altres editors de fotos.",
+      "enableNeutralGreyCanvas": "Activa el fons gris neutre",
+      "neutralGreyCanvas": "Llenç gris neutre",
+      "neutralGreyCanvasDesc": "Utilitzeu un llenç gris neutre per a una gradació de color i exposició més precisa sense canviar el tema de l'aplicació."
     },
     "keybinds": {
       "actions": {

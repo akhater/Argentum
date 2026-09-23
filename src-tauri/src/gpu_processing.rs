@@ -1121,7 +1121,6 @@ impl GpuProcessor {
         width: u32,
         height: u32,
         request: RenderRequest,
-        skip_cpu_readback: bool,
         output_to_display: bool,
     ) -> Result<(Vec<u8>, u32, u32, u32, u32), String> {
         let device = &self.context.device;
@@ -1324,7 +1323,7 @@ impl GpuProcessor {
         let bpp = self.precision.bytes_per_pixel();
         let mut final_pixels = vec![
             0u8;
-            if skip_cpu_readback {
+            if output_to_display {
                 0
             } else {
                 out_width as usize * out_height as usize * bpp as usize
@@ -1586,7 +1585,7 @@ impl GpuProcessor {
 
                 queue.submit(Some(main_encoder.finish()));
 
-                if !skip_cpu_readback {
+                if !output_to_display {
                     let processed_tile_data = read_texture_data_roi(
                         device,
                         queue,
@@ -1801,14 +1800,11 @@ fn process_and_get_dynamic_image_inner(
 
     let cache = cache_lock.as_ref().unwrap();
 
-    let skip_readback = output_to_display;
-
     let (processed_pixels, out_w, out_h, out_x, out_y) = processor.run(
         &cache.texture_view,
         cache.width,
         cache.height,
         request,
-        skip_readback,
         output_to_display,
     )?;
 
@@ -1821,7 +1817,7 @@ fn process_and_get_dynamic_image_inner(
     let mut async_padded_bpr: u32 = 0;
     let mut async_unpadded_bpr: u32 = 0;
 
-    if analytics_config.is_some() && skip_readback {
+    if analytics_config.is_some() && output_to_display {
         let unpadded_bytes_per_row = 4 * out_w;
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let padded_bytes_per_row = (unpadded_bytes_per_row + align - 1) & !(align - 1);
@@ -2009,7 +2005,7 @@ fn process_and_get_dynamic_image_inner(
         display.render(device, queue);
     }
 
-    if skip_readback {
+    if output_to_display {
         let duration = start_time.elapsed();
         let fps = 1.0 / duration.as_secs_f64();
         log::info!(

@@ -17,6 +17,7 @@ pub struct HeadlessExportSession {
     pub output: String,
     pub format: String,
     pub quality: u8,
+    pub tiff_bit_depth: u8,
     pub keep_metadata: bool,
     pub adjustments_override: Option<String>,
 }
@@ -27,6 +28,7 @@ pub enum LaunchRequest {
     OpenFile(String),
     EditSession(ExternalEditSession),
     HeadlessExport(HeadlessExportSession),
+    InvalidHeadless(String),
 }
 
 #[derive(Serialize, Default)]
@@ -44,6 +46,7 @@ pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
         let mut output = String::new();
         let mut format = String::from("jpeg");
         let mut quality = 90;
+        let mut tiff_bit_depth = 16;
         let mut keep_metadata = false;
         let mut adjustments_override = None;
 
@@ -70,6 +73,28 @@ pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
                         quality = q.parse().unwrap_or(90);
                     }
                 }
+                "--tiff-bit-depth" => {
+                    let Some(value) = iter.next() else {
+                        return LaunchRequest::InvalidHeadless(
+                            "Missing value for --tiff-bit-depth; expected 8 or 16.".to_string(),
+                        );
+                    };
+                    let Ok(value) = value.parse::<u8>() else {
+                        return LaunchRequest::InvalidHeadless(format!(
+                            "Invalid TIFF bit depth '{}'; expected 8 or 16.",
+                            value
+                        ));
+                    };
+                    tiff_bit_depth = match value {
+                        8 | 16 => value,
+                        _ => {
+                            return LaunchRequest::InvalidHeadless(format!(
+                                "Invalid TIFF bit depth '{}'; expected 8 or 16.",
+                                value
+                            ));
+                        }
+                    };
+                }
                 "--keep-metadata" => keep_metadata = true,
                 "--adjustments" => {
                     if let Some(adj) = iter.next() {
@@ -85,6 +110,7 @@ pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
             output,
             format,
             quality,
+            tiff_bit_depth,
             keep_metadata,
             adjustments_override,
         });
@@ -159,6 +185,53 @@ pub fn emit_launch_request(app_handle: &tauri::AppHandle, request: LaunchRequest
                 "Error: Headless export cannot be attached to an already running GUI instance."
             );
         }
+        LaunchRequest::InvalidHeadless(error) => {
+            log::error!("Invalid headless export request: {}", error);
+        }
         LaunchRequest::None => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LaunchRequest, parse_launch_args};
+    fn parse(args: &[&str]) -> LaunchRequest {
+        parse_launch_args(
+            &args
+                .iter()
+                .map(|arg| (*arg).to_string())
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn headless_tiff_depth_defaults_to_sixteen_bits() {
+        let LaunchRequest::HeadlessExport(session) = parse(&["export", "photo.cr3"]) else {
+            panic!("expected a headless export request");
+        };
+        assert_eq!(session.tiff_bit_depth, 16);
+    }
+
+    #[test]
+    fn headless_tiff_depth_accepts_only_eight_or_sixteen_bits() {
+        for value in ["8", "16"] {
+            let LaunchRequest::HeadlessExport(session) =
+                parse(&["export", "photo.cr3", "--tiff-bit-depth", value])
+            else {
+                panic!("expected a headless export request");
+            };
+            assert_eq!(session.tiff_bit_depth, value.parse::<u8>().unwrap());
+        }
+    }
+
+    #[test]
+    fn headless_tiff_depth_rejects_invalid_or_missing_values() {
+        for args in [
+            &["export", "photo.cr3", "--tiff-bit-depth"][..],
+            &["export", "photo.cr3", "--tiff-bit-depth", "twelve"][..],
+            &["export", "photo.cr3", "--tiff-bit-depth", "12"][..],
+        ] {
+            assert!(matches!(parse(args), LaunchRequest::InvalidHeadless(_)));
+        }
     }
 }

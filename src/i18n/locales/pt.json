@@ -15,7 +15,8 @@
       "reset": "Redefinir",
       "shadows": "Sombras",
       "toneMapper": "Mapeador de Tons",
-      "whites": "Brancos"
+      "whites": "Brancos",
+      "brightness": "Brilho"
     },
     "color": {
       "ariaSelectColor": "Selecionar cor {{name}}",
@@ -822,7 +823,10 @@
     },
     "file": {
       "quality": "Qualidade",
-      "qualityLossless": "Qualidade (Sem Perdas)"
+      "qualityLossless": "Qualidade (Sem Perdas)",
+      "tiffBitDepth": "Profundidade de bits TIFF",
+      "tiffBitDepth16": "16 bits",
+      "tiffBitDepth8": "8 bits"
     },
     "labels": {
       "image": "Imagem",
@@ -1606,7 +1610,10 @@
       "themeDesc": "Altere a aparência do aplicativo.",
       "title": "Configurações Gerais",
       "xmpSync": "Sincronização de Metadados XMP",
-      "xmpSyncDesc": "Sincronize avaliações, rótulos de cores e etiquetas em arquivos sidecar XMP padrão para compatibilidade com outros editores de fotos."
+      "xmpSyncDesc": "Sincronize avaliações, rótulos de cores e etiquetas em arquivos sidecar XMP padrão para compatibilidade com outros editores de fotos.",
+      "enableNeutralGreyCanvas": "Ativar fundo cinza neutro",
+      "neutralGreyCanvas": "Tela cinza neutro",
+      "neutralGreyCanvasDesc": "Use uma tela cinza neutro para uma gradação de cores e exposição mais precisa sem alterar o tema do aplicativo."
     },
     "keybinds": {
       "actions": {

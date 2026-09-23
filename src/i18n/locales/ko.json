@@ -15,7 +15,8 @@
       "reset": "초기화",
       "shadows": "섀도우",
       "toneMapper": "톤 매퍼",
-      "whites": "화이트"
+      "whites": "화이트",
+      "brightness": "밝기"
     },
     "color": {
       "ariaSelectColor": "{{name}} 색상 선택",
@@ -798,7 +799,10 @@
     },
     "file": {
       "quality": "품질",
-      "qualityLossless": "품질 (무손실)"
+      "qualityLossless": "품질 (무손실)",
+      "tiffBitDepth": "TIFF 비트 심도",
+      "tiffBitDepth16": "16비트",
+      "tiffBitDepth8": "8비트"
     },
     "labels": {
       "image": "이미지",
@@ -1570,7 +1574,10 @@
       "themeDesc": "애플리케이션의 모양과 느낌을 변경합니다.",
       "title": "일반 설정",
       "xmpSync": "XMP 메타데이터 동기화",
-      "xmpSyncDesc": "다른 사진 편집기와의 호환성을 위해 평점, 색상 레이블, 태그를 표준 XMP 사이드카 파일에 동기화합니다."
+      "xmpSyncDesc": "다른 사진 편집기와의 호환성을 위해 평점, 색상 레이블, 태그를 표준 XMP 사이드카 파일에 동기화합니다.",
+      "enableNeutralGreyCanvas": "뉴트럴 그레이 배경 활성화",
+      "neutralGreyCanvas": "뉴트럴 그레이 캔버스",
+      "neutralGreyCanvasDesc": "앱 테마를 변경하지 않고 더 정확한 색상 및 노출 보정을 위해 뉴트럴 그레이 캔버스를 사용합니다."
     },
     "keybinds": {
       "actions": {
