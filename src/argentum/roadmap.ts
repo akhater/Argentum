@@ -114,6 +114,15 @@ const MILESTONES: Milestone[] = [
   },
   {
     stage: 'planned',
+    what: 'Resize-aware export sharpening',
+    why:
+      'Give exported files back the edge contrast that resizing can soften, while '
+      + 'leaving the editing preview alone. Compare a sharper resize filter with a '
+      + 'mild post-resize sharpening pass, then expose a simple Off / Standard / '
+      + 'Strong choice and avoid sharpening twice when no resize is requested.',
+  },
+  {
+    stage: 'planned',
     what: 'Use less memory',
     why:
       'Nobody has measured what Argentum costs on a large RAW, and the pipeline '
