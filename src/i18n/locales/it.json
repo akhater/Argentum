@@ -1344,14 +1344,19 @@
       "title": "Unisci in HDR"
     },
     "importSettings": {
+      "applyAutoAdjustments": "Applica regolazioni automatiche a ogni immagine",
+      "applyPreset": "Applica una preimpostazione a ogni immagine",
       "cancel": "Annulla",
       "dateFormat": "Formato Data",
       "dateFormatPlaceholder": "es. YYYY/MM-DD",
       "deleteAfterImport": "Elimina originali dopo importazione completata",
       "deleteWarning": "I file verranno spostati nel cestino di sistema.",
+      "editsOnImport": "Modifiche all'importazione",
+      "editsOnImportHint": "Le modifiche automatiche includono la correzione dell'obiettivo quando è possibile identificarlo dai dati EXIF; le immagini senza corrispondenza non vengono corrette.",
       "fileNaming": "Nomenclatura File",
       "folderOrganization": "Organizzazione Cartelle",
       "organizeByDate": "Organizza in sottocartelle per data",
+      "presetNone": "Nessuno",
       "sourceFiles": "File Sorgente",
       "startImport": "Inizia Importazione",
       "title": "Impostazioni di Importazione"

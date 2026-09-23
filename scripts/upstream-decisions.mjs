@@ -91,6 +91,7 @@ export const REVIEWS = [
       { overlap: '40cfa3df:dep:raw-decode:src-tauri/src/raw_processing.rs#on_raw_decoded', verdict: 'not-applicable', why: 'The upstream post-demosaic recovery is intentionally excluded; Argentum keeps its single pre-demosaic decode anchor unchanged.' },
       { overlap: '40cfa3df:dep:canon-old-wb:src-tauri/src/raw_processing.rs#on_raw_decoded', verdict: 'not-applicable', why: 'The upstream post-demosaic recovery is intentionally excluded; Argentum keeps the Canon old-WB ordering unchanged.' },
       { overlap: '40cfa3df:dep:borrow-1633:src-tauri/src/raw_processing.rs', verdict: 'not-applicable', why: 'The upstream hunk is separate from Argentum\'s retained sRGB exponent correction; the marked borrowed fix remains unchanged.' },
+      { overlap: '40cfa3df:dep:import-dialogue-1714:src-tauri/src/image_processing.rs#calculate_auto_adjustments', verdict: 'not-applicable', why: 'The highlight-recovery commit changes scene-linear clamping and RAW recovery, not calculate_auto_adjustments. The import feature continues to call Argentum\'s existing auto-edit and lens-resolution path.' },
       { overlap: '40cfa3df:feature:highlight-recovery', verdict: 'combine', why: 'Adopt the upstream unbounded scene-linear handling in image_processing.rs, keep Argentum\'s pre-demosaic recovery as the sole RAW recovery, and exclude RapidRAW\'s overlapping post-demosaic recovery and rawler lockfile revision.' },
     ],
     featureReview: {
