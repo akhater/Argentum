@@ -46,7 +46,9 @@ use std::path::{Path, PathBuf};
 ///    the D50/D65 matrix correction that had been compensating for them.
 /// 2. Blown highlights come out white instead of magenta
 ///    (`highlights::settle_blown`). Thumbnails made since 2026-09-23 are pink.
-pub const PIPELINE: u32 = 3;
+/// 3. With recovery on, rebuilt highlights reach neutral half a stop above the
+///    clip instead of keeping a lavender cast (`highlights::FADE_SPAN`).
+pub const PIPELINE: u32 = 4;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

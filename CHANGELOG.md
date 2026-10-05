@@ -4,7 +4,7 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
-## Unreleased — 2026-10-05
+## 26.41.2 — 2026-10-05
 
 ### Fixed
 
@@ -23,6 +23,18 @@ Newest first.
   worker finding nothing. Masks, AI patches and AI results are kept. The other
   recently opened photos are dropped from memory, so they decode under the new
   setting too.
+
+- **With Highlight Recovery on, a darkened blown window is no longer
+  lavender.** Where only green clipped, red and blue are real, and on a window
+  behind a portrait they carried the window's cool light. Recovery kept that
+  colour in every rebuilt pixel up to the level where the *last* channel clips,
+  more than a stop above the first on daylight white balance. Beside the
+  neutral blown core, it read as a lavender band once the photo was darkened.
+  Rebuilt pixels now keep their recovered brightness and are neutral by half a
+  stop above the first clip. Measured on that frame: fades ending at 1.1×,
+  1.25× and 1.5× all removed the band without bringing back outlines at the
+  clip edge, and half a stop sits between the two longer ones. Thumbnails
+  regenerate once.
 
 ## 26.41.1 — 2026-10-05
 
