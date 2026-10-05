@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.1',
+    date: '2026-10-05',
+    notes: [
+      'Overexposed areas such as a bright window are white again instead of '
+      + 'pink, with Highlight Recovery on or off. Thumbnails refresh once.',
+      'With Highlight Recovery on, blown areas no longer get a pink or cyan '
+      + 'outline where they meet the rest of the photo.',
+    ],
+  },
+  {
     version: '26.39.1',
     date: '2026-09-22',
     notes: [
