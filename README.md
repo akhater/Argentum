@@ -15,9 +15,10 @@ merging cleanly. That constraint is enforced by a script, not by good intentions
 
 ![Argentum editing a Canon CR2 file](docs/screenshot.jpg)
 
-> **Early preview.** Argentum is developed and used on Windows and is not yet
-> proven anywhere else. Editing is non-destructive — your RAW files are never
-> written to — but keep your own backups, as you would with any young tool.
+> **Early preview.** Argentum is developed and used on Windows, and runs on
+> macOS (Apple Silicon); Linux is not yet proven. Editing is non-destructive —
+> your RAW files are never written to — but keep your own backups, as you would
+> with any young tool.
 
 > Argentum is independently maintained and is **not affiliated with, nor endorsed
 > by, RapidRAW or darktable.** It is a fork, and it says so because their work
@@ -32,11 +33,12 @@ merging cleanly. That constraint is enforced by a script, not by good intentions
 | Platform | State |
 |---|---|
 | **Windows** | Tested. The platform it is developed on |
-| **macOS** | Builds in CI, never run by anyone. Reports welcome |
+| **macOS** | Tested on Apple Silicon, after the two one-time steps below |
 | **Linux** | Builds in CI, never run by anyone. Reports welcome |
 
 It is cross-platform because RapidRAW is, and nothing Argentum added breaks that.
-But "compiles" is not "works", and nobody has checked.
+Windows and macOS have been run; on Linux "compiles" is not yet "works", and
+nobody has checked.
 
 ---
 
@@ -51,17 +53,31 @@ in the binary, so the download stays small.
 *(Building from source is further down, and only needed if you want to change
 the code.)*
 
-### macOS: “Argentum is damaged”
+### macOS: two one-time steps
 
-Some macOS builds may be blocked by Gatekeeper because the downloaded app is not
-yet signed or notarized. Only use this workaround if the DMG came from the
-official Argentum release and you trust it. First copy `Argentum.app` from the
-DMG to `/Applications`, then run:
+Argentum is not yet signed or notarized by Apple, so macOS needs two things
+done once. Only do this with a DMG from the official Argentum release.
+
+**1. Let it open.** Copy `Argentum.app` from the DMG to `/Applications`. Without
+this step macOS reports it as "damaged". In Terminal, run:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Argentum.app"
 open "/Applications/Argentum.app"
 ```
+
+**2. Let it read your photos.** macOS protects Documents, Desktop, Downloads,
+Pictures and external drives. Open *System Settings → Privacy & Security → Files
+and Folders* and allow Argentum the folders your photos are in. If Argentum is
+not listed there, add `/Applications/Argentum.app` under *Full Disk Access*.
+Then quit and reopen Argentum. This opens the right page:
+
+```bash
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"
+```
+
+No Terminal command can grant this access; it has to be allowed in System
+Settings.
 
 ---
 
@@ -107,7 +123,7 @@ and the same is true of a monitor profile built as a lookup table rather than
 from three primaries. In those cases the picture is shown the way RapidRAW always
 showed it — correct on an sRGB screen, over-saturated on a wide-gamut one.
 
-**macOS and Linux are untested.** As above: built, never run.
+**Linux is untested.** As above: built, never run.
 
 The app also lists what is currently broken in *Settings → About → Known issues*,
 which is kept current rather than being a changelog entry that goes stale.
