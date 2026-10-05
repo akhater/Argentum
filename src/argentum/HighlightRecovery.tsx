@@ -9,19 +9,23 @@
  * either being rebuilt from the ones that survived, or it is being left where
  * the sensor gave up.
  *
- * WHY IT SAYS "NEXT PHOTO"
+ * WHY FLIPPING IT DECODES THE PHOTO AGAIN
  *
  * It runs while the RAW is decoded, before demosaic, which is the only place
  * the mosaic still exists. Everything else in this app is applied per frame on
- * the GPU and changes as you drag. This cannot be, so it does not pretend: the
- * label says when it applies, and switching photos is what applies it.
+ * the GPU; this cannot be. It used to say "applies to the next photo you open"
+ * and did not even manage that, because recently opened photos are served
+ * from memory without decoding again.
  *
- * Camera profiles were built to pretend, four times, and each attempt broke
- * something else. Saying what it does is cheaper and truer than hiding it.
+ * So the switch decodes the open photo again, to one side, and swaps it in
+ * when done — see `mods/redecode.rs` for why it is not `load_image`, which is
+ * what four attempts at a live camera-profile switch tripped over. Then it
+ * asks for one render of the same edits, through the same path a slider uses.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import Switch from '../components/ui/Switch';
+import { useEditorStore } from '../store/useEditorStore';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
 
@@ -54,6 +58,19 @@ export default function HighlightRecovery() {
       await ag('set_highlight_recovery', { on: next });
     } catch {
       setOn(!next);
+      setBusy(false);
+      return;
+    }
+    try {
+      // The setting is saved by now; a failure here leaves the switch where it
+      // is and the photo as it was, and the next open picks the setting up.
+      if (await ag<boolean>('redecode_open_photo')) {
+        // A new adjustments object with the same values: the render effect
+        // fires on identity, exactly as after a slider, and nothing changes.
+        useEditorStore.getState().setEditor((s) => ({ adjustments: { ...s.adjustments } }));
+      }
+    } catch (e) {
+      console.warn('Re-decoding the open photo failed:', e);
     } finally {
       setBusy(false);
     }

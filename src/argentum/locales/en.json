@@ -40,7 +40,7 @@
   "gearRemoveProfile": "Delete this profile",
   "gearNoProfilesFor": "No profiles yet",
   "recoveryLabel": "Highlight recovery",
-  "recoveryHelp": "Rebuilds a colour channel that blew out from the two that survived. Applies to the next photo you open.",
+  "recoveryHelp": "Rebuilds a colour channel that blew out from the two that survived.",
   "thresholdHint": "Hold Ctrl while dragging to see what is about to clip",
   "tiffDepthLabel": "Bit depth",
   "tiffDepth8": "8-bit",

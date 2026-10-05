@@ -269,9 +269,18 @@ export const REGISTRY = [
     ours: [
       'src/argentum/HighlightRecovery.tsx',
       'src-tauri/src/mods/highlights.rs',
+      'src-tauri/src/mods/redecode.rs',
       'src-tauri/src/mods/sigmoid.rs',
     ],
     dependsOn: [
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'load_image', how: 'shadows',
+        note: 'redecode::open_photo does for the open photo what load_image does for a new one, in the other order: decode to one side, swap, then drop the pixel caches. If upstream adds a pixel-derived cache to the list load_image resets, add it to open_photo too, or the switch renders from stale pixels.' },
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'load_base_image_from_bytes', how: 'calls',
+        note: 'The same decode load_image runs, so a re-decoded photo is identical to a freshly opened one.' },
+      { file: 'src-tauri/src/app_state.rs', how: 'calls',
+        note: 'open_photo reads original_image and load_image_generation and resets cached_preview, gpu_image_cache and the warped/transformed caches. A renamed or new field here has to be reflected there.' },
+      { file: 'src/hooks/useImageProcessing.ts', how: 'calls',
+        note: 'HighlightRecovery.tsx re-renders by setting an equal adjustments object; the render effect fires on identity. If that effect stops depending on adjustments identity, the switch decodes but does not repaint.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
         note: 'Runs inside the same scene-linear anchor as white balance, in a fixed order.' },
       { file: 'src-tauri/src/multi_exposure.rs', symbol: 'neutralize_wb_if_multiexposure', how: 'calls',
@@ -281,6 +290,7 @@ export const REGISTRY = [
     ],
     tests: [
       'src-tauri/src/mods/highlights.rs #[cfg(test)]',
+      'src-tauri/src/mods/redecode.rs #[cfg(test)]',
       'src-tauri/src/mods/sigmoid.rs #[cfg(test)]',
     ],
     keywords: /highlight|recover|clip.*reconstruct|blown|rolloff|roll.?off|magenta|pink/i,

@@ -4,6 +4,26 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## Unreleased — 2026-10-05
+
+### Fixed
+
+- **The Highlight Recovery switch now changes the photo on screen.** It said
+  "applies to the next photo you open" and did not manage even that: recently
+  opened photos are served from memory without decoding again, so for any of
+  them, including the one on screen, the switch did nothing.
+
+  Flipping it now decodes the open photo again with the new setting and
+  re-renders it with the same edits. `mods/redecode.rs` decodes to one side
+  while the old version stays on screen, swaps it in only if the photo is
+  still open and no newer flip superseded it, and only then drops the caches
+  built from the old pixels. That ordering is deliberate. Calling `load_image`
+  empties the open image first, and the four failed attempts at a live
+  camera-profile switch broke on exactly that window: a black flash, a preview
+  worker finding nothing. Masks, AI patches and AI results are kept. The other
+  recently opened photos are dropped from memory, so they decode under the new
+  setting too.
+
 ## 26.41.1 — 2026-10-05
 
 ### Fixed
