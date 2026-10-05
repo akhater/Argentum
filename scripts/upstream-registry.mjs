@@ -732,11 +732,53 @@ export const REGISTRY = [
           'Caps minimum zoom at fit-to-window so a full-resolution upscaled image can '
           + 'zoom back out to the whole image instead of stopping at a cropped view. '
           + 'Keep this bound if upstream changes the editor zoom calculation.' },
+      { file: 'src-tauri/src/adjustment_utils.rs', symbol: 'apply_all_transformations', how: 'calls',
+        note:
+          'Frames the photo before enlarging it, exactly as the export does: geometry and lens '
+          + 'correction, lens blur, then rotation, flips and crop. strip_non_transferable_adjustments '
+          + 'removes every key that call reads from the enlarged photo’s sidecar, so nothing is applied '
+          + 'twice. If upstream adds a geometric step here, or a new key it reads, add the key there too.' },
     ],
     tests: [
       'Manual: open an upscaled image, zoom in and back out with the mouse wheel, and verify the full image fits in the editor.',
+      'Manual: crop and straighten a photo, enlarge it; the result is the framed area only, and opens with no crop or rotation applied.',
+      'super_resolution tests: framing already applied is not carried over, the look is',
     ],
     keywords: /upscale|super.?resolution|zoom|image.?size/i,
+  },
+  {
+    id: 'ai-gpu-runtime',
+    kind: 'feature',
+    what:
+      'AI enlargement on the GPU on Windows: Microsoft’s DirectML build of ONNX Runtime 1.22, '
+      + 'downloaded on first use and made the process’s runtime at startup. CPU fallback everywhere.',
+    ours: ['src-tauri/src/mods/gpu_runtime.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/lib.rs', symbol: 'ORT_DYLIB_PATH', how: 'shadows',
+        note:
+          'Their setup points ORT_DYLIB_PATH at the bundled CPU runtime. startup::init runs first '
+          + 'and pins the DirectML build with ort::init_from, which ort prefers over the variable, so '
+          + 'their line stays and is not used once the GPU runtime is installed. If upstream starts '
+          + 'loading ONNX Runtime before setup, or calls init_from itself, the pin stops working and '
+          + 'enlargement quietly goes back to the CPU.' },
+      { file: 'src-tauri/Cargo.toml', how: 'extends',
+        note:
+          'A second ort entry in our Windows table adds the directml feature to their '
+          + 'ort =2.0.0-rc.10, plus flate2. When upstream moves ort (their #1742 goes to rc.13 with '
+          + 'its own DirectML), the pinned 1.22 package has to move with it: gpu_runtime will not pin '
+          + 'a runtime whose API version differs, and the_pinned_runtime_matches_the_ort_crate fails '
+          + 'until the package is updated.' },
+      { file: 'src-tauri/src/ai_processing.rs', how: 'retypes',
+        note:
+          'Once the GPU runtime is installed, their masking, denoise, tagging and inpainting sessions '
+          + 'load from the DirectML build instead of the CPU build in CyberTimon/RapidRAW-Models. They '
+          + 'ask for no execution provider, so they run on its CPU path, the same 1.22 release.' },
+    ],
+    tests: [
+      'gpu_runtime tests: zip extraction, and the pinned runtime matching the ort crate',
+      'Manual (Windows): enlarge a photo; the progress line says "on the GPU". On a fresh profile the GPU runtime downloads first.',
+    ],
+    keywords: /onnx|\bort\b|directml|execution.?provider|ORT_DYLIB|gpu.*(ai|model|onnx)/i,
   },
 ];
 

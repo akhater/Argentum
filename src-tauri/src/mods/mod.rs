@@ -24,6 +24,7 @@ pub mod display_monitor;
 pub mod display_profile;
 pub mod export_metadata;
 pub mod export_precision;
+pub mod gpu_runtime;
 pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;

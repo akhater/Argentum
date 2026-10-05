@@ -417,6 +417,23 @@ const review164HighlightCorrection = [
   review164Decision('f00145c1', 'highlight-recovery:src-tauri/src/raw_processing.rs#develop_internal', 'combine', 'The compression pass this commit switched off was the only thing turning fully blown highlights white. settle_blown takes over that effect before demosaic; the legacy raw_highlight_compression setting stays readable for migration only, as decided above.'),
 ];
 
+// Added 2026-10-05, when ai-gpu-runtime registered its step around
+// ORT_DYLIB_PATH in lib.rs. The four commits in this window that touch lib.rs
+// are the TIFF-precision chain (#1466) and its merges; none of them changes how
+// or when ONNX Runtime is located or loaded.
+const review164GpuRuntime = [
+  review164Decision('ad179a45', 'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH', 'not-applicable', 'Adds the headless TIFF bit-depth option to launch handling in lib.rs. The ORT_DYLIB_PATH setup is untouched and still runs after startup::init, so the DirectML pin still takes precedence.'),
+  review164Decision('88415dcc', 'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH', 'not-applicable', 'A one-line merge resolution in lib.rs for the TIFF branch; nothing near the ONNX Runtime path.'),
+  review164Decision('0e8cd159', 'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH', 'not-applicable', 'The TIFF-precision sync reworks builder setup and headless launch handling in lib.rs. No ORT_DYLIB_PATH or ONNX Runtime line is in its diff, and nothing loads ONNX Runtime before setup.'),
+  review164Decision('e9d6cc74', 'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH', 'not-applicable', 'The merge of #1466 carries the same TIFF launch-option change as ad179a45; the ONNX Runtime setup is untouched.'),
+];
+
+// Added 2026-10-05, when ai-super-resolution began framing photos with the
+// export's own apply_all_transformations before enlarging them.
+const review164SuperResolutionFraming = [
+  review164Decision('ad179a45', 'ai-super-resolution:src-tauri/src/adjustment_utils.rs#apply_all_transformations', 'not-applicable', 'The TIFF-precision export reworks the code around its apply_all_transformations call in export_processing.rs; the call, the function and the order of its geometric steps are unchanged, so enlargement still frames a photo exactly as an export does.'),
+];
+
 export const REVIEW_164_DECISIONS = [
   ...review164ShaderDecisions,
   ...review164OtherDecisions,
@@ -425,11 +442,14 @@ export const REVIEW_164_DECISIONS = [
   ...review164PresetDecisions,
   ...review164CompositionDecisions,
   ...review164HighlightCorrection,
+  ...review164GpuRuntime,
+  ...review164SuperResolutionFraming,
 ];
 
-// 219 from the catch-up itself, plus the two highlight corrections above.
-if (REVIEW_164_DECISIONS.length !== 221) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 221 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+// 219 from the catch-up itself, the two highlight corrections, the four
+// ai-gpu-runtime decisions and the framing decision above.
+if (REVIEW_164_DECISIONS.length !== 226) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 226 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
