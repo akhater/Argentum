@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.2',
+    date: '2026-10-05',
+    notes: [
+      'Flipping Highlight Recovery now updates the photo you are looking at, '
+      + 'keeping your edits.',
+      'With Highlight Recovery on, a bright window no longer turns lavender when '
+      + 'you darken the photo.',
+    ],
+  },
+  {
     version: '26.41.1',
     date: '2026-10-05',
     notes: [

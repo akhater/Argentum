@@ -199,6 +199,10 @@ pub async fn ag(
             commands::set_highlight_recovery(a.on)?;
             Ok(serde_json::Value::Null)
         }
+        "redecode_open_photo" => {
+            let r = crate::mods::redecode::open_photo(state, app_handle).await?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
+        }
         "tiff_bit_depth" => {
             serde_json::to_value(commands::tiff_bit_depth()).map_err(|e| e.to_string())
         }
