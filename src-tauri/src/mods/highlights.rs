@@ -793,9 +793,10 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
 ///
 /// - It was: a block with every channel gone is set neutral at the brightest
 ///   level any of its photosites recorded, so a blown core is never darker
-///   than the reconstructed edge around it. Blocks recovery rebuilt fade from
-///   their reconstructed colour just over the clipping point to that neutral
-///   as they near full clipping, so no line is drawn where the two meet.
+///   than the reconstructed edge around it. Blocks recovery rebuilt keep their
+///   brightness and fade from their reconstructed colour, just over the
+///   clipping point, to neutral half a stop above it. Recovery recovers light;
+///   past the clip, the colour it would give that light is a guess.
 /// - It was not — switched off, or no highlight colour to learn from: this is
 ///   plain clipping, which is what every RAW developer does without
 ///   reconstruction. In each block with a clipped channel, every photosite is
@@ -864,10 +865,25 @@ struct Settle {
     /// clips first. Never above that colour's own ceiling.
     cap: [f32; 3],
     /// After white balance: where the first colour stops being data, and where
-    /// the last one does. Between the two, a rebuilt block fades to neutral.
+    /// a rebuilt block has finished fading to neutral, half a stop above it.
     first_to_clip: f32,
-    last_to_clip: f32,
+    fade_end: f32,
 }
+
+/// How far above the first clip a rebuilt block keeps any of its colour, as a
+/// factor: half a stop.
+///
+/// It was the level where the *last* colour clips, more than a stop higher on
+/// daylight white balance. That kept a measured colour in everything rebuilt
+/// below there, and on a window behind a portrait — red and blue real, only
+/// green rebuilt — that colour was the window's cool light. Next to a neutral
+/// blown core it read as a lavender band as soon as the photo was darkened.
+///
+/// The fade is there only to meet unclipped neighbours without drawing a line.
+/// Measured on that frame, fades ending at 1.1x, 1.25x and 1.5x all removed the
+/// lavender, and none brought the outline back; half a stop sits between the
+/// two longer ones.
+const FADE_SPAN: f32 = std::f32::consts::SQRT_2;
 
 impl Settle {
     fn new(ceiling: [f32; 3], black: f32, wb: [f32; 4]) -> Option<Self> {
@@ -887,7 +903,6 @@ impl Settle {
 
         let balanced = [0, 1, 2].map(|c| (ceiling[c] - black) * wb[c]);
         let first_to_clip = balanced.iter().copied().fold(f32::INFINITY, f32::min);
-        let last_to_clip = balanced.iter().copied().fold(0.0f32, f32::max);
         let cap = [0, 1, 2].map(|c| black + first_to_clip / wb[c]);
         Some(Self {
             black,
@@ -895,7 +910,7 @@ impl Settle {
             wb,
             cap,
             first_to_clip,
-            last_to_clip,
+            fade_end: first_to_clip * FADE_SPAN,
         })
     }
 
@@ -935,16 +950,15 @@ impl Settle {
         if rebuilt {
             // A blown block is neutral. A block recovery rebuilt keeps the
             // colour it was given just over the clipping point, where it meets
-            // unclipped neighbours that really are that colour, and fades to
-            // neutral as it nears the level where every channel is gone, where
-            // it meets the blown core. Either hard edge on its own draws a line
-            // along every clipping contour: recovery's measured colour beside a
-            // white core was a cyan or pink outline round anything seen through
-            // a blown window.
+            // unclipped neighbours that really are that colour, and is neutral
+            // by half a stop above it (`FADE_SPAN`). A hard edge either way
+            // draws a line along every clipping contour: recovery's colour
+            // beside a white core was a cyan or pink outline round anything
+            // seen through a blown window.
             let weight = if all_clipped {
                 1.0
             } else {
-                smoothstep(self.first_to_clip, self.last_to_clip, brightest)
+                smoothstep(self.first_to_clip, self.fade_end, brightest)
             };
             if weight <= 0.0 {
                 return 0;
@@ -1167,6 +1181,23 @@ mod settle_tests {
             (lo.min(x), hi.max(x))
         });
         assert!((hi - lo) / hi < 0.01, "still coloured: {b:?}");
+    }
+
+    /// The lavender window: green rebuilt, red and blue real, blue the stronger
+    /// of the two because the light was cool. Half a stop past the first clip
+    /// it is neutral, so a darkened window is grey-white rather than tinted
+    /// beside its white core.
+    #[test]
+    fn with_recovery_half_a_stop_past_the_clip_is_neutral() {
+        // Balanced: red 1220, green 1300 (rebuilt), blue 1347. The first clip
+        // is at 900, so the brightest is half a stop past it and more.
+        let mut block = [710.0, 1400.0, 1400.0, 998.0];
+        settle().block(&mut block, &RGGB, true);
+        let b = balanced(&block, &RGGB);
+        let (lo, hi) = b.iter().fold((f32::INFINITY, 0.0f32), |(lo, hi), &x| {
+            (lo.min(x), hi.max(x))
+        });
+        assert!((hi - lo) / hi < 1e-4, "still tinted: {b:?}");
     }
 
     #[test]
