@@ -4,6 +4,42 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## Unreleased — 2026-10-05
+
+### Fixed
+
+- **Blown highlights are white again, not pink.** A window behind a portrait,
+  or any area where the sensor clipped in every channel, came out flat magenta
+  in the editor, the thumbnails and exports. It started with the RapidRAW
+  1.6.4 catch-up on 2026-09-23.
+
+  Every photosite in such an area sits at its ceiling, and white balance then
+  multiplies red and blue by two or more. A compression pass in
+  `raw_processing.rs` used to desaturate everything above white and hide that.
+  RapidRAW removed it (`85bf424a`) and covered the gap with a post-demosaic
+  colour correction (`40cfa3df`). The catch-up took the removal and declined
+  the correction, because it would stack on Argentum's own recovery, and
+  nothing replaced it.
+
+  `highlights::settle_blown` now does that job before demosaic, from the
+  photosites that are actually at their ceiling rather than from a colour
+  guess. With Highlight Recovery on, fully blown blocks are set neutral at the
+  brightest level recorded, so the core is never darker than its reconstructed
+  edge. With it off, clipped areas are clipped to white, as any RAW developer
+  does. Saturated colours that did not clip are untouched, and a photo with
+  nothing clipped decodes exactly as before. Cached thumbnails regenerate once.
+
+- **Highlight recovery no longer draws outlines round blown areas.** Two
+  causes. Where red and green clipped but blue survived, recovery estimated
+  brightness from blue alone. When that came out lower than the clipped red
+  already proved, green was rebuilt too low while red stayed at its ceiling,
+  so the reconstruction was itself magenta. A clipped channel is now a floor
+  on the estimate. And the rebuilt edge, in the photo's measured highlight
+  colour, met the white blown core in a hard step: a cyan or pink line round
+  anything seen through a blown window. Rebuilt pixels now fade from their
+  reconstructed colour just over the clipping point to neutral as they near
+  full clipping.
+
 ## 26.39.1 — 2026-09-22
 
 ### Added
