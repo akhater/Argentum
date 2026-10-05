@@ -4,6 +4,45 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## Unreleased — 2026-10-05
+
+### Changed
+
+- **AI enlargement runs on the graphics card on Windows.** On the CPU, 2× on a
+  32 MP photo took around half an hour: 15.8 s for each 512px tile on an Intel
+  Core Ultra 9 288V, 187 tiles. On that machine's Arc 140V the same tile takes
+  0.9 s at 2× and 3.7 s instead of 49 s at 4×, with output identical to the
+  CPU's.
+
+  It uses Microsoft's DirectML build of ONNX Runtime 1.22, the release RapidRAW
+  already ships, which runs on any DirectX 12 GPU. It is not bundled: like the
+  models, it downloads the first time enlargement runs, from Microsoft's NuGet
+  package (`Microsoft.ML.OnnxRuntime.DirectML` 1.22.0, SHA-256 `29f9872d…`),
+  and only the runtime for the machine is kept (16 MB). `mods/gpu_runtime.rs`
+  pins it from `startup::init`, before anything loads ONNX Runtime, so it
+  becomes the one runtime the process uses; RapidRAW's other AI features ask
+  for no GPU and keep running on its CPU path. DirectML.dll is not downloaded:
+  the runtime only loads it for a GPU session, and Windows 11 has a recent
+  enough copy. Without one, or on macOS and Linux, enlargement runs on the CPU
+  as before. If the GPU fails partway through a photo, out of video memory
+  on a large 4× tile or a driver reset, that photo is redone on the CPU. The
+  progress line says which device is working.
+
+- **AI enlargement does about 20% less work.** Tiles overlapped by 3/16 of
+  their width; they now overlap by 3/32, 48px on a 512px tile. Against a single
+  whole-image pass, the mean error inside the blended seams stays under one
+  level in 255. A 32 MP photo goes from 187 tiles to 150.
+
+### Decided
+
+- **Real-ESRGAN stays.** Four newer 2× models were measured on R6 Mark III
+  photos against `RealESRGAN_x2plus`: ParagonSR2 Photo and Stream (Phhofm,
+  2026-01), 2xParagonSR Nano GAN (2025-11) and 2xPublic RealPLKSR real_nn
+  (2025-06). The two fast ones (12× and 16×) look like a plain resize or break
+  thin lines into dashes; ParagonSR2 Photo is softer at the same speed; RealPLKSR
+  invents hair strands and is slower. On the GPU the speed argument for
+  switching goes away.
+
 ## 26.41.2 — 2026-10-05
 
 ### Fixed
