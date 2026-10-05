@@ -5,6 +5,41 @@ This is the handoff for future upstream reviews. Read it alongside
 [ARCHITECTURE.md](ARCHITECTURE.md). A clean Git merge does not establish that
 image processing still behaves correctly.
 
+## 2026-10-05: correction — the highlight split left blown areas magenta
+
+The 2026-09-19 decision below was incomplete. RapidRAW removed the compression
+pass (`85bf424a`, `f00145c1`) and, in the same series, added a post-demosaic
+correction (`40cfa3df`) that, among other things, turns fully blown highlights
+white. Argentum took the removal and declined the correction, on the grounds
+that it would stack on our recovery. That reasoning holds for partially clipped
+pixels. It does not cover pixels where _every_ channel clipped:
+`highlights::recover` correctly refuses to invent a value there, and the
+compression pass had been the only thing making them neutral. From the catch-up
+until this fix, every fully blown area came out magenta.
+
+**Decision:** keep RapidRAW's post-demosaic correction excluded, and do its
+missing job on our side. `highlights::settle_blown` runs from the decode
+anchor after `recover`, on the CFA before demosaic:
+
+- recovery in charge (on, with a measured highlight colour): fully blown blocks
+  are set neutral, after white balance, at the brightest level recorded;
+- recovery off, or nothing to learn from: blocks with a clipped channel are
+  clipped to the level of the first channel to stop, i.e. plain white clipping.
+
+It is not behind the Highlight Recovery switch. The first attempt at this fix
+was gated on that switch and verified on a test harness that always had it on;
+AK had it off, and in the app the fix did nothing. The end-to-end test
+`highlights::end_to_end` now checks the app's own entry point
+(`image_loader::load_base_image_from_bytes`), both quality paths, with recovery
+on and off.
+
+The lesson for future reviews: when upstream ships a change as a pair — a
+removal and the thing that replaces it — declining one half is a decision that
+needs its own answer to "then what does the other half's job?".
+`highlight-recovery` now registers `develop_internal` and
+`neutralize_wb_if_multiexposure` as dependencies, so the next upstream change
+to either is put in front of a reviewer.
+
 ## 2026-09-23: integrate import dialogue PR #1714
 
 **Decision:** integrate the six-commit upstream PR as a normal merge on an

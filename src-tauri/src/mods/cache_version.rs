@@ -44,7 +44,9 @@ use std::path::{Path, PathBuf};
 ///
 /// 1. sRAW black and white levels (`mods/sraw_levels.rs`), and the removal of
 ///    the D50/D65 matrix correction that had been compensating for them.
-pub const PIPELINE: u32 = 2;
+/// 2. Blown highlights come out white instead of magenta
+///    (`highlights::settle_blown`). Thumbnails made since 2026-09-23 are pink.
+pub const PIPELINE: u32 = 3;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

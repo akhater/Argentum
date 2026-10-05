@@ -4,6 +4,82 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## 26.41.1 — 2026-10-05
+
+### Fixed
+
+- **Blown highlights are white again, not pink.** A window behind a portrait,
+  or any area where the sensor clipped in every channel, came out flat magenta
+  in the editor, the thumbnails and exports. It started with the RapidRAW
+  1.6.4 catch-up on 2026-09-23.
+
+  Every photosite in such an area sits at its ceiling, and white balance then
+  multiplies red and blue by two or more. A compression pass in
+  `raw_processing.rs` used to desaturate everything above white and hide that.
+  RapidRAW removed it (`85bf424a`) and covered the gap with a post-demosaic
+  colour correction (`40cfa3df`). The catch-up took the removal and declined
+  the correction, because it would stack on Argentum's own recovery, and
+  nothing replaced it.
+
+  `highlights::settle_blown` now does that job before demosaic, from the
+  photosites that are actually at their ceiling rather than from a colour
+  guess. With Highlight Recovery on, fully blown blocks are set neutral at the
+  brightest level recorded, so the core is never darker than its reconstructed
+  edge. With it off, clipped areas are clipped to white, as any RAW developer
+  does. Saturated colours that did not clip are untouched, and a photo with
+  nothing clipped decodes exactly as before. Cached thumbnails regenerate once.
+
+- **Highlight recovery no longer draws outlines round blown areas.** Two
+  causes. Where red and green clipped but blue survived, recovery estimated
+  brightness from blue alone. When that came out lower than the clipped red
+  already proved, green was rebuilt too low while red stayed at its ceiling,
+  so the reconstruction was itself magenta. A clipped channel is now a floor
+  on the estimate. And the rebuilt edge, in the photo's measured highlight
+  colour, met the white blown core in a hard step: a cyan or pink line round
+  anything seen through a blown window. Rebuilt pixels now fade from their
+  reconstructed colour just over the clipping point to neutral as they near
+  full clipping.
+
+## 26.39.2 — 2026-09-23
+
+*Backfilled on 2026-10-05: the release shipped without a changelog entry. Written
+from its published release notes and PRs #24–#27.*
+
+### Added
+
+- **Local AI super-resolution, 2× and 4×.** The model is downloaded and
+  verified on demand, and processing adapts to the machine. Supported edits
+  carry over; unscaled crop and mask data does not leak into the enlarged
+  output. (#25)
+- **Selectable RAW tone rendering: Default, Base Curve and Auto-Matched.**
+  Chosen per photo in Basic, under the Tone Mapper. Default is RapidRAW's path
+  unchanged. Base Curve is a darktable-style curve, currently a generic
+  Canon-style fallback. Auto-Matched is RawTherapee-style, derived from the RAW
+  and its embedded JPEG. The curve is stored per photo and applied in the
+  existing GPU pipeline. (#24)
+- **Import dialogue improvements, ported from RapidRAW #1714.** Settings
+  persist between sessions. Import can apply automatic edits, presets and lens
+  correction, and reads rating, label and keywords from sibling or embedded
+  XMP. Argentum's `.agdata` / `.agexif` sidecars are kept; that boundary was the
+  merge's only conflict. (#27)
+- **RapidRAW 1.6.4 catch-up**, with every overlap decision recorded in
+  `docs/UPSTREAM_CATCHUP.md`: the final Brightness implementation, scene-linear
+  headroom above white, the neutral-grey canvas, persistent Quick Filter,
+  Vibrance and RGB curves. Argentum's highlight recovery and 32-bit-float TIFF
+  output are kept, and rawler is pinned to the C50 data commit `16b9b010`. (#26)
+
+### Fixed
+
+- Associated sidecars are cleaned up when a photo is deleted, and folder counts
+  refresh afterwards. (#27)
+- Enlarged images keep their full-image fit, and mouse-wheel zoom works on
+  them. (#25)
+
+### Known issue
+
+- **Fully blown highlights render magenta.** The catch-up removed the
+  compression pass that had been making them white. Fixed in 26.41.1.
+
 ## 26.39.1 — 2026-09-22
 
 ### Added

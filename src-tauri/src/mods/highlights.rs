@@ -449,7 +449,21 @@ pub fn rebuild(pixel: [f32; 3], ceilings: [f32; 3], colour: &HighlightColour) ->
     if readings == 0 {
         return pixel;
     }
-    let level = level / readings as f32;
+    // But the clipped channels are not silent: each says the pixel was at
+    // least bright enough to reach it. That is not a noisy reading to average
+    // in — it is a floor, and the estimate must not fall through it.
+    //
+    // Without the floor, a pixel with red and green clipped and blue surviving
+    // takes its level from blue alone. If that implies less light than the
+    // clipped red already proves, green is rebuilt to the low level while red
+    // stays at its ceiling — never lowered — and the reconstruction itself is
+    // magenta, which is the cast this module exists to remove. It showed as a
+    // pink fringe along every blown edge on an R6 III window.
+    let floor = (0..3)
+        .filter(|&c| clipped[c])
+        .map(|c| colour.level_from(c, pixel[c]))
+        .fold(0.0f32, f32::max);
+    let level = (level / readings as f32).max(floor);
     if level <= 0.0 {
         return pixel;
     }
@@ -522,6 +536,27 @@ mod recovery_tests {
         assert!(out[0] >= 1000.0 && out[1] >= 1000.0, "{out:?}");
     }
 
+    /// Red and green clipped, blue surviving low. Blue alone implies a level
+    /// below what the clipped red proves, and rebuilding green to that level
+    /// leaves red above it: a magenta reconstruction. The red ceiling is a
+    /// floor on the level.
+    #[test]
+    fn a_rebuild_never_contradicts_a_clipped_channel() {
+        let colour = HighlightColour {
+            ratio: [0.65, 1.0, 0.6],
+        };
+        // Blue at 480 implies a level of 800; red at its ceiling implies at
+        // least 1000 / 0.65 = 1538.
+        let out = rebuild([1000.0, 1000.0, 480.0], CEILINGS, &colour);
+        let level_r = out[0] / colour.ratio[0];
+        let level_g = out[1] / colour.ratio[1];
+        assert!(
+            level_g >= level_r - 1.0,
+            "green rebuilt below what red proves: {out:?}"
+        );
+        assert_eq!(out[2], 480.0, "blue was not clipped and must not move");
+    }
+
     /// With no bright pixels there is no evidence, and the honest answer is to
     /// say so rather than to average the whole photo.
     #[test]
@@ -565,22 +600,28 @@ const SAMPLE_STRIDE: usize = 4;
 /// Silent about everything it cannot do — an unreadable level table, a format
 /// that is not a mosaic or a triple, a frame too dark to learn a colour from.
 /// None of those is an error, and none is worth failing a decode over.
-pub fn recover(raw: &mut RawImage) {
+///
+/// Returns whether recovery was in charge of this photo's clipped pixels: on,
+/// and with a measured highlight colour to rebuild them from. `settle_blown`
+/// needs to know, because when it was not, nothing has dealt with them yet.
+pub fn recover(raw: &mut RawImage) -> bool {
     if !enabled() {
-        return;
+        return false;
     }
     // A way to render the same photo without this from a test, so the two can
     // be put side by side. Nothing in the app reads the environment.
     if std::env::var_os("AG_NO_RECOVERY").is_some() {
-        return;
+        return false;
     }
-    let Some(ceil4) = ceilings(raw) else { return };
+    let Some(ceil4) = ceilings(raw) else {
+        return false;
+    };
     let ceilings = [ceil4[0], ceil4[1], ceil4[2]];
 
     match raw.cpp {
         3 => recover_three_colour(raw, ceilings),
         1 => recover_mosaic(raw, ceilings),
-        _ => {}
+        _ => false,
     }
 }
 
@@ -598,9 +639,9 @@ pub fn recover(raw: &mut RawImage) {
 /// clips negatives only — nothing downstream puts a lid on a bright value. So
 /// where reconstruction happens the buffer is handed on as float, and where it
 /// does not the original integers are left exactly as they were.
-fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) {
+fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
     let RawImageData::Integer(pixels) = &raw.data else {
-        return;
+        return false;
     };
 
     let colour = highlight_colour(
@@ -612,7 +653,7 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) {
             .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
         ceilings,
     );
-    let Some(colour) = colour else { return };
+    let Some(colour) = colour else { return false };
 
     let mut out: Vec<f32> = Vec::with_capacity(pixels.len());
     let mut touched = false;
@@ -634,6 +675,7 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) {
     if touched {
         raw.data = RawImageData::Float(out);
     }
+    true
 }
 
 /// A Bayer mosaic, one 2x2 block at a time.
@@ -648,10 +690,10 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) {
 /// is what darktable's laplacian methods do. It is also the resolution at which
 /// the artefact exists, and blown highlights are smooth: there is no detail
 /// left in them to lose.
-fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) {
+fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
     let (w, h) = (raw.width, raw.height);
     if w < 2 || h < 2 {
-        return;
+        return false;
     }
     // Copied out because reading the pattern borrows `raw` while writing pixels
     // needs it mutably, and the pattern is four numbers.
@@ -660,7 +702,7 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) {
         .collect();
 
     let RawImageData::Integer(pixels) = &raw.data else {
-        return;
+        return false;
     };
 
     let read_block = |src: &[f32], row: usize, col: usize| -> [f32; 3] {
@@ -689,7 +731,7 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) {
         }
         highlight_colour(samples.into_iter(), ceilings)
     };
-    let Some(colour) = colour else { return };
+    let Some(colour) = colour else { return false };
 
     let mut touched = false;
     let mut row = 0;
@@ -717,6 +759,568 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) {
 
     if touched {
         raw.data = RawImageData::Float(out);
+    }
+    true
+}
+
+// ============================================================================
+// WHAT IS GONE COMES OUT WHITE
+// ============================================================================
+
+/// Make sure what the sensor lost entirely comes out white, not magenta.
+///
+/// WHY THIS IS NOT PART OF RECOVERY
+///
+/// Recovery rebuilds a channel from the ones that survived. Where every
+/// channel clipped there is nothing left to rebuild from, and `rebuild` rightly
+/// refuses to invent one. But leaving those photosites alone is not neutral:
+/// they all sit at their ceiling, white balance multiplies red and blue by two
+/// or more, and the camera matrix turns that into flat magenta. A blown window
+/// behind a portrait came out pink.
+///
+/// Until 2026-09-23 that was hidden by a compression pass in
+/// `raw_processing.rs` that desaturated everything above white. RapidRAW
+/// removed it (85bf424a) and covered the gap with a post-demosaic colour
+/// correction (40cfa3df). Argentum took the removal and declined the
+/// correction, because it would stack on this module's recovery — and from
+/// then on nothing did the job. This is the job, done where the evidence is:
+/// in the CFA before demosaic, where "every photosite of this block is at its
+/// ceiling" is a measurement rather than a guess made from a colour.
+///
+/// TWO CASES, AND NEITHER LEAVES A CAST
+///
+/// `rebuilt` says whether `recover` was in charge of this photo.
+///
+/// - It was: a block with every channel gone is set neutral at the brightest
+///   level any of its photosites recorded, so a blown core is never darker
+///   than the reconstructed edge around it. Blocks recovery rebuilt fade from
+///   their reconstructed colour just over the clipping point to that neutral
+///   as they near full clipping, so no line is drawn where the two meet.
+/// - It was not — switched off, or no highlight colour to learn from: this is
+///   plain clipping, which is what every RAW developer does without
+///   reconstruction. In each block with a clipped channel, every photosite is
+///   capped where the first channel stops being data. The clipped area goes
+///   flat white instead of coloured, and nothing outside it changes.
+///
+/// Neutral means neutral *after white balance*, the only place it matters.
+/// rawler multiplies each channel by its coefficient and then applies a matrix
+/// whose rows sum to one, so equal white-balanced values come out as equal RGB.
+/// `wb` has to be the coefficients rawler will actually develop with.
+///
+/// A block with nothing clipped is never touched, and a photo with nothing
+/// clipped keeps its integer buffer exactly as decoded.
+pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool) {
+    let Some(ceil4) = ceilings(raw) else { return };
+    let black = raw
+        .blacklevel
+        .levels
+        .first()
+        .map(|r| r.as_f32())
+        .unwrap_or(0.0);
+    let Some(settle) = Settle::new([ceil4[0], ceil4[1], ceil4[2]], black, wb) else {
+        return;
+    };
+
+    match raw.cpp {
+        3 => {
+            let (w, h) = (raw.width, raw.height);
+            settle_buffer(raw, w * 3, h, 1, |_, col| col % 3, &settle, rebuilt);
+        }
+        1 => {
+            let cfa = raw.camera.cfa.clone();
+            // The block has to hold every colour, or "every channel clipped"
+            // cannot be judged inside it. A Bayer 2x2 does; an X-Trans 6x6
+            // does in each of its 3x3 quarters. Anything else is left as it is.
+            let block = match (cfa.width, cfa.height) {
+                (2, 2) if cfa.is_rgb() => 2,
+                (6, 6) if cfa.is_rgb() => 3,
+                _ => return,
+            };
+            let (w, h) = (raw.width, raw.height);
+            settle_buffer(
+                raw,
+                w,
+                h,
+                block,
+                |r, c| cfa.color_at(r, c),
+                &settle,
+                rebuilt,
+            );
+        }
+        _ => {}
+    }
+}
+
+/// The numbers `settle_blown` needs, worked out once per photo.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Settle {
+    black: f32,
+    /// Where each colour stops being data, from `ceilings`.
+    ceiling: [f32; 3],
+    /// White balance as rawler will apply it.
+    wb: [f32; 3],
+    /// Where each colour is capped when nothing was rebuilt: the raw value at
+    /// which it reaches, after white balance, the level of whichever colour
+    /// clips first. Never above that colour's own ceiling.
+    cap: [f32; 3],
+    /// After white balance: where the first colour stops being data, and where
+    /// the last one does. Between the two, a rebuilt block fades to neutral.
+    first_to_clip: f32,
+    last_to_clip: f32,
+}
+
+impl Settle {
+    fn new(ceiling: [f32; 3], black: f32, wb: [f32; 4]) -> Option<Self> {
+        // rawler's own rule: no coefficients means no white balance at all.
+        let wb = if wb[0].is_nan() {
+            [1.0, 1.0, 1.0]
+        } else {
+            [wb[0], wb[1], wb[2]]
+        };
+        // A zero or broken coefficient would put a division by it below.
+        if wb.iter().any(|c| !c.is_finite() || *c <= 0.0) {
+            return None;
+        }
+        if ceiling.iter().any(|c| *c <= black) {
+            return None;
+        }
+
+        let balanced = [0, 1, 2].map(|c| (ceiling[c] - black) * wb[c]);
+        let first_to_clip = balanced.iter().copied().fold(f32::INFINITY, f32::min);
+        let last_to_clip = balanced.iter().copied().fold(0.0f32, f32::max);
+        let cap = [0, 1, 2].map(|c| black + first_to_clip / wb[c]);
+        Some(Self {
+            black,
+            ceiling,
+            wb,
+            cap,
+            first_to_clip,
+            last_to_clip,
+        })
+    }
+
+    /// One block's photosites, with the colour each one holds. Returns how many
+    /// values moved.
+    ///
+    /// Blocks are passed in whole because a photosite carries one colour, and
+    /// "this is blown" is only a statement about a block that carries all three.
+    fn block(&self, values: &mut [f32], colours: &[usize], rebuilt: bool) -> usize {
+        let mut present = [false; 3];
+        let mut clipped = [false; 3];
+        let mut brightest = 0.0f32;
+
+        for (&v, &c) in values.iter().zip(colours) {
+            if c > 2 {
+                return 0;
+            }
+            present[c] = true;
+            // A colour is gone as soon as any of its photosites is, the same
+            // judgement `recover_mosaic` makes with its two greens. Asking for
+            // all of them would leave the blocks recovery gave up on — red,
+            // blue and one green at the ceiling — magenta at the edge of
+            // every blown area.
+            clipped[c] |= v >= self.ceiling[c];
+            brightest = brightest.max((v - self.black).max(0.0) * self.wb[c]);
+        }
+        if present.contains(&false) {
+            return 0;
+        }
+        let any_clipped = clipped.contains(&true);
+        let all_clipped = !clipped.contains(&false);
+        if !any_clipped {
+            return 0;
+        }
+
+        let mut moved = 0;
+        if rebuilt {
+            // A blown block is neutral. A block recovery rebuilt keeps the
+            // colour it was given just over the clipping point, where it meets
+            // unclipped neighbours that really are that colour, and fades to
+            // neutral as it nears the level where every channel is gone, where
+            // it meets the blown core. Either hard edge on its own draws a line
+            // along every clipping contour: recovery's measured colour beside a
+            // white core was a cyan or pink outline round anything seen through
+            // a blown window.
+            let weight = if all_clipped {
+                1.0
+            } else {
+                smoothstep(self.first_to_clip, self.last_to_clip, brightest)
+            };
+            if weight <= 0.0 {
+                return 0;
+            }
+            for (v, &c) in values.iter_mut().zip(colours) {
+                let neutral = self.black + brightest / self.wb[c];
+                let settled = *v + (neutral - *v) * weight;
+                if *v != settled {
+                    *v = settled;
+                    moved += 1;
+                }
+            }
+        } else {
+            for (v, &c) in values.iter_mut().zip(colours) {
+                if *v > self.cap[c] {
+                    *v = self.cap[c];
+                    moved += 1;
+                }
+            }
+        }
+        moved
+    }
+}
+
+/// 0 at or below `edge0`, 1 at or above `edge1`, smooth in between.
+fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    if edge1 <= edge0 {
+        return if x >= edge1 { 1.0 } else { 0.0 };
+    }
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Walk a buffer `block` x `block` at a time and settle every block.
+///
+/// `w` is in values, not pixels: a three-colour image is walked as a row of
+/// `3 * width` values with blocks of one row by three, where `colour_at` gives
+/// the channel. A partial block at the right or bottom edge is skipped; it is
+/// at most two photosites wide and outside every crop.
+fn settle_buffer(
+    raw: &mut RawImage,
+    w: usize,
+    h: usize,
+    block: usize,
+    colour_at: impl Fn(usize, usize) -> usize + Sync,
+    settle: &Settle,
+    rebuilt: bool,
+) {
+    use rayon::prelude::*;
+
+    // Most photos have nothing clipped at all. Find that out without copying
+    // anything, and leave the decoded integers exactly as they were.
+    let lowest = settle.ceiling.iter().copied().fold(f32::INFINITY, f32::min);
+    let anything_clipped = match &raw.data {
+        RawImageData::Integer(v) => v.par_iter().any(|&x| x as f32 >= lowest),
+        RawImageData::Float(v) => v.par_iter().any(|&x| x >= lowest),
+    };
+    if !anything_clipped || w == 0 || h < block {
+        return;
+    }
+
+    let mut out: Vec<f32> = raw.data.as_f32().into_owned();
+    if out.len() != w * h {
+        return;
+    }
+    // A three-colour row is one block high and three values wide.
+    let (block_h, block_w) = if block == 1 { (1, 3) } else { (block, block) };
+
+    let moved: usize = out
+        .par_chunks_mut(w * block_h)
+        .enumerate()
+        .map(|(band, rows)| {
+            if rows.len() < w * block_h {
+                return 0;
+            }
+            let row0 = band * block_h;
+            let mut values = [0.0f32; 9];
+            let mut colours = [0usize; 9];
+            let n = block_h * block_w;
+            let mut moved = 0;
+            let mut col = 0;
+            while col + block_w <= w {
+                for i in 0..n {
+                    let (dr, dc) = (i / block_w, i % block_w);
+                    values[i] = rows[dr * w + col + dc];
+                    colours[i] = colour_at(row0 + dr, col + dc);
+                }
+                let m = settle.block(&mut values[..n], &colours[..n], rebuilt);
+                if m > 0 {
+                    for (i, &v) in values[..n].iter().enumerate() {
+                        let (dr, dc) = (i / block_w, i % block_w);
+                        rows[dr * w + col + dc] = v;
+                    }
+                    moved += m;
+                }
+                col += block_w;
+            }
+            moved
+        })
+        .sum();
+
+    if moved > 0 {
+        raw.data = RawImageData::Float(out);
+    }
+}
+
+#[cfg(test)]
+mod settle_tests {
+    use super::*;
+
+    const BLACK: f32 = 100.0;
+    const CEILINGS: [f32; 3] = [1000.0, 1000.0, 1000.0];
+    /// Daylight-ish: red and blue need two and one and a half times green.
+    const WB: [f32; 4] = [2.0, 1.0, 1.5, f32::NAN];
+    /// R G / G B, as (colour of each photosite in a 2x2 block).
+    const RGGB: [usize; 4] = [0, 1, 1, 2];
+
+    fn settle() -> Settle {
+        Settle::new(CEILINGS, BLACK, WB).expect("valid levels")
+    }
+
+    /// What the block becomes after rawler's white balance, one value per
+    /// photosite.
+    fn balanced(values: &[f32], colours: &[usize]) -> Vec<f32> {
+        let wb = [WB[0], WB[1], WB[2]];
+        values
+            .iter()
+            .zip(colours)
+            .map(|(v, &c)| (v - BLACK) * wb[c])
+            .collect()
+    }
+
+    fn assert_neutral(values: &[f32], colours: &[usize]) {
+        let b = balanced(values, colours);
+        let (lo, hi) = b.iter().fold((f32::INFINITY, 0.0f32), |(lo, hi), &x| {
+            (lo.min(x), hi.max(x))
+        });
+        assert!(
+            (hi - lo) / hi < 1e-5,
+            "not neutral after white balance: {b:?}"
+        );
+    }
+
+    /// The bug: every photosite at its ceiling, white balance makes it pink.
+    /// Both with and without recovery it has to come out neutral.
+    #[test]
+    fn a_blown_block_comes_out_neutral_either_way() {
+        for rebuilt in [true, false] {
+            let mut block = [1000.0, 1000.0, 1000.0, 1000.0];
+            assert!(settle().block(&mut block, &RGGB, rebuilt) > 0);
+            assert_neutral(&block, &RGGB);
+        }
+    }
+
+    /// Red, blue and one green at the ceiling, the other green just short of
+    /// it. Recovery counts the green as gone and gives up on the block, so it
+    /// has to count as blown here too, or it stays magenta.
+    #[test]
+    fn one_green_just_short_of_the_ceiling_still_counts_as_blown() {
+        let mut block = [1000.0, 1000.0, 995.0, 1000.0];
+        assert!(settle().block(&mut block, &RGGB, true) > 0);
+        assert_neutral(&block, &RGGB);
+    }
+
+    /// Recovery's reconstructed edge can sit well above the ceiling. The blown
+    /// core next to it must not be the darker of the two, or a highlight gets a
+    /// grey hole in the middle.
+    #[test]
+    fn with_recovery_a_blown_core_is_as_bright_as_its_brightest_channel() {
+        let mut block = [1000.0, 1000.0, 1000.0, 1000.0];
+        settle().block(&mut block, &RGGB, true);
+        let level = balanced(&block, &RGGB)[0];
+        assert!((level - 900.0 * 2.0).abs() < 1e-3, "level {level}");
+    }
+
+    /// Without recovery it is plain clipping: capped where green, the first
+    /// channel to stop, stops.
+    #[test]
+    fn without_recovery_clipping_lands_on_the_first_channel_to_stop() {
+        let mut block = [1000.0, 1000.0, 1000.0, 1000.0];
+        settle().block(&mut block, &RGGB, false);
+        let level = balanced(&block, &RGGB)[0];
+        assert!((level - 900.0).abs() < 1e-3, "level {level}");
+    }
+
+    /// The guarantee every photo without blown highlights rests on.
+    #[test]
+    fn a_block_with_nothing_clipped_is_untouched() {
+        for rebuilt in [true, false] {
+            let before = [900.0, 600.0, 650.0, 400.0];
+            let mut block = before;
+            assert_eq!(settle().block(&mut block, &RGGB, rebuilt), 0);
+            assert_eq!(block, before);
+        }
+    }
+
+    /// With recovery in charge, a block only just over the clipping point keeps
+    /// the colour recovery gave it: it sits beside unclipped pixels that really
+    /// are that colour.
+    #[test]
+    fn with_recovery_a_block_just_over_the_clip_keeps_its_colour() {
+        // Green rebuilt a little past its ceiling: balanced 910, where the
+        // first colour clips at 900 and the last at 1800.
+        let before = [500.0, 1010.0, 1010.0, 650.0];
+        let mut block = before;
+        settle().block(&mut block, &RGGB, true);
+        for (a, b) in block.iter().zip(before) {
+            assert!((a - b).abs() < 1.0, "moved: {block:?}");
+        }
+    }
+
+    /// And one nearly as bright as a blown block looks nearly like one, so the
+    /// two do not meet in a line.
+    #[test]
+    fn with_recovery_a_block_near_full_clipping_is_nearly_neutral() {
+        let mut block = [990.0, 1400.0, 1400.0, 900.0];
+        settle().block(&mut block, &RGGB, true);
+        let b = balanced(&block, &RGGB);
+        let (lo, hi) = b.iter().fold((f32::INFINITY, 0.0f32), |(lo, hi), &x| {
+            (lo.min(x), hi.max(x))
+        });
+        assert!((hi - lo) / hi < 0.01, "still coloured: {b:?}");
+    }
+
+    #[test]
+    fn smoothstep_has_flat_ends() {
+        assert_eq!(smoothstep(1.0, 2.0, 0.5), 0.0);
+        assert_eq!(smoothstep(1.0, 2.0, 2.5), 1.0);
+        assert!((smoothstep(1.0, 2.0, 1.5) - 0.5).abs() < 1e-6);
+    }
+
+    /// Without recovery, a green that clipped first while red and blue did not
+    /// is exactly the magenta case. Capping brings red down to where green
+    /// stopped, and a dim blue that is real data stays where it is.
+    #[test]
+    fn without_recovery_a_partly_clipped_block_is_capped_not_coloured() {
+        let mut block = [990.0, 1000.0, 1000.0, 300.0];
+        settle().block(&mut block, &RGGB, false);
+        let b = balanced(&block, &RGGB);
+        assert!((b[0] - 900.0).abs() < 1e-3, "red {b:?}");
+        assert!((b[1] - 900.0).abs() < 1e-3, "green {b:?}");
+        assert_eq!(block[3], 300.0, "an unclipped dim channel must not move");
+    }
+
+    /// Capping only ever lowers; it never invents light.
+    #[test]
+    fn clipping_never_raises_a_value() {
+        let before = [1000.0, 1000.0, 1000.0, 120.0];
+        let mut block = before;
+        settle().block(&mut block, &RGGB, false);
+        for (a, b) in block.iter().zip(before) {
+            assert!(*a <= b, "{block:?}");
+        }
+    }
+
+    /// No coefficients is rawler's "no white balance", not a reason to fail.
+    #[test]
+    fn missing_white_balance_means_unity() {
+        let s = Settle::new(CEILINGS, BLACK, [f32::NAN; 4]).expect("valid");
+        assert_eq!(s.wb, [1.0, 1.0, 1.0]);
+        assert!(Settle::new(CEILINGS, BLACK, [2.0, 0.0, 1.5, 1.0]).is_none());
+    }
+
+    /// A block without all three colours cannot be judged blown.
+    #[test]
+    fn a_block_missing_a_colour_is_left_alone() {
+        let before = [1000.0, 1000.0, 1000.0, 1000.0];
+        let mut block = before;
+        assert_eq!(settle().block(&mut block, &[0, 1, 1, 1], false), 0);
+        assert_eq!(block, before);
+    }
+}
+
+/// The pink-highlight bug, checked the way the app meets it.
+///
+/// Through `image_loader::load_base_image_from_bytes`, the entry point the
+/// editor and the thumbnails use, in both quality paths, and with recovery
+/// both on and off. The first attempt at this fix was proven on a harness that
+/// always had recovery on, while the photographer had it switched off, and in
+/// the app it changed nothing.
+#[cfg(test)]
+mod end_to_end {
+    /// Share of bright pixels that are magenta: red and blue both clearly
+    /// above green. A blown window behind a portrait was nearly all of them.
+    fn pink_share(rgb: &image::Rgb32FImage) -> f64 {
+        let (mut bright, mut pink) = (0u64, 0u64);
+        for p in rgb.pixels() {
+            let [r, g, b] = p.0;
+            let max = r.max(g).max(b);
+            if max < 0.9 {
+                continue;
+            }
+            bright += 1;
+            if r.min(b) - g > 0.15 * max {
+                pink += 1;
+            }
+        }
+        pink as f64 / bright.max(1) as f64
+    }
+
+    /// What the screen shows: the app's own encode, `stops` of exposure off.
+    fn on_screen(scene: &image::Rgb32FImage, stops: f32) -> image::DynamicImage {
+        let gain = 2f32.powf(stops);
+        let mut shown = scene.clone();
+        shown
+            .pixels_mut()
+            .for_each(|p| p.0.iter_mut().for_each(|v| *v *= gain));
+        let mut shown = image::DynamicImage::ImageRgb32F(shown);
+        crate::mods::preview_encode::apply(&mut shown);
+        shown
+    }
+
+    /// Checked three ways: in the scene-linear data, which is what an exposure
+    /// or highlights slider later works on; on screen as decoded; and on screen
+    /// one stop down, which is the first thing anyone does to a blown window.
+    #[test]
+    #[ignore = "reads AK's photos; run by hand"]
+    fn blown_highlights_are_not_pink_where_the_app_decodes() {
+        let path = std::env::var("AG_RAW").expect("set AG_RAW");
+        let out_dir = std::env::var("AG_OUT_DIR").ok();
+        let bytes = std::fs::read(&path).expect("read");
+        let settings = crate::app_settings::AppSettings::default();
+        let stem = std::path::Path::new(&path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let mut failures = Vec::new();
+        for recovery in [false, true] {
+            super::set_enabled(recovery);
+            for fast in [false, true] {
+                let image = crate::image_loader::load_base_image_from_bytes(
+                    &bytes, &path, fast, &settings, None,
+                )
+                .expect("decode");
+                let scene = image.to_rgb32f();
+                let in_data = pink_share(&scene);
+                let shown = on_screen(&scene, 0.0);
+                let seen = pink_share(&shown.to_rgb32f());
+                let seen_down = pink_share(&on_screen(&scene, -1.0).to_rgb32f());
+                println!(
+                    "\nrecovery {:<5} fast {:<5}  pink in data {:.3}%  on screen {:.3}%  one stop down {:.3}%",
+                    recovery,
+                    fast,
+                    in_data * 100.0,
+                    seen * 100.0,
+                    seen_down * 100.0
+                );
+
+                let worst = in_data.max(seen).max(seen_down);
+                if worst >= 0.01 {
+                    failures.push(format!(
+                        "recovery {recovery} fast {fast}: {:.2}% magenta",
+                        worst * 100.0
+                    ));
+                }
+
+                if let Some(dir) = &out_dir {
+                    let width = 1000;
+                    let height = shown.height() * width / shown.width();
+                    let name = format!(
+                        "{stem}__recovery-{}__{}.jpg",
+                        if recovery { "on" } else { "off" },
+                        if fast { "fast" } else { "full" }
+                    );
+                    shown
+                        .resize_exact(width, height, image::imageops::FilterType::Triangle)
+                        .to_rgb8()
+                        .save(std::path::Path::new(dir).join(name))
+                        .expect("save");
+                }
+            }
+        }
+        super::set_enabled(true);
+
+        assert!(failures.is_empty(), "still magenta: {failures:?}");
     }
 }
 
