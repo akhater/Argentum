@@ -407,6 +407,16 @@ const review164CompositionDecisions = [
   review164Decision('40a112e1', 'ai-super-resolution:src/components/panel/Editor.tsx', 'combine', 'Keep both independent editor changes: RapidRAW adds the optional neutral-grey canvas, while super-resolution adjusts the minimum zoom bound so enlarged images can fit back into the viewport.'),
 ];
 
+// Added 2026-10-05, when highlight-recovery registered the dependency it had
+// all along. The catch-up took the removal of the compression pass and declined
+// the post-demosaic recovery that replaced it, and nothing else made a fully
+// blown block white: from 2026-09-23 those came out magenta. Recorded against
+// the commits that caused it, in the window they landed in.
+const review164HighlightCorrection = [
+  review164Decision('85bf424a', 'highlight-recovery:src-tauri/src/raw_processing.rs#develop_internal', 'combine', 'Its post-demosaic colour recovery stays excluded: it judges by colour after demosaic and would stack on Argentum’s pre-demosaic reconstruction. What it also did — make fully blown highlights white once the compression pass was gone — is now done by highlights::settle_blown, in the CFA before demosaic, from the photosites that are actually at their ceiling. The exclusion without that replacement is what made blown highlights magenta from 2026-09-23.'),
+  review164Decision('f00145c1', 'highlight-recovery:src-tauri/src/raw_processing.rs#develop_internal', 'combine', 'The compression pass this commit switched off was the only thing turning fully blown highlights white. settle_blown takes over that effect before demosaic; the legacy raw_highlight_compression setting stays readable for migration only, as decided above.'),
+];
+
 export const REVIEW_164_DECISIONS = [
   ...review164ShaderDecisions,
   ...review164OtherDecisions,
@@ -414,10 +424,12 @@ export const REVIEW_164_DECISIONS = [
   ...review164CatchupDecisions,
   ...review164PresetDecisions,
   ...review164CompositionDecisions,
+  ...review164HighlightCorrection,
 ];
 
-if (REVIEW_164_DECISIONS.length !== 219) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 219 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+// 219 from the catch-up itself, plus the two highlight corrections above.
+if (REVIEW_164_DECISIONS.length !== 221) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 221 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [

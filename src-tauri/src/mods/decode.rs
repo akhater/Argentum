@@ -34,7 +34,15 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and
     // before anything reads a pixel as colour.
-    super::highlights::recover(raw);
+    let rebuilt = super::highlights::recover(raw);
+
+    // And make what it could not record at all come out white rather than
+    // magenta. Not behind recovery's switch: with recovery off a blown window
+    // still has to be white. The white balance is the one rawler will develop
+    // with, including RapidRAW's multi-exposure exception, because neutral is
+    // only neutral after the balance that is actually applied.
+    let wb = crate::multi_exposure::neutralize_wb_if_multiexposure(raw.wb_coeffs, file_bytes);
+    super::highlights::settle_blown(raw, wb, rebuilt);
 
     // Remember the matrix rawler will use, so the GPU can correct off it.
     apply_camera_profile(raw, photo_path);

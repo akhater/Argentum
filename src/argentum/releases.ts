@@ -32,6 +32,30 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.1',
+    date: '2026-10-05',
+    notes: [
+      'Overexposed areas such as a bright window are white again instead of '
+      + 'pink, with Highlight Recovery on or off. Thumbnails refresh once.',
+      'With Highlight Recovery on, blown areas no longer get a pink or cyan '
+      + 'outline where they meet the rest of the photo.',
+    ],
+  },
+  {
+    version: '26.39.2',
+    date: '2026-09-23',
+    notes: [
+      'Enlarge photos 2x or 4x with local AI super-resolution. The model '
+      + 'downloads the first time you use it.',
+      'Choose how RAW files are rendered: Default, Base Curve or Auto-Matched, '
+      + 'per photo, under the Tone Mapper in Basic.',
+      'Import remembers its options, can apply automatic edits, presets and lens '
+      + 'correction, and reads ratings, labels and keywords from XMP.',
+      'Brought up to date with RapidRAW 1.6.4: Vibrance, RGB curves, a neutral '
+      + 'grey canvas and a Quick Filter that stays where you left it.',
+    ],
+  },
+  {
     version: '26.39.1',
     date: '2026-09-22',
     notes: [

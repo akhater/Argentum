@@ -274,12 +274,16 @@ export const REGISTRY = [
     dependsOn: [
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
         note: 'Runs inside the same scene-linear anchor as white balance, in a fixed order.' },
+      { file: 'src-tauri/src/multi_exposure.rs', symbol: 'neutralize_wb_if_multiexposure', how: 'calls',
+        note: 'settle_blown makes blown blocks neutral under the white balance rawler will apply, and this is where develop_internal swaps it for unity on multi-exposure CR2s. If upstream changes that rule, blown highlights in those files take a cast.' },
+      { file: 'src-tauri/src/raw_processing.rs', symbol: 'develop_internal', how: 'calls',
+        note: 'settle_blown assumes rawler only clips negatives and that nothing after decode desaturates above white. Upstream 85bf424a removed the compression pass and 40cfa3df replaced it post-demosaic; Argentum declined that replacement, and blown highlights went magenta until settle_blown took over. Any upstream change to highlight handling here has to be read against it.' },
     ],
     tests: [
       'src-tauri/src/mods/highlights.rs #[cfg(test)]',
       'src-tauri/src/mods/sigmoid.rs #[cfg(test)]',
     ],
-    keywords: /highlight|recover|clip.*reconstruct|blown|rolloff|roll.?off/i,
+    keywords: /highlight|recover|clip.*reconstruct|blown|rolloff|roll.?off|magenta|pink/i,
   },
   {
     id: 'adjustments-path-argument',
