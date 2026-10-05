@@ -32,6 +32,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.3',
+    date: '2026-10-06',
+    notes: [
+      'Enlarging a photo uses the graphics card on Windows: about 18 times faster '
+      + 'at 2x and 13 times at 4x. The first time, a small download (18 MB) is needed.',
+      'Enlarging works on the photo as you framed it, cropped and straightened, '
+      + 'not the whole frame, so a tight crop finishes in a fraction of the time.',
+      'Every enlargement also does about a fifth less work, with no visible difference.',
+      'The Super Resolution window shows its before and after comparison.',
+    ],
+  },
+  {
     version: '26.41.2',
     date: '2026-10-05',
     notes: [
