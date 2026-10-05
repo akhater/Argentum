@@ -44,6 +44,14 @@ Newest first.
   profile and corrections. A virtual copy is enlarged with its own crop and
   edits; the sidecar used to come from the original.
 
+### Fixed
+
+- **The Super Resolution window shows its before/after comparison.** The
+  comparison box sized itself as a percentage of a parent that had only a
+  minimum height, and with both photos positioned absolutely it collapsed to
+  nothing: the labels and the slider appeared over an empty area, while saving
+  worked. The box now fills a 60vh preview area.
+
 ### Decided
 
 - **Real-ESRGAN stays.** Four newer 2× models were measured on R6 Mark III
