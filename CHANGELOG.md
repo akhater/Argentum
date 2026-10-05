@@ -40,6 +40,46 @@ Newest first.
   reconstructed colour just over the clipping point to neutral as they near
   full clipping.
 
+## 26.39.2 — 2026-09-23
+
+*Backfilled on 2026-10-05: the release shipped without a changelog entry. Written
+from its published release notes and PRs #24–#27.*
+
+### Added
+
+- **Local AI super-resolution, 2× and 4×.** The model is downloaded and
+  verified on demand, and processing adapts to the machine. Supported edits
+  carry over; unscaled crop and mask data does not leak into the enlarged
+  output. (#25)
+- **Selectable RAW tone rendering: Default, Base Curve and Auto-Matched.**
+  Chosen per photo in Basic, under the Tone Mapper. Default is RapidRAW's path
+  unchanged. Base Curve is a darktable-style curve, currently a generic
+  Canon-style fallback. Auto-Matched is RawTherapee-style, derived from the RAW
+  and its embedded JPEG. The curve is stored per photo and applied in the
+  existing GPU pipeline. (#24)
+- **Import dialogue improvements, ported from RapidRAW #1714.** Settings
+  persist between sessions. Import can apply automatic edits, presets and lens
+  correction, and reads rating, label and keywords from sibling or embedded
+  XMP. Argentum's `.agdata` / `.agexif` sidecars are kept; that boundary was the
+  merge's only conflict. (#27)
+- **RapidRAW 1.6.4 catch-up**, with every overlap decision recorded in
+  `docs/UPSTREAM_CATCHUP.md`: the final Brightness implementation, scene-linear
+  headroom above white, the neutral-grey canvas, persistent Quick Filter,
+  Vibrance and RGB curves. Argentum's highlight recovery and 32-bit-float TIFF
+  output are kept, and rawler is pinned to the C50 data commit `16b9b010`. (#26)
+
+### Fixed
+
+- Associated sidecars are cleaned up when a photo is deleted, and folder counts
+  refresh afterwards. (#27)
+- Enlarged images keep their full-image fit, and mouse-wheel zoom works on
+  them. (#25)
+
+### Known issue
+
+- **Fully blown highlights render magenta.** The catch-up removed the
+  compression pass that had been making them white. Fixed in 26.41.1.
+
 ## 26.39.1 — 2026-09-22
 
 ### Added
