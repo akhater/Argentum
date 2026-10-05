@@ -51,6 +51,18 @@ in the binary, so the download stays small.
 *(Building from source is further down, and only needed if you want to change
 the code.)*
 
+### macOS: “Argentum is damaged”
+
+Some macOS builds may be blocked by Gatekeeper because the downloaded app is not
+yet signed or notarized. Only use this workaround if the DMG came from the
+official Argentum release and you trust it. First copy `Argentum.app` from the
+DMG to `/Applications`, then run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Argentum.app"
+open "/Applications/Argentum.app"
+```
+
 ---
 
 ## What Argentum adds
