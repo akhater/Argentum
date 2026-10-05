@@ -33,6 +33,17 @@ Newest first.
   whole-image pass, the mean error inside the blended seams stays under one
   level in 255. A 32 MP photo goes from 187 tiles to 150.
 
+- **AI enlargement works on the framed photo.** It enlarged the whole
+  uncropped image, so with a tight crop most of the work went on pixels that
+  were thrown away. It now applies the crop together with the straightening,
+  rotation, flips, perspective and lens correction it is measured in, through
+  the export's own `apply_all_transformations`, and enlarges only that. The
+  enlarged photo keeps the look, exposure, colour, curves and the rest, as
+  editable settings, and none of the framing, which is already in its pixels:
+  every key that call reads is left out of its sidecar, now including the lens
+  profile and corrections. A virtual copy is enlarged with its own crop and
+  edits; the sidecar used to come from the original.
+
 ### Decided
 
 - **Real-ESRGAN stays.** Four newer 2× models were measured on R6 Mark III

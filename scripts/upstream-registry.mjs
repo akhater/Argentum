@@ -732,9 +732,17 @@ export const REGISTRY = [
           'Caps minimum zoom at fit-to-window so a full-resolution upscaled image can '
           + 'zoom back out to the whole image instead of stopping at a cropped view. '
           + 'Keep this bound if upstream changes the editor zoom calculation.' },
+      { file: 'src-tauri/src/adjustment_utils.rs', symbol: 'apply_all_transformations', how: 'calls',
+        note:
+          'Frames the photo before enlarging it, exactly as the export does: geometry and lens '
+          + 'correction, lens blur, then rotation, flips and crop. strip_non_transferable_adjustments '
+          + 'removes every key that call reads from the enlarged photo’s sidecar, so nothing is applied '
+          + 'twice. If upstream adds a geometric step here, or a new key it reads, add the key there too.' },
     ],
     tests: [
       'Manual: open an upscaled image, zoom in and back out with the mouse wheel, and verify the full image fits in the editor.',
+      'Manual: crop and straighten a photo, enlarge it; the result is the framed area only, and opens with no crop or rotation applied.',
+      'super_resolution tests: framing already applied is not carried over, the look is',
     ],
     keywords: /upscale|super.?resolution|zoom|image.?size/i,
   },

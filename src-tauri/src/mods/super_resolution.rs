@@ -539,7 +539,7 @@ fn encode_preview(image: &DynamicImage) -> Result<String> {
 }
 
 fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage> {
-    let (source_path, _) = crate::file_management::parse_virtual_path(path);
+    let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(path);
     let bytes = fs::read(&source_path)
         .with_context(|| format!("Could not read {}", source_path.display()))?;
     let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
@@ -560,7 +560,14 @@ fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage
     if crate::formats::is_raw_file(&source_path) {
         crate::image_processing::apply_cpu_default_raw_processing(&mut image);
     }
-    Ok(image)
+    // Enlarge the photo as it is framed, not the whole sensor: the crop, with
+    // the straightening, rotation, flips, perspective and lens correction it is
+    // measured in. Enlarging everything and cropping afterwards spends most of
+    // the work on pixels that are thrown away. The export frames a photo with
+    // the same call, so the result matches what an export would contain.
+    let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
+    let (framed, _) = crate::adjustment_utils::apply_all_transformations(image, &adjustments);
+    Ok(framed.into_owned())
 }
 
 async fn upscale(
@@ -629,7 +636,7 @@ pub async fn save(original_path: String) -> Result<String, String> {
 }
 
 fn save_image(original_path: &str, image: DynamicImage) -> Result<String> {
-    let (source_path, _) = crate::file_management::parse_virtual_path(original_path);
+    let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(original_path);
     let parent = source_path
         .parent()
         .context("Could not determine parent directory")?;
@@ -664,7 +671,7 @@ fn save_image(original_path: &str, image: DynamicImage) -> Result<String> {
             output_path.display()
         )
     })?;
-    write_super_resolution_sidecar(&source_path, &output_path)?;
+    write_super_resolution_sidecar(&source_path, &sidecar_path, &output_path)?;
     Ok(output_path.to_string_lossy().to_string())
 }
 
@@ -674,7 +681,8 @@ fn strip_non_transferable_adjustments(adjustments: &mut Value) {
     };
 
     // These values refer to coordinates, masks, or pixels in the source
-    // image. They cannot be copied to the new dimensions after enlargement.
+    // image, or describe framing already applied before enlargement. Copying
+    // them would crop, rotate or correct the enlarged photo a second time.
     const SOURCE_COORDINATE_KEYS: &[&str] = &[
         "aiPatches",
         "aspectRatio",
@@ -699,26 +707,34 @@ fn strip_non_transferable_adjustments(adjustments: &mut Value) {
         object.remove(*key);
     }
 
-    // A depth-map blur is also tied to the old image dimensions.
-    let lens_blur_keys: Vec<String> = object
+    // Lens correction is part of that framing (distortion moves where the
+    // crop lands), and the depth-map blur is tied to the old dimensions. Both
+    // are already in the pixels: lensBlur*, lensDistortion*, lensTca*,
+    // lensVignette*, the lens profile and its mode.
+    let lens_keys: Vec<String> = object
         .keys()
-        .filter(|key| key.starts_with("lensBlur"))
+        .filter(|key| key.starts_with("lens"))
         .cloned()
         .collect();
-    for key in lens_blur_keys {
+    for key in lens_keys {
         object.remove(&key);
     }
 }
 
-fn write_super_resolution_sidecar(source_path: &Path, output_path: &Path) -> Result<()> {
-    let source_sidecar = crate::exif_processing::get_primary_sidecar_path(source_path);
+/// `source_sidecar` is the edited photo's own sidecar, a virtual copy's when
+/// one was enlarged, so the edits carried over match the framing applied.
+fn write_super_resolution_sidecar(
+    source_path: &Path,
+    source_sidecar: &Path,
+    output_path: &Path,
+) -> Result<()> {
     if !source_sidecar.exists() {
         crate::exif_processing::write_rrexif_sidecar(&source_path.to_string_lossy(), output_path)
             .map_err(|error| anyhow!(error))?;
         return Ok(());
     }
 
-    let mut metadata = crate::exif_processing::load_sidecar(&source_sidecar);
+    let mut metadata = crate::exif_processing::load_sidecar(source_sidecar);
     strip_non_transferable_adjustments(&mut metadata.adjustments);
 
     let output_sidecar = crate::exif_processing::get_primary_sidecar_path(output_path);
@@ -781,6 +797,34 @@ mod tests {
     fn tiles_overlap_by_48px_at_512_and_never_less_than_the_minimum() {
         assert_eq!(tile_overlap(512), 48);
         assert_eq!(tile_overlap(64), MIN_TILE_OVERLAP);
+    }
+
+    #[test]
+    fn framing_already_applied_is_not_carried_over_but_the_look_is() {
+        let mut adjustments = serde_json::json!({
+            "exposure": 0.5,
+            "crop": { "x": 10, "y": 20, "width": 300, "height": 200 },
+            "rotation": 1.5,
+            "orientationSteps": 1,
+            "transformVertical": 12,
+            "lensDistortionEnabled": true,
+            "lensDistortionAmount": 100,
+            "lensMaker": "Canon",
+            "lensModel": "RF24-105mm F4 L IS USM",
+            "lensCorrectionMode": "auto",
+            "lensBlurEnabled": true,
+            "masks": [],
+            "temperature": 12,
+        });
+        strip_non_transferable_adjustments(&mut adjustments);
+        let mut kept: Vec<&str> = adjustments
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        kept.sort_unstable();
+        assert_eq!(kept, ["exposure", "temperature"]);
     }
 
     /// The saving the overlap was halved for: an R6 Mark III frame.

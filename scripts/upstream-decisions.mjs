@@ -428,6 +428,12 @@ const review164GpuRuntime = [
   review164Decision('e9d6cc74', 'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH', 'not-applicable', 'The merge of #1466 carries the same TIFF launch-option change as ad179a45; the ONNX Runtime setup is untouched.'),
 ];
 
+// Added 2026-10-05, when ai-super-resolution began framing photos with the
+// export's own apply_all_transformations before enlarging them.
+const review164SuperResolutionFraming = [
+  review164Decision('ad179a45', 'ai-super-resolution:src-tauri/src/adjustment_utils.rs#apply_all_transformations', 'not-applicable', 'The TIFF-precision export reworks the code around its apply_all_transformations call in export_processing.rs; the call, the function and the order of its geometric steps are unchanged, so enlargement still frames a photo exactly as an export does.'),
+];
+
 export const REVIEW_164_DECISIONS = [
   ...review164ShaderDecisions,
   ...review164OtherDecisions,
@@ -437,12 +443,13 @@ export const REVIEW_164_DECISIONS = [
   ...review164CompositionDecisions,
   ...review164HighlightCorrection,
   ...review164GpuRuntime,
+  ...review164SuperResolutionFraming,
 ];
 
-// 219 from the catch-up itself, the two highlight corrections and the four
-// ai-gpu-runtime decisions above.
-if (REVIEW_164_DECISIONS.length !== 225) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 225 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+// 219 from the catch-up itself, the two highlight corrections, the four
+// ai-gpu-runtime decisions and the framing decision above.
+if (REVIEW_164_DECISIONS.length !== 226) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 226 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
