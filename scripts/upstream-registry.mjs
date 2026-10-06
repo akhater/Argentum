@@ -747,6 +747,86 @@ export const REGISTRY = [
     keywords: /upscale|super.?resolution|zoom|image.?size/i,
   },
   {
+    id: 'object-brush',
+    kind: 'feature',
+    what: 'Paint roughly over something and the mask snaps to it (Lightroom\'s Select Object).',
+    ours: [
+      'src-tauri/src/mods/object_brush.rs',
+      'src-tauri/src/mods/matting.rs',
+      'src/argentum/ObjectBrush.tsx',
+      'src/argentum/objectMask.ts',
+      'src/argentum/photoBox.ts',
+    ],
+    // None of their files is edited. Everything below is something of theirs
+    // the feature reads, calls or adds to at runtime, so an upstream change to
+    // any of it gets reviewed against this entry rather than discovered.
+    dependsOn: [
+      { file: 'src/components/panel/right/Masks.tsx', symbol: 'MASK_AI_TYPES', how: 'extends',
+        note:
+          'The Object tile is spliced into their array at startup, after Subject, and pushed onto '
+          + 'ALL_MASK_TYPES and MASK_ICON_MAP. Their grid reads the array on every render. If it '
+          + 'becomes a copy, or the grid stops reading it, the tile silently disappears.' },
+      { file: 'src/components/panel/right/Masks.tsx', symbol: 'formatMaskTypeName', how: 'calls',
+        note:
+          'The tile\'s label, and the new component\'s name, is their fallback capitalising the '
+          + 'type string "object". A change to the fallback changes the label.' },
+      { file: 'src/utils/maskUtils.ts', symbol: 'createSubMask', how: 'calls',
+        note:
+          'An "object" component is created by their default branch: empty parameters and the '
+          + 'fallback name. adoptObjectMasks then makes it ai-subject with their Subject defaults.' },
+      { file: 'src/components/panel/right/MasksPanel.tsx', how: 'calls',
+        note:
+          'handleGridClick, the add-component menu and drag-and-drop all pass the type string to '
+          + 'handleAddSubMask / handleAddMaskContainer, which is what carries "object" through.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'calls',
+        note:
+          'Four things: presses on the mask stage (.konvajs-content) are swallowed in the capture '
+          + 'phase so their box never starts; the overlay svg sized in px to the drawn photo gives '
+          + 'the geometry (photoBox.ts, shared with the RGB readout); strokes are drawn beside that '
+          + 'svg above their mask preview at zIndex 3; and their ai-subject outline draws the '
+          + 'painted extent from startX..endY.' },
+      { file: 'src/components/panel/Editor.tsx', how: 'calls',
+        note: 'isPanningDisabled covers ai-subject. Without it a brush stroke would also pan the photo.' },
+      { file: 'src/hooks/useAiMasking.ts', how: 'calls',
+        note:
+          'objectMask.ts sends their getTransformAdjustments subset verbatim, and their precompute '
+          + 'effect warms the embedding cache when an ai-subject component is selected. If the '
+          + 'subset changes on their side, ours must follow or every stroke re-encodes the photo.' },
+      { file: 'src/hooks/useKeyboardShortcuts.ts', how: 'calls',
+        note: 'brush_size_up / brush_size_down change brushSettings.size in the masks panel, which is the brush size.' },
+      { file: 'src/store/useEditorStore.ts', how: 'calls',
+        note: 'activeMaskId, brushSettings, isGeneratingAiMask and patchesSentToBackend.' },
+      { file: 'src-tauri/src/ai_commands.rs', symbol: 'generate_ai_subject_mask', how: 'calls',
+        note:
+          'Two things copied from it and kept identical: the embedding cache key (blake3 of the '
+          + 'path plus a hash of GEOMETRY_KEYS), and the screen-to-source mapping (fine rotation, '
+          + 'flips, quarter turns). A test pins the mapping against their box corners.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'run_sam_decoder', how: 'calls',
+        note:
+          'The decoder call is ours (more points, a padding point, low_res_masks fed back), but '
+          + 'the models, generate_image_embeddings, fast_guided_filter, AiSubjectMaskParameters '
+          + 'and AiState.embeddings are theirs, and follow_edges repeats their post-processing so '
+          + 'a painted mask looks like a boxed one. Their SAM3 branch replaces all of this; when it '
+          + 'lands, this module is rewritten against it, not patched.' },
+      { file: 'src-tauri/src/mask_generation.rs', how: 'calls',
+        note: 'Renders the result as any ai-subject mask, from maskDataBase64 and the transform fields.' },
+      { file: 'src/hooks/useTauriListeners.ts', how: 'calls',
+        note:
+          'matting.rs emits their ai-model-download-start / -finish events, so the first-use '
+          + 'download of the edge model shows in their notice. Renamed events mean a silent '
+          + '100 MB download.' },
+      { file: 'src-tauri/src/cache_utils.rs', symbol: 'GEOMETRY_KEYS', how: 'calls' },
+      { file: 'src-tauri/src/lib.rs', symbol: 'get_cached_full_warped_image', how: 'calls' },
+    ],
+    tests: [
+      'src-tauri/src/mods/object_brush.rs #[cfg(test)]',
+      'src-tauri/src/mods/object_brush.rs on_a_real_photo (ignored; needs the SAM models and ORT_DYLIB_PATH; AG_MATTE_MODEL adds the edge model)',
+      'src-tauri/src/mods/matting.rs #[cfg(test)]',
+      'Manual: Masks > Object, paint over a thing, release; paint again to add, Alt-paint to take away; Start over clears.',
+    ],
+    keywords: /segment|\bsam\d?\b|select.?object|object.?select|subject.?mask|ai.?mask|point.?prompt|scribble|mask.?type/i,
+  },
+  {
     id: 'ai-gpu-runtime',
     kind: 'feature',
     what:
@@ -779,6 +859,35 @@ export const REGISTRY = [
       'Manual (Windows): enlarge a photo; the progress line says "on the GPU". On a fresh profile the GPU runtime downloads first.',
     ],
     keywords: /onnx|\bort\b|directml|execution.?provider|ORT_DYLIB|gpu.*(ai|model|onnx)/i,
+  },
+  {
+    id: 'model-manager',
+    kind: 'feature',
+    what: 'Settings > About > AI models: every model the app downloads, what is on disk, and deleting it.',
+    ours: [
+      'src-tauri/src/mods/model_catalog.rs',
+      'src-tauri/src/mods/model_manager.rs',
+      'src/argentum/AiModels.tsx',
+    ],
+    // Nothing of theirs is edited. What is relied on is what their code
+    // writes to disk, and that it fetches a missing model again.
+    dependsOn: [
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
+        note:
+          'Their model file names and addresses are private constants here, copied into '
+          + 'model_catalog.rs rather than made pub. Its tests read this file and fail when a copy '
+          + 'drifts or a new *_FILENAME appears (their SAM3 models are the next one). Deleting relies '
+          + 'on download_and_verify_model fetching a missing file again on next use, and on '
+          + 'get_models_dir staying app_data_dir()/models. If upstream starts remembering downloads '
+          + 'anywhere else, a deleted model would stop coming back and this must follow.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
+      'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
+      'Manual: Settings > About > AI models lists the models with sizes; delete one, use its feature, and it downloads again.',
+      'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
+    ],
+    keywords: /models?.?(manag|download|delet|remov|folder|dir\b|size)|(delete|remove|manage|clear).{0,12}models?\b|disk.?(space|usage)/i,
   },
 ];
 

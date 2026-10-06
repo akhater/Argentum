@@ -171,6 +171,32 @@ replacement rather than something a later feature adds to. **If one of these
 ever needs a second hook, the injection is in the wrong place** — it should
 become an event our code listens for, not another line of theirs.
 
+### A mask tool, with no anchor at all
+
+The object brush (26.41.4) needed three things that look as if they need
+hooks: a tile in their masks toolbox, a mask type their renderer can draw, and
+a canvas that paints instead of drawing a box. It has none. The pattern, for
+the next mask tool:
+
+1. **The tile is data.** Their grid renders `MASK_AI_TYPES`, an exported
+   array it reads on every render. `objectMask.ts` splices an entry into it at
+   startup. The type string is chosen so their fallback label reads right:
+   `object` becomes "Object".
+2. **The type does not survive.** Nothing of theirs can draw an `object`
+   mask, so a store subscription turns it into an ordinary `ai-subject` the
+   moment their panel creates it, with `objectStrokes` in its parameters as
+   the mark that it is ours. From there on, rendering, export, Grow and Feather
+   are theirs, unchanged.
+3. **The canvas is intercepted, not changed.** A capture-phase listener on the
+   window takes a press aimed at their Konva stage before their handler hears
+   it. Their box tool never starts, and moves and releases with no press are
+   ignored by their own code.
+
+What it costs is coupling, not lines: if their grid stops reading the array
+live, or their fallback label changes, the tool degrades without a conflict.
+Every one of those dependencies is in the `object-brush` registry entry, so
+an upstream change to any of them is reviewed rather than discovered.
+
 ---
 
 ## Planned: naming the objects before masking them

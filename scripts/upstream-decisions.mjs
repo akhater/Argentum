@@ -417,6 +417,18 @@ const review164HighlightCorrection = [
   review164Decision('f00145c1', 'highlight-recovery:src-tauri/src/raw_processing.rs#develop_internal', 'combine', 'The compression pass this commit switched off was the only thing turning fully blown highlights white. settle_blown takes over that effect before demosaic; the legacy raw_highlight_compression setting stays readable for migration only, as decided above.'),
 ];
 
+// Added 2026-10-06, when object-brush registered the upstream code it reads.
+// The feature edits none of their files, but naming its dependencies puts the
+// commits in this window that touched them up for review. Each was read
+// against what the brush relies on.
+const review164ObjectBrush = [
+  review164Decision('ad179a45', 'object-brush:src-tauri/src/lib.rs#get_cached_full_warped_image', 'not-applicable', 'The TIFF export commit changes headless start-up in run(): an InvalidHeadless exit and a match on the launch request. get_cached_full_warped_image is not touched, so the warped image the brush segments is produced exactly as before.'),
+  review164Decision('88415dcc', 'object-brush:src-tauri/src/lib.rs#get_cached_full_warped_image', 'not-applicable', 'The merge adds one handler to the command list (handle_import_presets_from_files). Nothing near the warped-image cache.'),
+  review164Decision('0e8cd159', 'object-brush:src-tauri/src/lib.rs#get_cached_full_warped_image', 'not-applicable', 'A merge of upstream main into the TIFF branch; its lib.rs changes are the same headless start-up and command-list edits. No line of get_cached_full_warped_image or its geometry hash changes.'),
+  review164Decision('e9d6cc74', 'object-brush:src-tauri/src/lib.rs#get_cached_full_warped_image', 'not-applicable', 'Upstream merging PR 1466 brings in the same headless start-up change as ad179a45 and nothing else in lib.rs.'),
+  review164Decision('40a112e1', 'object-brush:src/components/panel/Editor.tsx', 'not-applicable', 'The neutral-grey canvas toggle adds a colour preference and its plumbing. isPanningDisabled, which keeps a brush stroke from panning the photo while an ai-subject component is active, is untouched.'),
+];
+
 // Added 2026-10-05, when ai-gpu-runtime registered its step around
 // ORT_DYLIB_PATH in lib.rs. The four commits in this window that touch lib.rs
 // are the TIFF-precision chain (#1466) and its merges; none of them changes how
@@ -442,14 +454,16 @@ export const REVIEW_164_DECISIONS = [
   ...review164PresetDecisions,
   ...review164CompositionDecisions,
   ...review164HighlightCorrection,
+  ...review164ObjectBrush,
   ...review164GpuRuntime,
   ...review164SuperResolutionFraming,
 ];
 
-// 219 from the catch-up itself, the two highlight corrections, the four
-// ai-gpu-runtime decisions and the framing decision above.
-if (REVIEW_164_DECISIONS.length !== 226) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 226 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+// 219 from the catch-up itself, the two highlight corrections, the five
+// object-brush readings, the four ai-gpu-runtime decisions and the framing
+// decision above.
+if (REVIEW_164_DECISIONS.length !== 231) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 231 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [

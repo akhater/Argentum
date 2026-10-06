@@ -19,7 +19,7 @@
  * So the pixel is rendered on demand by `sample_processed_pixel`, over a
  * one-texel ROI.
  *
- * The geometry still has to come from the DOM, though — see `findPhotoBox`.
+ * The geometry still has to come from the DOM, though — see `photoBox.ts`.
  * Colour from the GPU, position from the page.
  */
 
@@ -29,6 +29,7 @@ import { createPortal } from 'react-dom';
 import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from '../store/useEditorStore';
 import { useRgbReadout } from './rgbReadoutStore';
+import { findPhotoBox } from './photoBox';
 
 interface Sample {
   r: number;
@@ -43,42 +44,6 @@ function castStrength({ r, g, b }: Sample): number {
     return 0;
   }
   return (max - Math.min(r, g, b)) / max;
-}
-
-/**
- * The photo's box on screen.
- *
- * This used to hunt for the largest `<img>` in the page. That was never sound:
- * with the GPU renderer on there is no `<img>` for the photo at all — it is a
- * native surface composited behind the webview — so what it actually latched
- * onto was the cached `_medium.jpg` thumbnail, which is in the tree only
- * sometimes. Clear the thumbnail cache and the readout goes silent, with no
- * error to explain why.
- *
- * What is always present is the overlay `<svg>` the editor lays over the photo
- * for masks and crop handles. `ImageCanvas` sizes it in pixels to the drawn
- * image, and it sits inside the pan/zoom transform, so its bounding box *is*
- * the photo at the current zoom and pan. Every other svg in the tree is sized
- * in percentages or not at all, which is what tells them apart.
- *
- * Its rect is the drawn image exactly, so there is no letterboxing to undo.
- */
-function findPhotoBox(): DOMRect | null {
-  let best: DOMRect | null = null;
-  for (const el of Array.from(document.querySelectorAll('svg'))) {
-    const { position, width, height } = el.style;
-    if (position !== 'absolute' || !width.endsWith('px') || !height.endsWith('px')) {
-      continue;
-    }
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) {
-      continue;
-    }
-    if (!best || rect.width * rect.height > best.width * best.height) {
-      best = rect;
-    }
-  }
-  return best;
 }
 
 export default function RgbReadout() {

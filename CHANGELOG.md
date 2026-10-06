@@ -4,6 +4,85 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## 26.41.4 — 2026-10-06
+
+### Added
+
+- **The Object mask: paint roughly over something and the mask snaps to it.**
+  Lightroom's Select Object, in brush form. It is a new tile in the masks
+  toolbox, after Subject. Paint over a thing and let go; paint again to add to
+  it, hold Alt to paint what to leave out, and Start over to clear. Brush size
+  is on the bar above the photo and on Ctrl+Up / Ctrl+Down, as for the brush.
+
+  A stroke is put to SAM, the model RapidRAW's Subject mask already uses, five
+  ways: points spread along the paint inside a box round the paint; inside a
+  box round the brush's *path*; inside a box half as big again; with no box;
+  and the box alone. The rules that choose, each from a failure on a real
+  photo:
+
+  - **The brush selects what was painted.** The answer inside the paint's box
+    is the default. Covering more of the paint is not evidence for a bigger
+    answer: rough paint over a see-through lamp is mostly the wall behind it,
+    and the first version selected the wall.
+  - **Spill is not meant.** Rough paint along an eye also covers lid; given a
+    box that holds the spill, SAM returns eye and lid. The answer in the box
+    round the brush's path is taken when it is smaller, covers the path, and
+    explains nearly as much of the paint (within 10%). The last condition
+    keeps a shoe's strap from winning over the shoe.
+  - **Cut off means grow, but only so far.** When the answer runs into a third
+    of its box's edge — a line drawn across a mug, a stroke down a lawn — the
+    box grows by half the paint's size on every side. The unbounded answer is
+    used only for a single dab, which is a click: unbounded, a line along an
+    eye on AK's close-up became the whole face.
+  - Parts of the answer the paint does not touch are dropped, and Alt-painted
+    exclusions put the boxed answer in doubt.
+
+  Then the edge. SAM sees the whole photo at 1024 pixels and draws its mask on
+  a 256-pixel grid, so a small thing came back with a halo. Anything under a
+  fifth of the photo gets a second SAM pass on a crop around it, where it has
+  the 1024 pixels to itself; and every mask's edge is redrawn at full
+  resolution by a matting model, ViTMatte, in a band one and a half grid cells
+  either side of SAM's edge. Wider was tried and let a hair mask take the
+  face. The model, about 100 MB, downloads the first time the Object mask is
+  used, is verified by SHA-256, and is credited in About. Without it the brush
+  falls back to the Subject mask's edge. Measured on this machine's CPU: about
+  1-3 s a stroke for large things and 2-7 s for small ones, which the second
+  pass costs.
+
+  It edits none of RapidRAW's files. The tile is added to their toolbox array
+  at startup; the component it creates is turned into an ordinary Subject mask
+  carrying its strokes, so their renderer, export, Grow and Feather, and
+  embedding warm-up all apply unchanged; and the canvas takes a press on the
+  mask stage before their box tool sees it. Everything this leans on is listed
+  in the `object-brush` registry entry. `mods/object_brush.rs` carries unit
+  tests and an ignored test that runs the real model on a photo and writes
+  overlays; on two test photos a stroke takes about 0.2 s once the photo is
+  encoded.
+
+- **Settings > About > AI models.** Each AI feature downloads its model the
+  first time it is used, and nothing showed what had arrived: a few features in,
+  the models folder holds well over a gigabyte. The new section lists every
+  model the app knows about, what it is for, whether it is on this computer and
+  how big it is (or how big the download is), with the total, and a Delete
+  button per model. A deleted model downloads again the next time its feature is
+  used; there are no download buttons.
+
+  The list is `mods/model_catalog.rs`, and adding a model is one entry there.
+  RapidRAW's file names and addresses are private constants in its
+  `ai_processing.rs`, so they are copied rather than made public, and its tests
+  read that file: they fail if a copy drifts or upstream saves a model the list
+  does not know. Deleting goes through `mods/model_manager.rs`, which takes an
+  id, never a path, and only removes names the list gives, directly inside the
+  models folder and not through a link.
+
+  Something Windows will not delete while it is open, and the graphics card
+  runtime once a run has picked it (ONNX Runtime loads it lazily from that path
+  and would crash the next AI feature if it vanished), is not reported as
+  deleted. It is marked, shown as waiting, and removed by `startup::init` at the
+  next start, before anything can load it.
+  The edge model the Object mask downloads is on the list too.
+
+
 ## 26.41.3 — 2026-10-06
 
 ### Changed

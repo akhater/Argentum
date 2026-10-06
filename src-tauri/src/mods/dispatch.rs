@@ -112,6 +112,12 @@ struct DepthArgs {
     depth: u8,
 }
 
+/// A catalogue id from `mods::model_catalog`, never a path.
+#[derive(Deserialize)]
+struct IdArgs {
+    id: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelArgs {
@@ -119,6 +125,18 @@ struct ModelArgs {
     #[serde(default)]
     make: String,
     model: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ObjectBrushArgs {
+    js_adjustments: serde_json::Value,
+    path: String,
+    strokes: Vec<crate::mods::object_brush::Stroke>,
+    rotation: f32,
+    flip_horizontal: bool,
+    flip_vertical: bool,
+    orientation_steps: u8,
 }
 
 /// Every Argentum command, behind one registration.
@@ -238,6 +256,31 @@ pub async fn ag(
             let a: ModelArgs = args_for(&name, args)?;
             serde_json::to_value(commands::profiles_for_camera(a.make, a.model)?)
                 .map_err(|e| e.to_string())
+        }
+        "object_brush_mask" => {
+            let a: ObjectBrushArgs = args_for(&name, args)?;
+            let r = crate::mods::object_brush::generate(
+                a.js_adjustments,
+                a.path,
+                a.strokes,
+                a.rotation,
+                a.flip_horizontal,
+                a.flip_vertical,
+                a.orientation_steps,
+                state,
+                app_handle,
+            )
+            .await?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "list_ai_models" => {
+            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+            serde_json::to_value(crate::mods::model_manager::list(&dir)).map_err(|e| e.to_string())
+        }
+        "delete_ai_model" => {
+            let a: IdArgs = args_for(&name, args)?;
+            let r = crate::mods::model_manager::delete_for_app(&app_handle, &a.id)?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown Argentum command: {other}")),
     }
