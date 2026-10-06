@@ -42,7 +42,8 @@ use std::sync::Mutex;
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose};
 use image::imageops::{self, FilterType};
-use image::{DynamicImage, GenericImageView, GrayImage, ImageFormat};
+use image::{DynamicImage, GenericImageView, GrayImage, ImageFormat, Luma};
+use imageproc::region_labelling::{Connectivity, connected_components};
 use ndarray::Array;
 use ort::session::Session;
 use ort::value::Tensor;
@@ -55,6 +56,7 @@ use crate::ai_processing::{
 use crate::app_state::AppState;
 use crate::cache_utils::GEOMETRY_KEYS;
 use crate::get_cached_full_warped_image;
+use crate::mods::matting;
 
 /// SAM's input is a 1024-pixel square; the photo is scaled so its long side
 /// fills it. Theirs is a private constant in ai_processing.rs; it is fixed by
@@ -81,10 +83,15 @@ const MAX_AREA: f64 = 0.6;
 const TIE: f64 = 0.08;
 
 /// How much of its box's edge the boxed answer may run into before it counts
-/// as cut off. A cord leaving the top of a lamp touches the edge; a line drawn
-/// across a mug fills it. Measured: 0.03 or less on paint that covers the
-/// thing, 0.17 and up on paint that covers only part of it.
-const CUT_LIMIT: f64 = 0.12;
+/// as cut off: the paint slices across something rather than covering it.
+///
+/// Measured on real photos. Paint over a whole thing: 0.01 to 0.09 (mug, shirt,
+/// shoe, lamp). Paint over an eye: 0.22 and 0.27, because an eye fills its own
+/// box corner to corner — and an eye is what was meant. A line across a mug,
+/// a hand with only its fingers painted, one stroke down a lawn: 0.39 to 0.53.
+/// The first version used 0.12 and an eye came back as the eye and eyebrow,
+/// and on AK's photo as the whole face.
+const CUT_LIMIT: f64 = 0.35;
 
 /// How much of the exclusions the boxed answer may cover before the others
 /// are asked.
@@ -134,7 +141,7 @@ impl View {
     /// undo the fine rotation about the centre, then the flips, then the
     /// quarter turns. It has to stay identical to theirs, or a painted mask and
     /// a boxed one land in different places.
-    pub fn to_source(&self, (x, y): (f64, f64)) -> (f64, f64) {
+    pub fn to_source(self, (x, y): (f64, f64)) -> (f64, f64) {
         let (w, h) = (self.width as f64, self.height as f64);
         let (cw, ch) = if self.orientation_steps % 2 == 1 {
             (h, w)
@@ -184,7 +191,11 @@ impl Path {
 }
 
 fn to_sam_frame(strokes: &[Stroke], view: &View) -> Vec<Path> {
-    let scale = SAM_SIZE / view.width.max(view.height) as f64;
+    to_frame(strokes, view, SAM_SIZE / view.width.max(view.height) as f64)
+}
+
+/// The strokes in the source image, scaled by `scale`.
+fn to_frame(strokes: &[Stroke], view: &View, scale: f64) -> Vec<Path> {
     strokes
         .iter()
         .filter(|s| !s.points.is_empty())
@@ -263,6 +274,12 @@ fn sample_paths<'a>(paths: impl Iterator<Item = &'a Path>, budget: usize) -> Vec
         .collect()
 }
 
+/// One short touch of the brush, rather than paint over an area.
+fn is_dab(paths: &[Path]) -> bool {
+    let positive: Vec<&Path> = paths.iter().filter(|p| !p.exclude).collect();
+    positive.len() == 1 && positive[0].length() < 2.0 * positive[0].radius
+}
+
 /// The paint's bounding box, brush width included, grown by `BOX_MARGIN` and
 /// kept inside the image.
 fn paint_box(paths: &[Path], frame: (f64, f64)) -> Option<[f64; 4]> {
@@ -300,7 +317,7 @@ fn rasterise(
 ) -> Vec<bool> {
     let mut grid = vec![false; w * h];
     for path in paths.iter().filter(|p| p.exclude == exclude) {
-        let r = (path.radius * reach / cell).max(0.5);
+        let r = (path.radius * reach / cell).max(0.75);
         let pts: Vec<(f64, f64)> = path
             .points
             .iter()
@@ -448,6 +465,9 @@ fn decode(
     })
 }
 
+/// How each way of asking scored, and whether it won.
+type Report = Vec<(Ask, Fit, bool)>;
+
 /// The three ways a request is put to SAM.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Ask {
@@ -563,7 +583,7 @@ fn segment_reporting(
     embeddings: &ImageEmbeddings,
     strokes: &[Stroke],
     view: &View,
-) -> Result<(GrayImage, Vec<(Ask, Fit, bool)>)> {
+) -> Result<(GrayImage, Report)> {
     let paths = to_sam_frame(strokes, view);
     if !paths.iter().any(|p| !p.exclude) {
         return Err(anyhow!("paint over the object first"));
@@ -604,7 +624,7 @@ fn segment_reporting(
     }
 
     let fits: Vec<(Ask, Fit)> = candidates.iter().map(|(a, f, _, _)| (*a, *f)).collect();
-    let chosen = pick(&fits);
+    let chosen = pick(&fits, is_dab(&paths));
     let (_, _, prompt, first) = candidates.into_iter().find(|(a, ..)| *a == chosen).unwrap();
     let report = fits.into_iter().map(|(a, f)| (a, f, a == chosen)).collect();
 
@@ -627,17 +647,28 @@ fn segment_reporting(
 
 /// Which way of asking agrees best with the paint.
 ///
-/// The boxed answer stands unless there is evidence against it: its box cut
-/// it off, so the thing carries on past the paint, or it runs over an
-/// exclusion. Covering more of the paint is *not* such evidence. Rough paint
-/// over a lamp is mostly the wall behind it, and the whole wall covers all of
-/// it — AK's first test picked the wall exactly that way.
+/// The brush selects what was painted. The boxed answer — the thing inside the
+/// paint's own extent — stands unless there is evidence against it: its box
+/// plainly cut it off (`CUT_LIMIT`), or it runs over an exclusion. A dab has
+/// no extent to go by, so it is a click, and the open answer is SAM's answer
+/// to a click.
+///
+/// Covering more of the paint is *not* evidence. Rough paint over a lamp is
+/// mostly the wall behind it, and the whole wall covers all of it — AK's first
+/// test picked the wall exactly that way.
 ///
 /// When the boxed answer is in doubt, every answer scores what it covers of
 /// the paint, less twice what it covers of the exclusions, less how far its
 /// box cut it off. One that takes most of the frame is answering a different
 /// question. The boxed answer keeps the choice on a near-tie.
-fn pick(fits: &[(Ask, Fit)]) -> Ask {
+fn pick(fits: &[(Ask, Fit)], dab: bool) -> Ask {
+    if dab
+        && fits
+            .iter()
+            .any(|(a, f)| *a == Ask::Open && f.area <= MAX_AREA)
+    {
+        return Ask::Open;
+    }
     let Some(boxed) = fits.iter().find(|(a, _)| *a == Ask::Boxed).map(|(_, f)| *f) else {
         return Ask::Boxed;
     };
@@ -675,6 +706,243 @@ fn follow_edges(mask: &GrayImage, image: &DynamicImage) -> GrayImage {
         p[0] = (((v - 0.03) / 0.94).clamp(0.0, 1.0) * 255.0).round() as u8;
     }
     refined
+}
+
+macro_rules! timed {
+    ($label:expr, $e:expr) => {{
+        #[cfg(test)]
+        let t = std::time::Instant::now();
+        let r = $e;
+        #[cfg(test)]
+        eprintln!("    {}: {:?}", $label, t.elapsed());
+        r
+    }};
+}
+
+/// The models the brush runs on. Matting is optional: until its download has
+/// arrived, or if it failed, edges are refined the way a Subject mask's are.
+pub struct Models<'a> {
+    pub encoder: &'a Mutex<Session>,
+    pub decoder: &'a Mutex<Session>,
+    pub matting: Option<&'a Mutex<Session>>,
+}
+
+/// Things smaller than this share of the photo get a second look on a crop.
+/// To SAM the whole photo is 1024 pixels, so an eye or a bracelet is a few
+/// dozen of them and its mask is a few cells of a 256-pixel grid: the first
+/// answer can be wrong about *what* it is, not just where its edge is, and no
+/// edge model fixes that. The crop costs a second SAM encode, several seconds
+/// on a CPU, so bigger things — already plenty of pixels — skip it.
+const ZOOM_BELOW: f64 = 0.2;
+
+/// Context around a small thing for its second look, as a share of its size.
+const ZOOM_MARGIN: f64 = 0.25;
+
+/// How well the second look must agree with the first to replace it.
+const ZOOM_AGREEMENT: f64 = 0.5;
+
+/// The band the matting model decides: this many of SAM's grid cells either
+/// side of SAM's edge, which is where the true edge can be. No wider. A band
+/// of 3% of the object let the model take most of a face into a hair mask —
+/// it separates a thing from its background, and inside a person it cannot
+/// tell hair from skin.
+const EDGE_CELLS: f64 = 1.5;
+
+/// The whole brush: which thing, then where exactly its edge is.
+///
+/// 1. SAM on the whole photo picks the thing (`segment`).
+/// 2. SAM again on a crop around it. The whole photo is 1024 pixels to SAM, so
+///    a bracelet on a 6000-pixel photo is about 30 of them, and its mask is
+///    drawn on a 256-pixel grid. Cropped, the bracelet gets the 1024 to
+///    itself, and a box that fits it exactly.
+/// 3. The matting model draws the final edge on the crop at full resolution.
+pub fn select(
+    models: &Models,
+    embeddings: &ImageEmbeddings,
+    strokes: &[Stroke],
+    view: &View,
+    image: &DynamicImage,
+) -> Result<GrayImage> {
+    let coarse = timed!(
+        "segment",
+        segment(models.decoder, embeddings, strokes, view)?
+    );
+    let painted = sample_paths(
+        to_frame(strokes, view, 1.0).iter().filter(|p| !p.exclude),
+        64,
+    );
+    let coarse = keep_painted(coarse, &painted);
+    match timed!("refine", refine(models, strokes, view, image, &coarse)) {
+        Ok(mask) => Ok(mask),
+        Err(e) => {
+            log::warn!("object brush: refinement failed, using the first answer: {e}");
+            Ok(follow_edges(&coarse, image))
+        }
+    }
+}
+
+/// Only the parts of a mask the paint touches.
+///
+/// SAM's answer can carry specks elsewhere in the photo — a second eye, a
+/// fleck of the same colour. They are not what was painted, and one far away
+/// makes a small thing look as big as the photo, so it never gets its closer
+/// look. Paint more to add a part.
+fn keep_painted(mut mask: GrayImage, painted: &[(f64, f64)]) -> GrayImage {
+    let labels = connected_components(&mask, Connectivity::Eight, Luma([0u8]));
+    let (w, h) = mask.dimensions();
+    let mut keep: Vec<u32> = painted
+        .iter()
+        .filter(|(x, y)| *x >= 0.0 && *y >= 0.0 && (*x as u32) < w && (*y as u32) < h)
+        .map(|&(x, y)| labels.get_pixel(x as u32, y as u32)[0])
+        .filter(|&l| l != 0)
+        .collect();
+    if keep.is_empty() {
+        // The paint missed every part: keep the largest rather than nothing.
+        let mut sizes = std::collections::HashMap::new();
+        for p in labels.pixels().filter(|p| p[0] != 0) {
+            *sizes.entry(p[0]).or_insert(0usize) += 1;
+        }
+        keep.extend(sizes.into_iter().max_by_key(|&(_, n)| n).map(|(l, _)| l));
+    }
+    for (p, l) in mask.pixels_mut().zip(labels.pixels()) {
+        if !keep.contains(&l[0]) {
+            p[0] = 0;
+        }
+    }
+    mask
+}
+
+fn bounding_box(mask: &GrayImage) -> Option<(u32, u32, u32, u32)> {
+    let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0, 0);
+    for (x, y, p) in mask.enumerate_pixels() {
+        if p[0] > 127 {
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x);
+            y1 = y1.max(y);
+        }
+    }
+    (x0 <= x1).then_some((x0, y0, x1 + 1, y1 + 1))
+}
+
+fn refine(
+    models: &Models,
+    strokes: &[Stroke],
+    view: &View,
+    image: &DynamicImage,
+    coarse: &GrayImage,
+) -> Result<GrayImage> {
+    let (w, h) = image.dimensions();
+    let long = w.max(h) as f64;
+    let (bx0, by0, bx1, by1) =
+        bounding_box(coarse).ok_or_else(|| anyhow!("nothing was selected"))?;
+    let size = (bx1 - bx0).max(by1 - by0) as f64;
+    let small = size < ZOOM_BELOW * long;
+
+    // SAM's edge can be off by about one cell of its 256-pixel grid, so the
+    // band the matting model decides must reach that far either side. A
+    // second look on a crop has a much
+    // finer grid.
+    let margin = if small { ZOOM_MARGIN * size } else { 0.0 };
+    let reach = |cell: f64| (EDGE_CELLS * cell).clamp(3.0, 255.0);
+    let pad = (margin + 2.0 * reach(long / 256.0) + 8.0) as u32;
+    let (cx0, cy0) = (bx0.saturating_sub(pad), by0.saturating_sub(pad));
+    let (cx1, cy1) = ((bx1 + pad).min(w), (by1 + pad).min(h));
+    let (cw, ch) = (cx1 - cx0, cy1 - cy0);
+    let crop = image.crop_imm(cx0, cy0, cw, ch);
+    let coarse_crop = imageops::crop_imm(coarse, cx0, cy0, cw, ch).to_image();
+
+    let (mask, cell) = if small {
+        let found = (bx0 - cx0, by0 - cy0, bx1 - cx0, by1 - cy0);
+        let zoomed = timed!(
+            "zoom",
+            zoom(models, strokes, view, &crop, (cx0, cy0), found)?
+        );
+        // A second look that disagrees badly with the first has found
+        // something else; the first is the one the paint chose.
+        if iou(&zoomed, &coarse_crop) >= ZOOM_AGREEMENT {
+            (zoomed, cw.max(ch) as f64 / 256.0)
+        } else {
+            (coarse_crop, long / 256.0)
+        }
+    } else {
+        (coarse_crop, long / 256.0)
+    };
+
+    let edge = match models.matting {
+        Some(session) => {
+            let trimap = matting::trimap(&mask, reach(cell) as u8);
+            timed!("matte", matting::matte(session, &crop.to_rgb8(), &trimap)?)
+        }
+        None => follow_edges(&mask, &crop),
+    };
+
+    let mut out = GrayImage::new(w, h);
+    imageops::replace(&mut out, &edge, cx0 as i64, cy0 as i64);
+    Ok(out)
+}
+
+/// SAM on the crop alone, prompted with the strokes and a box that fits the
+/// first answer, then once more refined by its own answer.
+fn zoom(
+    models: &Models,
+    strokes: &[Stroke],
+    view: &View,
+    crop: &DynamicImage,
+    origin: (u32, u32),
+    found: (u32, u32, u32, u32),
+) -> Result<GrayImage> {
+    let embeddings = generate_image_embeddings(crop, models.encoder)?;
+    let (cw, ch) = crop.dimensions();
+    let scale = SAM_SIZE / cw.max(ch) as f64;
+    let inside = |&(x, y): &(f64, f64)| x >= 0.0 && y >= 0.0 && x < cw as f64 && y < ch as f64;
+
+    let paths = to_frame(strokes, view, 1.0);
+    let local = |exclude: bool, budget: usize| -> Vec<(f64, f64)> {
+        sample_paths(paths.iter().filter(|p| p.exclude == exclude), budget)
+            .into_iter()
+            .map(|p| (p.0 - origin.0 as f64, p.1 - origin.1 as f64))
+            .filter(inside)
+            .map(|p| (p.0 * scale, p.1 * scale))
+            .collect()
+    };
+    let (fx0, fy0, fx1, fy1) = found;
+    let bx = [fx0 as f64, fy0 as f64, fx1 as f64, fy1 as f64].map(|v| v * scale);
+    let prompt = Prompt::new(
+        &local(false, MAX_POSITIVE),
+        &local(true, MAX_NEGATIVE),
+        Some(bx),
+    );
+
+    let first = decode(models.decoder, &embeddings, &prompt, None, (cw, ch))?;
+    let second = decode(
+        models.decoder,
+        &embeddings,
+        &prompt,
+        Some(&first.low_res),
+        (cw, ch),
+    )?;
+    let pixels = second
+        .mask
+        .iter()
+        .map(|&v| if v > 0.0 { 255 } else { 0 })
+        .collect();
+    GrayImage::from_raw(second.width as u32, second.height as u32, pixels)
+        .ok_or_else(|| anyhow!("the decoder returned a mask of the wrong size"))
+}
+
+fn iou(a: &GrayImage, b: &GrayImage) -> f64 {
+    let (mut both, mut either) = (0usize, 0usize);
+    for (p, q) in a.pixels().zip(b.pixels()) {
+        let (x, y) = (p[0] > 127, q[0] > 127);
+        both += (x && y) as usize;
+        either += (x || y) as usize;
+    }
+    if either == 0 {
+        1.0
+    } else {
+        both as f64 / either as f64
+    }
 }
 
 fn to_data_url(image: &GrayImage) -> Result<String, String> {
@@ -766,9 +1034,22 @@ pub async fn generate(
         width,
         height,
     };
+    // First use downloads it, about 100 MB. If that fails the brush still
+    // works, with the old edge.
+    let matting = match matting::session(&app_handle).await {
+        Ok(session) => Some(session),
+        Err(e) => {
+            log::warn!("object brush: no matting model, using the plain edge: {e}");
+            None
+        }
+    };
+    let brush = Models {
+        encoder: &models.sam_encoder,
+        decoder: &models.sam_decoder,
+        matting: matting.as_deref(),
+    };
     let mask =
-        segment(&models.sam_decoder, &embeddings, &strokes, &view).map_err(|e| e.to_string())?;
-    let mask = follow_edges(&mask, warped.as_ref());
+        select(&brush, &embeddings, &strokes, &view, warped.as_ref()).map_err(|e| e.to_string())?;
 
     let (start, end) = painted_extent(&strokes);
     Ok(AiSubjectMaskParameters {
@@ -929,7 +1210,7 @@ mod tests {
             radius: 10.0,
             exclude: false,
         };
-        let b = paint_box(&[p.clone()], (1024.0, 683.0)).unwrap();
+        let b = paint_box(std::slice::from_ref(&p), (1024.0, 683.0)).unwrap();
         let margin = BOX_MARGIN * 120.0;
         assert!((b[0] - (90.0 - margin)).abs() < 1e-9);
         assert!((b[3] - (160.0 + margin)).abs() < 1e-9);
@@ -968,6 +1249,24 @@ mod tests {
     }
 
     #[test]
+    fn only_the_painted_parts_are_kept() {
+        let mut mask = GrayImage::new(30, 10);
+        for x in 2..8 {
+            mask.put_pixel(x, 5, Luma([255]));
+        }
+        for x in 20..28 {
+            mask.put_pixel(x, 5, Luma([255]));
+        }
+        let kept = keep_painted(mask.clone(), &[(4.0, 5.0)]);
+        assert_eq!(kept.get_pixel(5, 5)[0], 255);
+        assert_eq!(kept.get_pixel(24, 5)[0], 0);
+        // Missing every part keeps the biggest.
+        let kept = keep_painted(mask, &[(15.0, 1.0)]);
+        assert_eq!(kept.get_pixel(24, 5)[0], 255);
+        assert_eq!(kept.get_pixel(5, 5)[0], 0);
+    }
+
+    #[test]
     fn a_prompt_without_a_box_carries_the_padding_point() {
         let p = Prompt::new(&[(1.0, 2.0)], &[(3.0, 4.0)], None);
         assert_eq!(p.labels, vec![1.0, 0.0, -1.0]);
@@ -988,16 +1287,55 @@ mod tests {
     #[test]
     fn the_boxed_answer_holds_a_near_tie() {
         let fits = [
-            (Ask::Boxed, f(0.90, 0.0, 0.1, 0.2)),
-            (Ask::Open, f(0.75, 0.0, 0.1, 0.0)),
-            (Ask::BoxOnly, f(0.72, 0.0, 0.1, 0.0)),
+            (Ask::Boxed, f(0.90, 0.0, 0.1, 0.4)),
+            (Ask::Open, f(0.45, 0.0, 0.1, 0.0)),
+            (Ask::BoxOnly, f(0.55, 0.0, 0.1, 0.0)),
         ];
-        assert_eq!(pick(&fits), Ask::Boxed);
+        assert_eq!(pick(&fits, false), Ask::Boxed);
     }
 
     /// AK's lamp: rough paint over a see-through lamp is mostly wall, so the
     /// whole wall panel covers all of it. Covering more is not evidence; the
     /// lamp was not cut off by its box, so the lamp stands.
+    /// An eye fills its own box, so it touches every side of it: 0.27 on a
+    /// real photo. That is not the eye being cut off; the eye stands.
+    #[test]
+    fn an_eye_touching_its_box_is_not_cut_off() {
+        let fits = [
+            (Ask::Boxed, f(0.80, 0.0, 0.004, 0.27)),
+            (Ask::Open, f(0.78, 0.0, 0.007, 0.0)),
+            (Ask::BoxOnly, f(0.45, 0.0, 0.002, 0.04)),
+        ];
+        assert_eq!(pick(&fits, false), Ask::Boxed);
+    }
+
+    #[test]
+    fn a_dab_is_a_click() {
+        let fits = [
+            (Ask::Boxed, f(1.0, 0.0, 0.001, 0.31)),
+            (Ask::Open, f(1.0, 0.0, 0.07, 0.0)),
+            (Ask::BoxOnly, f(0.9, 0.0, 0.001, 0.06)),
+        ];
+        assert_eq!(pick(&fits, true), Ask::Open);
+    }
+
+    #[test]
+    fn a_dab_is_one_short_touch() {
+        let dab = Path {
+            points: vec![(10.0, 10.0), (14.0, 12.0)],
+            radius: 5.0,
+            exclude: false,
+        };
+        let stroke = Path {
+            points: vec![(10.0, 10.0), (40.0, 10.0)],
+            radius: 5.0,
+            exclude: false,
+        };
+        assert!(is_dab(std::slice::from_ref(&dab)));
+        assert!(!is_dab(&[stroke]));
+        assert!(!is_dab(&[dab.clone(), dab]));
+    }
+
     #[test]
     fn covering_more_of_the_paint_does_not_displace_an_uncut_answer() {
         let fits = [
@@ -1005,7 +1343,7 @@ mod tests {
             (Ask::Open, f(1.0, 0.0, 0.35, 0.0)),
             (Ask::BoxOnly, f(0.62, 0.0, 0.03, 0.02)),
         ];
-        assert_eq!(pick(&fits), Ask::Boxed);
+        assert_eq!(pick(&fits, false), Ask::Boxed);
     }
 
     #[test]
@@ -1015,7 +1353,7 @@ mod tests {
             (Ask::Open, f(0.84, 0.4, 0.07, 0.0)),
             (Ask::BoxOnly, f(0.80, 0.0, 0.06, 0.03)),
         ];
-        assert_eq!(pick(&fits), Ask::BoxOnly);
+        assert_eq!(pick(&fits, false), Ask::BoxOnly);
     }
 
     /// A line across a mug: the boxed answer is a band the width of the line,
@@ -1027,17 +1365,17 @@ mod tests {
             (Ask::Open, f(0.98, 0.0, 0.08, 0.0)),
             (Ask::BoxOnly, f(1.0, 0.0, 0.02, 0.5)),
         ];
-        assert_eq!(pick(&fits), Ask::Open);
+        assert_eq!(pick(&fits, false), Ask::Open);
     }
 
     #[test]
     fn covering_the_exclusion_or_the_whole_frame_does_not_win() {
         let fits = [
-            (Ask::Boxed, f(0.90, 0.0, 0.1, 0.2)),
+            (Ask::Boxed, f(0.90, 0.0, 0.1, 0.4)),
             (Ask::Open, f(0.95, 0.5, 0.2, 0.0)),
             (Ask::BoxOnly, f(1.0, 0.0, 0.9, 0.0)),
         ];
-        assert_eq!(pick(&fits), Ask::Boxed);
+        assert_eq!(pick(&fits, false), Ask::Boxed);
     }
 
     #[test]
@@ -1091,6 +1429,10 @@ mod tests {
             println!("decoder output: {}", o.name);
         }
         let embeddings = generate_image_embeddings(&image, &encoder).unwrap();
+        // Optional: a local copy of the matting model.
+        let matting = std::env::var("AG_MATTE_MODEL")
+            .ok()
+            .map(|p| matting::load(std::path::Path::new(&p)).unwrap());
         let (width, height) = image.dimensions();
         let view = View {
             rotation: 0.0,
@@ -1108,8 +1450,13 @@ mod tests {
 
         for (name, strokes) in cases {
             let t = std::time::Instant::now();
-            let (mask, report) = segment_reporting(&decoder, &embeddings, &strokes, &view).unwrap();
-            let mask = follow_edges(&mask, &image);
+            let (_, report) = segment_reporting(&decoder, &embeddings, &strokes, &view).unwrap();
+            let models = Models {
+                encoder: &encoder,
+                decoder: &decoder,
+                matting: matting.as_deref(),
+            };
+            let mask = select(&models, &embeddings, &strokes, &view, &image).unwrap();
             println!("{name}: {:?}", t.elapsed());
             for (ask, fit, won) in report {
                 println!("  {}{ask:?}: {fit:.2?}", if won { "* " } else { "  " });
@@ -1139,6 +1486,20 @@ mod tests {
                 }
             }
             overlay.save(out.join(format!("{name}.jpg"))).unwrap();
+            if let Some((x0, y0, x1, y1)) = bounding_box(&mask) {
+                let pad = ((x1 - x0).max(y1 - y0) / 4).max(20);
+                let (cx0, cy0) = (x0.saturating_sub(pad), y0.saturating_sub(pad));
+                let (cx1, cy1) = ((x1 + pad).min(width), (y1 + pad).min(height));
+                let close = imageops::crop_imm(&overlay, cx0, cy0, cx1 - cx0, cy1 - cy0).to_image();
+                let k = (600.0 / (cx1 - cx0).max(cy1 - cy0) as f64).max(1.0);
+                let close = imageops::resize(
+                    &close,
+                    ((cx1 - cx0) as f64 * k) as u32,
+                    ((cy1 - cy0) as f64 * k) as u32,
+                    FilterType::Nearest,
+                );
+                close.save(out.join(format!("{name}_close.jpg"))).unwrap();
+            }
         }
     }
 }

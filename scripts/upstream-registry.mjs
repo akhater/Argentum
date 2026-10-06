@@ -744,6 +744,7 @@ export const REGISTRY = [
     what: 'Paint roughly over something and the mask snaps to it (Lightroom\'s Select Object).',
     ours: [
       'src-tauri/src/mods/object_brush.rs',
+      'src-tauri/src/mods/matting.rs',
       'src/argentum/ObjectBrush.tsx',
       'src/argentum/objectMask.ts',
       'src/argentum/photoBox.ts',
@@ -801,12 +802,18 @@ export const REGISTRY = [
           + 'lands, this module is rewritten against it, not patched.' },
       { file: 'src-tauri/src/mask_generation.rs', how: 'calls',
         note: 'Renders the result as any ai-subject mask, from maskDataBase64 and the transform fields.' },
+      { file: 'src/hooks/useTauriListeners.ts', how: 'calls',
+        note:
+          'matting.rs emits their ai-model-download-start / -finish events, so the first-use '
+          + 'download of the edge model shows in their notice. Renamed events mean a silent '
+          + '100 MB download.' },
       { file: 'src-tauri/src/cache_utils.rs', symbol: 'GEOMETRY_KEYS', how: 'calls' },
       { file: 'src-tauri/src/lib.rs', symbol: 'get_cached_full_warped_image', how: 'calls' },
     ],
     tests: [
       'src-tauri/src/mods/object_brush.rs #[cfg(test)]',
-      'src-tauri/src/mods/object_brush.rs on_a_real_photo (ignored; needs the SAM models and ORT_DYLIB_PATH)',
+      'src-tauri/src/mods/object_brush.rs on_a_real_photo (ignored; needs the SAM models and ORT_DYLIB_PATH; AG_MATTE_MODEL adds the edge model)',
+      'src-tauri/src/mods/matting.rs #[cfg(test)]',
       'Manual: Masks > Object, paint over a thing, release; paint again to add, Alt-paint to take away; Start over clears.',
     ],
     keywords: /segment|\bsam\d?\b|select.?object|object.?select|subject.?mask|ai.?mask|point.?prompt|scribble|mask.?type/i,

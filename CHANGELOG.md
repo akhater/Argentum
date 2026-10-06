@@ -21,9 +21,24 @@ Newest first.
   only then do the others compete on how much of the paint they cover. Covering
   more is not, by itself, evidence. AK's first test painted over a see-through
   lamp, which is mostly the wall behind it, and the version that preferred the
-  larger answer selected the whole wall. The winner is refined once with its
-  own low-resolution answer and goes through the same edge refinement as a
-  Subject mask, so the two look alike.
+  larger answer selected the whole wall. A boxed answer counts as cut off only
+  when it runs into a third of its box's edge: an eye fills its own box
+  corner to corner and is still the eye, while the first version, at an
+  eighth, returned it as the eye and eyebrow, and on AK's photo as the face.
+  A single dab is a click. Parts of the answer the paint does not touch are
+  dropped.
+
+  Then the edge. SAM sees the whole photo at 1024 pixels and draws its mask on
+  a 256-pixel grid, so a small thing came back with a halo. Anything under a
+  fifth of the photo gets a second SAM pass on a crop around it, where it has
+  the 1024 pixels to itself; and every mask's edge is redrawn at full
+  resolution by a matting model, ViTMatte, in a band one and a half grid cells
+  either side of SAM's edge. Wider was tried and let a hair mask take the
+  face. The model, about 100 MB, downloads the first time the Object mask is
+  used, is verified by SHA-256, and is credited in About. Without it the brush
+  falls back to the Subject mask's edge. Measured on this machine's CPU: about
+  1-3 s a stroke for large things and 2-7 s for small ones, which the second
+  pass costs.
 
   It edits none of RapidRAW's files. The tile is added to their toolbox array
   at startup; the component it creates is turned into an ordinary Subject mask
