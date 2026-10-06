@@ -27,6 +27,7 @@ pub mod export_precision;
 pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;
+pub mod object_brush;
 pub mod preview_encode;
 pub mod profile_correction;
 pub mod profile_matrix;

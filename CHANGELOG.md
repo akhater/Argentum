@@ -4,6 +4,37 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## 26.41.3 — 2026-10-06
+
+### Added
+
+- **The Object mask: paint roughly over something and the mask snaps to it.**
+  Lightroom's Select Object, in brush form. It is a new tile in the masks
+  toolbox, after Subject. Paint over a thing and let go; paint again to add to
+  it, hold Alt to paint what to leave out, and Start over to clear. Brush size
+  is on the bar above the photo and on Ctrl+Up / Ctrl+Down, as for the brush.
+
+  A stroke becomes three requests to SAM, the model RapidRAW's Subject mask
+  already uses: points spread along the paint inside a box around it, the same
+  points with no box, and the box alone. The boxed answer is kept unless its
+  box visibly cut the object off, or it runs over an Alt-painted exclusion;
+  only then do the others compete on how much of the paint they cover. Covering
+  more is not, by itself, evidence. AK's first test painted over a see-through
+  lamp, which is mostly the wall behind it, and the version that preferred the
+  larger answer selected the whole wall. The winner is refined once with its
+  own low-resolution answer and goes through the same edge refinement as a
+  Subject mask, so the two look alike.
+
+  It edits none of RapidRAW's files. The tile is added to their toolbox array
+  at startup; the component it creates is turned into an ordinary Subject mask
+  carrying its strokes, so their renderer, export, Grow and Feather, and
+  embedding warm-up all apply unchanged; and the canvas takes a press on the
+  mask stage before their box tool sees it. Everything this leans on is listed
+  in the `object-brush` registry entry. `mods/object_brush.rs` carries unit
+  tests and an ignored test that runs the real model on a photo and writes
+  overlays; on two test photos a stroke takes about 0.2 s once the photo is
+  encoded.
+
 ## 26.41.2 — 2026-10-05
 
 ### Fixed

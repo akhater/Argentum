@@ -65,5 +65,11 @@
   "superResolutionApplyBatch": "Apply to selection",
   "superResolutionSave": "Save enlarged photo",
   "superResolutionCancel": "Cancel",
-  "superResolutionToolbar": "Open Super Resolution"
+  "superResolutionToolbar": "Open Super Resolution",
+  "objectBrushHint": "Paint over the object. Hold Alt to paint what to leave out.",
+  "objectBrushRefine": "Paint more to add to it, or Alt-paint to take away.",
+  "objectBrushSize": "Size",
+  "objectBrushSizeTooltip": "Brush size (Ctrl+Up / Ctrl+Down)",
+  "objectBrushStartOver": "Start over",
+  "objectBrushFailed": "Object selection failed"
 }

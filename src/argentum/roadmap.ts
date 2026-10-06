@@ -150,6 +150,14 @@ const MILESTONES: Milestone[] = [
       + 'on their own is still to be worked out.',
   },
   {
+    stage: 'done',
+    what: 'Paint to select an object',
+    release: '26.41.3',
+    why:
+      'Paint roughly over something and the mask snaps to its edges, as Lightroom\'s '
+      + 'Select Object does. Paint more to add to it, or hold Alt to leave part out.',
+  },
+  {
     stage: 'planned',
     what: 'Name what is in the picture, then mask it',
     why:

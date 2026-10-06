@@ -32,6 +32,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.3',
+    date: '2026-10-06',
+    notes: [
+      'New Object mask: paint roughly over something and the mask snaps to its '
+      + 'edges. Paint more to add to it, or hold Alt to leave part out.',
+    ],
+  },
+  {
     version: '26.41.2',
     date: '2026-10-05',
     notes: [
