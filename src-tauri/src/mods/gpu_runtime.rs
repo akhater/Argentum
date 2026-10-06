@@ -27,9 +27,32 @@
 //! session fails and enlargement falls back to the CPU.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result};
 use ort::session::Session;
+
+/// Set the moment this process points ONNX Runtime at the DirectML build.
+///
+/// `ort` loads the library lazily, on first use, from the path it was given,
+/// and panics if nothing is there. So once pointed, the runtime has to stay on
+/// disk until the app exits even if no model has run yet — deleting it would
+/// take down the next AI feature used, masks and all. The AI models page in
+/// Settings asks this before removing it, and removes it at the next start
+/// instead. Set conservatively: also when the call turned out to be a no-op
+/// because another build had already loaded.
+static POINTED_AT: AtomicBool = AtomicBool::new(false);
+
+/// Whether the DirectML runtime must stay on disk until this run ends.
+pub fn held_until_exit() -> bool {
+    POINTED_AT.load(Ordering::SeqCst)
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn point_at(path: &Path) {
+    POINTED_AT.store(true, Ordering::SeqCst);
+    let _ = ort::init_from(path.to_string_lossy());
+}
 
 /// Where a session runs. Only Windows ever has a GPU here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -168,7 +191,7 @@ mod windows_runtime {
         }
         let Ok(path) = runtime_path(app) else { return };
         if installed(&path, &build) {
-            let _ = ort::init_from(path.to_string_lossy());
+            super::point_at(&path);
         }
     }
 
@@ -197,7 +220,7 @@ mod windows_runtime {
         }
         // A no-op when ONNX Runtime is already loaded; then the check below
         // reports whichever build that was.
-        let _ = ort::init_from(path.to_string_lossy());
+        super::point_at(&path);
         Ok(DirectMLExecutionProvider::default().is_available()?)
     }
 

@@ -4,6 +4,32 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## Unreleased
+
+### Added
+
+- **Settings > About > AI models.** Each AI feature downloads its model the
+  first time it is used, and nothing showed what had arrived: a few features in,
+  the models folder holds well over a gigabyte. The new section lists every
+  model the app knows about, what it is for, whether it is on this computer and
+  how big it is (or how big the download is), with the total, and a Delete
+  button per model. A deleted model downloads again the next time its feature is
+  used; there are no download buttons.
+
+  The list is `mods/model_catalog.rs`, and adding a model is one entry there.
+  RapidRAW's file names and addresses are private constants in its
+  `ai_processing.rs`, so they are copied rather than made public, and its tests
+  read that file: they fail if a copy drifts or upstream saves a model the list
+  does not know. Deleting goes through `mods/model_manager.rs`, which takes an
+  id, never a path, and only removes names the list gives, directly inside the
+  models folder and not through a link.
+
+  Something Windows will not delete while it is open, and the graphics card
+  runtime once a run has picked it (ONNX Runtime loads it lazily from that path
+  and would crash the next AI feature if it vanished), is not reported as
+  deleted. It is marked, shown as waiting, and removed by `startup::init` at the
+  next start, before anything can load it.
+
 ## 26.41.3 — 2026-10-06
 
 ### Changed

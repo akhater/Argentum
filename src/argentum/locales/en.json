@@ -65,5 +65,17 @@
   "superResolutionApplyBatch": "Apply to selection",
   "superResolutionSave": "Save enlarged photo",
   "superResolutionCancel": "Cancel",
-  "superResolutionToolbar": "Open Super Resolution"
+  "superResolutionToolbar": "Open Super Resolution",
+  "modelsTitle": "AI models",
+  "modelsDesc": "Each AI feature downloads the model it needs the first time you use it, and keeps it on this computer. Delete one to get the space back: it downloads again the next time you use that feature.",
+  "modelsMaskSet": "The four mask models arrive together. Using any AI mask downloads whichever of them is missing.",
+  "modelsTotal": "On this computer: {size}",
+  "modelsOther": "{size} of that is other files in the models folder, such as an unfinished download.",
+  "modelsDownloaded": "Downloaded",
+  "modelsPartial": "Partly downloaded",
+  "modelsNotDownloaded": "Not downloaded",
+  "modelsDownloadSize": "{size} to download",
+  "modelsDelete": "Delete this model",
+  "modelsWaiting": "Will be removed when Argentum next starts",
+  "modelsAtNextStart": "Argentum is using this right now, so it can't be deleted yet. It will be removed the next time Argentum starts."
 }

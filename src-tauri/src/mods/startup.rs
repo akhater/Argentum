@@ -18,6 +18,13 @@ use tauri::{AppHandle, Manager};
 /// Best-effort throughout. A directory that cannot be resolved disables the
 /// feature that needed it; none of them is a reason to stop the app starting.
 pub fn init(app: &AppHandle) {
+    // Models deleted in Settings last run that could not go while it was
+    // running. Now, while nothing has loaded them — and before the graphics
+    // card runtime is pinned, which is one of them.
+    if let Ok(models) = super::model_manager::models_dir(app) {
+        super::model_manager::finish_pending_removals(&models);
+    }
+
     // First, before anything can run a model: once ONNX Runtime has loaded,
     // which build it is can no longer change.
     super::gpu_runtime::pin_if_installed(app);
