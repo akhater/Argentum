@@ -26,13 +26,11 @@ import { ROADMAP, Stage } from './roadmap';
 import { KNOWN_ISSUES } from './knownIssues';
 import { CREDITS } from './credits';
 import { RELEASES } from './releases';
-import AiModels from './AiModels';
 
-type Section = 'about' | 'models' | 'credits' | 'roadmap' | 'issues' | 'releases';
+type Section = 'about' | 'credits' | 'roadmap' | 'issues' | 'releases';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'about', label: 'About' },
-  { id: 'models', label: 'AI models' },
   { id: 'credits', label: 'Credits' },
   { id: 'roadmap', label: 'Roadmap' },
   { id: 'issues', label: 'Known issues' },
@@ -239,7 +237,6 @@ export default function AboutPanel() {
       </div>
 
       {section === 'about' && <AboutSection version={version} t={t} />}
-      {section === 'models' && <AiModels />}
       {section === 'credits' && <CreditsSection />}
       {section === 'roadmap' && <RoadmapSection t={t} />}
       {section === 'issues' && <KnownIssuesSection t={t} />}

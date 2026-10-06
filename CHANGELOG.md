@@ -4,6 +4,15 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## Unreleased
+
+### Changed
+
+- **AI models has its own tab in Settings, after Processing.** It was a section
+  of About, which is not where anyone looks for downloaded models. Their
+  settings panel gains the tab entry and the slot; the panel is still
+  `src/argentum/AiModels.tsx`.
+
 ## 26.41.4 — 2026-10-06
 
 ### Added
