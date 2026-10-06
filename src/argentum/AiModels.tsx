@@ -1,5 +1,5 @@
 /**
- * Settings > AI Models: what has been downloaded, and deleting it. Ours.
+ * Settings > Processing > AI Models: what has been downloaded, and deleting it. Ours.
  *
  * Every AI feature fetches its model the first time it is used, and a few uses
  * in the models folder holds well over a gigabyte nobody chose to download.

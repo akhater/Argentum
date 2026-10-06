@@ -15,7 +15,6 @@ import {
   Keyboard,
   Bookmark,
   Aperture,
-  BrainCircuit,
   Scaling,
   Image as ImageIcon,
   Mouse,
@@ -574,7 +573,6 @@ export default function SettingsPanel({
       { id: 'general', label: t('settings.categories.general'), icon: SlidersHorizontal },
       { id: 'gear', label: 'My Gear', icon: Aperture },
       { id: 'processing', label: t('settings.categories.processing'), icon: Cpu },
-      { id: 'models', label: 'AI Models', icon: BrainCircuit },
       { id: 'shortcuts', label: t('settings.categories.shortcuts'), icon: Keyboard },
       { id: 'about', label: 'About', icon: Info },
     ],
@@ -1554,7 +1552,7 @@ export default function SettingsPanel({
                   </div>
                 </motion.div>
               )}
-              {(activeCategory === 'about' || activeCategory === 'gear' || activeCategory === 'models') &&<div data-argentum={activeCategory} />}
+              {(activeCategory === 'about' || activeCategory === 'gear' || activeCategory === 'processing') &&<div data-argentum={activeCategory} />}
               {activeCategory === 'processing' && (
                 <motion.div
                   key="processing"

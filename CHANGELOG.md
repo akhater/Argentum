@@ -8,9 +8,12 @@ Newest first.
 
 ### Changed
 
-- **AI models has its own tab in Settings, after Processing.** It was a section
-  of About, which is not where anyone looks for downloaded models. Their
-  settings panel gains the tab entry and the slot; the panel is still
+- **AI models moved to Settings > Processing, as a tab beside Processing
+  Engine.** It was a section of About, which is not where anyone looks for
+  downloaded models. The slot their settings panel already renders for About
+  and My Gear now renders for Processing too, just before the page;
+  `src/argentum/ProcessingTabs.tsx` puts the two tabs there and hides their
+  page while AI Models is picked. The panel is still
   `src/argentum/AiModels.tsx`.
 
 ## 26.41.4 — 2026-10-06

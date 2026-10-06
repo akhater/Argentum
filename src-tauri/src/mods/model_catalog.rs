@@ -5,7 +5,7 @@
 //! Each AI feature downloads its own model the first time it is used, into
 //! `app_data_dir()/models`, and nothing kept track of what had arrived: a few
 //! uses in, that folder holds well over a gigabyte that the user never chose to
-//! download and had no way to see or remove. Settings > AI Models reads
+//! download and had no way to see or remove. Settings > Processing > AI Models reads
 //! this list to show what is there and delete what is not wanted.
 //!
 //! ADDING A MODEL IS ONE ENTRY

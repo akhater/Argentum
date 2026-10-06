@@ -429,12 +429,12 @@ const review164ObjectBrush = [
   review164Decision('40a112e1', 'object-brush:src/components/panel/Editor.tsx', 'not-applicable', 'The neutral-grey canvas toggle adds a colour preference and its plumbing. isPanningDisabled, which keeps a brush stroke from panning the photo while an ai-subject component is active, is untouched.'),
 ];
 
-// Added 2026-10-06, when model-manager moved from a section of About to its own
-// Settings tab and so began depending on their settings panel: a categories
-// entry after Processing and the data-argentum slot.
+// Added 2026-10-06, when model-manager moved from a section of About to a tab
+// inside Settings > Processing and so began depending on their settings panel:
+// the existing data-argentum slot, now rendered just before the Processing page.
 const review164ModelsTab = [
-  review164Decision('f00145c1', 'model-manager:src/components/panel/SettingsPanel.tsx', 'not-applicable', 'Comments out the highlight compression control inside the Processing page. The categories list and the data-argentum slot the AI Models tab uses are untouched.'),
-  review164Decision('40a112e1', 'model-manager:src/components/panel/SettingsPanel.tsx', 'not-applicable', 'Adds the neutral-grey canvas switch to the General page. The categories list and the data-argentum slot are untouched, and upstream has no models page of its own.'),
+  review164Decision('f00145c1', 'model-manager:src/components/panel/SettingsPanel.tsx', 'not-applicable', 'Comments out the highlight compression control inside a Processing card. The page still follows the slot as one element, which is all ProcessingTabs relies on to hide it while AI Models is picked.'),
+  review164Decision('40a112e1', 'model-manager:src/components/panel/SettingsPanel.tsx', 'not-applicable', 'Adds the neutral-grey canvas switch to the General page. The Processing page and the slot are untouched, and upstream has no models page of its own.'),
 ];
 
 // Added 2026-10-05, when ai-gpu-runtime registered its step around
@@ -469,7 +469,7 @@ export const REVIEW_164_DECISIONS = [
 ];
 
 // 219 from the catch-up itself, the two highlight corrections, the five
-// object-brush readings, the two AI Models tab readings, the four
+// object-brush readings, the two Processing > AI Models readings, the four
 // ai-gpu-runtime decisions and the framing decision above.
 if (REVIEW_164_DECISIONS.length !== 233) {
   throw new Error(`RapidRAW 1.6.4 review should account for 233 overlaps, found ${REVIEW_164_DECISIONS.length}`);

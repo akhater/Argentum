@@ -409,7 +409,7 @@ export const REGISTRY = [
     dependsOn: [
       { file: 'src/App.tsx', how: 'calls', note: 'The single <Argentum /> mount.' },
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'data-argentum slot for the about, gear and models categories.' },
+        note: 'data-argentum slot for the about, gear and processing categories.' },
       { file: 'src/components/panel/right/CropPanel.tsx', symbol: 'useAutoDetectOnLoad', how: 'calls' },
       { pattern: /^src\/i18n\/locales\/[\w-]+\.json$/, how: 'extends',
         note: 'Their locale files carry the rebrand and a few Argentum strings, because '
@@ -863,17 +863,20 @@ export const REGISTRY = [
   {
     id: 'model-manager',
     kind: 'feature',
-    what: 'Settings > AI Models: every model the app downloads, what is on disk, and deleting it.',
+    what: 'Settings > Processing > AI Models: every model the app downloads, what is on disk, and deleting it.',
     ours: [
       'src-tauri/src/mods/model_catalog.rs',
       'src-tauri/src/mods/model_manager.rs',
       'src/argentum/AiModels.tsx',
+      'src/argentum/ProcessingTabs.tsx',
     ],
     // What is relied on is what their code writes to disk, and that it fetches
     // a missing model again. The tab itself is a line in their settings panel.
     dependsOn: [
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'The AI Models tab after Processing: a categories entry and the data-argentum slot.' },
+        note: 'The about/gear data-argentum slot also renders for processing, just before their '
+          + 'Processing page. ProcessingTabs hides the slot\'s next sibling while AI Models is '
+          + 'picked, so it relies on that page following the slot and setting no inline display.' },
       { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
         note:
           'Their model file names and addresses are private constants here, copied into '
@@ -886,7 +889,7 @@ export const REGISTRY = [
     tests: [
       'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
       'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
-      'Manual: Settings > AI Models lists the models with sizes; delete one, use its feature, and it downloads again.',
+      'Manual: Settings > Processing > AI Models lists the models with sizes; delete one, use its feature, and it downloads again.',
       'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
     ],
     keywords: /models?.?(manag|download|delet|remov|folder|dir\b|size)|(delete|remove|manage|clear).{0,12}models?\b|disk.?(space|usage)/i,
