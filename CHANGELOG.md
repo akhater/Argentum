@@ -4,6 +4,18 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## Unreleased
+
+### Changed
+
+- **AI models moved to Settings > Processing, as a tab beside Processing
+  Engine.** It was a section of About, which is not where anyone looks for
+  downloaded models. The slot their settings panel already renders for About
+  and My Gear now renders for Processing too, just before the page;
+  `src/argentum/ProcessingTabs.tsx` puts the two tabs there and hides their
+  page while AI Models is picked. The panel is still
+  `src/argentum/AiModels.tsx`.
+
 ## 26.41.4 — 2026-10-06
 
 ### Added

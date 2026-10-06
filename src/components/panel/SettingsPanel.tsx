@@ -1552,7 +1552,7 @@ export default function SettingsPanel({
                   </div>
                 </motion.div>
               )}
-              {(activeCategory === 'about' || activeCategory === 'gear') && <div data-argentum={activeCategory} />}
+              {(activeCategory === 'about' || activeCategory === 'gear' || activeCategory === 'processing') &&<div data-argentum={activeCategory} />}
               {activeCategory === 'processing' && (
                 <motion.div
                   key="processing"

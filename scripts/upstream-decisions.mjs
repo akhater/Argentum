@@ -429,6 +429,14 @@ const review164ObjectBrush = [
   review164Decision('40a112e1', 'object-brush:src/components/panel/Editor.tsx', 'not-applicable', 'The neutral-grey canvas toggle adds a colour preference and its plumbing. isPanningDisabled, which keeps a brush stroke from panning the photo while an ai-subject component is active, is untouched.'),
 ];
 
+// Added 2026-10-06, when model-manager moved from a section of About to a tab
+// inside Settings > Processing and so began depending on their settings panel:
+// the existing data-argentum slot, now rendered just before the Processing page.
+const review164ModelsTab = [
+  review164Decision('f00145c1', 'model-manager:src/components/panel/SettingsPanel.tsx', 'not-applicable', 'Comments out the highlight compression control inside a Processing card. The page still follows the slot as one element, which is all ProcessingTabs relies on to hide it while AI Models is picked.'),
+  review164Decision('40a112e1', 'model-manager:src/components/panel/SettingsPanel.tsx', 'not-applicable', 'Adds the neutral-grey canvas switch to the General page. The Processing page and the slot are untouched, and upstream has no models page of its own.'),
+];
+
 // Added 2026-10-05, when ai-gpu-runtime registered its step around
 // ORT_DYLIB_PATH in lib.rs. The four commits in this window that touch lib.rs
 // are the TIFF-precision chain (#1466) and its merges; none of them changes how
@@ -455,15 +463,16 @@ export const REVIEW_164_DECISIONS = [
   ...review164CompositionDecisions,
   ...review164HighlightCorrection,
   ...review164ObjectBrush,
+  ...review164ModelsTab,
   ...review164GpuRuntime,
   ...review164SuperResolutionFraming,
 ];
 
 // 219 from the catch-up itself, the two highlight corrections, the five
-// object-brush readings, the four ai-gpu-runtime decisions and the framing
-// decision above.
-if (REVIEW_164_DECISIONS.length !== 231) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 231 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+// object-brush readings, the two Processing > AI Models readings, the four
+// ai-gpu-runtime decisions and the framing decision above.
+if (REVIEW_164_DECISIONS.length !== 233) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 233 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
