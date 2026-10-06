@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Argentum"
-version = "26.41.3"
+version = "26.41.4"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -13,6 +13,7 @@ dependencies = [
  "chrono",
  "fern",
  "filetime",
+ "flate2",
  "futures",
  "fuzzy-matcher",
  "glam 0.33.5",

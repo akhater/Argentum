@@ -108,6 +108,14 @@ export const CREDITS: CreditGroup[] = [
           'The open-source models behind Argentum’s local 2x and 4x photo enlargement. ' +
           'The original project is released under the BSD-3-Clause licence.',
       },
+      {
+        name: 'ONNX Runtime with DirectML',
+        href: 'https://github.com/microsoft/onnxruntime',
+        what:
+          'Microsoft’s DirectML build of the runtime RapidRAW already uses. On Windows it is ' +
+          'downloaded the first time you enlarge a photo, and runs the enlargement on the ' +
+          'graphics card. MIT licence.',
+      },
     ],
   },
   {

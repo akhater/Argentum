@@ -18,6 +18,10 @@ use tauri::{AppHandle, Manager};
 /// Best-effort throughout. A directory that cannot be resolved disables the
 /// feature that needed it; none of them is a reason to stop the app starting.
 pub fn init(app: &AppHandle) {
+    // First, before anything can run a model: once ONNX Runtime has loaded,
+    // which build it is can no longer change.
+    super::gpu_runtime::pin_if_installed(app);
+
     // Kept so the camera-profile table can ask which photo is open and never
     // throw that one away.
     super::profile_correction::remember_app_handle(app.clone());

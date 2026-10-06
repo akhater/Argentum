@@ -175,8 +175,11 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
 
         <div className="relative min-h-[320px] flex-1 overflow-hidden bg-[#111] p-4">
           {preview ? (
-            <div className="relative flex h-full min-h-[320px] items-center justify-center overflow-hidden rounded-lg">
-              <div className="relative h-full w-full" style={{ transform: `scale(${zoom})` }}>
+            <div className="relative flex h-[60vh] min-h-[320px] items-center justify-center overflow-hidden rounded-lg">
+              {/* Absolutely filled, not h-full: a percentage of a parent with only a
+                  min-height resolves to auto, and with both images absolute the box
+                  collapsed to nothing - the labels and slider showed, the photos did not. */}
+              <div className="absolute inset-0" style={{ transform: `scale(${zoom})` }}>
                 <img
                   src={preview.result}
                   alt={agT('superResolutionResult').replace('{scale}', String(scale))}

@@ -3,7 +3,7 @@ name = "Argentum"
 description = "A blazingly-fast, non-destructive, and GPU-accelerated RAW image editor built with performance in mind."
 authors = ["Timon Käch"]
 edition = "2024"
-version = "26.41.3"
+version = "26.41.4"
 rust-version = "1.98"
 
 [lib]
@@ -120,3 +120,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-cli
 # Argentum: the display's colour profile — see mods/display_monitor.rs.
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem"] }
+# Argentum: AI enlargement on the GPU — see mods/gpu_runtime.rs. Same ort as above,
+# plus the DirectML entry point; flate2 unpacks the runtime from its NuGet package.
+ort = { version = "=2.0.0-rc.10", features = ["directml"] }
+flate2 = "1"

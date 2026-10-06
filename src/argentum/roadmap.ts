@@ -152,7 +152,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'Paint to select an object',
-    release: '26.41.3',
+    release: '26.41.4',
     why:
       'Paint roughly over something and the mask snaps to its edges, as Lightroom\'s '
       + 'Select Object does. Paint more to add to it, or hold Alt to leave part out.',

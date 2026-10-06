@@ -173,7 +173,7 @@ become an event our code listens for, not another line of theirs.
 
 ### A mask tool, with no anchor at all
 
-The object brush (26.41.3) needed three things that look as if they need
+The object brush (26.41.4) needed three things that look as if they need
 hooks: a tile in their masks toolbox, a mask type their renderer can draw, and
 a canvas that paints instead of drawing a box. It has none. The pattern, for
 the next mask tool:
