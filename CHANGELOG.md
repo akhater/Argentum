@@ -14,19 +14,28 @@ Newest first.
   it, hold Alt to paint what to leave out, and Start over to clear. Brush size
   is on the bar above the photo and on Ctrl+Up / Ctrl+Down, as for the brush.
 
-  A stroke becomes three requests to SAM, the model RapidRAW's Subject mask
-  already uses: points spread along the paint inside a box around it, the same
-  points with no box, and the box alone. The boxed answer is kept unless its
-  box visibly cut the object off, or it runs over an Alt-painted exclusion;
-  only then do the others compete on how much of the paint they cover. Covering
-  more is not, by itself, evidence. AK's first test painted over a see-through
-  lamp, which is mostly the wall behind it, and the version that preferred the
-  larger answer selected the whole wall. A boxed answer counts as cut off only
-  when it runs into a third of its box's edge: an eye fills its own box
-  corner to corner and is still the eye, while the first version, at an
-  eighth, returned it as the eye and eyebrow, and on AK's photo as the face.
-  A single dab is a click. Parts of the answer the paint does not touch are
-  dropped.
+  A stroke is put to SAM, the model RapidRAW's Subject mask already uses, five
+  ways: points spread along the paint inside a box round the paint; inside a
+  box round the brush's *path*; inside a box half as big again; with no box;
+  and the box alone. The rules that choose, each from a failure on a real
+  photo:
+
+  - **The brush selects what was painted.** The answer inside the paint's box
+    is the default. Covering more of the paint is not evidence for a bigger
+    answer: rough paint over a see-through lamp is mostly the wall behind it,
+    and the first version selected the wall.
+  - **Spill is not meant.** Rough paint along an eye also covers lid; given a
+    box that holds the spill, SAM returns eye and lid. The answer in the box
+    round the brush's path is taken when it is smaller, covers the path, and
+    explains nearly as much of the paint (within 10%). The last condition
+    keeps a shoe's strap from winning over the shoe.
+  - **Cut off means grow, but only so far.** When the answer runs into a third
+    of its box's edge — a line drawn across a mug, a stroke down a lawn — the
+    box grows by half the paint's size on every side. The unbounded answer is
+    used only for a single dab, which is a click: unbounded, a line along an
+    eye on AK's close-up became the whole face.
+  - Parts of the answer the paint does not touch are dropped, and Alt-painted
+    exclusions put the boxed answer in doubt.
 
   Then the edge. SAM sees the whole photo at 1024 pixels and draws its mask on
   a 256-pixel grid, so a small thing came back with a halo. Anything under a

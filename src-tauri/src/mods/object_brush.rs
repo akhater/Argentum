@@ -282,7 +282,7 @@ fn is_dab(paths: &[Path]) -> bool {
 
 /// The paint's bounding box, brush width included, grown by `BOX_MARGIN` and
 /// kept inside the image.
-fn paint_box(paths: &[Path], frame: (f64, f64)) -> Option<[f64; 4]> {
+fn paint_box(paths: &[Path], frame: (f64, f64), grow: f64) -> Option<[f64; 4]> {
     let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
     for path in paths.iter().filter(|p| !p.exclude) {
         for &(x, y) in &path.points {
@@ -295,7 +295,7 @@ fn paint_box(paths: &[Path], frame: (f64, f64)) -> Option<[f64; 4]> {
     if b[0] > b[2] {
         return None;
     }
-    let margin = BOX_MARGIN * (b[2] - b[0]).max(b[3] - b[1]);
+    let margin = grow * (b[2] - b[0]).max(b[3] - b[1]);
     Some([
         (b[0] - margin).max(0.0),
         (b[1] - margin).max(0.0),
@@ -473,7 +473,16 @@ type Report = Vec<(Ask, Fit, bool)>;
 enum Ask {
     /// Points along the paint, inside a box around it. The usual answer.
     Boxed,
-    /// The same points, no box: for paint that covers only part of the thing.
+    /// The same points in a box round the brush's path rather than its paint:
+    /// for rough paint that spilled past the thing. See `tighter_is_meant`.
+    Tight,
+    /// The same points in a box half as big again on every side: for paint
+    /// that covers only part of the thing. Bounded, so it can reach past the
+    /// paint but never jump to everything around it.
+    Grown,
+    /// The same points, no box at all. Only for a dab, which has no extent
+    /// to grow from: a dab is a click, and this is SAM's answer to a click.
+    /// Unbounded, it took a whole face for a line drawn along an eye.
     Open,
     /// The box alone: for paint that crosses several parts of one thing, where
     /// a point on each part pulls the answer apart.
@@ -601,14 +610,18 @@ fn segment_reporting(
     // Only the middle of an exclusion. Rough paint over the fingers holding a
     // mug clips the mug's edge too; that edge was never meant.
     let exclude = rasterise(&paths, true, EXCLUSION_CORE, sw, sh, 1.0);
-    let bx = paint_box(&paths, frame);
+    let bx = paint_box(&paths, frame, BOX_MARGIN);
+    let grown = paint_box(&paths, frame, GROWN_MARGIN);
 
+    let tight = path_box(&paths, frame);
     let mut candidates = Vec::new();
-    for ask in [Ask::Boxed, Ask::Open, Ask::BoxOnly] {
-        let prompt = match ask {
-            Ask::Boxed => Prompt::new(&positive, &negative, bx),
-            Ask::Open => Prompt::new(&positive, &negative, None),
-            Ask::BoxOnly => Prompt::new(&[], &negative, bx),
+    for ask in [Ask::Boxed, Ask::Tight, Ask::Grown, Ask::Open, Ask::BoxOnly] {
+        let (prompt, its_box) = match ask {
+            Ask::Boxed => (Prompt::new(&positive, &negative, bx), bx),
+            Ask::Tight => (Prompt::new(&positive, &negative, tight), tight),
+            Ask::Grown => (Prompt::new(&positive, &negative, grown), grown),
+            Ask::Open => (Prompt::new(&positive, &negative, None), None),
+            Ask::BoxOnly => (Prompt::new(&[], &negative, bx), bx),
         };
         let answer = decode(decoder, embeddings, &prompt, None, small)?;
         let mut f = fit(
@@ -617,14 +630,28 @@ fn segment_reporting(
             answer.height,
             &include,
             &exclude,
-            if ask == Ask::Open { None } else { bx },
+            its_box,
         );
         f.confidence = answer.score as f64;
         candidates.push((ask, f, prompt, answer));
     }
 
     let fits: Vec<(Ask, Fit)> = candidates.iter().map(|(a, f, _, _)| (*a, *f)).collect();
-    let chosen = pick(&fits, is_dab(&paths));
+    let mut chosen = pick(&fits, is_dab(&paths));
+    if chosen == Ask::Boxed {
+        let line = rasterise(&paths, false, 0.0, sw, sh, 1.0);
+        let mask = |ask: Ask| {
+            candidates
+                .iter()
+                .find(|(a, ..)| *a == ask)
+                .map(|(.., answer)| &answer.mask)
+        };
+        if let (Some(boxed), Some(tight)) = (mask(Ask::Boxed), mask(Ask::Tight))
+            && tighter_is_meant(boxed, tight, &include, &line)
+        {
+            chosen = Ask::Tight;
+        }
+    }
     let (_, _, prompt, first) = candidates.into_iter().find(|(a, ..)| *a == chosen).unwrap();
     let report = fits.into_iter().map(|(a, f)| (a, f, a == chosen)).collect();
 
@@ -679,6 +706,7 @@ fn pick(fits: &[(Ask, Fit)], dab: bool) -> Ask {
         |f: &Fit| f.covered - 2.0 * f.trespass - f.cut - if f.area > MAX_AREA { 1.0 } else { 0.0 };
     let boxed = score(&boxed);
     fits.iter()
+        .filter(|(a, _)| *a != Ask::Open && *a != Ask::Tight)
         .map(|(a, f)| (*a, score(f)))
         .filter(|&(a, s)| a == Ask::Boxed || s > boxed + TIE)
         .max_by(|x, y| x.1.total_cmp(&y.1))
@@ -727,6 +755,12 @@ pub struct Models<'a> {
     pub matting: Option<&'a Mutex<Session>>,
 }
 
+/// How far the second box reaches past the paint on every side, as a share
+/// of the paint's larger side. Half again: a line across a mug grows to the
+/// mug, a stroke down a lawn to the lawn, a line along an eye to the eye and
+/// its lids — not to the face.
+const GROWN_MARGIN: f64 = 0.5;
+
 /// Things smaller than this share of the photo get a second look on a crop.
 /// To SAM the whole photo is 1024 pixels, so an eye or a bracelet is a few
 /// dozen of them and its mask is a few cells of a 256-pixel grid: the first
@@ -737,6 +771,14 @@ const ZOOM_BELOW: f64 = 0.2;
 
 /// Context around a small thing for its second look, as a share of its size.
 const ZOOM_MARGIN: f64 = 0.25;
+
+/// How much of the brush's path an answer on the close-up must cover to
+/// count as the thing painted along.
+const PATH_COVERAGE: f64 = 0.8;
+
+/// How much less of the paint the tighter answer may cover than the bigger
+/// one and still be taken.
+const COVER_SLACK: f64 = 0.1;
 
 /// How well the second look must agree with the first to replace it.
 const ZOOM_AGREEMENT: f64 = 0.5;
@@ -882,8 +924,9 @@ fn refine(
     Ok(out)
 }
 
-/// SAM on the crop alone, prompted with the strokes and a box that fits the
-/// first answer, then once more refined by its own answer.
+/// SAM on the crop alone, with a box that fits the first answer and, unless
+/// it was a dab, with a box round the brush's path; `tighter_is_meant`
+/// decides between them.
 fn zoom(
     models: &Models,
     strokes: &[Stroke],
@@ -895,26 +938,55 @@ fn zoom(
     let embeddings = generate_image_embeddings(crop, models.encoder)?;
     let (cw, ch) = crop.dimensions();
     let scale = SAM_SIZE / cw.max(ch) as f64;
-    let inside = |&(x, y): &(f64, f64)| x >= 0.0 && y >= 0.0 && x < cw as f64 && y < ch as f64;
 
-    let paths = to_frame(strokes, view, 1.0);
-    let local = |exclude: bool, budget: usize| -> Vec<(f64, f64)> {
-        sample_paths(paths.iter().filter(|p| p.exclude == exclude), budget)
-            .into_iter()
-            .map(|p| (p.0 - origin.0 as f64, p.1 - origin.1 as f64))
-            .filter(inside)
-            .map(|p| (p.0 * scale, p.1 * scale))
-            .collect()
-    };
+    // The strokes in the crop's SAM frame.
+    let paths: Vec<Path> = to_frame(strokes, view, 1.0)
+        .into_iter()
+        .map(|p| Path {
+            points: p
+                .points
+                .iter()
+                .map(|&(x, y)| ((x - origin.0 as f64) * scale, (y - origin.1 as f64) * scale))
+                .collect(),
+            radius: (p.radius * scale).max(1.0),
+            exclude: p.exclude,
+        })
+        .collect();
+    let frame = ((cw as f64 * scale).round(), (ch as f64 * scale).round());
+    let (sw, sh) = (frame.0 as usize, frame.1 as usize);
+    let inside = |&(x, y): &(f64, f64)| x >= 0.0 && y >= 0.0 && x < frame.0 && y < frame.1;
+    let positive: Vec<(f64, f64)> = sample_paths(paths.iter().filter(|p| !p.exclude), MAX_POSITIVE)
+        .into_iter()
+        .filter(inside)
+        .collect();
+    let negative: Vec<(f64, f64)> = sample_paths(paths.iter().filter(|p| p.exclude), MAX_NEGATIVE)
+        .into_iter()
+        .filter(inside)
+        .collect();
+
     let (fx0, fy0, fx1, fy1) = found;
-    let bx = [fx0 as f64, fy0 as f64, fx1 as f64, fy1 as f64].map(|v| v * scale);
-    let prompt = Prompt::new(
-        &local(false, MAX_POSITIVE),
-        &local(true, MAX_NEGATIVE),
-        Some(bx),
-    );
+    let generous = [fx0 as f64, fy0 as f64, fx1 as f64, fy1 as f64].map(|v| v * scale);
+    let mut prompts = vec![Prompt::new(&positive, &negative, Some(generous))];
+    if !is_dab(&paths)
+        && let Some(tight) = path_box(&paths, frame)
+    {
+        prompts.push(Prompt::new(&positive, &negative, Some(tight)));
+    }
 
-    let first = decode(models.decoder, &embeddings, &prompt, None, (cw, ch))?;
+    // Chosen at SAM's own resolution, then the winner again at full size,
+    // refined by its first answer.
+    let line = rasterise(&paths, false, 0.0, sw, sh, 1.0);
+    let paint = rasterise(&paths, false, 1.0, sw, sh, 1.0);
+    let size = (sw as u32, sh as u32);
+    let mut answers = Vec::new();
+    for prompt in prompts {
+        let answer = decode(models.decoder, &embeddings, &prompt, None, size)?;
+        answers.push((prompt, answer));
+    }
+    let take_tight = answers.len() > 1
+        && tighter_is_meant(&answers[0].1.mask, &answers[1].1.mask, &paint, &line);
+    let (prompt, first) = answers.swap_remove(if take_tight { 1 } else { 0 });
+
     let second = decode(
         models.decoder,
         &embeddings,
@@ -929,6 +1001,70 @@ fn zoom(
         .collect();
     GrayImage::from_raw(second.width as u32, second.height as u32, pixels)
         .ok_or_else(|| anyhow!("the decoder returned a mask of the wrong size"))
+}
+
+/// Whether the tighter of two answers is the one meant.
+///
+/// Rough paint spills past what it is over: a brush run along an eye also
+/// covers some lid with its edge, and SAM, given a box that holds that spill,
+/// returns the eye and the lid. Given a box round the brush's *path*, it
+/// returns the eye. The tighter answer is taken when it is smaller, still
+/// covers the path, and explains nearly as much of the paint as the bigger
+/// one.
+///
+/// The last condition is what keeps a part from winning. A stroke across a
+/// shoe passes over its strap and charms; tight round the path, SAM returned
+/// those alone. They cover the path but leave most of the painted shoe out.
+/// Measured: the eye with its lids and the eye alone differ by 0.05 and 0.06
+/// of the paint; the shoe and its strap by much more.
+fn tighter_is_meant(bigger: &[f32], tighter: &[f32], paint: &[bool], line: &[bool]) -> bool {
+    let (mut on_line, mut length) = (0usize, 0usize);
+    let (mut big, mut tight, mut painted) = (0usize, 0usize, 0usize);
+    let (mut big_on_paint, mut tight_on_paint) = (0usize, 0usize);
+    for i in 0..bigger.len() {
+        let (b, t) = (bigger[i] > 0.0, tighter[i] > 0.0);
+        big += b as usize;
+        tight += t as usize;
+        if line[i] {
+            length += 1;
+            on_line += t as usize;
+        }
+        if paint[i] {
+            painted += 1;
+            big_on_paint += b as usize;
+            tight_on_paint += t as usize;
+        }
+    }
+    let painted = painted.max(1) as f64;
+    tight > 0
+        && tight < big
+        && on_line as f64 >= PATH_COVERAGE * length.max(1) as f64
+        && tight_on_paint as f64 / painted >= big_on_paint as f64 / painted - COVER_SLACK
+}
+
+/// A box round the brush's path, reaching half a brush width either side of
+/// it: the rough paint's own spill is left out.
+fn path_box(paths: &[Path], frame: (f64, f64)) -> Option<[f64; 4]> {
+    let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    for path in paths.iter().filter(|p| !p.exclude) {
+        let r = path.radius * 0.5;
+        for &(x, y) in &path.points {
+            b = [
+                b[0].min(x - r),
+                b[1].min(y - r),
+                b[2].max(x + r),
+                b[3].max(y + r),
+            ];
+        }
+    }
+    (b[0] < b[2]).then(|| {
+        [
+            b[0].max(0.0),
+            b[1].max(0.0),
+            b[2].min(frame.0),
+            b[3].min(frame.1),
+        ]
+    })
 }
 
 fn iou(a: &GrayImage, b: &GrayImage) -> f64 {
@@ -1210,7 +1346,7 @@ mod tests {
             radius: 10.0,
             exclude: false,
         };
-        let b = paint_box(std::slice::from_ref(&p), (1024.0, 683.0)).unwrap();
+        let b = paint_box(std::slice::from_ref(&p), (1024.0, 683.0), BOX_MARGIN).unwrap();
         let margin = BOX_MARGIN * 120.0;
         assert!((b[0] - (90.0 - margin)).abs() < 1e-9);
         assert!((b[3] - (160.0 + margin)).abs() < 1e-9);
@@ -1220,7 +1356,7 @@ mod tests {
             radius: 10.0,
             exclude: false,
         };
-        let b = paint_box(&[edge], (1024.0, 683.0)).unwrap();
+        let b = paint_box(&[edge], (1024.0, 683.0), BOX_MARGIN).unwrap();
         assert_eq!((b[0], b[1]), (0.0, 0.0));
     }
 
@@ -1231,7 +1367,7 @@ mod tests {
             radius: 4.0,
             exclude: true,
         };
-        assert!(paint_box(&[p], (1024.0, 1024.0)).is_none());
+        assert!(paint_box(&[p], (1024.0, 1024.0), BOX_MARGIN).is_none());
     }
 
     #[test]
@@ -1246,6 +1382,48 @@ mod tests {
         assert!(g[6 * 20 + 4]); // inside the rounded end
         assert!(!g[9 * 20 + 10]); // beyond the radius
         assert!(!g[5 * 20 + 19]); // past the end
+    }
+
+    /// A 1-D world is enough: cells are pixels in a row.
+    fn row(on: std::ops::Range<usize>, len: usize) -> Vec<f32> {
+        (0..len)
+            .map(|i| if on.contains(&i) { 1.0 } else { -1.0 })
+            .collect()
+    }
+    fn flags(on: std::ops::Range<usize>, len: usize) -> Vec<bool> {
+        (0..len).map(|i| on.contains(&i)).collect()
+    }
+
+    /// Paint over an eye spills onto the lid; the eye alone covers the path
+    /// and nearly all the paint, so it is the one meant.
+    #[test]
+    fn the_eye_without_its_lid_is_meant() {
+        let eye_and_lid = row(10..60, 100);
+        let eye = row(20..55, 100);
+        // The lid takes 2 of 37 painted cells: about the 0.06 measured.
+        let paint = flags(19..56, 100);
+        let path = flags(25..50, 100);
+        assert!(tighter_is_meant(&eye_and_lid, &eye, &paint, &path));
+    }
+
+    /// A stroke across a shoe crosses its strap; the strap covers the path
+    /// but leaves most of the painted shoe out, so the shoe stands.
+    #[test]
+    fn a_part_on_the_path_is_not_meant() {
+        let shoe = row(10..80, 100);
+        let strap = row(30..50, 100);
+        let paint = flags(15..75, 100);
+        let path = flags(32..48, 100);
+        assert!(!tighter_is_meant(&shoe, &strap, &paint, &path));
+    }
+
+    #[test]
+    fn a_tighter_answer_off_the_path_is_not_meant() {
+        let thing = row(10..80, 100);
+        let corner = row(10..30, 100);
+        let paint = flags(10..35, 100);
+        let path = flags(12..60, 100);
+        assert!(!tighter_is_meant(&thing, &corner, &paint, &path));
     }
 
     #[test]
@@ -1357,15 +1535,30 @@ mod tests {
     }
 
     /// A line across a mug: the boxed answer is a band the width of the line,
-    /// filling the box edge to edge. The open one is the mug.
+    /// filling the box edge to edge. The grown one is the mug.
     #[test]
     fn a_box_that_cut_the_object_off_loses() {
         let fits = [
             (Ask::Boxed, f(1.0, 0.0, 0.02, 0.5)),
+            (Ask::Grown, f(0.98, 0.0, 0.08, 0.02)),
             (Ask::Open, f(0.98, 0.0, 0.08, 0.0)),
             (Ask::BoxOnly, f(1.0, 0.0, 0.02, 0.5)),
         ];
-        assert_eq!(pick(&fits, false), Ask::Open);
+        assert_eq!(pick(&fits, false), Ask::Grown);
+    }
+
+    /// AK's close-up: a line along an eye looks cut off by its own thin box,
+    /// and the unbounded answer is the whole face, which covers all the paint.
+    /// The unbounded answer is for a click only.
+    #[test]
+    fn a_line_along_an_eye_never_becomes_the_face() {
+        let fits = [
+            (Ask::Boxed, f(0.83, 0.0, 0.004, 0.36)),
+            (Ask::Grown, f(0.90, 0.0, 0.01, 0.05)),
+            (Ask::Open, f(1.0, 0.0, 0.45, 0.0)),
+            (Ask::BoxOnly, f(0.50, 0.0, 0.002, 0.15)),
+        ];
+        assert_ne!(pick(&fits, false), Ask::Open);
     }
 
     #[test]
