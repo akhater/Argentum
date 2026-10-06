@@ -29,6 +29,8 @@ pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;
 pub mod matting;
+pub mod model_catalog;
+pub mod model_manager;
 pub mod object_brush;
 pub mod preview_encode;
 pub mod profile_correction;

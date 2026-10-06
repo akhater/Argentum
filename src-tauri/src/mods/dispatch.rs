@@ -112,6 +112,12 @@ struct DepthArgs {
     depth: u8,
 }
 
+/// A catalogue id from `mods::model_catalog`, never a path.
+#[derive(Deserialize)]
+struct IdArgs {
+    id: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelArgs {
@@ -265,6 +271,15 @@ pub async fn ag(
                 app_handle,
             )
             .await?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "list_ai_models" => {
+            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+            serde_json::to_value(crate::mods::model_manager::list(&dir)).map_err(|e| e.to_string())
+        }
+        "delete_ai_model" => {
+            let a: IdArgs = args_for(&name, args)?;
+            let r = crate::mods::model_manager::delete_for_app(&app_handle, &a.id)?;
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown Argentum command: {other}")),

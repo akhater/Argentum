@@ -37,6 +37,8 @@ export const RELEASES: Release[] = [
     notes: [
       'New Object mask: paint roughly over something and the mask snaps to its '
       + 'edges. Paint more to add to it, or hold Alt to leave part out.',
+      'Settings > About > AI models shows which AI models are on this computer, '
+      + 'how much space each takes, and lets you delete them.',
     ],
   },
   {

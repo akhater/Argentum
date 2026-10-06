@@ -860,6 +860,35 @@ export const REGISTRY = [
     ],
     keywords: /onnx|\bort\b|directml|execution.?provider|ORT_DYLIB|gpu.*(ai|model|onnx)/i,
   },
+  {
+    id: 'model-manager',
+    kind: 'feature',
+    what: 'Settings > About > AI models: every model the app downloads, what is on disk, and deleting it.',
+    ours: [
+      'src-tauri/src/mods/model_catalog.rs',
+      'src-tauri/src/mods/model_manager.rs',
+      'src/argentum/AiModels.tsx',
+    ],
+    // Nothing of theirs is edited. What is relied on is what their code
+    // writes to disk, and that it fetches a missing model again.
+    dependsOn: [
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
+        note:
+          'Their model file names and addresses are private constants here, copied into '
+          + 'model_catalog.rs rather than made pub. Its tests read this file and fail when a copy '
+          + 'drifts or a new *_FILENAME appears (their SAM3 models are the next one). Deleting relies '
+          + 'on download_and_verify_model fetching a missing file again on next use, and on '
+          + 'get_models_dir staying app_data_dir()/models. If upstream starts remembering downloads '
+          + 'anywhere else, a deleted model would stop coming back and this must follow.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
+      'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
+      'Manual: Settings > About > AI models lists the models with sizes; delete one, use its feature, and it downloads again.',
+      'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
+    ],
+    keywords: /models?.?(manag|download|delet|remov|folder|dir\b|size)|(delete|remove|manage|clear).{0,12}models?\b|disk.?(space|usage)/i,
+  },
 ];
 
 /**
