@@ -65,7 +65,10 @@
 //! what the sliders asked for, so an old edit comes back slightly stronger, and
 //! with its highlights.
 
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -90,32 +93,118 @@ pub fn upgraded(path: &str, mut adjustments: Value) -> Value {
 }
 
 /// An old edit found on disk, and what it becomes.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Found {
     pub path: String,
-    /// The whole edit, converted: what the frontend saves.
+    /// The whole edit, converted.
     pub adjustments: Value,
     /// The old white balance numbers, globally and per mask in order: how the
     /// frontend recognises the edit still open in the editor unconverted.
     pub was: Value,
 }
 
-/// The photos among `paths` whose saved edit is old, each with its edit
-/// converted. Writes nothing: the frontend saves each through their own command,
-/// which keeps the rest of the sidecar and redraws the thumbnail.
-pub fn find_old(paths: &[String]) -> Vec<Found> {
-    paths
-        .iter()
-        .filter_map(|path| {
-            let (_, sidecar) = crate::file_management::parse_virtual_path(path);
-            let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
-            is_old(&saved).then(|| Found {
-                path: path.clone(),
-                was: white_balance_numbers(&saved),
-                adjustments: upgraded(path, saved),
-            })
-        })
-        .collect()
+/// Every edit converted this session, by path. The editor asks by path, and the
+/// answer must not depend on whether the file has been saved yet: a photo
+/// opened while its folder was being converted may have been loaded before.
+fn converted() -> &'static Mutex<HashMap<String, Found>> {
+    static CONVERTED: OnceLock<Mutex<HashMap<String, Found>>> = OnceLock::new();
+    CONVERTED.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// The photos among `paths` whose edit is old or was converted earlier this
+/// session, each converted, and separately the ones converted by this call,
+/// which still need saving. Writes nothing; `save_in_turn` does that.
+pub fn find_old(paths: &[String]) -> (Vec<Found>, Vec<Found>) {
+    let mut all = Vec::new();
+    let mut new = Vec::new();
+    for path in paths {
+        if let Some(found) = converted().lock().unwrap().get(path) {
+            all.push(found.clone());
+            continue;
+        }
+        let (_, sidecar) = crate::file_management::parse_virtual_path(path);
+        let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+        if !is_old(&saved) {
+            continue;
+        }
+        let found = Found {
+            path: path.clone(),
+            was: white_balance_numbers(&saved),
+            adjustments: upgraded(path, saved),
+        };
+        converted()
+            .lock()
+            .unwrap()
+            .insert(path.clone(), found.clone());
+        new.push(found.clone());
+        all.push(found);
+    }
+    (all, new)
+}
+
+/// Save converted edits one at a time, through their own save command, which
+/// keeps the rest of the sidecar and redraws the thumbnail.
+///
+/// One at a time is the point. Their command returns at once and redraws the
+/// thumbnail on a thread of its own, with nothing limiting how many run, and
+/// each one decodes the whole RAW. The first version of this sweep saved every
+/// old edit in a folder at once; on AK's first start that was dozens of 24 MP
+/// decodes together, and the preview worker died. So each save waits for its
+/// thumbnail before the next starts.
+///
+/// Skipped: the photo open in the editor, which the editor saves itself once
+/// it holds the converted values, and any file that is no longer old on disk,
+/// which means the editor has saved it since and what it saved must stand.
+pub fn save_in_turn(found: Vec<Found>, app: tauri::AppHandle) {
+    if found.is_empty() {
+        return;
+    }
+    std::thread::spawn(move || {
+        use tauri::{Listener, Manager};
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<String>();
+        let listener = app.listen("thumbnail-generated", move |event| {
+            if let Ok(payload) = serde_json::from_str::<Value>(event.payload())
+                && let Some(path) = payload.get("path").and_then(Value::as_str)
+            {
+                let _ = done_tx.send(path.to_string());
+            }
+        });
+        let state = app.state::<crate::app_state::AppState>();
+        for item in found {
+            let open = state
+                .original_image
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|loaded| loaded.path.clone());
+            if open.as_deref() == Some(item.path.as_str()) {
+                continue;
+            }
+            let (_, sidecar) = crate::file_management::parse_virtual_path(&item.path);
+            if !is_old(&crate::exif_processing::load_sidecar(&sidecar).adjustments) {
+                continue;
+            }
+            if let Err(e) = crate::file_management::save_metadata_and_update_thumbnail(
+                item.path.clone(),
+                item.adjustments,
+                app.clone(),
+                state.clone(),
+            ) {
+                log::warn!("[wb_legacy] could not save {}: {e}", item.path);
+                continue;
+            }
+            // Wait for its thumbnail, or give up: a failed redraw sends nothing.
+            let deadline = Instant::now() + Duration::from_secs(30);
+            while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+                match done_rx.recv_timeout(left) {
+                    Ok(path) if path == item.path => break,
+                    Ok(_) => continue,
+                    Err(_) => break,
+                }
+            }
+        }
+        app.unlisten(listener);
+    });
 }
 
 /// Convert presets saved before 1.6.5. They describe a correction, not a photo,
@@ -542,8 +631,13 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        let found = find_old(&[old.clone(), new, untouched, unedited]);
+        let (found, fresh) = find_old(&[old.clone(), new, untouched, unedited]);
         assert_eq!(found.len(), 1);
+        assert_eq!(
+            fresh.len(),
+            1,
+            "converted by this call, so still to be saved"
+        );
         assert_eq!(found[0].path, old);
         assert!(
             found[0]
@@ -556,6 +650,12 @@ mod tests {
             found[0].was,
             json!({ "temperature": -30.0, "tint": 0.0, "masks": [] })
         );
+
+        // Asked again before anything was saved: the same answer, from memory,
+        // and nothing new to save.
+        let (again, fresh) = find_old(std::slice::from_ref(&old));
+        assert_eq!(again[0].adjustments, found[0].adjustments);
+        assert!(fresh.is_empty());
     }
 
     #[test]

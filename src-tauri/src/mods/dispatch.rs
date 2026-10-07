@@ -71,13 +71,6 @@ struct PathsArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct EditArgs {
-    path: String,
-    adjustments: serde_json::Value,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct RawToneArgs {
     path: String,
     mode: String,
@@ -262,20 +255,15 @@ pub async fn ag(
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
         "upgrade_white_balance" => {
-            let a: EditArgs = args_for(&name, args)?;
-            let edit = tokio::task::spawn_blocking(move || {
-                crate::mods::wb_legacy::upgraded(&a.path, a.adjustments)
-            })
-            .await
-            .map_err(|e| e.to_string())?;
-            Ok(edit)
-        }
-        "find_old_white_balance" => {
+            // The photos among these whose saved edit predates RapidRAW 1.6.5,
+            // converted. Those converted by this call are saved one at a time
+            // in the background; see wb_legacy::save_in_turn.
             let a: PathsArgs = args_for(&name, args)?;
-            let found =
+            let (found, fresh) =
                 tokio::task::spawn_blocking(move || crate::mods::wb_legacy::find_old(&a.paths))
                     .await
                     .map_err(|e| e.to_string())?;
+            crate::mods::wb_legacy::save_in_turn(fresh, app_handle);
             serde_json::to_value(found).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown Argentum command: {other}")),

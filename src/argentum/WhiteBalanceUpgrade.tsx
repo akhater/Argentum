@@ -9,11 +9,13 @@
  *
  * Two things, both through their own machinery:
  *
- * - **A folder sweep.** When the library lists a folder, Rust reports which
- *   saved edits in it are old, converted. Each is saved with their
- *   `save_metadata_and_update_thumbnail`, which keeps the rest of the sidecar
- *   and redraws the thumbnail, so the grid and any batch export see the
- *   converted edit.
+ * - **A folder sweep.** When the library lists a folder, Rust converts the old
+ *   edits in it and saves them through their `save_metadata_and_update_thumbnail`,
+ *   which keeps the rest of the sidecar and redraws the thumbnail, so the grid
+ *   and any batch export see the converted edit. One at a time, each waiting for
+ *   its thumbnail: the first version fired every save at once, each redraw
+ *   decoded a whole RAW on a thread of its own, and on AK's first start the
+ *   preview worker died under it. See wb_legacy::save_in_turn.
  * - **The open photo.** The editor may have loaded an old edit before the sweep
  *   reached it — session restore at launch, or a quick click. Their loader
  *   fills in `whiteBalance: null`, so the next save would store the old numbers
@@ -21,6 +23,8 @@
  *   photo whose saved edit is old, and its white balance numbers are still the
  *   old ones, only those numbers are replaced, as a fresh load (history reset)
  *   rather than an edit, and saved. Anything else already changed is kept.
+ *   Rust remembers what it converted this session, so the answer is the same
+ *   whether or not the sweep has saved the file yet.
  *
  * Each path is looked at once per session; a converted edit carries the
  * `whiteBalance` key and is never converted again.
@@ -110,23 +114,18 @@ export default function WhiteBalanceUpgrade() {
     const paths = imageList.map((image) => image.path).filter((path) => !looked.current.has(path));
     if (paths.length === 0) return;
     paths.forEach((path) => looked.current.add(path));
-    ag<Found[]>('find_old_white_balance', { paths })
-      .then((found) => {
-        for (const old of found) {
-          // The open photo is the editor's to save, or it would save over us.
-          if (old.path !== useEditorStore.getState().selectedImage?.path) {
-            save(old.path, old.adjustments);
-          }
-        }
-      })
-      .catch((err) => console.error('White balance conversion failed:', err));
+    // Rust saves what it converts, one at a time, and leaves the open photo to
+    // the editor.
+    ag<Found[]>('upgrade_white_balance', { paths }).catch((err) =>
+      console.error('White balance conversion failed:', err),
+    );
   }, [imageList]);
 
   useEffect(() => {
     if (!openPath) return;
     let cancel = () => {};
     let stopped = false;
-    ag<Found[]>('find_old_white_balance', { paths: [openPath] })
+    ag<Found[]>('upgrade_white_balance', { paths: [openPath] })
       .then(([found]) => {
         if (found && !stopped) cancel = fixOpen(found);
       })
