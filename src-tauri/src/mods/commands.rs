@@ -147,6 +147,7 @@ pub async fn sample_processed_pixel(
     let mut all = crate::image_processing::get_all_adjustments_from_json(
         &adjustments,
         loaded.is_raw,
+        loaded.as_shot_white_balance,
         tonemapper,
         // The photo this readout took out of the state a moment ago, not
         // "whatever is open now" — those are the same until somebody opens

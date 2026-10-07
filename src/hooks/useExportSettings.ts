@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { ExportPreset, WatermarkAnchor } from '../components/ui/ExportImportProperties';
+import { BorderBasis, ExportPreset, WatermarkAnchor } from '../components/ui/ExportImportProperties';
 
 export function useExportSettings() {
   const [fileFormat, setFileFormat] = useState('jpeg');
@@ -8,6 +8,15 @@ export function useExportSettings() {
   const [resizeMode, setResizeMode] = useState('longEdge');
   const [resizeValue, setResizeValue] = useState(2048);
   const [dontEnlarge, setDontEnlarge] = useState(true);
+  const [enablePad, setEnablePad] = useState(false);
+  const [padRatioWidth, setPadRatioWidth] = useState(1);
+  const [padRatioHeight, setPadRatioHeight] = useState(1);
+  const [padColor, setPadColor] = useState('#ffffff');
+  const [enableBorder, setEnableBorder] = useState(false);
+  const [borderBasis, setBorderBasis] = useState<BorderBasis>(BorderBasis.LongEdge);
+  const [borderHorizontalPercent, setBorderHorizontalPercent] = useState(2);
+  const [borderVerticalPercent, setBorderVerticalPercent] = useState(2);
+  const [borderColor, setBorderColor] = useState('#ffffff');
   const [keepMetadata, setKeepMetadata] = useState(true);
   const [preserveTimestamps, setPreserveTimestamps] = useState(false);
   const [stripGps, setStripGps] = useState(true);
@@ -30,6 +39,15 @@ export function useExportSettings() {
     setResizeMode(preset.resizeMode);
     setResizeValue(preset.resizeValue);
     setDontEnlarge(preset.dontEnlarge);
+    setEnablePad(preset.enablePad ?? false);
+    setPadRatioWidth(preset.padRatioWidth ?? 1);
+    setPadRatioHeight(preset.padRatioHeight ?? 1);
+    setPadColor(preset.padColor ?? '#ffffff');
+    setEnableBorder(preset.enableBorder ?? false);
+    setBorderBasis((preset.borderBasis as BorderBasis) ?? BorderBasis.LongEdge);
+    setBorderHorizontalPercent(preset.borderHorizontalPercent ?? 2);
+    setBorderVerticalPercent(preset.borderVerticalPercent ?? 2);
+    setBorderColor(preset.borderColor ?? '#ffffff');
     setKeepMetadata(preset.keepMetadata);
     setPreserveTimestamps(preset.preserveTimestamps ?? false);
     setStripGps(preset.stripGps);
@@ -54,6 +72,15 @@ export function useExportSettings() {
       resizeMode,
       resizeValue,
       dontEnlarge,
+      enablePad,
+      padRatioWidth,
+      padRatioHeight,
+      padColor,
+      enableBorder,
+      borderBasis,
+      borderHorizontalPercent,
+      borderVerticalPercent,
+      borderColor,
       keepMetadata,
       preserveTimestamps,
       stripGps,
@@ -76,6 +103,15 @@ export function useExportSettings() {
       resizeMode,
       resizeValue,
       dontEnlarge,
+      enablePad,
+      padRatioWidth,
+      padRatioHeight,
+      padColor,
+      enableBorder,
+      borderBasis,
+      borderHorizontalPercent,
+      borderVerticalPercent,
+      borderColor,
       keepMetadata,
       preserveTimestamps,
       stripGps,
@@ -106,6 +142,24 @@ export function useExportSettings() {
     setResizeValue,
     dontEnlarge,
     setDontEnlarge,
+    enablePad,
+    setEnablePad,
+    padRatioWidth,
+    setPadRatioWidth,
+    padRatioHeight,
+    setPadRatioHeight,
+    padColor,
+    setPadColor,
+    enableBorder,
+    setEnableBorder,
+    borderBasis,
+    setBorderBasis,
+    borderHorizontalPercent,
+    setBorderHorizontalPercent,
+    borderVerticalPercent,
+    setBorderVerticalPercent,
+    borderColor,
+    setBorderColor,
     keepMetadata,
     setKeepMetadata,
     preserveTimestamps,

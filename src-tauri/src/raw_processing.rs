@@ -1,9 +1,13 @@
 use crate::image_processing::apply_orientation;
+use crate::white_balance::WhiteBalance;
 use anyhow::{Result, anyhow};
 use image::{DynamicImage, ImageBuffer, Rgba};
 use rawler::{
-    decoders::{Orientation, RawDecodeParams},
-    imgop::develop::{DemosaicAlgorithm, Intermediate, ProcessingStep, RawDevelop},
+    decoders::{Decoder, Orientation, RawDecodeParams},
+    imgop::{
+        develop::{DemosaicAlgorithm, Intermediate, ProcessingStep, RawDevelop},
+        xyz::Illuminant,
+    },
     rawimage::{RawImage, RawPhotometricInterpretation},
     rawsource::RawSource,
 };
@@ -29,6 +33,26 @@ pub fn develop_raw_image(
         photo_path,
     )?;
     Ok(apply_orientation(developed_image, orientation))
+}
+
+fn metadata_orientation(decoder: &dyn Decoder, source: &RawSource) -> Result<Orientation> {
+    let metadata = decoder.raw_metadata(source, &RawDecodeParams::default())?;
+    Ok(metadata
+        .exif
+        .orientation
+        .map(Orientation::from_u16)
+        .unwrap_or(Orientation::Normal))
+}
+
+pub fn extract_embedded_preview(file_bytes: &[u8]) -> Option<DynamicImage> {
+    let source = RawSource::new_from_slice(file_bytes);
+    let decoder = rawler::get_decoder(&source).ok()?;
+    let preview = decoder
+        .full_image(&source, &RawDecodeParams::default())
+        .ok()??;
+    let orientation =
+        metadata_orientation(decoder.as_ref(), &source).unwrap_or(Orientation::Normal);
+    Some(apply_orientation(preview, orientation))
 }
 
 fn is_linear_raw_format(raw_image: &RawImage) -> bool {
@@ -80,12 +104,7 @@ fn develop_internal(
     let mut raw_image: RawImage = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
     crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path); // Argentum: the single decode anchor, see mods/decode.rs
 
-    let metadata = decoder.raw_metadata(&source, &RawDecodeParams::default())?;
-    let orientation = metadata
-        .exif
-        .orientation
-        .map(Orientation::from_u16)
-        .unwrap_or(Orientation::Normal);
+    let orientation = metadata_orientation(decoder.as_ref(), &source)?;
 
     let is_linear_format = is_linear_raw_format(&raw_image);
 
@@ -218,6 +237,38 @@ fn develop_internal(
     };
 
     Ok((dynamic_image, orientation))
+}
+
+pub fn read_as_shot_white_balance(file_bytes: &[u8]) -> Option<WhiteBalance> {
+    let source = RawSource::new_from_slice(file_bytes);
+    let decoder = rawler::get_decoder(&source).ok()?;
+    let raw_image = decoder
+        .raw_image(&source, &RawDecodeParams::default(), true)
+        .ok()?;
+    if raw_image.cpp == 1 && !matches!(raw_image.photometric, RawPhotometricInterpretation::Cfa(_))
+    {
+        return None;
+    }
+
+    let wb_coeffs =
+        crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
+    let neutral = if wb_coeffs[0].is_nan() {
+        [1.0; 4]
+    } else {
+        wb_coeffs.map(|c| 1.0 / c)
+    };
+
+    let matrices = &raw_image.color_matrix;
+    if let (Some(matrix_a), Some(matrix_d65)) =
+        (matrices.get(&Illuminant::A), matrices.get(&Illuminant::D65))
+    {
+        return WhiteBalance::from_dual_illuminant_camera_neutral(matrix_a, matrix_d65, &neutral);
+    }
+
+    let color_matrix = matrices
+        .get(&Illuminant::D65)
+        .or_else(|| matrices.values().next())?;
+    WhiteBalance::from_camera_neutral(color_matrix, &neutral)
 }
 
 pub fn get_fast_demosaic_scale_factor(

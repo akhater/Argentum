@@ -1092,6 +1092,7 @@ pub fn generate_lut_previews(
             let swatch_adjustments = get_all_adjustments_from_json(
                 &swatch_lut_json,
                 is_raw,
+                loaded_image.as_shot_white_balance,
                 tm_override,
                 Some(loaded_image.path.as_str()),
             );
