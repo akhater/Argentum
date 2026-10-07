@@ -3207,6 +3207,7 @@ pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadat
         let _ = fs::write(&sidecar_path, json);
     }
 
+    crate::mods::wb_legacy::upgrade_loaded(&path, &mut metadata.adjustments); // Argentum: white balance saved before 1.6.5
     Ok(metadata)
 }
 

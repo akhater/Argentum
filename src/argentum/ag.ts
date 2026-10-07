@@ -6,8 +6,8 @@
  * see `mods/dispatch.rs` for why that matters. This hides the envelope so
  * callers write what they mean.
  *
- *     const wb = await ag<SolvedWhiteBalance>('solve_white_balance_at_point', {
- *       x, y, jsAdjustments,
+ *     const wb = await ag<AutoWhiteBalanceResult>('detect_auto_white_balance', {
+ *       jsAdjustments, mode,
  *     });
  *
  * Arguments go over as the object you pass, camelCase intact; the dispatcher

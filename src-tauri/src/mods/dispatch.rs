@@ -139,12 +139,6 @@ pub async fn ag(
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
     match name.as_str() {
-        "solve_white_balance_at_point" => {
-            let a: PointArgs = args_for(&name, args)?;
-            let r =
-                commands::solve_white_balance_at_point(a.x, a.y, a.js_adjustments, state).await?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
         "detect_auto_white_balance" => {
             let a: AutoWbArgs = args_for(&name, args)?;
             let r = commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?;
