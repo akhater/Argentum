@@ -41,7 +41,7 @@ import CameraProfile from './CameraProfile';
 import RawToneRendering from './RawToneRendering';
 import HighlightRecovery from './HighlightRecovery';
 import MyGear from './MyGear';
-import ProcessingTabs from './ProcessingTabs';
+import AiModels from './AiModels';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
@@ -134,10 +134,10 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
   const gear = useAnchor('[data-argentum="gear"]');
 
-  // Above the Processing page in Settings, in the same slot About and My Gear
-  // use: its Processing Engine and AI Models tabs. AI models were a section of
-  // About, where nobody looks.
-  const processing = useAnchor('[data-argentum="processing"]');
+  // Settings > General, straight under their Generative AI card: the models
+  // that card's features download, what is on disk, and deleting them. It was
+  // a tab beside Processing until RapidRAW 1.6.5 moved its AI settings here.
+  const aiModels = useAnchor('[data-argentum="ai-models"]');
 
   // Under the format buttons in the export panel. Their file renders this marker
   // only while TIFF is selected, so the control appearing and disappearing costs
@@ -169,7 +169,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
           cameraProfile,
         )}
       {gear && createPortal(<MyGear />, gear)}
-      {processing && createPortal(<ProcessingTabs slot={processing as HTMLElement} />, processing)}
+      {aiModels && createPortal(<AiModels />, aiModels)}
       <RgbReadout />
       <SuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
     </>
