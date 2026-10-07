@@ -245,7 +245,6 @@ pub fn read_as_shot_white_balance(file_bytes: &[u8]) -> Option<WhiteBalance> {
     let raw_image = decoder
         .raw_image(&source, &RawDecodeParams::default(), true)
         .ok()?;
-    let raw_image = crate::mods::canon_old_wb::fixed(raw_image, file_bytes); // Argentum: old Canons have an as-shot white balance too
     if raw_image.cpp == 1 && !matches!(raw_image.photometric, RawPhotometricInterpretation::Cfa(_))
     {
         return None;

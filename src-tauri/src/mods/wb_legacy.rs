@@ -21,9 +21,27 @@
 //! Every adjustments object the app writes since 1.6.5 carries a `whiteBalance`
 //! key, null when the sliders are relative (their `INITIAL_ADJUSTMENTS` has it).
 //! An edit without the key was saved before the merge. That is the whole test,
-//! and it is why nothing here writes a file: the first save after opening a
-//! photo stores the converted values with the key, and the photo is never
-//! converted again.
+//! and once a converted edit is saved with the key it is never converted again.
+//!
+//! WHERE, WITHOUT A LINE OF THEIRS
+//!
+//! The obvious places are a line at the top of their
+//! `get_all_adjustments_from_json` and one in their `load_metadata`. The anchor
+//! check refused both: those files have no allowance left, and an allowance
+//! does not go up for a feature. So everything happens from our side:
+//!
+//! - **The editor.** `src/argentum/wbLegacy.ts` sees every `load_metadata`
+//!   answer before their code does and, when the edit is old, swaps in
+//!   `upgraded` and saves it through their `save_metadata_and_update_thumbnail`.
+//!   Their editor never holds an old edit, so it can never save one back with
+//!   the new key and the old numbers, which would fix the wrong colour for good.
+//! - **Everything else.** When the library lists a folder, `find_old` reports
+//!   the old edits in it, converted, and the frontend saves each the same way,
+//!   which also redraws its thumbnail. Batch exports read the saved file.
+//! - **Presets**, once, at start-up.
+//!
+//! Not covered: a headless export from the command line of a photo whose folder
+//! has never been listed since the update.
 //!
 //! HOW
 //!
@@ -47,9 +65,9 @@
 //! what the sliders asked for, so an old edit comes back slightly stronger, and
 //! with its highlights.
 
-use std::borrow::Cow;
 use std::path::Path;
 
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 
 use crate::white_balance::{self, MIRED_PER_RELATIVE_UNIT, TINT_PER_RELATIVE_UNIT, WhiteBalance};
@@ -61,24 +79,43 @@ const OLD_SCALE_TINT: f64 = 100.0;
 /// Their sliders run -100..100 in relative mode.
 const RELATIVE_RANGE: f64 = 100.0;
 
-/// The adjustments as 1.6.5 reads them: borrowed unless an old edit needs
-/// converting. For renders, which never write back.
-pub fn read(adjustments: &Value, as_shot: WhiteBalance) -> Cow<'_, Value> {
-    if !is_old(adjustments) {
-        return Cow::Borrowed(adjustments);
+/// One photo's edit in 1.6.5's units: converted if it is old, as it was if not.
+/// `path` is the photo, which the as-shot white balance is read from, and only
+/// when there is something to convert.
+pub fn upgraded(path: &str, mut adjustments: Value) -> Value {
+    if is_old(&adjustments) {
+        upgrade(&mut adjustments, white_balance::as_shot_white_balance(path));
     }
-    let mut upgraded = adjustments.clone();
-    upgrade(&mut upgraded, as_shot);
-    Cow::Owned(upgraded)
+    adjustments
 }
 
-/// Convert an edit loaded for the editor, so its sliders show what it does and
-/// the next save stores it in 1.6.5's units. `path` is the photo, which the
-/// as-shot white balance is read from, and only when there is something to do.
-pub fn upgrade_loaded(path: &str, adjustments: &mut Value) {
-    if is_old(adjustments) {
-        upgrade(adjustments, white_balance::as_shot_white_balance(path));
-    }
+/// An old edit found on disk, and what it becomes.
+#[derive(Debug, Serialize)]
+pub struct Found {
+    pub path: String,
+    /// The whole edit, converted: what the frontend saves.
+    pub adjustments: Value,
+    /// The old white balance numbers, globally and per mask in order: how the
+    /// frontend recognises the edit still open in the editor unconverted.
+    pub was: Value,
+}
+
+/// The photos among `paths` whose saved edit is old, each with its edit
+/// converted. Writes nothing: the frontend saves each through their own command,
+/// which keeps the rest of the sidecar and redraws the thumbnail.
+pub fn find_old(paths: &[String]) -> Vec<Found> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let (_, sidecar) = crate::file_management::parse_virtual_path(path);
+            let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+            is_old(&saved).then(|| Found {
+                path: path.clone(),
+                was: white_balance_numbers(&saved),
+                adjustments: upgraded(path, saved),
+            })
+        })
+        .collect()
 }
 
 /// Convert presets saved before 1.6.5. They describe a correction, not a photo,
@@ -212,6 +249,36 @@ pub fn upgrade(adjustments: &mut Value, as_shot: WhiteBalance) -> bool {
         }
     }
     true
+}
+
+/// Temperature and tint, globally and for each mask in order.
+fn white_balance_numbers(adjustments: &Value) -> Value {
+    let pair = |object: &Map<String, Value>| {
+        let (temperature, tint) = sliders(object);
+        json!({ "temperature": temperature, "tint": tint })
+    };
+    let Some(object) = adjustments.as_object() else {
+        return Value::Null;
+    };
+    // One entry per mask, with or without adjustments, so the indices line up
+    // with the masks the editor holds.
+    let none = Map::new();
+    let per_mask = object
+        .get("masks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|mask| {
+            pair(
+                mask.get("adjustments")
+                    .and_then(Value::as_object)
+                    .unwrap_or(&none),
+            )
+        })
+        .collect();
+    let mut numbers = pair(object);
+    numbers["masks"] = Value::Array(per_mask);
+    numbers
 }
 
 fn sliders(object: &Map<String, Value>) -> (f64, f64) {
@@ -434,10 +501,11 @@ mod tests {
     #[test]
     fn an_edit_from_after_the_merge_is_left_alone() {
         let adjustments = json!({ "temperature": 30.0, "tint": 0.0, "whiteBalance": null });
-        assert!(matches!(
-            read(&adjustments, WhiteBalance::reference()),
-            Cow::Borrowed(_)
-        ));
+        assert!(!is_old(&adjustments));
+        assert_eq!(
+            upgraded("not-a-photo.jpg", adjustments.clone()),
+            adjustments
+        );
     }
 
     #[test]
@@ -445,10 +513,49 @@ mod tests {
         let adjustments =
             json!({ "exposure": 1.0, "masks": [{ "adjustments": { "exposure": 0.5 } }] });
         assert!(!is_old(&adjustments));
-        assert!(matches!(
-            read(&adjustments, WhiteBalance::reference()),
-            Cow::Borrowed(_)
-        ));
+        assert_eq!(
+            upgraded("not-a-photo.jpg", adjustments.clone()),
+            adjustments
+        );
+    }
+
+    #[test]
+    fn the_old_edits_in_a_folder_are_found_and_the_rest_left() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = |name: &str, adjustments: Value| {
+            let path = dir.path().join(name);
+            std::fs::write(&path, b"not really a jpeg").unwrap();
+            let sidecar = crate::file_management::parse_virtual_path(&path.to_string_lossy()).1;
+            let metadata = json!({ "version": 1, "rating": 3, "adjustments": adjustments });
+            std::fs::write(sidecar, metadata.to_string()).unwrap();
+            path.to_string_lossy().to_string()
+        };
+        let old = photo("old.jpg", json!({ "temperature": -30.0, "tint": 0.0 }));
+        let new = photo(
+            "new.jpg",
+            json!({ "temperature": -30.0, "whiteBalance": null }),
+        );
+        let untouched = photo("untouched.jpg", json!({ "exposure": 1.0 }));
+        let unedited = dir
+            .path()
+            .join("unedited.jpg")
+            .to_string_lossy()
+            .to_string();
+
+        let found = find_old(&[old.clone(), new, untouched, unedited]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].path, old);
+        assert!(
+            found[0]
+                .adjustments
+                .as_object()
+                .unwrap()
+                .contains_key("whiteBalance")
+        );
+        assert_eq!(
+            found[0].was,
+            json!({ "temperature": -30.0, "tint": 0.0, "masks": [] })
+        );
     }
 
     #[test]

@@ -13,10 +13,10 @@
  * `initAuth` then returns before touching the network. This says the same for
  * every platform, at import, which is before any effect of theirs can run.
  *
- * The rest is in their files, one line each: the Cloud tile is commented out of
- * the AI providers as it was in 1.6.4, the Clerk plugin and its permissions are
- * not built in, and the HTTP permission allows no address. See the `no-cloud`
- * entry in scripts/upstream-registry.mjs.
+ * The Cloud tile is hidden from our side (NoCloudTile.tsx). The rest is in their
+ * build files: the Clerk plugin and its permissions are not built in, and the
+ * HTTP permission allows no address. See the `no-cloud` entry in
+ * scripts/upstream-registry.mjs.
  */
 
 import { useCloudStore } from '../store/useCloudStore';

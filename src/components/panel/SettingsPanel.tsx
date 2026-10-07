@@ -272,7 +272,7 @@ const AiProviderSwitch = ({ selectedProvider, onProviderChange }: AiProviderSwit
     () => [
       { id: 'cpu', label: t('settings.processing.ai.providers.cpu'), icon: Cpu },
       { id: 'ai-connector', label: t('settings.processing.ai.providers.aiConnector'), icon: Server },
-      //{ id: 'cloud', label: t('settings.processing.ai.providers.cloud'), icon: Cloud },
+      { id: 'cloud', label: t('settings.processing.ai.providers.cloud'), icon: Cloud },
       { id: 'ai-free', label: t('settings.processing.ai.providers.aiFree'), icon: Unplug },
     ],
     [t],
@@ -1499,7 +1499,7 @@ export default function SettingsPanel({
                       </AnimatePresence>
                     </div>
                   </div>
-                  <div data-argentum="ai-models" />
+
 
                   <div className="p-6 bg-surface rounded-xl shadow-md">
                     <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
@@ -1726,7 +1726,7 @@ export default function SettingsPanel({
                   </div>
                 </motion.div>
               )}
-              {(activeCategory === 'about' || activeCategory === 'gear') &&<div data-argentum={activeCategory} />}
+              {(activeCategory === 'about' || activeCategory === 'gear' || activeCategory === 'general') &&<div data-argentum={activeCategory} />}
               {activeCategory === 'processing' && (
                 <motion.div
                   key="processing"

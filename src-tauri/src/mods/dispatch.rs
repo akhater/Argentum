@@ -65,6 +65,19 @@ struct PathArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct PathsArgs {
+    paths: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EditArgs {
+    path: String,
+    adjustments: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawToneArgs {
     path: String,
     mode: String,
@@ -247,6 +260,23 @@ pub async fn ag(
             let a: IdArgs = args_for(&name, args)?;
             let r = crate::mods::model_manager::delete_for_app(&app_handle, &a.id)?;
             serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "upgrade_white_balance" => {
+            let a: EditArgs = args_for(&name, args)?;
+            let edit = tokio::task::spawn_blocking(move || {
+                crate::mods::wb_legacy::upgraded(&a.path, a.adjustments)
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(edit)
+        }
+        "find_old_white_balance" => {
+            let a: PathsArgs = args_for(&name, args)?;
+            let found =
+                tokio::task::spawn_blocking(move || crate::mods::wb_legacy::find_old(&a.paths))
+                    .await
+                    .map_err(|e| e.to_string())?;
+            serde_json::to_value(found).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown Argentum command: {other}")),
     }

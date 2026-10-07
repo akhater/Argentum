@@ -2622,7 +2622,6 @@ pub fn get_all_adjustments_from_json(
     tonemapper_override: Option<u32>,
     photo: Option<&str>,
 ) -> AllAdjustments {
-    let js_adjustments: &serde_json::Value = &crate::mods::wb_legacy::read(js_adjustments, as_shot_white_balance); // Argentum: white balance saved before 1.6.5
     let target_white_balance = if is_section_visible(js_adjustments, "color") {
         white_balance::from_adjustments(js_adjustments, as_shot_white_balance)
     } else {
