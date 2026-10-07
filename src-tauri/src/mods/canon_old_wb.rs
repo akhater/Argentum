@@ -76,6 +76,18 @@ pub fn fix(raw: &mut RawImage, file_bytes: &[u8]) {
     }
 }
 
+/// The same, for a decode that holds its image by value.
+///
+/// RapidRAW 1.6.5 reads the as-shot white balance with a decode of its own
+/// (`read_as_shot_white_balance`), which never reaches `decode::on_raw_decoded`.
+/// Without this a 1D or 1Ds reports no as-shot white balance there, so their
+/// Kelvin mode starts from D65 and white balance per mask is measured from the
+/// wrong place, while the picture itself is balanced correctly.
+pub fn fixed(mut raw: RawImage, file_bytes: &[u8]) -> RawImage {
+    fix(&mut raw, file_bytes);
+    raw
+}
+
 /// The as-shot triple, green-normalised, or nothing.
 fn as_shot(file_bytes: &[u8]) -> Option<[f32; 4]> {
     let table = super::canon_makernote::shorts(file_bytes, CANON_OLD_WB, PLAUSIBLE_LENGTH)?;
