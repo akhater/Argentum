@@ -1818,18 +1818,6 @@ pub fn run() {
         }
     }
 
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    {
-        builder = builder
-            .plugin(tauri_plugin_store::Builder::new().build())
-            .plugin(
-                tauri_plugin_clerk::ClerkPluginBuilder::new()
-                    .publishable_key("pk_live_Y2xlcmsuZ2V0cmFwaWRyYXcuY29tJA".to_string())
-                    .with_tauri_store()
-                    .build(),
-            );
-    }
-
     builder
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())

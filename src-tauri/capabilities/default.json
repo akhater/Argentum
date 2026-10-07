@@ -18,7 +18,7 @@
     "shell:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://clerk.getrapidraw.com/*" }, { "url": "https://www.getrapidraw.com/*" }]
+      "allow": []
     }
   ]
 }
