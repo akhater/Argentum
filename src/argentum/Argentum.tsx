@@ -46,12 +46,6 @@ import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
 import SuperResolutionModal from './SuperResolutionModal';
 import SuperResolutionButton from './SuperResolutionButton';
-import ObjectBrush from './ObjectBrush';
-import { registerObjectTool } from './objectMask';
-
-// The Object tile in their masks toolbox. Module scope, so it is in their
-// array before their panel first draws; it cannot throw.
-registerObjectTool();
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -176,7 +170,6 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {gear && createPortal(<MyGear />, gear)}
       {processing && createPortal(<ProcessingTabs slot={processing as HTMLElement} />, processing)}
       <RgbReadout />
-      <ObjectBrush />
       <SuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
     </>
   );

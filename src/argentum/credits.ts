@@ -118,18 +118,4 @@ export const CREDITS: CreditGroup[] = [
       },
     ],
   },
-  {
-    heading: 'Object mask edges',
-    blurb: 'A local model, downloaded the first time the Object mask is used and verified before inference.',
-    entries: [
-      {
-        name: 'ViTMatte',
-        href: 'https://github.com/hustvl/ViTMatte',
-        what:
-          'Draws the exact edge of an Object mask — hair, a bracelet against a wrist, the frame ' +
-          'of a lamp. By hustvl, released under the Apache-2.0 licence; the ONNX conversion ' +
-          'Argentum downloads is Xenova’s.',
-      },
-    ],
-  },
 ];

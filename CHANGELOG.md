@@ -6,6 +6,34 @@ Newest first.
 
 ## Unreleased
 
+### Removed
+
+- **The Object mask (the paint-to-select brush from 26.41.4).** On the first
+  real test it lost to the Subject mask it was built beside. A stroke along an
+  eye came back as the eye, the lids and part of the brow, while a Subject box
+  drawn round the other eye came back as the eye. A box tells SAM how big the
+  thing is; paint only says roughly where. The brush made up for that with five
+  differently shaped prompts and rules tuned on about a dozen painted cases,
+  and an eye sits close to the edge of one of those rules. Use Subject: draw a
+  box, and add a second Subject set to subtract to leave part out.
+
+  Gone: `mods/object_brush.rs`, `mods/matting.rs`, `ObjectBrush.tsx`,
+  `objectMask.ts`, the `object_brush_mask` command, its strings, the ViTMatte
+  credit and its row on the AI Models tab. Masks already made with it were
+  stored as ordinary Subject masks, so they keep rendering and exporting
+  unchanged.
+
+  Its edge model, `vitmatte_small_composition_1k.onnx` (about 100 MB), would
+  otherwise sit in the models folder with nothing listing it. It is now in
+  `model_catalog::RETIRED`, and `model_manager` deletes it at the next start
+  under the same checks as any deletion: a plain file, directly in the models
+  folder, not reached through a link.
+
+  The `object-brush` registry entry is retired in the `71a07921` review with a
+  `retire:object-brush` decision, rather than deleted. `photoBox.ts` stays: the
+  RGB readout uses it, and its dependency on `ImageCanvas.tsx`'s overlay svg
+  moves to the `rgb-readout` entry. The code is in git at `c15e53f0`.
+
 ### Changed
 
 - **AI models moved to Settings > Processing, as a tab beside Processing
