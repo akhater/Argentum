@@ -15,7 +15,8 @@
       "reset": "Resetovat",
       "shadows": "Stíny",
       "toneMapper": "Mapování tónů",
-      "whites": "Bílé"
+      "whites": "Bílé",
+      "evShift": "Posun EV"
     },
     "color": {
       "ariaSelectColor": "Vybrat barvu {{name}}",
@@ -1124,7 +1125,7 @@
     },
     "splash": {
       "addFolder": "Přidat složku",
-      "brand": "RapidRAW",
+      "brand": "Argentum",
       "continueSession": "Pokračovat v relaci",
       "contribute": "Přispějte na GitHubu",
       "descriptionAndroid": "Ohromně rychlý editor snímků RAW s akcelerací GPU. Otevřete knihovnu a začněte.",
@@ -1393,7 +1394,12 @@
       "organizeByDate": "Uspořádejte do podsložek podle data",
       "sourceFiles": "Zdrojové soubory",
       "startImport": "Spustit import",
-      "title": "Nastavení importu"
+      "title": "Nastavení importu",
+      "applyAutoAdjustments": "Použít automatické úpravy na každý snímek",
+      "applyPreset": "Použít předvolbu na každý snímek",
+      "editsOnImport": "Úpravy při importu",
+      "editsOnImportHint": "Automatické úpravy zahrnují korekci objektivu, pokud jej lze určit z EXIF; snímky bez shody zůstanou bez korekce.",
+      "presetNone": "Žádná"
     },
     "lensCorrection": {
       "amount": "Míra",
@@ -1549,7 +1555,7 @@
     "data": {
       "clearSidecars": "Vymazat všechny sidecar soubory",
       "clearSidecarsButton": "Vymazat",
-      "clearSidecarsDesc": "Tím smažete všechny soubory .rrdata (obsahující vaše úpravy) ve vašich kořenových složkách:",
+      "clearSidecarsDesc": "Tím smažete všechny soubory .agdata (obsahující vaše úpravy) ve vašich kořenových složkách:",
       "clearThumbnail": "Vymazat mezipaměť miniatur",
       "clearThumbnailButton": "Vymazat",
       "clearThumbnailDesc": "Tím se vymažou všechny miniatury snímků uložené v mezipaměti. Při procházení knihovny se automaticky znovu vygenerují.",
@@ -1619,7 +1625,7 @@
       "font": "Písmo",
       "fontDesc": "Změňte písmo aplikace.",
       "nativeTitlebar": "Nativní záhlaví",
-      "nativeTitlebarDesc": "Použijte výchozí záhlaví okna vašeho systému namísto vlastního okna RapidRAW.",
+      "nativeTitlebarDesc": "Použijte výchozí záhlaví okna vašeho systému namísto vlastního okna Argentum.",
       "neutralGreyCanvas": "Neutrální šedé plátno",
       "neutralGreyCanvasDesc": "Použít neutrální šedé plátno pro přesnější hodnocení barev a expozice beze změny motivu aplikace.",
       "poppins": "Poppins",
@@ -1745,7 +1751,7 @@
         "connector": {
           "address": "Adresa konektoru AI",
           "addressDesc": "Zadejte adresu a port vaší spuštěné instance AI Connectoru. Vyžadováno pro generativní funkce AI.",
-          "description": "Pro uživatele s výkonným GPU, kteří chtějí maximální kontrolu: připojte RapidRAW k vlastnímu serveru Connector. Získáte plnou kontrolu pro technické pracovní postupy.",
+          "description": "Pro uživatele s výkonným GPU, kteří chtějí maximální kontrolu: připojte Argentum k vlastnímu serveru Connector. Získáte plnou kontrolu pro technické pracovní postupy.",
           "failed": "Připojení se nezdařilo.",
           "feature1": "Použijte svou vlastní instanci ComfyUI",
           "feature2": "Bezplatné pokročilé generativní úpravy",
@@ -1753,23 +1759,23 @@
           "success": "Připojení úspěšné!",
           "test": "Test",
           "testing": "Testování...",
-          "title": "Vlastní (konektor RapidRAW AI)"
+          "title": "Vlastní (konektor Argentum AI)"
         },
         "cpu": {
-          "description": "Tyto funkce jsou integrovány přímo do RapidRAW a běží výhradně na vašem počítači. Jsou rychlé, zdarma a nevyžadují žádné nastavení, takže jsou ideální pro každodenní zrychlení práce.",
+          "description": "Tyto funkce jsou integrovány přímo do Argentum a běží výhradně na vašem počítači. Jsou rychlé, zdarma a nevyžadují žádné nastavení, takže jsou ideální pro každodenní zrychlení práce.",
           "feature1": "Maskování AI (předmět, obloha, popředí)",
           "feature2": "Automatické označování snímků",
           "feature3": "Jednoduchá generativní výměna založená na CPU",
           "title": "Vestavěná AI (CPU)"
         },
         "aiFree": {
-          "description": "Vypne všechny funkce AI. Všechny ovládací prvky související s AI jsou v rozhraní skryty, takže RapidRAW funguje jako čistě tradiční editor RAW.",
+          "description": "Vypne všechny funkce AI. Všechny ovládací prvky související s AI jsou v rozhraní skryty, takže Argentum funguje jako čistě tradiční editor RAW.",
           "feature1": "Žádné AI masky, rozostření objektivu ani generativní úpravy v rozhraní",
           "feature2": "Stávající AI úpravy se nadále zobrazují normálně",
           "feature3": "Přehlednější a soustředěnější rozhraní",
           "title": "Bez AI"
         },
-        "description": "AI v RapidRAW je vytvořena pro flexibilitu. Vyberte si ideální pracovní postup, od rychlých místních nástrojů po výkonný vlastní hosting.",
+        "description": "AI v Argentum je vytvořena pro flexibilitu. Vyberte si ideální pracovní postup, od rychlých místních nástrojů po výkonný vlastní hosting.",
         "providers": {
           "aiConnector": "AI konektor",
           "aiFree": "Bez AI",
@@ -1885,14 +1891,14 @@
       "amount": "Počet",
       "automaticAiTagging": "Automatické značkování AI",
       "clearAiTagsButton": "Vymazat",
-      "clearAiTagsDesc": "Tím odstraníte všechny značky generované AI z vašich souborů .rrdata ve všech aktivních kořenových složkách. Uživatelem přidané značky zůstanou zachovány.",
+      "clearAiTagsDesc": "Tím odstraníte všechny značky generované AI z vašich souborů .agdata ve všech aktivních kořenových složkách. Uživatelem přidané značky zůstanou zachovány.",
       "clearAiTagsTitle": "Vymazat značky AI",
-      "clearAllTagsDesc": "Tím odstraníte všechny značky generované AI i přidané uživatelem z vašich souborů .rrdata ve všech aktivních kořenových složkách. Barevné štítky zůstanou zachovány.",
+      "clearAllTagsDesc": "Tím odstraníte všechny značky generované AI i přidané uživatelem z vašich souborů .agdata ve všech aktivních kořenových složkách. Barevné štítky zůstanou zachovány.",
       "clearAllTagsTitle": "Vymazat všechny značky",
       "clearCustomTooltip": "Vymazat seznam značek AI",
       "clearShortcutsTooltip": "Vymazat seznam značek zkratek",
       "customList": "Vlastní seznam značek AI",
-      "customListDesc": "Pokud je k dispozici, AI použije POUZE značky z tohoto seznamu a přepíše vestavěný seznam RapidRAW. Značkování funguje pouze v angličtině.",
+      "customListDesc": "Pokud je k dispozici, AI použije POUZE značky z tohoto seznamu a přepíše vestavěný seznam Argentum. Značkování funguje pouze v angličtině.",
       "maxAiTags": "Maximální počet značek AI",
       "maxAiTagsDesc": "Maximální počet značek vygenerovaných na snímek.",
       "noCustomTags": "Žádné vlastní značky AI (pomocí vestavěného seznamu)",

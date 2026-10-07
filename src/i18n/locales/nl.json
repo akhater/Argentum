@@ -15,7 +15,8 @@
       "reset": "Opnieuw instellen",
       "shadows": "Schaduwen",
       "toneMapper": "Toonmapping",
-      "whites": "Wittinten"
+      "whites": "Wittinten",
+      "evShift": "EV-verschuiving"
     },
     "color": {
       "ariaSelectColor": "Selecteer {{name}} kleur",
@@ -1102,7 +1103,7 @@
     },
     "splash": {
       "addFolder": "Map toevoegen",
-      "brand": "RapidRAW",
+      "brand": "Argentum",
       "continueSession": "Sessie voortzetten",
       "contribute": "Bijdragen op GitHub",
       "descriptionAndroid": "Een razendsnelle, GPU-versnelde RAW-beeldeditor. Open de bibliotheek om te beginnen.",
@@ -1371,7 +1372,12 @@
       "organizeByDate": "Ordenen in submappen op datum",
       "sourceFiles": "Bronbestanden",
       "startImport": "Import starten",
-      "title": "Importinstellingen"
+      "title": "Importinstellingen",
+      "applyAutoAdjustments": "Automatische bewerkingen op elke foto toepassen",
+      "applyPreset": "Een voorinstelling op elke foto toepassen",
+      "editsOnImport": "Bewerkingen bij importeren",
+      "editsOnImportHint": "Automatische bewerkingen omvatten lenscorrectie wanneer de lens uit de EXIF-gegevens kan worden herkend; foto's zonder overeenkomst blijven ongecorrigeerd.",
+      "presetNone": "Geen"
     },
     "lensCorrection": {
       "amount": "Hoeveelheid",
@@ -1527,7 +1533,7 @@
     "data": {
       "clearSidecars": "Alle sidecar-bestanden wissen",
       "clearSidecarsButton": "Wissen",
-      "clearSidecarsDesc": "Dit verwijdert alle .rrdata-bestanden (met uw bewerkingen) in uw hoofdmappen:",
+      "clearSidecarsDesc": "Dit verwijdert alle .agdata-bestanden (met uw bewerkingen) in uw hoofdmappen:",
       "clearThumbnail": "Miniatuurcache wissen",
       "clearThumbnailButton": "Wissen",
       "clearThumbnailDesc": "Dit verwijdert alle gecachte miniatuurafbeeldingen. Ze worden automatisch opnieuw gegenereerd terwijl u door uw bibliotheek bladert.",
@@ -1597,7 +1603,7 @@
       "font": "Lettertype",
       "fontDesc": "Het toepassingslettertype wijzigen.",
       "nativeTitlebar": "Systeemeigen titelbalk",
-      "nativeTitlebarDesc": "Gebruik de standaard venstertitelbalk van uw systeem in plaats van de aangepaste titelbalk van RapidRAW.",
+      "nativeTitlebarDesc": "Gebruik de standaard venstertitelbalk van uw systeem in plaats van de aangepaste titelbalk van Argentum.",
       "neutralGreyCanvas": "Neutraal grijs canvas",
       "neutralGreyCanvasDesc": "Gebruik een neutraal grijs canvas voor nauwkeurigere kleur- en belichtingsgradering zonder het thema van de app te wijzigen.",
       "poppins": "Poppins",
@@ -1719,7 +1725,7 @@
         "connector": {
           "address": "AI-verbindingsadres",
           "addressDesc": "Voer het adres en poort in van uw actieve AI-verbindingsinstantie. Vereist voor generatieve AI-functies.",
-          "description": "Voor gebruikers met een krachtige GPU die maximale controle willen, verbindt u RapidRAW met uw eigen Connector-server. Dit geeft u volledige controle voor technische workflows.",
+          "description": "Voor gebruikers met een krachtige GPU die maximale controle willen, verbindt u Argentum met uw eigen Connector-server. Dit geeft u volledige controle voor technische workflows.",
           "failed": "Verbinding mislukt.",
           "feature1": "Gebruik uw eigen ComfyUI-instantie",
           "feature2": "Kostenloze geavanceerde generatieve bewerkingen",
@@ -1727,23 +1733,23 @@
           "success": "Verbinding geslaagd!",
           "test": "Testen",
           "testing": "Testen...",
-          "title": "Zelfgehost (RapidRAW AI Connector)"
+          "title": "Zelfgehost (Argentum AI Connector)"
         },
         "cpu": {
-          "description": "Rechtstreeks geïntegreerd in RapidRAW, draaien deze functies volledig op uw computer. Ze zijn snel, gratis en vereisen geen installatie, waardoor ze ideaal zijn voor dagelijkse workflowversnelling.",
+          "description": "Rechtstreeks geïntegreerd in Argentum, draaien deze functies volledig op uw computer. Ze zijn snel, gratis en vereisen geen installatie, waardoor ze ideaal zijn voor dagelijkse workflowversnelling.",
           "feature1": "AI-maskering (onderwerp, lucht, voorgrond)",
           "feature2": "Automatische afbeeldingstagging",
           "feature3": "Eenvoudige CPU-gebaseerde generatieve vervanging",
           "title": "Ingebouwde AI (CPU)"
         },
         "aiFree": {
-          "description": "Schakelt alle AI-functies uit. Alle AI-gerelateerde bedieningselementen worden verborgen, zodat RapidRAW werkt als een puur traditionele RAW-editor.",
+          "description": "Schakelt alle AI-functies uit. Alle AI-gerelateerde bedieningselementen worden verborgen, zodat Argentum werkt als een puur traditionele RAW-editor.",
           "feature1": "Geen AI-maskers, lensonscherpte of generatieve bewerkingen in de interface",
           "feature2": "Bestaande AI-bewerkingen worden nog gewoon weergegeven",
           "feature3": "Een overzichtelijkere, meer gerichte interface",
           "title": "Zonder AI"
         },
-        "description": "De AI van RapidRAW is gebouwd voor flexibiliteit. Kies uw ideale workflow, van snelle lokale tools tot krachtige zelfhosting.",
+        "description": "De AI van Argentum is gebouwd voor flexibiliteit. Kies uw ideale workflow, van snelle lokale tools tot krachtige zelfhosting.",
         "providers": {
           "aiConnector": "AI-verbinding",
           "aiFree": "Zonder AI",
@@ -1859,14 +1865,14 @@
       "amount": "Hoeveelheid",
       "automaticAiTagging": "Automatische AI-tagging",
       "clearAiTagsButton": "Wissen",
-      "clearAiTagsDesc": "Dit verwijdert alle door AI gegenereerde tags uit uw .rrdata-bestanden in alle actieve hoofdmappen. Door gebruikers toegevoegde tags blijven behouden.",
+      "clearAiTagsDesc": "Dit verwijdert alle door AI gegenereerde tags uit uw .agdata-bestanden in alle actieve hoofdmappen. Door gebruikers toegevoegde tags blijven behouden.",
       "clearAiTagsTitle": "AI-tags wissen",
-      "clearAllTagsDesc": "Dit verwijdert alle door AI gegenereerde en door gebruikers toegevoegde tags uit uw .rrdata-bestanden in alle actieve hoofdmappen. Kleurlabels blijven behouden.",
+      "clearAllTagsDesc": "Dit verwijdert alle door AI gegenereerde en door gebruikers toegevoegde tags uit uw .agdata-bestanden in alle actieve hoofdmappen. Kleurlabels blijven behouden.",
       "clearAllTagsTitle": "Alle tags wissen",
       "clearCustomTooltip": "Aangepaste AI-taglijst wissen",
       "clearShortcutsTooltip": "Snelkoppelingstaglijst wissen",
       "customList": "Aangepaste AI-taglijst",
-      "customListDesc": "Als opgegeven, gebruikt de AI ALLEEN tags uit deze lijst, waardoor de ingebouwde lijst van RapidRAW wordt overschreven. Tagging werkt alleen in het Engels.",
+      "customListDesc": "Als opgegeven, gebruikt de AI ALLEEN tags uit deze lijst, waardoor de ingebouwde lijst van Argentum wordt overschreven. Tagging werkt alleen in het Engels.",
       "maxAiTags": "Maximum AI-tags",
       "maxAiTagsDesc": "Het maximale aantal tags dat per afbeelding wordt gegenereerd.",
       "noCustomTags": "Geen aangepaste AI-tags (ingebouwde lijst gebruiken)",
