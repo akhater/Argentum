@@ -42,8 +42,9 @@ const MILESTONES: Milestone[] = [
     what: 'White balance',
     release: '26.37.2',
     why:
-      'Real chromatic adaptation from darktable, in Kelvin, with an auto mode and '
-      + 'a picker — replacing three fixed multipliers.',
+      'Real chromatic adaptation in Kelvin, with an auto mode and a picker — replacing '
+      + 'three fixed multipliers. Since 26.41.6 the engine and picker are RapidRAW 1.6.5\x27s '
+      + 'own; the auto mode is still darktable\x27s, and Argentum\x27s.',
   },
   {
     stage: 'done',

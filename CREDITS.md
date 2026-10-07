@@ -28,7 +28,7 @@ Licensed AGPL-3.0, which Argentum inherits unchanged.
 
 ### [darktable](https://github.com/darktable-org/darktable)
 
-Where Argentum's colour science comes from, and the reference it is measured
+The source of Argentum's automatic white balance, and the reference it is measured
 against. What has actually been taken:
 
 | What | darktable source | Shipping? |

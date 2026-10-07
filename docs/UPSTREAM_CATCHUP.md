@@ -5,6 +5,82 @@ This is the handoff for future upstream reviews. Read it alongside
 [ARCHITECTURE.md](ARCHITECTURE.md). A clean Git merge does not establish that
 image processing still behaves correctly.
 
+## 2026-10-07: RapidRAW 1.6.5 (`71a07921..79c2a46b`), released as 26.41.6
+
+149 commits. 31 files collided; 818 overlaps were reviewed, all recorded in the
+`79c2a46b` entry of `scripts/upstream-decisions.mjs`.
+
+**Upstream built the thing we built: white balance.** Their engine (log-LMS
+Bradford gains, Kelvin from the camera's as-shot data with A/D65 matrix
+interpolation, white balance per mask, an area picker on the original image)
+does what `dt_white_balance` did and more. Reviewing it also answered the open
+question from 2026-09-13: our shader decoded the RAW a second time before
+adapting, so its correction was weaker than its own maths and every highlight
+above white was clipped while a slider was off zero. **Decision: theirs is
+adopted, ours retired** (`modules.wgsl` keeps a note where it was). The scene
+linear anchor now holds only the camera profile and sits just before their
+`apply_white_balance`. Our picker (`src/argentum/whiteBalance.ts`) is gone;
+theirs samples linear pixels, which is what ours was rebuilt to do.
+
+**Auto white balance stays ours.** Detection is unchanged; the illuminant now
+goes through their `pick_white_balance` (`auto_wb::removing_illuminant`), so the
+wand and their picker answer in the same units by construction.
+
+**Old edits are converted** (`mods/wb_legacy.rs`, `src/argentum/
+WhiteBalanceUpgrade.tsx`). The same slider number means a different correction
+in 1.6.5: cooling by 50 was 115 mired and is 75, and a tint step is nearly three
+times stronger. An edit with no `whiteBalance` key predates the merge. It is
+converted exactly (the old illuminant through the same door as the auto mode),
+stored as relative values to a tenth of a step where they fit and as Kelvin
+where they do not. The first two designs put a line in
+`get_all_adjustments_from_json` and one in `load_metadata`; the anchor check
+refused both, correctly. What runs: a sweep when the library lists a folder, and
+a guard on the open photo that waits for their loader. Presets are converted
+once at start-up, with `presets.pre-1.6.5.json` kept.
+
+**RapidRAW Cloud is removed** (`no-cloud`). Since the 1.6.4 merge Argentum had
+been starting a Clerk sign-in with RapidRAW's development key on every launch;
+1.6.5 replaced that with their production key and a paid Cloud option.
+`noCloud.ts` marks their store unsupported before their launch effect runs, the
+tile is hidden from our side, and the Clerk plugin, its store, its capability
+and the HTTP allow-list are out of the build.
+
+**Settings.** Their Generative AI card moved from Processing to General
+(48a124f5), so AI Models follows it, placed under it from the existing slot.
+AI-Free mode hides Enlarge too.
+
+**Taken as they are:** guided-filter shadows, highlights, whites, clarity and
+dehaze; the Whites rewrite; HSL hue in perceptual space; pick and reject flags
+(stored in `.agdata`); export border and padding (native on Rgba32F, so the
+32-bit path keeps precision); sRGB ICC in JPEG and PNG; Nikon lenses from the
+MakerNote (ours reads Canon first); embedded-preview thumbnails; reorderable and
+collapsible sections; Tool Focus; curve fine adjust; Tauri 2.12; Czech and Dutch
+(rebranded, with our strings). **Declined again:** their half-float TIFF
+pipeline and TIFF depth in presets (ours is global, as at 1.6.4); their edit to
+`recover_clipped_pixel`, removed at 1.6.4.
+
+**Fixed in the merge, not upstream's:** `custom_aspect_ratios` arrived without
+`#[serde(default)]` beside our field, which would have reset every existing
+settings file to defaults.
+
+**Known gaps, and what to look at next time:**
+
+- Canon 1D/1Ds: their `read_as_shot_white_balance` decodes on its own and never
+  reaches our anchor, so the Kelvin readout is off on those bodies (the picture
+  and the corrections are right). The fix is one line in `raw_processing.rs`,
+  which has no allowance; it is in `knownIssues.ts`.
+- Apple RAW 9 (macOS, off by default) never reaches our decode anchor: no sRAW
+  levels, recovery or profile on that path. Registered under `raw-decode`.
+- Super-resolution carries an absolute `whiteBalance` onto the enlarged
+  non-RAW file, where their as-shot is D65; relative edits carry correctly.
+- Their TIFF ICC (#1752) lands in the encoder arm we replaced: port it to
+  `mods/export_precision.rs` when it merges.
+- The three commits after 1.6.5 (`ca5feaa3` relight, `1cd88e76` fog,
+  `923366f9` staged preview caches) are not in this window. Relight adds a
+  normal-map model, so `model_catalog.rs` needs the entry; the staged caches
+  add pixel caches `redecode::open_photo` must reset, and move the #1307 AI patch
+  hashing into `hash_ai_patches` (re-apply our block there).
+
 ## 2026-10-05: correction — the highlight split left blown areas magenta
 
 The 2026-09-19 decision below was incomplete. RapidRAW removed the compression

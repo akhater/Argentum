@@ -32,6 +32,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.6',
+    date: '2026-10-07',
+    notes: [
+      'Now built on RapidRAW 1.6.5: white balance in Kelvin, pick and reject flags, '
+      + 'borders and padding on export, panels you can reorder and fold, finer curves, '
+      + 'AI-Free mode, and Czech and Dutch.',
+      'White balance is RapidRAW\'s own now, and the Auto button still works on top of it. '
+      + 'Photos you already balanced keep their colour, and get back highlights the old '
+      + 'white balance was cutting off.',
+      'Shadows, Highlights, Whites, Clarity and Dehaze were rebuilt in RapidRAW, so photos '
+      + 'that use them can look a little different.',
+      'No RapidRAW Cloud: Argentum no longer contacts RapidRAW\'s sign-in service when it '
+      + 'starts, and the Cloud option is gone.',
+      'AI models moved to Settings > General, under Generative AI.',
+    ],
+  },
+  {
     version: '26.41.5',
     date: '2026-10-07',
     notes: [

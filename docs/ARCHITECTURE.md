@@ -43,11 +43,12 @@ source: wgpu::ShaderSource::Wgsl(
 **`modules.wgsl` is ours alone.** Every function we harvest
 goes in there. Upstream never sees it, never conflicts with it.
 
-The only mark we leave in their shader is one call line per tool:
+The only mark we leave in their shader is one call line per stage, and every
+tool of ours runs inside a stage (see THE PIPELINE ANCHOR in `modules.wgsl`):
 
 ```wgsl
 // in main(), theirs:
-color = dt_white_balance(color, t_temperature, t_tint);   // ← our one line
+composite_rgb_linear = ag_stage_scene_linear(composite_rgb_linear, /* profile rows */);  // ← our one line
 ```
 
 A one-line change is a trivial conflict to resolve, in the rare case upstream
@@ -89,7 +90,9 @@ tool after** — not a per-tool cost.
 
 **What actually got built, in `26.37.2`:** linear sRGB ↔ CIE XYZ, plus XYZ ↔
 Bradford cone space (LMS). White balance needed a colorimetric space and a cone
-space, not a wider RGB one, so that is what exists:
+space, not a wider RGB one, so that is what existed. (Retired in `26.41.6`,
+with our white balance: RapidRAW 1.6.5 does the same in its own engine. The
+pattern below stands for the next tool that needs it.)
 
 ```wgsl
 const AG_SRGB_TO_XYZ  // and AG_XYZ_TO_SRGB

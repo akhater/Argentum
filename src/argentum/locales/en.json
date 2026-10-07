@@ -1,8 +1,8 @@
 {
-  "autoWbTooltip": "Auto White Balance  (shift-click: edge mode)",
+  "autoWbTooltip": "Auto White Balance",
   "aboutVersion": "Version",
   "aboutWhat": "A RAW photo editor. Argentum takes RapidRAW's application and moves darktable's colour science into it, one module at a time.",
-  "aboutWhy": "The reason for the fork is narrow: RapidRAW's interface and speed are excellent, and its colour maths is a placeholder — its white balance is three fixed multipliers, with no Kelvin and no camera profile. Everything Argentum changes is downstream of that.",
+  "aboutWhy": "The reason for the fork was narrow: RapidRAW's interface and speed are excellent, and its colour maths was a placeholder — its white balance was three fixed multipliers, with no Kelvin and no camera profile. RapidRAW 1.6.5 has a real white balance of its own now, and Argentum uses it; camera profiles, highlight recovery and the rest are still Argentum's.",
   "roadmapDesc": "Where Argentum is going. Nothing here is a commitment — it is the order the work is being done in.",
   "knownIssuesDesc": "What is broken today, and being worked on. Items marked inherited come from RapidRAW rather than from anything Argentum changed.",
   "releasesDesc": "What changed, and what it means for your photos. Versions with nothing visible to a user are not listed.",

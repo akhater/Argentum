@@ -22,6 +22,14 @@ export interface KnownIssue {
 
 export const KNOWN_ISSUES: KnownIssue[] = [
   {
+    what: 'Kelvin readout is wrong on a Canon EOS-1D or 1Ds',
+    detail:
+      'These bodies keep their white balance where RapidRAW\x27s as-shot reader does not '
+      + 'look, so in Kelvin mode the starting temperature shown is wrong. The picture '
+      + 'is balanced correctly, and the picker and Auto still land neutral; only the '
+      + 'number is off.',
+  },
+  {
     what: 'Zoom and pan feel sluggish',
     detail:
       'Noticeably behind darktable, and the mask overlay lags the image while '

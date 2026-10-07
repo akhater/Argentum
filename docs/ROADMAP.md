@@ -24,7 +24,7 @@ the pipeline, so doing them together means understanding it once.
 
 | | What | Source | Why | Effort |
 |---|---|---|---|---|
-| ✅ | **White balance** | darktable | Done 26.37.2, plus auto-WB. Built the sRGB↔XYZ↔Bradford conversion every later tool reuses | 3–4 days |
+| ✅ | **White balance** | darktable, then RapidRAW | Done 26.37.2, plus auto-WB. Built the sRGB↔XYZ↔Bradford conversion every later tool reuses. **Engine replaced in 26.41.6 by RapidRAW 1.6.5's own** (Kelvin from the camera's as-shot data, per-mask white balance, an area picker): it does what ours did and more, and ours turned out to decode the RAW twice and clip highlights above white whenever a slider was off zero. Auto-WB stays ours and answers in their units; old edits are converted (`mods/wb_legacy.rs`) | 3–4 days |
 | ✅ | **DCP camera profiles** | RawTherapee | Done 26.37.12. Per photo, found online or imported, applied on the GPU per frame. It did **not** close the 4.2% gap against darktable, and could not have: darktable renders through the same Adobe matrix rawler already carries, so that measurement scores agreement with Adobe, not accuracy. The reasoning in the line above was wrong | 3–4 days |
 | ✅ | **Highlight recovery** | darktable | Biggest visible rescue on real photos. RapidRAW has a Highlights *slider*, which is a different thing — it can only move detail that survived. This rebuilds a channel that clipped from the two that did not. Raw domain, before demosaic, through the decode anchor we already have | 2 days |
 | ✅ | **Clipping preview** | Lightroom | Hold a key on Blacks/Whites and see which pixels are about to lose everything. Recovering highlights without it is guesswork. Shift and Alt on a slider are taken (fine adjustment), so the key has to be chosen | 1 day |
@@ -200,10 +200,10 @@ which is why the order differs from the obvious one.
 | ⬜ | **#1569, missing sidecars and filename collisions** | Useful data-integrity logic, manual port only - it assumes RapidRAW's sidecar naming and we use `.agdata`. Raised in priority by what was found on 2026-09-12: autosave can write back state it never finished loading, which is the same family of fault. `file_management.rs` is at 31/31 of its budget, so the logic must live on our side | 1 day |
 | ⬜ | #1626 export XMP keywords, #1246 EXIF timezone offset | Small metadata-correctness fixes. We read `dc:subject` and `OffsetTime*` but do not clearly carry either into exported files | ½ day each |
 
-**Already done here, and done better - do not take these.** #1676 colour-managed
-white balance (we have scene-linear Bradford adaptation, Kelvin/tint inversion,
-auto-WB, a stable picker and regression tests; only its dual-illuminant matrix
-interpolation is a separate idea worth considering). #1219 highlight clipping
+**Already done here, and done better - do not take these.** ~~#1676 colour-managed
+white balance~~ - **superseded 2026-10-07:** RapidRAW 1.6.5 shipped its own white
+balance, dual-illuminant interpolation included, and on review it was the better
+engine (ours decoded the RAW twice before adapting). Taken in 26.41.6; auto-WB stays ours. #1219 highlight clipping
 (a soft knee *after* development, where we reconstruct the clipped channel
 *before* demosaic - a harder problem, already solved). #1557 automatic lens
 correction (we detect on load, wait for EXIF, read Canon MakerNotes, save the
@@ -328,6 +328,13 @@ building.** Left alone for now.
 - **Does white balance decode RAW that was never encoded?** Found 2026-09-13
   while scoping the high-precision export, and *not confirmed* - written down so
   it is checked rather than forgotten.
+
+  **Answered 2026-10-07: yes, it did.** The preview input is `loaded_image.image`
+  through patches, warp and lens blur, with no encode on the way; RapidRAW 1.6.5's
+  picker reads it as linear for the same reason. `dt_white_balance` therefore
+  decoded linear data a second time, applied about three quarters of its
+  correction in the midtones, and clipped everything above white while a slider
+  was off zero. Retired with the 1.6.5 merge; see docs/UPSTREAM_CATCHUP.md.
 
   `modules.wgsl` (`dt_white_balance`) calls `ag_to_scene_linear(color)` when
   `is_raw_image != 0`, with the comment "Only RAW arrives encoded. A JPEG has
