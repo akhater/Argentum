@@ -32,6 +32,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.5',
+    date: '2026-10-07',
+    notes: [
+      'The Object mask is gone: the Subject mask, where you draw a box round the thing, '
+      + 'selects it better. Masks you already made with it keep working.',
+      'Its edge model (about 100 MB) is deleted from your computer the next time '
+      + 'Argentum starts.',
+      'AI models moved to Settings > Processing, as a tab beside Processing Engine.',
+    ],
+  },
+  {
     version: '26.41.4',
     date: '2026-10-06',
     notes: [

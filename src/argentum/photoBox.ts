@@ -1,9 +1,8 @@
 /**
  * Where the photo is on screen. Ours.
  *
- * Shared by the RGB readout and the object brush, which both need to turn a
- * cursor position into a place on the photo and cannot ask `ImageCanvas` for
- * it without a hook in their file.
+ * The RGB readout needs to turn a cursor position into a place on the photo,
+ * and cannot ask `ImageCanvas` for it without a hook in their file.
  */
 
 /**

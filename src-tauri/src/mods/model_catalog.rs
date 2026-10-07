@@ -192,18 +192,6 @@ pub const CATALOGUE: &[Model] = &[
         listed_when_missing: true,
     },
     Model {
-        id: "object-edge",
-        label: "Object mask edges",
-        purpose: "Draws the exact edge of an Object mask: hair, a bracelet against a wrist, the frame of a lamp.",
-        stored: Stored::Files(&[(
-            "vitmatte_small_composition_1k.onnx",
-            "https://huggingface.co/Xenova/vitmatte-small-composition-1k/resolve/main/onnx/model.onnx?download=true",
-        )]),
-        download_bytes: Some(103_885_865),
-        upstream: false,
-        listed_when_missing: true,
-    },
-    Model {
         id: GPU_RUNTIME,
         label: "Graphics card support",
         purpose: "Lets Super Resolution run on the graphics card, many times faster than without it. Windows only.",
@@ -216,6 +204,14 @@ pub const CATALOGUE: &[Model] = &[
         listed_when_missing: false,
     },
 ];
+
+/// Files an earlier version downloaded for a feature that has since been
+/// removed. Nothing lists them, so nothing would ever offer to delete them:
+/// `model_manager` removes them at the next start instead.
+///
+/// - `vitmatte_small_composition_1k.onnx`, about 100 MB: the Object mask's edge
+///   model, 26.41.4 only. The Object mask lost to the Subject mask's box.
+pub const RETIRED: &[&str] = &["vitmatte_small_composition_1k.onnx"];
 
 /// The catalogue entry with this id.
 pub fn find(id: &str) -> Option<&'static Model> {
@@ -230,7 +226,6 @@ mod tests {
     const THEIR_AI: &str = include_str!("../ai_processing.rs");
     const OUR_SUPER_RESOLUTION: &str = include_str!("super_resolution.rs");
     const OUR_GPU_RUNTIME: &str = include_str!("gpu_runtime.rs");
-    const OUR_MATTING: &str = include_str!("matting.rs");
 
     fn files(model: &Model) -> &'static [(&'static str, &'static str)] {
         match model.stored {
@@ -339,19 +334,25 @@ mod tests {
         }
     }
 
-    /// Ours are copies too, of `super_resolution`, `matting` and `gpu_runtime`.
+    /// A retired name is deleted without asking, so it must be a bare name and
+    /// must never be one a listed model still uses.
+    #[test]
+    fn retired_names_are_bare_and_belong_to_nothing_listed() {
+        for name in RETIRED {
+            assert!(super::super::model_manager::is_bare_name(name), "{name:?}");
+            for model in CATALOGUE {
+                let taken = match model.stored {
+                    Stored::Files(files) => files.iter().any(|(file, _)| file == name),
+                    Stored::FoldersStartingWith { prefix, .. } => name.starts_with(prefix),
+                };
+                assert!(!taken, "{name} is retired and still used by {}", model.id);
+            }
+        }
+    }
+
+    /// Ours are copies too, of `super_resolution` and `gpu_runtime`.
     #[test]
     fn our_names_and_addresses_match_the_features_that_download_them() {
-        for (name, url) in files(find("object-edge").expect("listed")) {
-            assert!(
-                OUR_MATTING.contains(&format!("\"{name}\"")),
-                "object-edge: {name}"
-            );
-            assert!(
-                OUR_MATTING.contains(&format!("\"{url}\"")),
-                "object-edge: {url}"
-            );
-        }
         for id in ["super-resolution-2x", "super-resolution-4x"] {
             let model = find(id).expect("listed");
             for (name, url) in files(model) {

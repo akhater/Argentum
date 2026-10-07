@@ -253,11 +253,17 @@ export const REGISTRY = [
       'src/argentum/RgbReadout.tsx',
       'src/argentum/RgbReadoutButton.tsx',
       'src/argentum/rgbReadoutStore.ts',
+      'src/argentum/photoBox.ts',
       'src-tauri/src/mods/colour_compare.rs',
     ],
     dependsOn: [
       { file: 'src/components/adjustments/Color.tsx', how: 'calls',
         note: 'Shares the data-argentum="color-tools" mount with auto white balance.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'calls',
+        note:
+          'photoBox.ts finds the photo on screen as the overlay svg their canvas sizes in px to the '
+          + 'drawn image, inside the pan/zoom transform. If that svg goes, or is sized in percent, the '
+          + 'readout goes silent with no error. Registered under object-brush until it was retired.' },
     ],
     tests: ['src-tauri/src/mods/colour_compare.rs #[cfg(test)]'],
     keywords: /readout|pixel.?value|sample|colou?r.?pick|histogram/i,
@@ -825,6 +831,16 @@ export const REGISTRY = [
       'Manual: Masks > Object, paint over a thing, release; paint again to add, Alt-paint to take away; Start over clears.',
     ],
     keywords: /segment|\bsam\d?\b|select.?object|object.?select|subject.?mask|ai.?mask|point.?prompt|scribble|mask.?type/i,
+    retired: {
+      recordedIn: '71a07921',
+      why:
+        'Removed in 26.41.5 by our choice, not because upstream moved. On AK\'s first real '
+        + 'test a stroke along one eye took its lids and brow, where their Subject box round the '
+        + 'other took that eye alone: a box tells SAM the size of the thing, paint only roughly where it is, and five '
+        + 'guessed prompts plus thresholds tuned on a dozen cases did not close that gap. Its '
+        + 'code (object_brush.rs, matting.rs, ObjectBrush.tsx, objectMask.ts) is in git at '
+        + 'c15e53f0; photoBox.ts and its ImageCanvas dependency moved to rgb-readout.',
+    },
   },
   {
     id: 'ai-gpu-runtime',

@@ -344,12 +344,14 @@ pub fn delete_for_app(app: &tauri::AppHandle, id: &str) -> Result<Outcome, Strin
     delete(&models_dir(app)?, id, held)
 }
 
-/// Finish deletions that had to wait for a restart.
+/// Finish deletions that had to wait for a restart, and remove what a removed
+/// feature left behind (`model_catalog::RETIRED`).
 ///
 /// Called from `startup::init` before the graphics card runtime is pinned and
 /// before any feature can load a model, which is the one moment nothing in
 /// the folder is in use. Anything still refused stays on the list for next time.
 pub fn finish_pending_removals(dir: &Path) {
+    remove_retired(dir);
     let waiting = pending(dir);
     if waiting.is_empty() {
         return;
@@ -367,6 +369,27 @@ pub fn finish_pending_removals(dir: &Path) {
     }
     if let Err(e) = set_pending(dir, &still) {
         log::warn!("[models] could not update the removal list: {e}");
+    }
+}
+
+/// Delete the files of features that are gone. Only plain files directly in
+/// the folder, never through a link; a failure is logged and tried again at
+/// the next start.
+fn remove_retired(dir: &Path) {
+    let Ok(root) = fs::canonicalize(dir) else {
+        return;
+    };
+    for name in model_catalog::RETIRED {
+        let path = dir.join(name);
+        if fs::symlink_metadata(&path).is_err() {
+            continue;
+        }
+        let removed = check_inside(&root, &path)
+            .and_then(|()| fs::remove_file(&path).map_err(|e| e.to_string()));
+        match removed {
+            Ok(()) => log::info!("[models] removed {name}: nothing uses it any more"),
+            Err(e) => log::warn!("[models] could not remove {name}: {e}"),
+        }
     }
 }
 
@@ -503,6 +526,24 @@ mod tests {
         assert!(!dir.join("onnxruntime-directml-1.22.0").exists());
         assert!(!dir.join(PENDING).exists());
         assert!(status(&list(dir), GPU_RUNTIME).is_none());
+    }
+
+    /// What a removed feature downloaded goes at the next start, with no
+    /// entry to ask for it; the models beside it stay.
+    #[test]
+    fn a_retired_model_goes_at_the_next_start() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let retired = model_catalog::RETIRED[0];
+        write(dir, retired, 10);
+        write(dir, "u2net.onnx", 10);
+        // Until then nothing lists it: it is part of "other files".
+        assert_eq!(list(dir).other_bytes, 10);
+
+        finish_pending_removals(dir);
+        assert!(!dir.join(retired).exists());
+        assert!(dir.join("u2net.onnx").exists());
+        assert_eq!(list(dir).other_bytes, 0);
     }
 
     /// Windows refuses to delete a file someone holds open without sharing

@@ -175,8 +175,9 @@ become an event our code listens for, not another line of theirs.
 
 The object brush (26.41.4) needed three things that look as if they need
 hooks: a tile in their masks toolbox, a mask type their renderer can draw, and
-a canvas that paints instead of drawing a box. It has none. The pattern, for
-the next mask tool:
+a canvas that paints instead of drawing a box. It had none. It was removed in
+26.41.5, because their Subject box selected better than our paint, and its
+code is in git at `c15e53f0`. The pattern stands, for the next mask tool:
 
 1. **The tile is data.** Their grid renders `MASK_AI_TYPES`, an exported
    array it reads on every render. `objectMask.ts` splices an entry into it at
@@ -194,8 +195,8 @@ the next mask tool:
 
 What it costs is coupling, not lines: if their grid stops reading the array
 live, or their fallback label changes, the tool degrades without a conflict.
-Every one of those dependencies is in the `object-brush` registry entry, so
-an upstream change to any of them is reviewed rather than discovered.
+Every one of those dependencies is listed in the `object-brush` registry entry,
+retired now but kept as the checklist for the next tool built this way.
 
 ---
 

@@ -429,6 +429,18 @@ const review164ObjectBrush = [
   review164Decision('40a112e1', 'object-brush:src/components/panel/Editor.tsx', 'not-applicable', 'The neutral-grey canvas toggle adds a colour preference and its plumbing. isPanningDisabled, which keeps a brush stroke from panning the photo while an ai-subject component is active, is untouched.'),
 ];
 
+// Added 2026-10-07, when the object brush was removed. Recorded here because
+// this is the newest review: the brush's readings above stand for this window,
+// and no later window owes it anything, since the code is gone before any of
+// them is merged. Nothing upstream did caused it.
+const review164ObjectBrushRetired = [
+  {
+    overlap: 'retire:object-brush',
+    verdict: 'adopt',
+    why: 'Their Subject mask does the job: a box drawn round one eye selected that eye, where a stroke along the other took its lids and brow. Ours is dropped; existing masks made with it are ordinary Subject masks and keep rendering.',
+  },
+];
+
 // Added 2026-10-06, when model-manager moved from a section of About to a tab
 // inside Settings > Processing and so began depending on their settings panel:
 // the existing data-argentum slot, now rendered just before the Processing page.
@@ -463,16 +475,17 @@ export const REVIEW_164_DECISIONS = [
   ...review164CompositionDecisions,
   ...review164HighlightCorrection,
   ...review164ObjectBrush,
+  ...review164ObjectBrushRetired,
   ...review164ModelsTab,
   ...review164GpuRuntime,
   ...review164SuperResolutionFraming,
 ];
 
 // 219 from the catch-up itself, the two highlight corrections, the five
-// object-brush readings, the two Processing > AI Models readings, the four
-// ai-gpu-runtime decisions and the framing decision above.
-if (REVIEW_164_DECISIONS.length !== 233) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 233 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+// object-brush readings and its retirement, the two Processing > AI Models
+// readings, the four ai-gpu-runtime decisions and the framing decision above.
+if (REVIEW_164_DECISIONS.length !== 234) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 234 decisions, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [
