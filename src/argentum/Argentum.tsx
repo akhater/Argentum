@@ -44,6 +44,8 @@ import HighlightRecovery from './HighlightRecovery';
 import MyGear from './MyGear';
 import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
+import CompactSlidersSetting from './CompactSlidersSetting';
+import { useCompactSliders } from './compactSliders';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
@@ -99,6 +101,12 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // library card, a folder path, a preset. Not a portal: it adds behaviour to
   // their existing tooltip rather than rendering anything of its own.
   useTruncatedTooltips();
+
+  // Sliders on one line, Lightroom-style, if chosen in Settings > General.
+  // Read once at startup; the layout itself is a stylesheet keyed on <html>.
+  useEffect(() => {
+    useCompactSliders.getState().load();
+  }, []);
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
   // what is being blown or crushed, which is how those two are actually set.
@@ -176,6 +184,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
         <>
           <AiModelsPlacement slot={general as HTMLElement} />
           <NoCloudTile slot={general as HTMLElement} />
+          <CompactSlidersSetting slot={general as HTMLElement} />
         </>
       )}
       <RgbReadout />

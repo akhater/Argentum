@@ -6,6 +6,19 @@ Newest first.
 
 ## Unreleased
 
+### Added
+
+- **Compact sliders**, in Settings > General under Font, off by default. Name,
+  bar and value on one line, as Lightroom draws them: about 20px a slider
+  instead of 56px, so a panel shows nearly three times as many. Asked for by a
+  tester who found the panels huge. Their slider is restyled from
+  `src/argentum/compactSliders.css`, keyed on an attribute on `<html>`; no
+  line of `Slider.tsx` changes, and drag, fine adjust, click-to-type and reset
+  are theirs untouched. Long names end in "..." and show in full on hover.
+  Colour grading sliders, half a panel wide under their wheels, keep two lines.
+  Stored as `compactSliders` in `argentum-processing.json`. Registry entry
+  `compact-sliders`.
+
 ### Changed
 
 - **The Subject mask is called Object**, Lightroom's name for a tool you draw

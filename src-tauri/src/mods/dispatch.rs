@@ -217,6 +217,14 @@ pub async fn ag(
             commands::set_tiff_bit_depth(a.depth)?;
             Ok(serde_json::Value::Null)
         }
+        "compact_sliders" => {
+            serde_json::to_value(commands::compact_sliders()?).map_err(|e| e.to_string())
+        }
+        "set_compact_sliders" => {
+            let a: OnArgs = args_for(&name, args)?;
+            commands::set_compact_sliders(a.on)?;
+            Ok(serde_json::Value::Null)
+        }
         "super_resolution_preview" => {
             let a: SuperResolutionPreviewArgs = args_for(&name, args)?;
             serde_json::to_value(

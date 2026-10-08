@@ -1,0 +1,118 @@
+/*
+ * Compact sliders. Ours.
+ *
+ * Their slider takes two lines: the name and the value on top, the bar under
+ * them, and a gap before the next one - about 52px each. Lightroom puts name,
+ * bar and value on one line, about 20px, so the same panel shows two and a half
+ * times as many. This lays their slider out the Lightroom way while the
+ * attribute is on <html>, which compactSliders.ts sets from the preference.
+ *
+ * WHY CSS AND NOT AN EDIT TO THEIR SLIDER
+ *
+ * Their Slider.tsx is 663 lines of behaviour - drag, fine adjust, click to
+ * type, double-click to reset - and every slider in the app is one of them.
+ * Changing its markup would be lines in a file upstream works on, and copying
+ * it would be a second slider to keep in step. Neither is needed: their markup
+ * already has the three parts in it, and only where they sit changes.
+ *
+ * WHAT IT RELIES ON
+ *
+ * Their slider's shape, found without any marker of ours:
+ *
+ *   div.group                         the slider
+ *     div.flex                        header: name, value
+ *       div.grid > span, span         the name, and "Reset" over it on hover
+ *       div.w-14                      the value, or the box you type into
+ *     div.relative.w-full.h-5         the bar, ending in input.slider-input
+ *
+ * The header is dissolved (display: contents) so the name and the value become
+ * columns of the slider itself, either side of the bar. If upstream reshapes
+ * the slider, the selector stops matching and the slider is simply drawn their
+ * way again. That is the right failure: a big slider beats a broken one.
+ *
+ * Their colour grading sliders sit under the wheels, often half a panel wide,
+ * where one line leaves no room for the bar. They keep two lines; their gradient
+ * track classes are what identifies them.
+ *
+ * A name too long for its column ends in "..." and shows in full on hover,
+ * through useTruncatedTooltips.ts.
+ */
+
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient)) {
+  display: grid;
+  grid-template-columns: minmax(0, 34%) minmax(0, 1fr) 2.75rem;
+  column-gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .flex:first-child {
+  display: contents;
+}
+
+/* The name. */
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .flex:first-child
+  > .grid {
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .flex:first-child
+  > .grid
+  > span {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The value. */
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .flex:first-child
+  > .w-14 {
+  grid-column: 3;
+  grid-row: 1;
+  width: auto;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .flex:first-child
+  > .w-14
+  :is(span, input) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/*
+ * The bar. Its hit area is cut from 28px to the 16px of the row, the height of
+ * their thumb, so neighbouring sliders do not overlap and a click near the edge
+ * of one cannot grab the next.
+ */
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .relative.w-full.h-5 {
+  grid-column: 2;
+  grid-row: 1;
+  height: 1rem;
+}
+
+html[data-ag-sliders='compact']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(:has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient))
+  > .relative.w-full.h-5
+  > input.slider-input {
+  height: 1rem;
+}
