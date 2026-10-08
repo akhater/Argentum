@@ -359,12 +359,18 @@ pub fn set_tiff_bit_depth(depth: u8) -> Result<(), String> {
 
 /// Are sliders drawn on one line, the way Lightroom draws them? Off until chosen.
 pub fn compact_sliders() -> Result<bool, String> {
-    Ok(crate::mods::ag_settings::get(profile_library()?, "compactSliders")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false))
+    Ok(
+        crate::mods::ag_settings::get(profile_library()?, "compactSliders")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+    )
 }
 
 /// Choose. Only the interface reads it; no photo renders differently.
 pub fn set_compact_sliders(on: bool) -> Result<(), String> {
-    crate::mods::ag_settings::set(profile_library()?, "compactSliders", serde_json::Value::Bool(on))
+    crate::mods::ag_settings::set(
+        profile_library()?,
+        "compactSliders",
+        serde_json::Value::Bool(on),
+    )
 }
