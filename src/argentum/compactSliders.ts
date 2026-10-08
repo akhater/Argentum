@@ -1,5 +1,5 @@
 /**
- * Compact sliders, on or off. Ours.
+ * Compact panels, on or off. Ours. (Compact sliders until the tone curve joined.)
  *
  * The layout is all in compactSliders.css, keyed on one attribute on <html>.
  * This reads the preference at startup, sets the attribute, and changes both

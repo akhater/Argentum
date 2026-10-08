@@ -595,9 +595,16 @@ const DID_165 = {
   '3c864270': 'Resizes the crop from its centre while Ctrl is held on a handle.',
   '65472097': 'Fixes the crop frame jumping on Ctrl-drag in crop mode.',
   // Added with compact-sliders, registered after this review: the first
-  // dependency of ours these two commits reach.
+  // dependency of ours these commits reach.
   '9b822ef1': 'Shares curve channel and gradient helpers; in Slider.tsx a getFraction helper replaces three inline fractions.',
   'b5802863': 'Draws coloured markers on the slider bar for the inactive curve channels.',
+  'c8a368e7': 'Draws the inactive channels\' curves as coloured overlays on the curve graph.',
+  '126c2400': 'Adds colour axis strips to the curve graph.',
+  'db893479': 'Reverts the colour axis strips.',
+  '143d7262': 'Fixes type errors in the curve graph: typed points and channel keys.',
+  'a6832200': 'Adds a fine adjust mode to curve point drags.',
+  '1b17dd52': 'Makes the curve endpoints easier to grab and drag.',
+  'e2771bc6': 'Removes five comment lines from the curve graph.',
 };
 
 // The diff does not reach what we rely on: [commit, file, where its hunks are,
@@ -772,6 +779,15 @@ const UNREACHED_165 = [
   ['f2c3473b', 'src/components/ui/Slider.tsx', 'Slider', ['compact-sliders#relative w-full h-5']],
   ['9ba20c02', 'src/components/ui/Slider.tsx', 'import React, SliderMarker, SliderProps, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
   ['9b822ef1', 'src/components/ui/Slider.tsx', 'FINE_ADJUSTMENT_MULTIPLIER, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
+  ['c8a368e7', 'src/components/adjustments/Curves.tsx', 'CurveGraph, buildParametricPoints', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['126c2400', 'src/components/adjustments/Curves.tsx', 'CurveGraph, getSplitterGradient', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['9b822ef1', 'src/components/adjustments/Curves.tsx', 'CurveGraph, buildParametricPoints, isDefaultParametricCurve', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['b5802863', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['143d7262', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['db893479', 'src/components/adjustments/Curves.tsx', 'CurveGraph, isDefaultParametricCurve', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['a6832200', 'src/components/adjustments/Curves.tsx', 'CurveGraph, convertParametricToPoints', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['1b17dd52', 'src/components/adjustments/Curves.tsx', 'CurveGraph, convertParametricToPoints', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['e2771bc6', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
   ['b5802863', 'src/components/ui/Slider.tsx', 'SliderChangeEvent, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
 ];
 
@@ -1082,10 +1098,10 @@ export const REVIEW_165_DECISIONS = [
   ...hints165,
 ];
 
-// 818 at the merge, plus 14 for object-label and 21 for compact-sliders,
+// 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
 // registered after it (26.41.7).
-if (REVIEW_165_DECISIONS.length !== 853) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 853 decisions, found ${REVIEW_165_DECISIONS.length}`);
+if (REVIEW_165_DECISIONS.length !== 862) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 862 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

@@ -1,5 +1,5 @@
 /**
- * The Compact sliders switch, in Settings > General. Ours.
+ * The Compact panels switch, in Settings > General. Ours.
  *
  * It belongs in their General card, under Font, with the other things that
  * change how the app looks. Their settings file allows Argentum one line, the

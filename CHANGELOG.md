@@ -8,15 +8,24 @@ Newest first.
 
 ### Added
 
-- **Compact sliders**, in Settings > General under Font, off by default. Name,
-  bar and value on one line, as Lightroom draws them: about 20px a slider
-  instead of 56px, so a panel shows nearly three times as many. Asked for by a
-  tester who found the panels huge. Their slider is restyled from
-  `src/argentum/compactSliders.css`, keyed on an attribute on `<html>`; no
-  line of `Slider.tsx` changes, and drag, fine adjust, click-to-type and reset
-  are theirs untouched. Long names end in "..." and show in full on hover.
-  Colour grading sliders, half a panel wide under their wheels, keep two lines.
-  Stored as `compactSliders` in `argentum-processing.json`. Registry entry
+- **Compact panels**, in Settings > General under Font, off by default.
+  Lightroom's layout, asked for by a tester who found the panels huge:
+  - Sliders take one line, name, bar and value: about 20px a slider instead of
+    56px, so a panel shows nearly three times as many. The bar is a thin line
+    and the thumb a small triangle under it, drawn in a box as wide as their
+    16px disc so their markers (as-shot white balance, other curve channels)
+    stay on the value they mark. Long names end in "..." and show in full on
+    hover. Colour grading sliders, half a panel wide under their wheels, keep
+    two lines but get the thin bar and triangle too.
+  - The tone curve's graph is 62% of the panel, centred, with smaller mode and
+    channel buttons above it: about a third of its height. Their drags are
+    measured against the graph's on-screen size, so points still follow the
+    pointer.
+
+  All of it is `src/argentum/compactSliders.css`, keyed on an attribute on
+  `<html>`; no line of `Slider.tsx` or `Curves.tsx` changes, and drag, fine
+  adjust, click-to-type and reset are theirs untouched. Stored as
+  `compactSliders` in `argentum-processing.json`. Registry entry
   `compact-sliders`.
 
 ### Changed
