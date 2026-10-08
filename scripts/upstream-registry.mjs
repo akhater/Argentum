@@ -1038,6 +1038,28 @@ export const REGISTRY = [
     tests: ['src-tauri/src/mods/raw_tone.rs #[cfg(test)]'],
     keywords: /tone.?(curve|map)|base.?curve|embedded.?(jpe?g|preview)|agx|filmic/i,
   },
+  {
+    id: 'object-label',
+    kind: 'behaviour-change',
+    what:
+      'Their Subject mask is labelled Object, Lightroom\'s name for a tool you box something with. '
+      + 'Only the label: the type is still ai-subject.',
+    ours: ['src/argentum/locales/renames.ts'],
+    // None of their files is edited: the word is replaced in i18next at startup.
+    dependsOn: [
+      { file: 'src/components/panel/right/Masks.tsx', symbol: 'masks.types.subject', how: 'shadows',
+        note: 'formatMaskTypeName reads this key for the ai-subject label in the masks and AI '
+          + 'panels; renames.ts replaces its value in every locale. A renamed key brings Subject back.' },
+      { file: 'src/components/panel/SettingsPanel.tsx', symbol: 'settings.processing.ai.cpu.feature1', how: 'shadows',
+        note: 'Their Built-in AI card lists the masks by name. Their word for Subject is swapped '
+          + 'for ours inside their sentence, so a rewritten sentence just keeps its own wording.' },
+    ],
+    tests: [
+      'Manual: Masks and AI panels show an Object tile where Subject was; it still boxes a thing. '
+        + 'Settings > General > Built-in AI lists Object, Sky, Foreground. French says Objet.',
+    ],
+    keywords: /select.?object|select.?subject|subject.?mask|object.?mask/i,
+  },
 ];
 
 /**

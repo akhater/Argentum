@@ -29,6 +29,7 @@ import i18n from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import en from './en.json';
+import { applyRenames } from './renames';
 
 export const AG_NS = 'ag';
 
@@ -49,6 +50,8 @@ export function registerArgentumTranslations() {
     if (typeof i18n.addResourceBundle === 'function') {
       i18n.addResourceBundle('en', AG_NS, en, true, true);
     }
+    // Some of their words, said our way. See renames.ts.
+    applyRenames();
   };
 
   if (i18n.isInitialized) {
