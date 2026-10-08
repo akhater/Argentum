@@ -477,7 +477,20 @@ pub fn render_high_precision(
         Precision::High,
     )?;
 
-    let (bytes, out_w, out_h, _, _) = processor.run(&input_view, width, height, request, false)?;
+    // RapidRAW 1.6.5's shadows, highlights, clarity and dehaze read guided-filter
+    // coefficients built from the input, the same way their preview builds them.
+    let is_raw = request.adjustments.global.is_raw_image;
+    let (gf_coeffs_view, gf_dehaze_view) =
+        processor.build_guided_coeffs(&input_view, width, height, is_raw);
+    let (bytes, out_w, out_h, _, _) = processor.run(
+        &input_view,
+        &gf_coeffs_view,
+        &gf_dehaze_view,
+        width,
+        height,
+        request,
+        false,
+    )?;
 
     let expected = out_w as usize * out_h as usize * BYTES_PER_PIXEL as usize;
     if bytes.len() != expected {
@@ -647,7 +660,7 @@ mod tests {
     #[test]
     fn the_shader_we_compile_carries_our_modules() {
         assert!(
-            SHADER_SOURCE.contains("fn ag_to_scene_linear"),
+            SHADER_SOURCE.contains("fn ag_stage_scene_linear"),
             "modules.wgsl is missing from the composed shader - the export \
              pipeline would compile a shader with every ag_ function undefined",
         );
@@ -663,7 +676,7 @@ mod tests {
             "an 8-bit storage declaration survived into the high-precision shader",
         );
         assert!(
-            src.contains("fn ag_to_scene_linear"),
+            src.contains("fn ag_stage_scene_linear"),
             "our modules were lost"
         );
     }
@@ -1123,7 +1136,13 @@ mod gpu_tests {
     /// This is the same function the export itself calls, so the test exercises
     /// the adjustments the app really builds.
     fn neutral() -> crate::image_processing::AllAdjustments {
-        get_all_adjustments_from_json(&serde_json::json!({}), false, None, None)
+        get_all_adjustments_from_json(
+            &serde_json::json!({}),
+            false,
+            crate::white_balance::WhiteBalance::reference(),
+            None,
+            None,
+        )
     }
 
     fn device() -> Option<GpuContext> {
@@ -1484,8 +1503,9 @@ mod gpu_tests {
             lut: None,
             roi: None,
         };
+        let (gf, dehaze) = processor.build_guided_coeffs(&view, 512, 8, 0);
         let (bytes, w, h, _, _) = processor
-            .run(&view, 512, 8, request, false)
+            .run(&view, &gf, &dehaze, 512, 8, request, false)
             .expect("the preview render should succeed");
 
         assert_eq!(

@@ -2,7 +2,74 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
+
+## 26.41.6 — 2026-10-07
+
+Merges RapidRAW 1.6.5 (`71a07921..79c2a46b`, 149 commits). The review is the
+`79c2a46b` entry of `scripts/upstream-decisions.mjs` (818 overlaps); the
+reasoning and the open ends are in `docs/UPSTREAM_CATCHUP.md`.
+
+### Changed
+
+- **White balance is RapidRAW 1.6.5's.** Their engine adapts with Bradford
+  gains in log-LMS, reads a Kelvin value from the camera's as-shot data (A/D65
+  matrix interpolation), balances per mask, and has an area picker on the
+  original image, with a Kelvin/relative switch. It replaces `dt_white_balance`
+  (retired from `modules.wgsl`) and our picker (`src/argentum/whiteBalance.ts`,
+  `solve_white_balance_at_point`). The scene-linear anchor keeps the camera
+  profile and runs just before their white balance.
+- **Auto white balance stays ours** and answers in their units:
+  `auto_wb::removing_illuminant` hands the detected illuminant to their
+  `pick_white_balance`, and the button writes the result the way their picker
+  does.
+- **Old white balance edits are converted** (`mods/wb_legacy.rs`,
+  `WhiteBalanceUpgrade.tsx`). An edit with no `whiteBalance` key predates the
+  merge; it is converted exactly, relative to a tenth of a step where it fits
+  their sliders and Kelvin where it does not, masks included. Folders are swept
+  when the library lists them, the open photo is corrected once their loader
+  has it, and presets are converted once at start-up with
+  `presets.pre-1.6.5.json` kept.
+- **AI Models moved to Settings > General**, under their Generative AI card,
+  which 1.6.5 moved there from Processing. `ProcessingTabs.tsx` is gone;
+  `AiModelsPlacement.tsx` places the card from the existing slot.
+- **AI-Free mode hides Enlarge**, with their AI controls.
+- From upstream, taken as they are: guided-filter shadows, highlights, whites,
+  clarity and dehaze, and a rewritten Whites; HSL hue in a perceptual space;
+  pick and reject flags (stored in `.agdata`); export border and pad to aspect
+  ratio; an sRGB ICC profile in JPEG and PNG; Nikon lenses read from the
+  MakerNote; embedded-preview RAW thumbnails; reorderable, collapsible
+  adjustment sections and Tool Focus mode; curve fine adjust; saved crop
+  ratios; Tauri 2.12; Czech and Dutch.
+- Czech and Dutch say Argentum and `.agdata` where the other locales do, and
+  carry our six strings.
+- Thumbnail cache version 5: every rendering changed.
+
+### Removed
+
+- **RapidRAW Cloud.** Since the 1.6.4 merge Argentum had been starting a Clerk
+  sign-in with RapidRAW's development key on every launch; 1.6.5 replaced it
+  with their production key and a paid Cloud option. `noCloud.ts` marks their
+  cloud store unsupported before their launch effect runs, `NoCloudTile.tsx`
+  hides the tile, and the Clerk plugin, its session store, the desktop-cloud
+  capability and the getrapidraw.com HTTP allow-list are out of the build.
+
+### Fixed
+
+- **Highlights above white survive a white balance change.** The old engine
+  decoded the RAW a second time and clipped everything above white whenever
+  Temperature or Tint was off zero; its correction was also weaker than its own
+  maths (about three quarters in the midtones). Converted edits get what their
+  sliders asked for.
+- `custom_aspect_ratios` arrived without `#[serde(default)]` beside our own
+  field; without it, every settings file written before this release would
+  have failed to parse and the app would have started on defaults.
+
+### Known issues
+
+- Canon EOS-1D and 1Ds: the Kelvin readout is off, because RapidRAW's as-shot
+  reader never reaches our MakerNote fix (a line in `raw_processing.rs`, which
+  has no anchor allowance). The picture and the corrections are right.
 
 ## 26.41.5 — 2026-10-07
 

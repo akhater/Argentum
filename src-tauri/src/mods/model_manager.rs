@@ -1,7 +1,7 @@
 //! What is in the AI models folder, and deleting it. Ours.
 //!
 //! The list of what can be there is `model_catalog`. This reads the folder
-//! against it for Settings > Processing > AI Models, and removes one entry's files on
+//! against it for Settings > General > AI Models, and removes one entry's files on
 //! request. It never downloads: each feature fetches its own model again the
 //! next time it is used.
 //!

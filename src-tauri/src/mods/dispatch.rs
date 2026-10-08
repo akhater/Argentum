@@ -65,6 +65,12 @@ struct PathArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct PathsArgs {
+    paths: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawToneArgs {
     path: String,
     mode: String,
@@ -139,12 +145,6 @@ pub async fn ag(
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
     match name.as_str() {
-        "solve_white_balance_at_point" => {
-            let a: PointArgs = args_for(&name, args)?;
-            let r =
-                commands::solve_white_balance_at_point(a.x, a.y, a.js_adjustments, state).await?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
         "detect_auto_white_balance" => {
             let a: AutoWbArgs = args_for(&name, args)?;
             let r = commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?;
@@ -253,6 +253,18 @@ pub async fn ag(
             let a: IdArgs = args_for(&name, args)?;
             let r = crate::mods::model_manager::delete_for_app(&app_handle, &a.id)?;
             serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "upgrade_white_balance" => {
+            // The photos among these whose saved edit predates RapidRAW 1.6.5,
+            // converted. Those converted by this call are saved one at a time
+            // in the background; see wb_legacy::save_in_turn.
+            let a: PathsArgs = args_for(&name, args)?;
+            let (found, fresh) =
+                tokio::task::spawn_blocking(move || crate::mods::wb_legacy::find_old(&a.paths))
+                    .await
+                    .map_err(|e| e.to_string())?;
+            crate::mods::wb_legacy::save_in_turn(fresh, app_handle);
+            serde_json::to_value(found).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown Argentum command: {other}")),
     }

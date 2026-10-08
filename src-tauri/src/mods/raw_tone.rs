@@ -69,7 +69,7 @@ fn auto_matched_curve(
     )
     .map_err(|e| format!("could not decode RAW for auto-match: {e}"))?;
 
-    let jpeg = crate::image_loader::embedded_preview_fallback(bytes, path)
+    let jpeg = crate::image_loader::embedded_preview_fallback(bytes)
         .ok_or_else(|| "this RAW has no readable embedded JPEG preview".to_string())?;
 
     let raw = bounded_image(raw);

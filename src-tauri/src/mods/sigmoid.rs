@@ -261,9 +261,9 @@ impl Sigmoid {
     /// The inverse curve: display value back to scene-linear.
     ///
     /// Needed because the rest of the pipeline has to be able to undo the
-    /// encode — `dt_white_balance` adapts in linear space, and the auto white
-    /// balance detector analyses linear data. Both previously inverted a plain
-    /// gamma; with the curve in place they invert this instead.
+    /// encode — the auto white balance detector analyses linear data. It
+    /// previously inverted a plain gamma; with the curve in place it would
+    /// invert this instead.
     ///
     /// ```text
     /// t = (y / magnitude) ^ (1 / paper_power)
@@ -331,9 +331,8 @@ mod inverse_tests {
 /// must not run as well, or the picture is tone-mapped twice.
 ///
 /// A constant rather than a setting because the two encodes are not
-/// interchangeable: `ag_to_scene_linear` in `modules.wgsl` and
-/// `to_scene_linear` in `mods/auto_wb.rs` both have to invert whichever one is
-/// in force, and they invert this. Flipping this alone would silently break
+/// interchangeable: `to_scene_linear` in `mods/auto_wb.rs` has to invert
+/// whichever one is in force. Flipping this alone would silently break auto
 /// white balance.
 pub const ENCODES_IN_DECODER: bool = true;
 

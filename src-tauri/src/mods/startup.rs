@@ -51,6 +51,8 @@ pub fn init(app: &AppHandle) {
         // TIFF export depth.
         super::highlights::load(&library);
         super::export_precision::load(&library);
+        // Presets saved before RapidRAW 1.6.5's white balance, once.
+        super::wb_legacy::migrate_presets_once(&data, &library);
         super::profiles::set_library(library);
     }
 }

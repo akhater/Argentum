@@ -22,46 +22,8 @@ pub fn raw_tone_curve(
     crate::mods::raw_tone::curve_for(&bytes, &source_path_string, &mode, &settings)
 }
 
-/// Solve white balance from the point the user clicked, in normalised image
-/// coordinates (0..1, origin top-left).
-///
-/// Takes coordinates rather than a sampled colour on purpose, and this is the
-/// fix for the picker never settling. The frontend used to read the pixel off
-/// the *processed preview* and send that — an image with the current white
-/// balance already applied, plus exposure, curves and everything else. Each
-/// click therefore solved from its own previous output, moved the sliders, and
-/// changed what the next click would see. Clicking one spot repeatedly wandered
-/// forever instead of converging.
-///
-/// Sampling here uses the geometry-only cache, keyed on crop and rotation, which
-/// no colour slider can move. Same point, same answer. It is also the exact
-/// image auto-WB analyses, so the wand and the picker finally agree.
-pub async fn solve_white_balance_at_point(
-    x: f32,
-    y: f32,
-    js_adjustments: serde_json::Value,
-    state: tauri::State<'_, AppState>,
-) -> Result<AutoWhiteBalance, String> {
-    let image = get_cached_full_warped_image(&state, &js_adjustments)?;
-
-    let result = auto_wb::white_balance_at(image.as_ref(), x, y)
-        .ok_or_else(|| "That colour is too dark or too saturated to balance from".to_string())?;
-
-    log::info!(
-        "[wb_picker] ({:.3}, {:.3}) -> illuminant xy ({:.4}, {:.4}) ~{:.0}K -> temp {:.1} tint {:.1}",
-        x,
-        y,
-        result.x,
-        result.y,
-        result.temperature_k,
-        result.temperature,
-        result.tint
-    );
-
-    Ok(result)
-}
-
-/// Detect the scene illuminant and return the white balance that neutralises it.
+/// Detect the scene illuminant and return the white balance that neutralises it,
+/// in RapidRAW 1.6.5's units.
 ///
 /// Runs on the geometry-corrected image already cached for the editor, so it
 /// sees the same pixels you do — crop and rotation included.
@@ -71,22 +33,32 @@ pub async fn detect_auto_white_balance(
     state: tauri::State<'_, AppState>,
 ) -> Result<AutoWhiteBalance, String> {
     let image = get_cached_full_warped_image(&state, &js_adjustments)?;
+    // What the camera chose, which the answer is given on top of. The image
+    // above was balanced by it before anything was detected in it.
+    let as_shot = state
+        .original_image
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|loaded| loaded.as_shot_white_balance)
+        .ok_or("No image loaded")?;
 
     // That image has already been through `apply_cpu_default_raw_processing`,
     // which gamma-encodes and boosts contrast. The detection needs scene-linear
     // data, so ask it to undo that first — see `to_scene_linear`.
     let started = std::time::Instant::now();
-    let result = auto_wb::auto_white_balance(image.as_ref(), mode, true)
+    let result = auto_wb::auto_white_balance(image.as_ref(), mode, true, as_shot)
         .ok_or_else(|| "Could not detect an illuminant in this image".to_string())?;
 
     log::info!(
-        "[auto_wb] {:?}: illuminant xy ({:.4}, {:.4}) ~{:.0}K -> temp {:.1} tint {:.1} in {:.1?}",
+        "[auto_wb] {:?}: illuminant xy ({:.4}, {:.4}) ~{:.0}K -> {:.0}K tint {:.1} over as-shot {:.0}K in {:.1?}",
         mode,
         result.x,
         result.y,
         result.temperature_k,
-        result.temperature,
-        result.tint,
+        result.white_balance.temperature,
+        result.white_balance.tint,
+        as_shot.temperature,
         started.elapsed()
     );
 
@@ -147,6 +119,7 @@ pub async fn sample_processed_pixel(
     let mut all = crate::image_processing::get_all_adjustments_from_json(
         &adjustments,
         loaded.is_raw,
+        loaded.as_shot_white_balance,
         tonemapper,
         // The photo this readout took out of the state a moment ago, not
         // "whatever is open now" — those are the same until somebody opens

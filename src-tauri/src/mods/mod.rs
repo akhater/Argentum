@@ -43,3 +43,4 @@ pub mod sraw_levels;
 pub mod startup;
 pub mod super_resolution;
 pub mod tif_raw;
+pub mod wb_legacy;

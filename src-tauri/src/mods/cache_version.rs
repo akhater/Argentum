@@ -48,7 +48,10 @@ use std::path::{Path, PathBuf};
 ///    (`highlights::settle_blown`). Thumbnails made since 2026-09-23 are pink.
 /// 3. With recovery on, rebuilt highlights reach neutral half a stop above the
 ///    clip instead of keeping a lavender cast (`highlights::FADE_SPAN`).
-pub const PIPELINE: u32 = 4;
+/// 4. RapidRAW 1.6.5: their white balance, guided-filter shadows, highlights,
+///    whites, clarity and dehaze, and old white balance edits converted by
+///    `mods/wb_legacy.rs`.
+pub const PIPELINE: u32 = 5;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

@@ -51,8 +51,9 @@
 //! is a separate decision.
 
 /// Gamma and contrast as `apply_cpu_default_raw_processing` uses them. Keep in
-/// step with theirs, and with `to_scene_linear` in `mods/auto_wb.rs` and
-/// `ag_to_scene_linear` in `shaders/modules.wgsl`, which both invert this.
+/// step with theirs, and with `to_scene_linear` in `mods/auto_wb.rs`, which
+/// inverts this. (`modules.wgsl` inverted it too, for our white balance, until
+/// RapidRAW 1.6.5's replaced it.)
 pub const GAMMA: f32 = 2.38;
 pub const CONTRAST: f32 = 1.28;
 

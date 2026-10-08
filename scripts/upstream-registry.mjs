@@ -67,22 +67,29 @@ export const REGISTRY = [
   {
     id: 'auto-white-balance',
     kind: 'feature',
-    what: 'Auto white balance, and an eyedropper that agrees with it.',
+    what:
+      'Auto white balance: darktable\'s illuminant detection, answered in RapidRAW 1.6.5\'s '
+      + 'white balance units. Until 1.6.5 the white balance engine and the picker were ours too; '
+      + 'theirs replaced both (review 79c2a46b).',
     ours: [
       'src/argentum/AutoWhiteBalanceButton.tsx',
-      'src/argentum/whiteBalance.ts',
       'src-tauri/src/mods/auto_wb.rs',
-      'src-tauri/src/shaders/modules.wgsl',
     ],
     dependsOn: [
-      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_white_balance', how: 'shadows',
-        note: 'Left defined and uncalled. Upstream fixes to it merge cleanly and never run.' },
-      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
-        note: 'The single scene-linear anchor.' },
-      { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'replaces',
-        note: 'Their eyedropper solved a temperature inline and wrote straight to setAdjustments, so a dormant copy would have overwritten ours.' },
+      { file: 'src-tauri/src/white_balance.rs', symbol: 'pick_white_balance', how: 'calls',
+        note: 'removing_illuminant hands the detected illuminant to it, the door their picker uses, '
+          + 'so the wand and the picker answer in the same units. If it changes what "current" means, '
+          + 'or stops returning an absolute white balance, the wand is wrong by exactly that.' },
+      { file: 'src-tauri/src/white_balance.rs', symbol: 'adaptation_log_gains', how: 'calls',
+        note: 'Only in tests: the answer is checked by applying it the way their shader does.' },
+      { file: 'src/utils/whiteBalance.ts', symbol: 'withRelativeWhiteBalance', how: 'calls',
+        note: 'The button writes its answer with their helpers (withKelvinWhiteBalance, '
+          + 'toRelativeWhiteBalance, getWhiteBalanceMode), exactly as their picker in ImageCanvas does.' },
+      { file: 'src-tauri/src/app_state.rs', symbol: 'as_shot_white_balance', how: 'calls',
+        note: 'The as-shot white balance of the open photo, which the answer is given on top of.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'data-argentum="color-tools" mount point.' },
+        note: 'data-argentum="color-tools" mount point, in their white balance actions row beside '
+          + 'the K and picker buttons. If the white balance tool is hidden, the wand goes with it.' },
     ],
     tests: ['src-tauri/src/mods/auto_wb.rs #[cfg(test)]'],
     keywords: /white.?balance|temperature|tint|auto.?wb|grey.?world|gray.?world|eyedropper|wb.?picker/i,
@@ -107,7 +114,14 @@ export const REGISTRY = [
       { file: 'src/utils/adjustments.ts', key: 'cameraProfile', how: 'extends',
         note: 'A key we added to their adjustments type and their defaults.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'data-argentum="camera-profile" mount point.' },
+        note: 'data-argentum="camera-profile" mount point, first in their Color panel and outside '
+          + 'their tool sections: it cannot be hidden or reordered on its own, and hiding the whole '
+          + 'Color section hides it, with Raw Tone Rendering and Highlight Recovery.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
+        note: 'The scene-linear anchor, placed immediately before their apply_white_balance so the '
+          + 'profile decides what the colours are before their white balance decides the light. '
+          + 'Their picker and the as-shot white balance are measured without the profile, so with a '
+          + 'profile chosen a picked white can land slightly off neutral.' },
     ],
     tests: [
       'src-tauri/src/mods/dcp.rs #[cfg(test)]',
@@ -154,6 +168,10 @@ export const REGISTRY = [
     dependsOn: [
       { file: 'src-tauri/src/raw_processing.rs', symbol: 'on_raw_decoded', how: 'calls',
         note: 'The single decode anchor.' },
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'load_base_image_from_bytes', how: 'calls',
+        note: 'Reaches the anchor through develop_raw_image, except on their Apple RAW 9 path '
+          + '(1.6.5, macOS, off unless use_apple_raw9 is set), which develops through Core Image and '
+          + 'never decodes with rawler: no sRAW levels, highlight recovery or camera profile there.' },
     ],
     tests: [
       'src-tauri/src/mods/decode.rs #[cfg(test)]',
@@ -172,6 +190,10 @@ export const REGISTRY = [
     dependsOn: [
       { file: 'src-tauri/src/raw_processing.rs', symbol: 'on_raw_decoded', how: 'calls',
         note: 'Runs behind the decode anchor; adds no line of theirs of its own.' },
+      { file: 'src-tauri/src/raw_processing.rs', symbol: 'read_as_shot_white_balance', how: 'calls',
+        note: 'Their as-shot reader decodes on its own and never reaches the anchor, so it calls '
+          + 'canon_old_wb::fixed itself, one line. Without it a 1D or 1Ds reads as unity there, '
+          + 'and their Kelvin mode and per-mask white balance start from the wrong place.' },
     ],
     tests: [
       'src-tauri/src/mods/canon_makernote.rs #[cfg(test)]',
@@ -257,8 +279,10 @@ export const REGISTRY = [
       'src-tauri/src/mods/colour_compare.rs',
     ],
     dependsOn: [
-      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'Shares the data-argentum="color-tools" mount with auto white balance.' },
+      { file: 'src/components/panel/editor/EditorToolbar.tsx', how: 'calls',
+        note: 'The readout button sits in the toolbar row, found from their data-bench-id="undo" '
+          + 'button, which they tag for their own benchmarks. It used to share the color-tools '
+          + 'mount in Color.tsx; this note said so long after it moved.' },
       { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'calls',
         note:
           'photoBox.ts finds the photo on screen as the overlay svg their canvas sizes in px to the '
@@ -288,7 +312,8 @@ export const REGISTRY = [
       { file: 'src/hooks/useImageProcessing.ts', how: 'calls',
         note: 'HighlightRecovery.tsx re-renders by setting an equal adjustments object; the render effect fires on identity. If that effect stops depending on adjustments identity, the switch decodes but does not repaint.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
-        note: 'Runs inside the same scene-linear anchor as white balance, in a fixed order.' },
+        note: 'The scene-linear anchor, now holding only the camera profile and placed before their '
+          + 'white balance. Recovery itself runs at decode; nothing of it is in this stage.' },
       { file: 'src-tauri/src/multi_exposure.rs', symbol: 'neutralize_wb_if_multiexposure', how: 'calls',
         note: 'settle_blown makes blown blocks neutral under the white balance rawler will apply, and this is where develop_internal swaps it for unity on multi-exposure CR2s. If upstream changes that rule, blown highlights in those files take a cast.' },
       { file: 'src-tauri/src/raw_processing.rs', symbol: 'develop_internal', how: 'calls',
@@ -415,7 +440,8 @@ export const REGISTRY = [
     dependsOn: [
       { file: 'src/App.tsx', how: 'calls', note: 'The single <Argentum /> mount.' },
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'data-argentum slot for the about, gear and processing categories.' },
+        note: 'data-argentum slot for the about, gear and general categories. General holds the AI '
+          + 'Models card, placed from our side under their Generative AI card.' },
       { file: 'src/components/panel/right/CropPanel.tsx', symbol: 'useAutoDetectOnLoad', how: 'calls' },
       { pattern: /^src\/i18n\/locales\/[\w-]+\.json$/, how: 'extends',
         note: 'Their locale files carry the rebrand and a few Argentum strings, because '
@@ -434,6 +460,8 @@ export const REGISTRY = [
       { file: 'src/components/panel/MainLibrary.tsx', how: 'replaces',
         note: 'Their update check points at our releases, and the Ko-fi link is gone: Argentum must not raise money on its splash in another author’s name. The credit is in Special Thanks and CREDITS.md.' },
       { file: 'package.json', how: 'rebrands' },
+      { file: 'package-lock.json', how: 'rebrands',
+        note: 'Its package name follows package.json, which npm rewrites on every install.' },
       { file: 'src-tauri/Cargo.toml', how: 'rebrands' },
       { file: 'src-tauri/tauri.conf.json', how: 'rebrands' },
       { file: 'src-tauri/src/main.rs', how: 'rebrands' },
@@ -879,20 +907,19 @@ export const REGISTRY = [
   {
     id: 'model-manager',
     kind: 'feature',
-    what: 'Settings > Processing > AI Models: every model the app downloads, what is on disk, and deleting it.',
+    what: 'Settings > General > AI Models: every model the app downloads, what is on disk, and deleting it.',
     ours: [
       'src-tauri/src/mods/model_catalog.rs',
       'src-tauri/src/mods/model_manager.rs',
       'src/argentum/AiModels.tsx',
-      'src/argentum/ProcessingTabs.tsx',
     ],
     // What is relied on is what their code writes to disk, and that it fetches
-    // a missing model again. The tab itself is a line in their settings panel.
+    // a missing model again. The card itself is a line in their settings panel.
     dependsOn: [
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'The about/gear data-argentum slot also renders for processing, just before their '
-          + 'Processing page. ProcessingTabs hides the slot\'s next sibling while AI Models is '
-          + 'picked, so it relies on that page following the slot and setting no inline display.' },
+        note: 'A data-argentum="ai-models" marker straight after their Generative AI card on the '
+          + 'General page, which 1.6.5 moved there from Processing. One line. If they move that card '
+          + 'again, the marker has to follow it.' },
       { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
         note:
           'Their model file names and addresses are private constants here, copied into '
@@ -905,10 +932,111 @@ export const REGISTRY = [
     tests: [
       'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
       'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
-      'Manual: Settings > Processing > AI Models lists the models with sizes; delete one, use its feature, and it downloads again.',
+      'Manual: Settings > General > AI Models, under Generative AI, lists the models with sizes; delete one, use its feature, and it downloads again.',
       'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
     ],
     keywords: /models?.?(manag|download|delet|remov|folder|dir\b|size)|(delete|remove|manage|clear).{0,12}models?\b|disk.?(space|usage)/i,
+  },
+  {
+    id: 'wb-legacy',
+    kind: 'behaviour-change',
+    what:
+      'White balance saved before RapidRAW 1.6.5 is converted to its units, so an old edit keeps '
+      + 'its colour: in renders, when the editor loads it, and in saved presets once.',
+    ours: ['src-tauri/src/mods/wb_legacy.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'calls',
+        note: 'First line of their function reads an old edit converted: thumbnails, exports and '
+          + 'previews of photos nobody has opened since the update.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'load_metadata', how: 'calls',
+        note: 'Hands the editor the converted edit, so its first save stores the new units. If the '
+          + 'editor ever loads a sidecar another way, that way needs the same line.' },
+      { file: 'src/utils/adjustments.ts', key: 'whiteBalance', how: 'calls',
+        note: 'The test for an old edit is a missing whiteBalance key: their INITIAL_ADJUSTMENTS '
+          + 'carries it, null in relative mode, so every edit written since 1.6.5 has it. If they '
+          + 'drop it from the defaults, new edits would be converted a second time.' },
+      { file: 'src-tauri/src/white_balance.rs', symbol: 'shifted', how: 'calls',
+        note: 'The conversion targets their model: shifted and from_adjustments read it back, '
+          + 'MIRED_PER_RELATIVE_UNIT and TINT_PER_RELATIVE_UNIT give the step. A change to either '
+          + 'scale changes what every converted edit means.' },
+      { file: 'src-tauri/src/preset_converter.rs', how: 'calls',
+        note: 'Why presets are converted once and not on every load: their Lightroom preset import '
+          + 'writes 1.6.5 units with no whiteBalance key, and would otherwise be converted twice.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/wb_legacy.rs #[cfg(test)]: conversion against the retired shader\'s gains at three as-shot white balances, masks, kelvin overflow, idempotence, presets in folders, the presets file and its backup',
+      'Manual: a photo whose white balance was set in 26.41.5 or earlier opens in the same colour, with its highlights back if any were clipped.',
+    ],
+    keywords: /white.?balance|temperature|tint|kelvin|preset|sidecar|migrat/i,
+  },
+  {
+    id: 'no-cloud',
+    kind: 'behaviour-change',
+    what:
+      'No RapidRAW Cloud: no Clerk sign-in at launch, no Cloud option, no account plugin in the '
+      + 'build, and no address the HTTP permission allows.',
+    ours: ['src/argentum/noCloud.ts', 'src/argentum/NoCloudTile.tsx'],
+    dependsOn: [
+      { file: 'src/store/useCloudStore.ts', symbol: 'initAuth', how: 'shadows',
+        note: 'Their AppWrapper still calls it at launch. noCloud.ts sets authStatus to '
+          + '\'unsupported\' at import, and their own guard returns before Clerk is touched, '
+          + 'as it does on Android and iOS. If the guard goes, Clerk starts again on every launch.' },
+      { file: 'src/App.tsx', symbol: 'initAuth', how: 'shadows',
+        note: 'Where they start it. noCloud.ts is imported through Argentum.tsx, which App.tsx '
+          + 'imports first, so it runs before any effect of theirs.' },
+      { file: 'src/components/panel/SettingsPanel.tsx', how: 'shadows',
+        note: 'Their Cloud tile is left in their provider list and hidden from our side by '
+          + 'NoCloudTile.tsx, found by its translated label. Commenting it out would be a line '
+          + 'over their settings file\x27s budget.' },
+      { file: 'src-tauri/src/lib.rs', how: 'replaces',
+        note: 'Their Clerk plugin (with RapidRAW\'s production key) and the store it keeps its '
+          + 'session in are not registered. Deleted lines of theirs: leaving them meant shipping '
+          + 'their key and an account plugin in Argentum.' },
+      { file: 'src-tauri/Cargo.toml', how: 'replaces',
+        note: 'tauri-plugin-clerk and tauri-plugin-store are not built.' },
+      { file: 'src-tauri/tauri.conf.json', how: 'replaces',
+        note: 'Only the default capability is listed; theirs added desktop-cloud.' },
+      { file: 'src-tauri/capabilities/desktop.json', how: 'replaces',
+        note: 'Deleted. It granted clerk:default and nothing else, and names a plugin that is no '
+          + 'longer built.' },
+      { file: 'src-tauri/capabilities/default.json', how: 'replaces',
+        note: 'The HTTP permission allows no address. Its only addresses were clerk.getrapidraw.com '
+          + 'and www.getrapidraw.com.' },
+      { file: 'src-tauri/src/inpainting.rs', how: 'shadows',
+        note: 'Their cloud inpainting branch posts to getrapidraw.com. Left in place: it needs the '
+          + 'Cloud provider and a Clerk token, and neither can happen here.' },
+    ],
+    tests: [
+      'Manual: Settings > General > Generative AI offers Built-in, AI Connector and AI-Free, and no Cloud.',
+      'Manual: with a network monitor, launching Argentum makes no request to clerk.getrapidraw.com, getrapidraw.com or clerk.accounts.dev.',
+    ],
+    keywords: /cloud|clerk|subscription|sign.?in|account|getrapidraw/i,
+  },
+  {
+    id: 'raw-tone',
+    kind: 'feature',
+    what:
+      'RAW tone rendering: Default, a camera-style Base Curve, or a curve matched to the JPEG the '
+      + 'camera embedded in the file, applied on the GPU in place of their tone mapper.',
+    ours: ['src-tauri/src/mods/raw_tone.rs', 'src/argentum/RawToneRendering.tsx'],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
+        note: 'raw_tone_mode, the curve and its count, filled from rawToneRendering/rawToneCurve.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
+        note: 'The same fields on the GPU side, and two blocks in main() that replace their tone '
+          + 'mapper for a RAW when a curve is set. Their struct and ours must stay in step.' },
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'rawToneRendering and rawToneCurve in their adjustments type, defaults and loader.' },
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'embedded_preview_fallback', how: 'calls',
+        note: 'Auto-Matched compares the RAW with this. Kept crate-visible; 1.6.5 dropped its path '
+          + 'argument and now finds the preview through raw_processing::extract_embedded_preview.' },
+      { file: 'src-tauri/src/raw_processing.rs', symbol: 'develop_raw_image', how: 'calls',
+        note: 'The scene-linear RAW the curve is fitted against.' },
+      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
+        note: 'Rendered in the camera-profile slot.' },
+    ],
+    tests: ['src-tauri/src/mods/raw_tone.rs #[cfg(test)]'],
+    keywords: /tone.?(curve|map)|base.?curve|embedded.?(jpe?g|preview)|agx|filmic/i,
   },
 ];
 

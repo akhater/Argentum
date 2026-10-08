@@ -1,5 +1,8 @@
 /**
- * Settings > Processing > AI Models: what has been downloaded, and deleting it. Ours.
+ * Settings > General > AI Models: what has been downloaded, and deleting it. Ours.
+ *
+ * Under their Generative AI card, which RapidRAW 1.6.5 moved to General: that card
+ * chooses how the AI features run, this one shows what they have downloaded.
  *
  * Every AI feature fetches its model the first time it is used, and a few uses
  * in the models folder holds well over a gigabyte nobody chose to download.
@@ -18,6 +21,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
+import Text from '../components/ui/Text';
+import { TextColors, TextVariants } from '../types/typography';
 
 type OnDisk = 'downloaded' | 'partial' | 'missing';
 
@@ -115,8 +120,11 @@ export default function AiModels() {
   };
 
   return (
-    <div className="p-6 bg-surface rounded-xl shadow-md max-w-[78ch]">
-      <h3 className="text-lg font-semibold text-accent mb-2">{t('modelsTitle')}</h3>
+    <div className="p-6 bg-surface rounded-xl shadow-md">
+      {/* Their card title, so it reads as one of the cards on the page. */}
+      <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+        {t('modelsTitle')}
+      </Text>
       <p className="text-text-secondary leading-relaxed">{t('modelsDesc')}</p>
       <p className="mt-2 text-sm text-text-secondary leading-relaxed">{t('modelsMaskSet')}</p>
 

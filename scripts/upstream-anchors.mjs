@@ -177,9 +177,9 @@ export const ANCHORS = [
   {
     file: 'src/components/panel/SettingsPanel.tsx',
     hooks: 1,
-    what: 'the About tab, an empty div Argentum fills',
-    instead: 'add a section to src/argentum/AboutPanel.tsx — or a card of its own '
-      + 'inside [data-argentum="settings-about"]',
+    what: 'the slot Argentum fills on the About, My Gear and General pages',
+    instead: 'add a section to src/argentum/AboutPanel.tsx, or a card of its own placed from '
+      + 'that slot, as AiModelsPlacement.tsx does under their Generative AI card',
   },
   // Behaviour, not UI. A portal can add a control; it cannot change what
   // happens when the user clicks one of theirs. These replace the body of an
@@ -187,10 +187,12 @@ export const ANCHORS = [
   // if one of these ever needs a *second* hook, the injection is in the wrong
   // place and should become an event our code listens for.
   {
+    // Was 2, for our white balance picker. RapidRAW 1.6.5's area picker replaced
+    // it (review 79c2a46b) and both lines went with it. Down, never back up.
     file: 'src/components/panel/editor/ImageCanvas.tsx',
-    hooks: 2,
-    what: 'the white balance picker solving in Rust',
-    instead: 'change src/argentum/whiteBalance.ts',
+    hooks: 0,
+    what: 'nothing: their white balance picker is the one in use',
+    instead: 'portal from src/argentum/Argentum.tsx; the RGB readout finds the photo through photoBox.ts',
   },
   {
     file: 'src/components/panel/right/CropPanel.tsx',
