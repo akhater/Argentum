@@ -38,6 +38,20 @@ Newest first.
   are regenerated once (pipeline 6). Registry entry `mask-falloff`, with its 10
   decisions against the 1.6.5 review.
 
+### Fixed
+
+- **The camera profile is always a dropdown.** With no profile installed it
+  was the words "Built-in" under the label, and "Find one" a button beside it.
+  Now Built-in is the first entry, installed profiles follow, and "Find one…"
+  is the last until RawTherapee's profile for the camera is here. A profile it
+  finds is selected; when none is published the dropdown stays on what it was,
+  says so, and stops offering. The lookup now sends the camera's maker as My
+  Gear's does, and a result that arrives after another photo has been opened
+  is dropped. `src/argentum/CameraProfile.tsx`; no file of theirs changes.
+- **Profile and Rendering sit on one line with their dropdowns**, as a label
+  beside its value, rather than a heading above it. `CameraProfile.tsx` and
+  `RawToneRendering.tsx`.
+
 ## 26.41.8 — 2026-10-09
 
 ### Added
