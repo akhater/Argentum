@@ -67,13 +67,16 @@ fn run(app: AppHandle) {
         let state = app.state::<AppState>();
         let now = Instant::now();
 
-        let unloaded = models.unload_idle(&state, now);
-        if !unloaded.is_empty() {
+        // The guard on ai_state is gone by the time take_idle returns, so the
+        // models are dropped here with nothing of theirs waiting on it.
+        let taken = models.take_idle(&state, now);
+        if !taken.names.is_empty() {
             let before = committed();
+            drop(taken.models);
             collect();
             log::info!(
                 "[memory] unloaded the idle AI {}: {} -> {}",
-                unloaded.join(", "),
+                taken.names.join(", "),
                 gb(before),
                 gb(committed())
             );
@@ -179,65 +182,68 @@ fn in_use<T: ?Sized>(slot: &Option<Arc<T>>) -> bool {
     slot.as_ref().is_some_and(|a| Arc::strong_count(a) > 1)
 }
 
-impl Models {
-    /// Takes every model that is due out of `AiState`, and drops them after
-    /// the lock is released: freeing a model's memory takes a moment, and their
-    /// threads wait on this lock.
-    fn unload_idle(&mut self, state: &AppState, now: Instant) -> Vec<&'static str> {
-        let mut taken: Vec<Box<dyn Send>> = Vec::new();
-        let mut names = Vec::new();
-        {
-            let mut guard = match state.ai_state.try_lock() {
-                Ok(g) => g,
-                Err(TryLockError::WouldBlock) => return names,
-                Err(TryLockError::Poisoned(_)) => return names,
-            };
-            let Some(ai) = guard.as_mut() else {
-                *self = Models::default();
-                return names;
-            };
+/// Models taken out of `AiState`, still alive until dropped, and their names.
+#[derive(Default)]
+struct Taken {
+    models: Vec<Box<dyn Send>>,
+    names: Vec<&'static str>,
+}
 
-            if self.eraser.due(
-                ai.lama_model.is_some(),
-                in_use(&ai.lama_model),
-                now,
-                IDLE_ONE_SHOT,
-            ) && let Some(m) = ai.lama_model.take()
-            {
-                taken.push(Box::new(m));
-                names.push("eraser");
-            }
-            if self.denoise.due(
-                ai.denoise_model.is_some(),
-                in_use(&ai.denoise_model),
-                now,
-                IDLE_ONE_SHOT,
-            ) && let Some(m) = ai.denoise_model.take()
-            {
-                taken.push(Box::new(m));
-                names.push("denoise");
-            }
-            if self.tagging.due(
-                ai.clip_models.is_some(),
-                in_use(&ai.clip_models),
-                now,
-                IDLE_ONE_SHOT,
-            ) && let Some(m) = ai.clip_models.take()
-            {
-                taken.push(Box::new(m));
-                names.push("tagging");
-            }
-            if self
-                .masks
-                .due(ai.models.is_some(), in_use(&ai.models), now, IDLE_MASKS)
-                && let Some(m) = ai.models.take()
-            {
-                taken.push(Box::new(m));
-                names.push("mask models");
-            }
+impl Models {
+    /// Takes every model that is due out of `AiState` and hands them back
+    /// still loaded. The caller drops them once the lock is released, because
+    /// freeing a model's memory takes a moment and their threads wait on this
+    /// lock, and so it can measure what dropping them freed.
+    fn take_idle(&mut self, state: &AppState, now: Instant) -> Taken {
+        let mut taken = Taken::default();
+        let mut guard = match state.ai_state.try_lock() {
+            Ok(g) => g,
+            Err(TryLockError::WouldBlock) | Err(TryLockError::Poisoned(_)) => return taken,
+        };
+        let Some(ai) = guard.as_mut() else {
+            *self = Models::default();
+            return taken;
+        };
+
+        if self.eraser.due(
+            ai.lama_model.is_some(),
+            in_use(&ai.lama_model),
+            now,
+            IDLE_ONE_SHOT,
+        ) && let Some(m) = ai.lama_model.take()
+        {
+            taken.models.push(Box::new(m));
+            taken.names.push("eraser");
         }
-        drop(taken);
-        names
+        if self.denoise.due(
+            ai.denoise_model.is_some(),
+            in_use(&ai.denoise_model),
+            now,
+            IDLE_ONE_SHOT,
+        ) && let Some(m) = ai.denoise_model.take()
+        {
+            taken.models.push(Box::new(m));
+            taken.names.push("denoise");
+        }
+        if self.tagging.due(
+            ai.clip_models.is_some(),
+            in_use(&ai.clip_models),
+            now,
+            IDLE_ONE_SHOT,
+        ) && let Some(m) = ai.clip_models.take()
+        {
+            taken.models.push(Box::new(m));
+            taken.names.push("tagging");
+        }
+        if self
+            .masks
+            .due(ai.models.is_some(), in_use(&ai.models), now, IDLE_MASKS)
+            && let Some(m) = ai.models.take()
+        {
+            taken.models.push(Box::new(m));
+            taken.names.push("mask models");
+        }
+        taken
     }
 
     fn loaded(state: &AppState) -> Option<Vec<&'static str>> {
