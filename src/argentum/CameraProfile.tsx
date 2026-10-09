@@ -1,7 +1,8 @@
 /**
  * The camera profile control in the Color panel. Ours.
  *
- * One dropdown: Built-in, or any profile the library holds for this camera.
+ * One dropdown, always: Built-in, any profile the library holds for this
+ * camera, and "Find one…" while RawTherapee's profile for it is not here yet.
  *
  * WHAT THIS WENT THROUGH, SO IT IS NOT REPEATED
  *
@@ -22,10 +23,16 @@
  * It also told the user to "reopen the photo to see a change", twice, in a
  * paragraph, in a panel 180 pixels wide. Changing it does need the RAW decoded
  * again — but that is `load_image`, which the app already has, so it does it.
+ *
+ * Then, with no profile installed, the dropdown became the words "Built-in"
+ * under the label and "Find one" became a button beside it: a choice shown as
+ * a fact, and the way to widen it somewhere else. Finding one is a way of
+ * choosing one, so it is the last entry in the list. What it finds is
+ * selected; when nothing is published the list goes back to what it was and
+ * stops offering.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
@@ -44,6 +51,9 @@ interface Status {
   publishedInstalled: boolean;
 }
 
+/** The entry that means "go and look". `?` cannot be in a Windows file name. */
+const FIND = '?find';
+
 export default function CameraProfile() {
   const t = useAgTranslation();
   const selectedImage = useEditorStore((s: any) => s.selectedImage);
@@ -52,62 +62,75 @@ export default function CameraProfile() {
   const path: string | undefined = selectedImage?.path;
 
   const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [looking, setLooking] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  /** The camera RawTherapee had nothing for, so the list stops offering. */
+  const [missed, setMissed] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (!path) {
-      setStatus(null);
-      return;
+  const refresh = useCallback(async (): Promise<Status | null> => {
+    let next: Status | null = null;
+    if (path) {
+      try {
+        next = await ag<Status>('camera_profile_status', { path });
+      } catch {
+        next = null;
+      }
     }
-    try {
-      setStatus(await ag<Status>('camera_profile_status', { path }));
-    } catch {
-      setStatus(null);
-    }
+    setStatus(next);
+    return next;
   }, [path]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    setNote(null);
+  }, [status?.camera]);
+
   /**
    * Change the profile and redraw.
    *
-   * The matrix is applied while the RAW is decoded, so the decode has to happen
-   * again; the sidecar is written first because that is where the decode reads
-   * the choice from, and nudging the adjustments afterwards is what makes the
-   * pipeline produce a new preview.
+   * One writer, and only one. This used to set the store, save the sidecar
+   * itself, and force a reload. Three writers for one value: the debounced
+   * auto-save fired afterwards with a stale copy and won, so a chosen profile
+   * reverted to the previous one a second later — the picture went right, then
+   * wrong again. Setting the store and letting their own save persist it is the
+   * whole of it.
    */
-  const choose = async (file: string) => {
-    if (!path) {
-      return;
-    }
-    const chosen = file === '' ? null : file;
-    setBusy(true);
-    try {
-      // One writer, and only one.
-      //
-      // This used to set the store, save the sidecar itself, and force a
-      // reload. Three writers for one value: the debounced auto-save fired
-      // afterwards with a stale copy and won, so a chosen profile reverted to
-      // the previous one a second later — the picture went right, then wrong
-      // again. Setting the store and letting their own save persist it is the
-      // whole of it.
-      setAdjustments((prev: any) => ({ ...prev, cameraProfile: chosen }));
-    } finally {
-      setBusy(false);
-    }
+  const choose = (file: string) => {
+    setNote(null);
+    setAdjustments((prev: any) => ({ ...prev, cameraProfile: file === '' ? null : file }));
   };
 
   const findOnline = async () => {
-    setBusy(true);
+    const camera = status?.camera;
+    if (!camera) {
+      return;
+    }
+    setNote(null);
+    setLooking(true);
     try {
-      await ag('get_profile_online', { model: status?.camera ?? '' });
-      await refresh();
-    } catch {
-      // Nothing published for this camera. The dropdown stays as it is.
+      const file = await ag<string | null>('get_profile_online', {
+        make: status?.make ?? '',
+        model: camera,
+      });
+      const next = await refresh();
+      // Another photo may be open by now; what was found is for this one.
+      if (useEditorStore.getState().selectedImage?.path !== path) {
+        return;
+      }
+      if (file && next?.available.some((p) => p.file === file)) {
+        choose(file);
+      } else if (!file) {
+        setMissed(camera);
+        setNote(t('profileNotPublished'));
+      }
+    } catch (e) {
+      // A network failure, not an answer: the entry stays so it can be tried again.
+      setNote(String(e));
     } finally {
-      setBusy(false);
+      setLooking(false);
     }
   };
 
@@ -116,45 +139,31 @@ export default function CameraProfile() {
   }
 
   const current: string = adjustments?.cameraProfile ?? '';
+  // RawTherapee publishes one profile per camera, so the offer to fetch it
+  // stands until that file is here — an imported profile does not answer it.
+  const canFind = !status.publishedInstalled && missed !== status.camera;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
         <span className="text-sm font-medium text-text-secondary select-none">{t('profileLabel')}</span>
-        {/*
-          RawTherapee publishes one profile per camera, so the offer to fetch it
-          stands until that file is here — an imported profile does not answer
-          it, and owning none is a different question.
-        */}
-        {!status.publishedInstalled && (
-          <button
-            onClick={findOnline}
-            disabled={busy}
-            className="px-2 py-0.5 rounded text-xs bg-bg-secondary hover:bg-surface text-text-primary disabled:opacity-50"
-            data-tooltip={t('profileFindTooltip')}
-          >
-            {busy ? '…' : t('gearFind')}
-          </button>
-        )}
       </div>
 
-      {status.available.length > 0 ? (
-        <select
-          value={current}
-          disabled={busy}
-          onChange={(e) => choose(e.target.value)}
-          className="w-full text-xs bg-bg-primary text-text-primary rounded px-2 py-1.5 truncate disabled:opacity-50"
-        >
-          <option value="">{t('profileBuiltIn')}</option>
-          {status.available.map((p) => (
-            <option key={p.file} value={p.file}>
-              {p.name ?? p.file}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <p className="text-xs text-text-secondary">{t('profileBuiltIn')}</p>
-      )}
+      <select
+        value={looking ? FIND : current}
+        disabled={looking}
+        onChange={(e) => (e.target.value === FIND ? findOnline() : choose(e.target.value))}
+        className="w-full text-xs bg-bg-primary text-text-primary rounded px-2 py-1.5 truncate disabled:opacity-50"
+      >
+        <option value="">{t('profileBuiltIn')}</option>
+        {status.available.map((p) => (
+          <option key={p.file} value={p.file}>
+            {p.name ?? p.file}
+          </option>
+        ))}
+        {canFind && <option value={FIND}>{looking ? t('gearLooking') : t('profileFind')}</option>}
+      </select>
+      {note && <p className="mt-1 text-xs text-text-secondary">{note}</p>}
     </div>
   );
 }

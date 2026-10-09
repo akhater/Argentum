@@ -37,6 +37,8 @@ export const RELEASES: Release[] = [
     notes: [
       'Camera profile, RAW rendering and highlight recovery are together in one RAW section at the '
       + 'top of the Color panel, which folds like the others.',
+      'Profile is a dropdown even before you have one: Built-in, your profiles, and Find one…, '
+      + 'which selects what it finds and goes back to Built-in when nothing is published.',
     ],
   },
   {
