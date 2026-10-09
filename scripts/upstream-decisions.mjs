@@ -845,6 +845,8 @@ const UNREACHED_165 = [
   ['28fa5120', 'src-tauri/src/shaders/shader.wgsl', 'apply_color_calibration, apply_white_balance', ['ai-super-resolution#apply_curve']],
   ['89020724', 'src-tauri/src/shaders/shader.wgsl', 'apply_creative_color, apply_hsl_panel', ['ai-super-resolution#apply_curve']],
   ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', ['ai-super-resolution#apply_curve']],
+  ['078c90a8', 'src-tauri/src/mask_generation.rs', 'imports, resolve_warped_image_for_masks, get_cached_or_generate_mask', ['ai-super-resolution#generate_ai_bitmap_from_base64']],
+  ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', ['ai-super-resolution#generate_ai_bitmap_from_base64']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -1193,10 +1195,10 @@ export const REVIEW_165_DECISIONS = [
 // for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
 // 10 for mask-falloff and 26 for mask-guides (26.41.9), 16 for mask-guides
 // reaching the AI panel and their radial Transformer, 33 for memory-release and
-// shared-unchanged-copies, 2 for ai-sessions-without-arena, and 25 for
-// ai-super-resolution carrying a raw's look to its enlargement (26.41.10).
-if (REVIEW_165_DECISIONS.length !== 1024) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1024 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
+// ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10).
+if (REVIEW_165_DECISIONS.length !== 1026) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1026 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

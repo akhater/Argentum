@@ -846,13 +846,21 @@ export const REGISTRY = [
         note:
           'The Settings tone-mapper override is what a raw actually renders with, so it decides which '
           + 'view transform the enlargement has to reproduce.' },
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_ai_bitmap_from_base64', how: 'calls',
+        note:
+          'carry_masks moves every mask into the enlargement. AI masks are re-rendered over the enlarged '
+          + 'frame with generate_ai_bitmap_from_base64 and TransformParams, and stored as the enlargement’s '
+          + 'own bitmap. Shapes rely on the generators measuring centre, ends, strokes and radii in the '
+          + 'straightened, uncropped source, with crop_offset subtracted. move_sample_point runs '
+          + 'generate_color_bitmap’s placement backwards. A change to any of those conventions moves masks '
+          + 'off what they covered.' },
     ],
     tests: [
       'Manual: open an upscaled image, zoom in and back out with the mouse wheel, and verify the full image fits in the editor.',
       'Manual: crop and straighten a photo, enlarge it; the result is the framed area only, and opens with no crop or rotation applied.',
-      'Manual: give a raw a custom white balance, an inpainted area and the basic tone mapper, enlarge it; the enlargement opens with the same colour, tone and inpainting as the raw.',
+      'Manual: give a raw a custom white balance, an inpainted area, the basic tone mapper and a radial, a linear, a brush and an AI mask, enlarge it; the enlargement opens with the same colour, tone, inpainting and masks as the raw.',
       'super_resolution tests: framing already applied is not carried over, the look is',
-      'super_resolution tests: an enlarged raw decodes to its light, is balanced by the raw’s gains, and carries the raw tone curve (basic, base curve, own luma curve, AgX, unedited)',
+      'super_resolution tests: an enlarged raw decodes to its light, is balanced by the raw’s gains, and carries the raw tone curve (basic, base curve, own luma curve, AgX, unedited); shapes, AI masks and colour sample points move into the enlargement',
     ],
     keywords: /upscale|super.?resolution|zoom|image.?size/i,
   },

@@ -103,7 +103,16 @@ static MODEL_X2: OnceLock<Arc<LoadedModel>> = OnceLock::new();
 static MODEL_X4: OnceLock<Arc<LoadedModel>> = OnceLock::new();
 static MODEL_INIT_X2: OnceLock<TokioMutex<()>> = OnceLock::new();
 static MODEL_INIT_X4: OnceLock<TokioMutex<()>> = OnceLock::new();
-static RESULT: OnceLock<Mutex<Option<DynamicImage>>> = OnceLock::new();
+static RESULT: OnceLock<Mutex<Option<Enlargement>>> = OnceLock::new();
+
+/// An enlarged photo, with what is needed to move its masks into it.
+struct Enlargement {
+    image: DynamicImage,
+    scale: u32,
+    /// The decoded source photo's size, which AI masks and colour-mask sample
+    /// points are placed against.
+    source_size: (u32, u32),
+}
 
 #[derive(Serialize)]
 pub struct PreviewPayload {
@@ -118,7 +127,7 @@ struct ProgressPayload {
     message: String,
 }
 
-fn result_slot() -> &'static Mutex<Option<DynamicImage>> {
+fn result_slot() -> &'static Mutex<Option<Enlargement>> {
     RESULT.get_or_init(|| Mutex::new(None))
 }
 
@@ -128,7 +137,7 @@ pub fn result_bytes() -> usize {
     RESULT
         .get()
         .and_then(|slot| slot.try_lock().ok())
-        .and_then(|g| g.as_ref().map(|img| img.as_bytes().len()))
+        .and_then(|g| g.as_ref().map(|enlarged| enlarged.image.as_bytes().len()))
         .unwrap_or(0)
 }
 
@@ -555,7 +564,8 @@ fn encode_preview(image: &DynamicImage) -> Result<String> {
     ))
 }
 
-fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage> {
+/// The framed photo to enlarge, and the size it was decoded at.
+fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<(DynamicImage, (u32, u32))> {
     let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(path);
     let bytes = fs::read(&source_path)
         .with_context(|| format!("Could not read {}", source_path.display()))?;
@@ -574,6 +584,7 @@ fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage
             error
         )
     })?;
+    let source_size = (image.width(), image.height());
     let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
     // Inpainting is part of the photo, not of its look, and its patches are
     // placed in source coordinates the enlargement no longer has. Composite
@@ -590,7 +601,7 @@ fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage
     if crate::formats::is_raw_file(&source_path) {
         encode_for_reopening(&mut framed);
     }
-    Ok(framed)
+    Ok((framed, source_size))
 }
 
 /// A raw decodes to scene-linear light, and is framed and enlarged as such. The
@@ -630,7 +641,7 @@ async fn upscale(
     scale: u32,
 ) -> Result<PreviewPayload> {
     let result = tokio::task::spawn_blocking(move || {
-        let source = load_source(&path, &app_handle)?;
+        let (source, source_size) = load_source(&path, &app_handle)?;
         let original_preview = encode_preview(&source).with_context(|| {
             format!(
                 "Cannot create a preview for '{}'. The decoded image format is not supported",
@@ -650,7 +661,11 @@ async fn upscale(
         let result_preview = encode_preview(&result)?;
         *result_slot()
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(result);
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Enlargement {
+            image: result,
+            scale,
+            source_size,
+        });
         Ok::<PreviewPayload, anyhow::Error>(PreviewPayload {
             result: result_preview,
             original: original_preview,
@@ -680,19 +695,20 @@ pub async fn preview(
 }
 
 pub async fn save(original_path: String, app_handle: tauri::AppHandle) -> Result<String, String> {
-    let image = result_slot()
+    let enlarged = result_slot()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .take()
         .ok_or_else(|| "No super-resolution result found in memory".to_string())?;
-    save_image(&original_path, image, &app_handle).map_err(|error| error.to_string())
+    save_image(&original_path, enlarged, &app_handle).map_err(|error| error.to_string())
 }
 
 fn save_image(
     original_path: &str,
-    image: DynamicImage,
+    enlarged: Enlargement,
     app_handle: &tauri::AppHandle,
 ) -> Result<String> {
+    let image = &enlarged.image;
     let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(original_path);
     let parent = source_path
         .parent()
@@ -728,7 +744,13 @@ fn save_image(
             output_path.display()
         )
     })?;
-    write_super_resolution_sidecar(&source_path, &sidecar_path, &output_path, app_handle)?;
+    write_super_resolution_sidecar(
+        &source_path,
+        &sidecar_path,
+        &output_path,
+        &enlarged,
+        app_handle,
+    )?;
     Ok(output_path.to_string_lossy().to_string())
 }
 
@@ -740,6 +762,7 @@ fn strip_non_transferable_adjustments(adjustments: &mut Value) {
     // These values refer to coordinates, masks, or pixels in the source
     // image, or describe framing already applied before enlargement. Copying
     // them would crop, rotate or correct the enlarged photo a second time.
+    // Masks are not among them: carry_masks moves them into the enlargement.
     const SOURCE_COORDINATE_KEYS: &[&str] = &[
         "aiPatches",
         "aspectRatio",
@@ -747,7 +770,6 @@ fn strip_non_transferable_adjustments(adjustments: &mut Value) {
         "flipHorizontal",
         "flipVertical",
         "guidedPerspective",
-        "masks",
         "orientationSteps",
         "rotation",
         "transformAspect",
@@ -787,6 +809,7 @@ fn write_super_resolution_sidecar(
     source_path: &Path,
     source_sidecar: &Path,
     output_path: &Path,
+    enlarged: &Enlargement,
     app_handle: &tauri::AppHandle,
 ) -> Result<()> {
     let is_raw = crate::formats::is_raw_file(source_path);
@@ -806,6 +829,8 @@ fn write_super_resolution_sidecar(
             crate::image_processing::resolve_tonemapper_override(&settings, false),
         );
     }
+    let frame = Frame::of(&metadata.adjustments, enlarged);
+    carry_masks(&mut metadata.adjustments, &frame);
     strip_non_transferable_adjustments(&mut metadata.adjustments);
 
     let output_sidecar = crate::exif_processing::get_primary_sidecar_path(output_path);
@@ -1075,6 +1100,211 @@ fn apply_curve(value: f32, points: &[(f32, f32)]) -> f32 {
     points[count - 1].1 / 255.0
 }
 
+/// Where the enlargement sits in its source. Mask coordinates are measured in
+/// the source straightened but not cropped (mask_generation.rs subtracts the
+/// crop's corner), so a point moves by the crop and then by the enlargement.
+struct Frame {
+    origin: (f64, f64),
+    scale: f64,
+    source_size: (u32, u32),
+    size: (u32, u32),
+}
+
+impl Frame {
+    fn of(adjustments: &Value, enlarged: &Enlargement) -> Self {
+        let crop = &adjustments["crop"];
+        Self {
+            origin: (
+                crop["x"].as_f64().unwrap_or(0.0),
+                crop["y"].as_f64().unwrap_or(0.0),
+            ),
+            scale: f64::from(enlarged.scale),
+            source_size: enlarged.source_size,
+            size: (enlarged.image.width(), enlarged.image.height()),
+        }
+    }
+
+    fn point(&self, x: f64, y: f64) -> (f64, f64) {
+        (
+            (x - self.origin.0) * self.scale,
+            (y - self.origin.1) * self.scale,
+        )
+    }
+}
+
+/// Move every mask into the enlargement, so it lands on the same part of the
+/// photo. Shapes keep their kind and stay editable. AI masks are bitmaps of
+/// the whole source, so they are re-rendered into the enlargement with the
+/// editor's own placement. Colour and luminance masks keep their sample point,
+/// but select again from the enlargement's pixels, so their edge can differ.
+fn carry_masks(adjustments: &mut Value, frame: &Frame) {
+    let Some(masks) = adjustments.get_mut("masks").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for sub_mask in masks
+        .iter_mut()
+        .filter_map(|mask| mask.get_mut("subMasks").and_then(Value::as_array_mut))
+        .flatten()
+    {
+        let kind = sub_mask["type"].as_str().unwrap_or_default().to_string();
+        let params = &mut sub_mask["parameters"];
+        if !params.is_object() {
+            continue;
+        }
+        match kind.as_str() {
+            "radial" => {
+                move_point(params, "centerX", "centerY", frame);
+                scale_length(params, "radiusX", frame);
+                scale_length(params, "radiusY", frame);
+            }
+            "linear" => {
+                move_point(params, "startX", "startY", frame);
+                move_point(params, "endX", "endY", frame);
+                scale_length(params, "range", frame);
+            }
+            "brush" | "flow" | "clone" | "heal" | "liquify" | "retouch" => {
+                let lines = params.get_mut("lines").and_then(Value::as_array_mut);
+                for line in lines.into_iter().flatten() {
+                    scale_length(line, "brushSize", frame);
+                    let points = line.get_mut("points").and_then(Value::as_array_mut);
+                    for point in points.into_iter().flatten() {
+                        move_point(point, "x", "y", frame);
+                    }
+                }
+            }
+            "ai-subject" | "ai-foreground" | "ai-sky" | "ai-depth" | "quick-eraser" => {
+                rerender_ai_mask(params, frame);
+                move_point(params, "startX", "startY", frame);
+                move_point(params, "endX", "endY", frame);
+            }
+            "color" | "luminance" => move_sample_point(params, frame),
+            _ => {}
+        }
+    }
+}
+
+/// The panel parks the coordinates a mask kind does not use at -10000.
+const PARKED: f64 = -9999.0;
+
+fn move_point(value: &mut Value, x_key: &str, y_key: &str, frame: &Frame) {
+    let (Some(x), Some(y)) = (value[x_key].as_f64(), value[y_key].as_f64()) else {
+        return;
+    };
+    if x <= PARKED || y <= PARKED {
+        return;
+    }
+    let (x, y) = frame.point(x, y);
+    value[x_key] = json!(x);
+    value[y_key] = json!(y);
+}
+
+fn scale_length(value: &mut Value, key: &str, frame: &Frame) {
+    if let Some(length) = value[key].as_f64() {
+        value[key] = json!(length * frame.scale);
+    }
+}
+
+/// The source's orientation, flips and straightening an AI or colour mask
+/// was made under. In the enlargement they are already applied.
+fn take_placement(params: &mut Value) -> (f32, bool, bool, u8) {
+    let placement = (
+        params["rotation"].as_f64().unwrap_or(0.0) as f32,
+        params["flipHorizontal"].as_bool().unwrap_or(false),
+        params["flipVertical"].as_bool().unwrap_or(false),
+        params["orientationSteps"].as_u64().unwrap_or(0) as u8,
+    );
+    params["rotation"] = json!(0);
+    params["flipHorizontal"] = json!(false);
+    params["flipVertical"] = json!(false);
+    params["orientationSteps"] = json!(0);
+    placement
+}
+
+/// Render the AI mask as the editor would over the enlarged frame of the
+/// source, and keep that as the enlargement's own whole-image bitmap.
+fn rerender_ai_mask(params: &mut Value, frame: &Frame) {
+    let Some(data) = params["maskDataBase64"].as_str().map(str::to_owned) else {
+        return;
+    };
+    let (rotation, flip_horizontal, flip_vertical, orientation_steps) = take_placement(params);
+    let placement = crate::mask_generation::TransformParams {
+        rotation,
+        flip_horizontal,
+        flip_vertical,
+        orientation_steps,
+        width: frame.size.0,
+        height: frame.size.1,
+        scale: frame.scale as f32,
+        crop_offset: (
+            (frame.origin.0 * frame.scale) as f32,
+            (frame.origin.1 * frame.scale) as f32,
+        ),
+    };
+    let rendered = crate::mask_generation::generate_ai_bitmap_from_base64(&data, &placement)
+        .and_then(|mask| {
+            let mut png = Cursor::new(Vec::new());
+            mask.write_to(&mut png, ImageFormat::Png).ok()?;
+            Some(format!(
+                "data:image/png;base64,{}",
+                general_purpose::STANDARD.encode(png.get_ref())
+            ))
+        });
+    if rendered.is_none() {
+        log::warn!(
+            "Super resolution: an AI mask could not be moved into the enlargement; it is left empty"
+        );
+    }
+    params["maskDataBase64"] = rendered.map_or(Value::Null, Value::String);
+}
+
+/// A colour or luminance mask's sample point is in the source as decoded.
+/// This runs mask_generation.rs's placement the other way: orientation, then
+/// flips, then straightening, into the frame the other masks are measured in.
+fn move_sample_point(params: &mut Value, frame: &Frame) {
+    let (Some(x), Some(y)) = (params["targetX"].as_f64(), params["targetY"].as_f64()) else {
+        return;
+    };
+    let (rotation, flip_horizontal, flip_vertical, orientation_steps) = take_placement(params);
+    let (x, y) = straightened_from_source(
+        (x, y),
+        frame.source_size,
+        f64::from(rotation),
+        flip_horizontal,
+        flip_vertical,
+        orientation_steps,
+    );
+    let (x, y) = frame.point(x, y);
+    params["targetX"] = json!(x);
+    params["targetY"] = json!(y);
+}
+
+fn straightened_from_source(
+    (x, y): (f64, f64),
+    (width, height): (u32, u32),
+    rotation_degrees: f64,
+    flip_horizontal: bool,
+    flip_vertical: bool,
+    orientation_steps: u8,
+) -> (f64, f64) {
+    let (width, height) = (f64::from(width), f64::from(height));
+    let (w, h) = if orientation_steps % 2 == 1 {
+        (height, width)
+    } else {
+        (width, height)
+    };
+    let (x, y) = match orientation_steps {
+        1 => (w - y, x),
+        2 => (w - x, h - y),
+        3 => (y, h - x),
+        _ => (x, y),
+    };
+    let x = if flip_horizontal { w - x } else { x };
+    let y = if flip_vertical { h - y } else { y };
+    let (sin, cos) = rotation_degrees.to_radians().sin_cos();
+    let (dx, dy) = (x - w / 2.0, y - h / 2.0);
+    (dx * cos - dy * sin + w / 2.0, dx * sin + dy * cos + h / 2.0)
+}
+
 pub async fn batch(
     paths: Vec<String>,
     scale: u32,
@@ -1099,12 +1329,18 @@ pub async fn batch(
                     message: format!("Upscaling photo {}/{}...", index + 1, paths.len()),
                 },
             );
-            let source = load_source(path, &app_handle).map_err(|error| error.to_string())?;
+            let (source, source_size) =
+                load_source(path, &app_handle).map_err(|error| error.to_string())?;
             let result = DynamicImage::ImageRgb32F(
                 run_with_fallback(&source.to_rgb32f(), &model, &app_handle, scale)
                     .map_err(|error| format!("Cannot upscale '{}': {}", path, error))?,
             );
-            saved.push(save_image(path, result, &app_handle).map_err(|error| error.to_string())?);
+            let enlarged = Enlargement {
+                image: result,
+                scale,
+                source_size,
+            };
+            saved.push(save_image(path, enlarged, &app_handle).map_err(|error| error.to_string())?);
         }
         Ok(saved)
     })
@@ -1147,7 +1383,204 @@ mod tests {
             .map(String::as_str)
             .collect();
         kept.sort_unstable();
-        assert_eq!(kept, ["exposure", "temperature"]);
+        assert_eq!(kept, ["exposure", "masks", "temperature"]);
+    }
+
+    /// A 2x enlargement of the crop starting at (100, 50) of a 400x300 photo.
+    fn frame() -> Frame {
+        Frame {
+            origin: (100.0, 50.0),
+            scale: 2.0,
+            source_size: (400, 300),
+            size: (300, 200),
+        }
+    }
+
+    fn one_mask(kind: &str, parameters: Value) -> Value {
+        json!({ "masks": [{ "subMasks": [{ "type": kind, "parameters": parameters }] }] })
+    }
+
+    fn carried(kind: &str, parameters: Value) -> Value {
+        let mut adjustments = one_mask(kind, parameters);
+        carry_masks(&mut adjustments, &frame());
+        adjustments["masks"][0]["subMasks"][0]["parameters"].take()
+    }
+
+    #[test]
+    fn shapes_move_with_the_crop_and_grow_with_the_enlargement() {
+        let radial = carried(
+            "radial",
+            json!({ "centerX": 160, "centerY": 90, "radiusX": 40, "radiusY": 20, "rotation": -27, "feather": 0.6,
+                    "startX": -10000, "startY": -10000 }),
+        );
+        assert_eq!(radial["centerX"], 120.0);
+        assert_eq!(radial["centerY"], 80.0);
+        assert_eq!(radial["radiusX"], 80.0);
+        assert_eq!(radial["radiusY"], 40.0);
+        assert_eq!(radial["rotation"], -27);
+        assert_eq!(radial["feather"], 0.6);
+        assert_eq!(radial["startX"], -10000, "a parked coordinate stays parked");
+
+        let linear = carried(
+            "linear",
+            json!({ "startX": 110, "startY": 60, "endX": 210, "endY": 60, "range": 25 }),
+        );
+        assert_eq!(
+            [
+                &linear["startX"],
+                &linear["startY"],
+                &linear["endX"],
+                &linear["endY"],
+                &linear["range"]
+            ],
+            [20.0, 20.0, 220.0, 20.0, 50.0]
+        );
+
+        let brush = carried(
+            "brush",
+            json!({ "lines": [{ "tool": "brush", "brushSize": 30, "feather": 0.5,
+                                "points": [{ "x": 120, "y": 70 }, { "x": 130, "y": 75 }] }] }),
+        );
+        let line = &brush["lines"][0];
+        assert_eq!(line["brushSize"], 60.0);
+        assert_eq!(line["feather"], 0.5);
+        assert_eq!(line["points"][1], json!({ "x": 60.0, "y": 50.0 }));
+    }
+
+    fn png_data_url(mask: &image::GrayImage) -> String {
+        let mut png = Cursor::new(Vec::new());
+        mask.write_to(&mut png, ImageFormat::Png).unwrap();
+        format!(
+            "data:image/png;base64,{}",
+            general_purpose::STANDARD.encode(png.get_ref())
+        )
+    }
+
+    fn decode(data_url: &str) -> image::GrayImage {
+        let data = &data_url[data_url.find(',').unwrap() + 1..];
+        image::load_from_memory(&general_purpose::STANDARD.decode(data).unwrap())
+            .unwrap()
+            .to_luma8()
+    }
+
+    #[test]
+    fn an_ai_mask_is_redrawn_over_the_enlargement() {
+        // A whole-photo mask with one lit block, made on an unstraightened photo.
+        let mut source = image::GrayImage::new(400, 300);
+        for y in 70..90 {
+            for x in 150..170 {
+                source.put_pixel(x, y, image::Luma([255]));
+            }
+        }
+        let parameters = carried(
+            "ai-subject",
+            json!({ "maskDataBase64": png_data_url(&source), "rotation": 0.0,
+                    "startX": 150, "startY": 70, "endX": 170, "endY": 90 }),
+        );
+        let mask = decode(parameters["maskDataBase64"].as_str().unwrap());
+        assert_eq!(mask.dimensions(), (300, 200));
+        // The block sits at (150..170, 70..90) - (100, 50), doubled.
+        assert_eq!(mask.get_pixel(100, 40)[0], 255);
+        assert_eq!(mask.get_pixel(139, 79)[0], 255);
+        assert_eq!(mask.get_pixel(99, 40)[0], 0);
+        assert_eq!(mask.get_pixel(140, 80)[0], 0);
+        assert_eq!(parameters["startX"], 100.0);
+        assert_eq!(parameters["endY"], 80.0);
+    }
+
+    #[test]
+    fn a_straightened_ai_mask_is_redrawn_where_the_editor_draws_it() {
+        let mut source = image::GrayImage::new(400, 300);
+        for (x, y, p) in source.enumerate_pixels_mut() {
+            *p = image::Luma([((x * 7 + y * 3) % 256) as u8]);
+        }
+        let data = png_data_url(&source);
+        let parameters = carried(
+            "ai-foreground",
+            json!({ "maskDataBase64": data, "rotation": -4.4, "flipHorizontal": true }),
+        );
+        assert_eq!(parameters["rotation"], 0);
+        assert_eq!(parameters["flipHorizontal"], false);
+        // What the editor would draw over the same 2x frame of the source.
+        let expected = crate::mask_generation::generate_ai_bitmap_from_base64(
+            &data,
+            &crate::mask_generation::TransformParams {
+                rotation: -4.4,
+                flip_horizontal: true,
+                flip_vertical: false,
+                orientation_steps: 0,
+                width: 300,
+                height: 200,
+                scale: 2.0,
+                crop_offset: (200.0, 100.0),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            decode(parameters["maskDataBase64"].as_str().unwrap()),
+            expected
+        );
+    }
+
+    /// mask_generation.rs's placement for a colour mask: from the straightened
+    /// frame back to the source as decoded, at scale 1.
+    fn editor_source_from_straightened(
+        (x, y): (f64, f64),
+        (width, height): (f64, f64),
+        rotation: f64,
+        flip_horizontal: bool,
+        flip_vertical: bool,
+        orientation_steps: u8,
+    ) -> (f64, f64) {
+        let (w, h) = if orientation_steps % 2 == 1 {
+            (height, width)
+        } else {
+            (width, height)
+        };
+        let (sin, cos) = rotation.to_radians().sin_cos();
+        let (dx, dy) = (x - w / 2.0, y - h / 2.0);
+        let (x, y) = (
+            dx * cos + dy * sin + w / 2.0,
+            -dx * sin + dy * cos + h / 2.0,
+        );
+        let x = if flip_horizontal { w - x } else { x };
+        let y = if flip_vertical { h - y } else { y };
+        match orientation_steps {
+            1 => (y, w - x),
+            2 => (w - x, h - y),
+            3 => (h - y, x),
+            _ => (x, y),
+        }
+    }
+
+    #[test]
+    fn a_colour_sample_point_lands_on_the_same_pixel() {
+        for steps in 0..4u8 {
+            for (flip_h, flip_v) in [(false, false), (true, false), (false, true)] {
+                let source = (123.0, 77.0);
+                let straightened =
+                    straightened_from_source(source, (400, 300), 7.5, flip_h, flip_v, steps);
+                let back = editor_source_from_straightened(
+                    straightened,
+                    (400.0, 300.0),
+                    7.5,
+                    flip_h,
+                    flip_v,
+                    steps,
+                );
+                assert!(
+                    (back.0 - source.0).abs() < 1e-9 && (back.1 - source.1).abs() < 1e-9,
+                    "orientation {steps}, flips {flip_h}/{flip_v}: {source:?} came back as {back:?}"
+                );
+            }
+        }
+
+        let colour = carried(
+            "color",
+            json!({ "targetX": 140, "targetY": 90, "tolerance": 20, "rotation": 0 }),
+        );
+        assert_eq!([&colour["targetX"], &colour["targetY"]], [80.0, 80.0]);
+        assert_eq!(colour["tolerance"], 20);
     }
 
     /// The editor's decode for an ordinary image (`srgb_to_linear`, shader.wgsl).
