@@ -26,18 +26,23 @@ Newest first.
   middle of the fade and the effect lands behind it. It is now a solid line
   where the effect is full and a dashed line where it has gone, with handles
   marked 100% and 0%. You draw it as a graduated filter: press where the
-  effect should be full and let go where it should be gone. A handle moves its own end and the lines
-  turn to follow, a line slides on its own (closer is a harder edge), and the
-  band between them moves both. Stored exactly as RapidRAW stores it, so old
-  masks open in it. `src/argentum/LinearMask.tsx` and `linearEdges.ts`. No line
-  of theirs: presses on their mask stage are taken by a capturing listener, as
-  the object brush did, and their stage canvas is hidden while a linear
-  component is selected. Masks panel only; the AI panel keeps theirs.
+  effect should be full and let go where it should be gone. A handle moves its
+  own end and the lines turn to follow, a line slides on its own (closer is a
+  harder edge), and the band between them moves both. Stored exactly as
+  RapidRAW stores it, so old masks open in it. `src/argentum/LinearMask.tsx`
+  and `linearEdges.ts`. No line of theirs: presses on their mask stage are
+  taken by a capturing listener, as the object brush did, and their stage
+  canvas is hidden while a linear component is selected. The press also blurs
+  whatever had focus, as a press on their stage would, or Delete is ignored
+  while the last slider touched keeps it. In the masks panel and the AI panel.
 - **The radial mask shows where its full effect ends.** A solid inner ellipse,
-  inside their dashed outer one, that follows the Feather slider as it moves.
-  Their red mask preview is hidden while any slider is dragged, so Feather had
-  nothing to show for itself. `src/argentum/RadialFeather.tsx`. Both are
-  registry entry `mask-guides`, with its 26 decisions against the 1.6.5 review.
+  inside their dashed outer one, that follows the Feather slider as it moves,
+  and the outer ellipse while it is dragged or resized: that is read live from
+  the Konva shape their Transformer holds, since the stored mask only moves on
+  release. Their red mask preview is hidden while any slider is dragged, so
+  Feather had nothing to show for itself. `src/argentum/RadialFeather.tsx`.
+  Both are registry entry `mask-guides`, with its 42 decisions against the
+  1.6.5 review.
 - **Linear and radial masks fade out instead of stopping.** Both were a
   straight ramp clamped to 0..1, and the clamp leaves a corner at each end that
   the eye sees as a line. Both now fade with smoothstep, level at each end: the

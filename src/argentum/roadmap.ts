@@ -171,12 +171,14 @@ const MILESTONES: Milestone[] = [
       + 'what is in a photo rather than only by filename and EXIF.',
   },
   {
-    stage: 'planned',
+    stage: 'done',
     what: 'Feather on the linear mask',
+    release: '26.41.9',
     why:
-      'A linear gradient has a hard-ish edge and no way to soften it. The falloff '
-      + 'is already there — mask_generation.rs takes a range, fixed at 50 — it has '
-      + 'simply never been put on screen.',
+      'The linear mask is two lines, where the effect is full and where it has gone, '
+      + 'and how far apart they are is how soft the edge is. Both it and the radial '
+      + 'mask now fade smoothly, with no line where the fade starts or stops, and the '
+      + 'radial mask shows where its full effect ends.',
   },
   {
     stage: 'planned',
