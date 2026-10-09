@@ -39,8 +39,8 @@ export const RELEASES: Release[] = [
       + 'top of the Color panel, which folds like the others.',
       'Profile is a dropdown even before you have one: Built-in, your profiles, and Find one…, '
       + 'which selects what it finds and goes back to Built-in when nothing is published.',
-      'The linear mask is two lines, marked 100% and 0%: drag from where the effect should start to '
-      + 'where it should be full. Drag a line to make the edge harder or softer.',
+      'The linear mask is two lines, marked 100% and 0%: drag from where the effect should be full '
+      + 'to where it should be gone. Drag a line to make the edge harder or softer.',
       'The radial mask shows a second ellipse where its full effect ends, and it follows the '
       + 'Feather slider.',
       'Linear and radial masks fade out smoothly instead of stopping at a visible edge. Masks you '

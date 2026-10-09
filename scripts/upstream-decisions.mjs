@@ -798,6 +798,22 @@ const UNREACHED_165 = [
   ['3ba2fcae', 'src/components/panel/editor/ImageCanvas.tsx', 'MaskOverlayProps, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isSliderDragging']],
   ['d14887fd', 'src/store/useUIStore.ts', 'useUIStore, UIState', ['mask-guides#activePanel']],
   ['7ce629fc', 'src/store/useUIStore.ts', 'imports', ['mask-guides#activePanel']],
+  ['48a124f5', 'src/components/panel/right/AIPanel.tsx', 'AIPanel', ['mask-guides#createMaskLogic']],
+  ['667f2e4d', 'src/components/panel/right/AIPanel.tsx', 'SettingsPanel', ['mask-guides#createMaskLogic']],
+  ['b66691ba', 'src/components/panel/right/AIPanel.tsx', 'imports', ['mask-guides#createMaskLogic']],
+  ['9671795e', 'src/components/panel/right/AIPanel.tsx', 'AIPanel', ['mask-guides#createMaskLogic']],
+  ['7cc0b674', 'src/components/panel/right/AIPanel.tsx', 'imports, SettingsPanel', ['mask-guides#createMaskLogic']],
+  ['5c4b7800', 'src/components/panel/right/AIPanel.tsx', 'ConnectionStatus', ['mask-guides#createMaskLogic']],
+  ['06c52a49', 'src/components/panel/right/AIPanel.tsx', 'imports, AIPanel, SettingsPanel', ['mask-guides#createMaskLogic']],
+  ['f62a8365', 'src/components/panel/right/AIPanel.tsx', 'imports, AIPanel, ContainerRow, SettingsPanel, SubMaskRow', ['mask-guides#createMaskLogic']],
+  ['3c864270', 'src/components/panel/Editor.tsx', 'imports, Editor', ['mask-guides#updateSubMaskLocal']],
+  ['65472097', 'src/components/panel/Editor.tsx', 'Editor', ['mask-guides#updateSubMaskLocal']],
+  ['aff9b3f2', 'src/components/panel/editor/ImageCanvas.tsx', 'ImageCanvas', ['mask-guides#Transformer']],
+  ['e4d6fd16', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-guides#Transformer']],
+  ['9fe2ee29', 'src/components/panel/editor/ImageCanvas.tsx', 'linearToSrgb8, ImageCanvas', ['mask-guides#Transformer']],
+  ['8155513d', 'src/components/panel/editor/ImageCanvas.tsx', 'ImageCanvas', ['mask-guides#Transformer']],
+  ['3ba2fcae', 'src/components/panel/editor/ImageCanvas.tsx', 'MaskOverlayProps, ImageCanvas', ['mask-guides#Transformer']],
+  ['9ba20c02', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-guides#Transformer']],
   ['9ba20c02', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
 ];
 
@@ -1125,9 +1141,10 @@ export const REVIEW_165_DECISIONS = [
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
 // registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
 // for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
-// 10 for mask-falloff and 26 for mask-guides (26.41.9).
-if (REVIEW_165_DECISIONS.length !== 948) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 948 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 10 for mask-falloff and 26 for mask-guides (26.41.9), and 16 for mask-guides
+// reaching the AI panel and their radial Transformer.
+if (REVIEW_165_DECISIONS.length !== 964) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 964 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

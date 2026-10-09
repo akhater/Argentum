@@ -1201,8 +1201,9 @@ export const REGISTRY = [
     kind: 'feature',
     what:
       'The linear mask on the canvas as two lines, full effect and none, with handles marked 100% '
-      + 'and 0%; drawn by dragging from where the effect starts to where it is full. The radial '
-      + 'mask gets a solid inner ellipse where its full effect ends, following the Feather slider.',
+      + 'and 0%; drawn as a graduated filter, from where the effect is full to where it has gone. The radial '
+      + 'mask gets a solid inner ellipse where its full effect ends, following the Feather slider '
+      + 'and the outer ellipse as it is dragged. In the masks panel and the AI panel.',
     ours: [
       'src/argentum/LinearMask.tsx',
       'src/argentum/RadialFeather.tsx',
@@ -1238,13 +1239,29 @@ export const REGISTRY = [
       { file: 'src/store/useEditorStore.ts', symbol: 'activeMaskId', how: 'calls',
         note: 'The selected component, read with adjustments, showOriginal and selectedImage.' },
       { file: 'src/store/useUIStore.ts', symbol: 'activePanel', how: 'calls',
-        note: 'Only the masks panel. The AI panel\'s linear masks keep their canvas.' },
+        note: 'The masks panel and the AI panel, the two that put their mask stage up.' },
+      { file: 'src/components/panel/right/AIPanel.tsx', symbol: 'createMaskLogic', how: 'calls',
+        note:
+          'The AI panel\'s copy of it: new linear and radial components start with isInitialDraw '
+          + 'and their geometry at -10000, as in the masks panel.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'activeAiSubMaskId', how: 'calls',
+        note: 'The AI panel\'s selection, which it keeps apart from activeMaskId.' },
+      { file: 'src/components/panel/Editor.tsx', symbol: 'updateSubMaskLocal', how: 'calls',
+        note:
+          'withParameters updates a component in masks and in aiPatches, as this does. If they '
+          + 'move components somewhere else, ours stops finding them and draws nothing.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'Transformer', how: 'calls',
+        note:
+          'RadialFeather reads the outer ellipse live, while it is dragged or resized, from the '
+          + 'Konva shape their Transformer is attached to. Attach it to something else, or drop it, '
+          + 'and the inner ellipse falls back to the stored mask and catches up on release.' },
     ],
     tests: [
       'Manual: Masks > Linear, drag from a point to another: the effect is full where the drag '
-        + 'ended, 0% where it began, smooth between. Drag a handle, a line and the band. Undo is '
+        + 'began, 0% where it ended, smooth between. Press Delete straight after: the mask goes. Drag a handle, a line and the band. Undo is '
         + 'one step per drag. Radial: move Feather and the inner ellipse follows; Feather 0 puts it '
-        + 'on the outer one.',
+        + 'on the outer one. Drag and resize the outer ellipse: the inner one moves with it, not '
+        + 'after. Both again in the AI panel.',
     ],
     keywords: /linear.?(mask|gradient)|radial.?(mask|gradient)|graduated|mask.?(handle|overlay|canvas)|konva/i,
   },
