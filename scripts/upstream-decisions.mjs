@@ -653,7 +653,7 @@ const UNREACHED_165 = [
   ['11e20e77', 'src-tauri/src/multi_exposure.rs', null, ['highlight-recovery#neutralize_wb_if_multiexposure']],
   ['9ba20c02', 'src-tauri/src/image_processing.rs', 'crate, GlobalAdjustments, MaskAdjustments, AdjustmentScales and 5 more', ['clipping-view#show_clipping', 'preview-encode#apply_cpu_default_raw_processing', 'import-dialogue-1714#calculate_auto_adjustments']],
   ['9ba20c02', 'src-tauri/src/shaders/shader.wgsl', 'GlobalAdjustments, MaskAdjustments, apply_color_calibration, main', ['camera-profile#ag_stage_scene_linear', 'clipping-view#ag_stage_display', 'highlight-recovery#ag_stage_scene_linear', 'high-precision-export#output_texture']],
-  ['9ba20c02', 'src/utils/adjustments.ts', 'import type { AdjustmentLayout, ColorAdjustment, Adjustments, INITIAL_ADJUSTMENTS and 2 more', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['9ba20c02', 'src/utils/adjustments.ts', 'import type { AdjustmentLayout, ColorAdjustment, Adjustments, INITIAL_ADJUSTMENTS and 2 more', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['9ba20c02', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['clipping-view:showClipping']],
   ['9ba20c02', 'src-tauri/src/raw_processing.rs', 'crate, rawler, develop_internal', ['raw-decode#on_raw_decoded', 'canon-old-wb#on_raw_decoded', 'raw-tone#develop_raw_image']],
   ['9ba20c02', 'src-tauri/src/image_loader.rs', 'crate, LoadImageResult, load_image', ['raw-decode#load_base_image_from_bytes', 'highlight-recovery#load_base_image_from_bytes', 'raw-tone#embedded_preview_fallback']],
@@ -707,14 +707,14 @@ const UNREACHED_165 = [
   ['66b800f5', 'src/components/panel/right/ControlsPanel.tsx', null, ['clipping-view:showClipping']],
   ['66b800f5', 'src/components/panel/right/MasksPanel.tsx', null, ['clipping-view:showClipping']],
   ['b4994ed4', 'src-tauri/src/app_settings.rs', 'FilterCriteria', ['import-dialogue-1714#last_import_settings']],
-  ['b4a9d1a3', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['b4a9d1a3', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['b4a9d1a3', 'src-tauri/src/app_settings.rs', 'AdjustmentLayout', ['import-dialogue-1714#last_import_settings']],
   ['6d348a0d', 'src/components/panel/right/CropPanel.tsx', 'import Dropdown from \'../../ui', ['argentum-shell#useAutoDetectOnLoad']],
   ['454c33d6', 'src/components/panel/right/CropPanel.tsx', 'import Dropdown from \'../../ui, CropPanel', ['argentum-shell#useAutoDetectOnLoad']],
   ['7514c8f6', 'src/utils/adjustments.ts', 'AdjustmentSectionTool, ADJUSTMENT_SECTION_TOOLS', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
   ['7514c8f6', 'src-tauri/src/app_settings.rs', 'AdjustmentLayout, default_tagging_shortcuts_option, AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['7514c8f6', 'src/components/ui/AppProperties.tsx', 'AppSettings, AdjustmentLayout', ['import-dialogue-1714#ImportSettings']],
-  ['2f907e36', 'src/utils/adjustments.ts', 'import { SubMask, SubMaskMode , getAdjustmentSectionOrder', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['2f907e36', 'src/utils/adjustments.ts', 'import { SubMask, SubMaskMode , getAdjustmentSectionOrder', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['2f907e36', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['clipping-view:showClipping']],
   ['2f907e36', 'src/components/panel/right/MasksPanel.tsx', 'SettingsPanel', ['clipping-view:showClipping']],
   ['2f907e36', 'src-tauri/src/app_settings.rs', 'default_export_presets, AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
@@ -722,7 +722,7 @@ const UNREACHED_165 = [
   ['d94777fe', 'src/utils/adjustments.ts', null, ['wb-legacy:whiteBalance']],
   ['d94777fe', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['d94777fe', 'src/components/ui/AppProperties.tsx', 'AppSettings', ['import-dialogue-1714#ImportSettings']],
-  ['f4a4c8d0', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS, getAdjustmentSectionOrder, ADJUSTMENT_SECTION_TOOLS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['f4a4c8d0', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS, getAdjustmentSectionOrder, ADJUSTMENT_SECTION_TOOLS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['f4a4c8d0', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['f4a4c8d0', 'src/components/ui/AppProperties.tsx', 'AppSettings', ['import-dialogue-1714#ImportSettings']],
   ['c7c42306', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
@@ -731,7 +731,7 @@ const UNREACHED_165 = [
   ['45fa2ca1', 'src-tauri/src/app_settings.rs', 'default_export_presets', ['import-dialogue-1714#last_import_settings']],
   ['7ce629fc', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['7ce629fc', 'src/components/ui/AppProperties.tsx', 'AppSettings, UiVisibility', ['import-dialogue-1714#ImportSettings']],
-  ['0f564b59', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['0f564b59', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['0f564b59', 'src/components/panel/right/ControlsPanel.tsx', 'import Resizer from \'../../ui/, Controls', ['clipping-view:showClipping']],
   ['0f564b59', 'src/components/panel/right/MasksPanel.tsx', 'import {, SettingsPanel', ['clipping-view:showClipping']],
   ['0f564b59', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
@@ -833,6 +833,7 @@ const FILE_165 = {
   'auto-white-balance|src/components/adjustments/Color.tsx': ['combine', 'Their layout is taken; the color-tools marker sits in their white balance actions row beside K and the picker, placed at the merge.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'white-balance-presets|src/components/adjustments/AdjustmentSubSection.tsx': ['not-applicable', 'Only the fold logic changes; the header row, the folding wrapper after it and the body inside, which the menu row is placed by, are untouched.', ['181a7e32', '290818d5', '2f907e36', '3e186ce2', 'd94777fe']],
   'white-balance-presets|src/components/adjustments/Color.tsx': ['combine', 'The white balance menu is placed from the color-tools marker the merge seated in their actions row, beside K and the picker, where the wand was. Registered after this review (26.41.8).', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
+  'camera-profile|src/components/adjustments/AdjustmentSubSection.tsx': ['not-applicable', 'Only the fold logic changes; the props the RAW card passes and the collapsedTools setting its fold is kept in are untouched. Registered after this review (26.41.9).', ['181a7e32', '290818d5', '2f907e36', '3e186ce2', 'd94777fe']],
   'camera-profile|src/components/adjustments/Color.tsx': ['combine', 'Their layout is taken; the camera-profile marker is first in the panel, outside their tool sections, placed at the merge.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'raw-tone|src/components/adjustments/Color.tsx': ['combine', 'RAW tone rendering renders in the camera-profile marker, which the merge placed first in their new layout.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'compact-sliders|src/components/panel/SettingsPanel.tsx': ['not-applicable', 'Their Font row on General, which the Compact sliders switch is placed after, is not what this commit edits.', ['48a124f5', '2641891c', 'b66691ba', 'f98d68a4', 'c4ba9ac9', '3e186ce2', '290818d5', '66b800f5', 'c7c42306', '9b7e3368', '5c4b7800', '06c52a49']],
@@ -864,6 +865,7 @@ const FILE_165 = {
 
 // One commit in a group that did more than the rest.
 const FILE_OVERRIDE_165 = {
+  'camera-profile|src/components/adjustments/AdjustmentSubSection.tsx|d94777fe': ['combine', 'Creates AdjustmentSubSection, folding on an id kept in adjustmentLayout.collapsedTools. The RAW card is one, with an id of ours, so it folds like their sections.'],
   'white-balance-presets|src/components/adjustments/AdjustmentSubSection.tsx|d94777fe': ['combine', 'Creates AdjustmentSubSection: a header row, then a folding wrapper holding the body. The menu row is put first in that body, found from the color-tools marker in the header.'],
   'model-manager|src/components/panel/SettingsPanel.tsx|48a124f5': ['combine', 'This moves their AI card from Processing to General, so AI Models moves with it: out of the Processing tab and under their Generative AI card, placed from the existing slot by AiModelsPlacement.tsx.'],
   'no-cloud|src/components/panel/SettingsPanel.tsx|48a124f5': ['keep-ours', 'The Cloud dashboard moves to General with the AI card. It stays unreachable: the Cloud tile is hidden from our side.'],
@@ -965,6 +967,9 @@ const merges165 = MERGES_165.flatMap(([commit, what, targets]) =>
 
 // Where the diff reaches what we rely on, one at a time.
 const reached165 = [
+  review165('c7c42306', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates ADJUSTMENT_SECTION_TOOLS, whose color list is what the RAW card folds in focus mode. The helper that reads it came later (181a7e32).'),
+  review165('7514c8f6', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'not-applicable', 'Drops isVisibleByDefault from each tool; the six color ids the RAW card folds are unchanged.'),
+  review165('181a7e32', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates getAdjustmentSectionToolIds and has their focus mode use it. The RAW card calls it the same way for the color section, so both fold the same tools.'),
   review165('66fa1600', 'high-precision-export:src-tauri/src/gpu_processing.rs#process_and_get_dynamic_image_inner', 'combine', 'Their preview now builds guided-filter coefficients (build_guided_coeffs) before run(), which takes two more views. Our 32-bit export builds its own processor, so it does the same in export_precision::render_high_precision; their shadows, highlights, clarity and dehaze render in TIFF exports as on screen.'),
   review165('b66691ba', 'no-cloud:src/App.tsx#initAuth', 'keep-ours', 'This is where they start Clerk at every launch. Left in place: noCloud.ts marks the store unsupported first, and their initAuth returns at that state.'),
   review165('b66691ba', 'no-cloud:src/store/useCloudStore.ts#initAuth', 'keep-ours', 'Their guard returns on unsupported before Clerk is touched, which is what noCloud.ts relies on.'),
@@ -1106,9 +1111,10 @@ export const REVIEW_165_DECISIONS = [
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
-// registered after it (26.41.7), and 37 for white-balance-presets (26.41.8).
-if (REVIEW_165_DECISIONS.length !== 899) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 899 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
+// for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9).
+if (REVIEW_165_DECISIONS.length !== 912) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 912 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

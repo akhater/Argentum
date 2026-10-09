@@ -138,6 +138,7 @@ export const REGISTRY = [
     what: 'DCP camera profiles, and the matrix correction derived from them.',
     ours: [
       'src/argentum/CameraProfile.tsx',
+      'src/argentum/RawSection.tsx',
       'src-tauri/src/mods/dcp.rs',
       'src-tauri/src/mods/profile_correction.rs',
       'src-tauri/src/mods/profile_matrix.rs',
@@ -153,8 +154,20 @@ export const REGISTRY = [
         note: 'A key we added to their adjustments type and their defaults.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'calls',
         note: 'data-argentum="camera-profile" mount point, first in their Color panel and outside '
-          + 'their tool sections: it cannot be hidden or reordered on its own, and hiding the whole '
-          + 'Color section hides it, with Raw Tone Rendering and Highlight Recovery.' },
+          + 'their tool sections. RawSection.tsx renders the RAW card there, holding the profile, Raw '
+          + 'Tone Rendering and Highlight Recovery: it cannot be hidden or reordered on its own, and '
+          + 'hiding the whole Color section hides it.' },
+      { file: 'src/components/adjustments/AdjustmentSubSection.tsx', how: 'calls',
+        note: 'The RAW card is their section component, so it looks and folds like White Balance. '
+          + 'Its fold state is kept in their adjustmentLayout.collapsedTools under argentumRaw, an id '
+          + 'none of their tools has. Change its props, or start pruning unknown ids, and the card '
+          + 'stops building or forgets being folded. Their focus mode folds siblings from '
+          + 'ADJUSTMENT_SECTION_TOOLS, which ours is not in, so RawSection.tsx mirrors it by watching '
+          + 'collapsedTools with enableToolFocusMode and getAdjustmentSectionToolIds for color. If '
+          + 'focus mode changes what it folds, the RAW card no longer matches.' },
+      { file: 'src/utils/adjustments.ts', symbol: 'getAdjustmentSectionToolIds', how: 'calls',
+        note: 'The Color tools the RAW card folds in focus mode, and folds itself for. A tool added '
+          + 'to their color list is picked up; one moved out of it is not.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
         note: 'The scene-linear anchor, placed immediately before their apply_white_balance so the '
           + 'profile decides what the colours are before their white balance decides the light. '

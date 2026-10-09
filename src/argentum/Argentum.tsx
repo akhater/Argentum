@@ -38,9 +38,7 @@ import WhiteBalanceMenu from './WhiteBalanceMenu';
 import WhiteBalanceUpgrade from './WhiteBalanceUpgrade';
 import AboutPanel from './AboutPanel';
 import ExportPrecision from './ExportPrecision';
-import CameraProfile from './CameraProfile';
-import RawToneRendering from './RawToneRendering';
-import HighlightRecovery from './HighlightRecovery';
+import RawSection from './RawSection';
 import MyGear from './MyGear';
 import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
@@ -137,8 +135,8 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // Releases are sections inside it, so more of them cost their file nothing.
   const about = useAnchor('[data-argentum="about"]');
 
-  // Below the white balance sliders: which camera profile this photo is using,
-  // and an import when there is none.
+  // First in the Color panel, above White Balance: the RAW card, holding the
+  // camera profile, RAW tone rendering and highlight recovery.
   const cameraProfile = useAnchor('[data-argentum="camera-profile"]');
 
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
@@ -170,15 +168,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {colorTools && <WhiteBalanceMenu slot={colorTools as HTMLElement} />}
       {about && createPortal(<AboutPanel />, about)}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
-      {cameraProfile &&
-        createPortal(
-          <>
-            <CameraProfile />
-            <RawToneRendering />
-            <HighlightRecovery />
-          </>,
-          cameraProfile,
-        )}
+      {cameraProfile && createPortal(<RawSection />, cameraProfile)}
       {gear && createPortal(<MyGear />, gear)}
       {general && (
         <>

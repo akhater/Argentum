@@ -4,6 +4,23 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
+## 26.41.9 — 2026-10-09
+
+### Changed
+
+- **A RAW card at the top of the Color panel.** Camera profile, RAW tone
+  rendering and highlight recovery were three cards of their own above White
+  Balance, the only things in the panel without a heading. They decide how the
+  file is read before any slider touches it, so they are now one section,
+  "RAW", that folds like White Balance and remembers being folded. Inside it the
+  rows read like slider labels, and "RAW rendering" is just "Rendering".
+  `src/argentum/RawSection.tsx` uses their AdjustmentSubSection, with an id of
+  ours (`argentumRaw`) in their `collapsedTools` setting. Their focus mode
+  only folds tools on their own list, so the card follows it from our side:
+  opening RAW folds the Color tools, and opening one of them folds RAW. No file
+  of theirs changes. The dependencies are registered under `camera-profile`,
+  with their 13 decisions against the 1.6.5 review.
+
 ## 26.41.8 — 2026-10-09
 
 ### Added
