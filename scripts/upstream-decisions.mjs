@@ -815,6 +815,23 @@ const UNREACHED_165 = [
   ['3ba2fcae', 'src/components/panel/editor/ImageCanvas.tsx', 'MaskOverlayProps, ImageCanvas', ['mask-guides#Transformer']],
   ['9ba20c02', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-guides#Transformer']],
   ['9ba20c02', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
+  // memory-release and shared-unchanged-copies, registered after the merge.
+  ['2641891c', 'src-tauri/src/lib.rs', 'run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['667f2e4d', 'src-tauri/src/lib.rs', 'MonitorBounds, available_monitor_bounds, frontend_ready, run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['b66691ba', 'src-tauri/src/lib.rs', 'run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['e4d6fd16', 'src-tauri/src/lib.rs', 'run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['3ba2fcae', 'src-tauri/src/lib.rs', 'run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['9ba20c02', 'src-tauri/src/lib.rs', 'mod tagging_utils;, crate, process_preview_job, generate_uncropped_preview and 4 more', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['c4ba9ac9', 'src-tauri/src/lib.rs', 'run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['078c90a8', 'src-tauri/src/lib.rs', 'crate, get_cached_full_warped_image, process_preview_job, generate_uncropped_preview and 2 more', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['b64adfc6', 'src-tauri/src/lib.rs', 'GLOBAL, setup_logging, run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['9b7e3368', 'src-tauri/src/lib.rs', 'mod app_state;, run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['f62a8365', 'src-tauri/src/lib.rs', 'run', ['shared-unchanged-copies#compute_patched_and_warped', 'shared-unchanged-copies#compute_full_transformed_res']],
+  ['66fa1600', 'src-tauri/src/app_state.rs', 'GpuImageCache', ['memory-release#AppState']],
+  ['9ba20c02', 'src-tauri/src/app_state.rs', 'crate, LoadedImage', ['memory-release#AppState']],
+  ['5c4b7800', 'src-tauri/src/app_state.rs', 'impl<\'a> Drop for AiTaskGuard<', ['memory-release#AppState']],
+  ['f62a8365', 'src-tauri/src/ai_processing.rs', null, ['memory-release#get_or_init_ai_models']],
+  ['f62a8365', 'src-tauri/src/ai_processing.rs', null, ['ai-sessions-without-arena#get_or_init_ai_models', 'ai-sessions-without-arena#get_or_init_lama_model']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -921,6 +938,8 @@ const MERGES_165 = [
     'cache-keys:src-tauri/src/lib.rs#cache_version',
     'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH',
     'no-cloud:src-tauri/src/lib.rs',
+    'shared-unchanged-copies:src-tauri/src/lib.rs#compute_patched_and_warped',
+    'shared-unchanged-copies:src-tauri/src/lib.rs#compute_full_transformed_res',
   ]],
   ['f513a4ee', 'Merge of #1834 (476389ad)', [
     'import-dialogue-1714:src-tauri/src/app_settings.rs#last_import_settings',
@@ -931,6 +950,8 @@ const MERGES_165 = [
     'cache-keys:src-tauri/src/lib.rs#cache_version',
     'ai-gpu-runtime:src-tauri/src/lib.rs#ORT_DYLIB_PATH',
     'no-cloud:src-tauri/src/lib.rs',
+    'shared-unchanged-copies:src-tauri/src/lib.rs#compute_patched_and_warped',
+    'shared-unchanged-copies:src-tauri/src/lib.rs#compute_full_transformed_res',
     'adjustments-path-argument:src-tauri/src/export_processing.rs#get_all_adjustments_from_json',
     'rapidraw-164-catchup:src-tauri/src/export_processing.rs',
     'high-precision-export:src-tauri/src/export_processing.rs#process_image_for_export',
@@ -993,6 +1014,7 @@ const merges165 = MERGES_165.flatMap(([commit, what, targets]) =>
 
 // Where the diff reaches what we rely on, one at a time.
 const reached165 = [
+  review165('f62a8365', 'memory-release:src-tauri/src/app_state.rs#AppState', 'not-applicable', 'Adds AiTaskToken, AiTaskGuard and the active_ai_tasks field to AppState. mods/memory.rs reads ai_state and the image caches, which are unchanged, and tells a model in use by its Arc count rather than by these tasks, which not every AI job registers.'),
   review165('3ba2fcae', 'mask-guides:src/components/panel/editor/ImageCanvas.tsx#isInitialDraw', 'not-applicable', 'Adds the area picker\'s drag to handleStart, handleMove and handleUp, each behind isWbPickerActive. handleUp still returns first when isDrawing is false, which is what keeps it from writing over a linear mask ours drew, and the isInitialDraw branches are unchanged.'),
   review165('3ba2fcae', 'mask-guides:src/components/panel/editor/ImageCanvas.tsx#MaskOverlay', 'not-applicable', 'The hunk labelled MaskOverlayProps adds the picker\'s constants and WbSample after that interface. MaskOverlay and its linear branch, which ours hides and steps around, are unchanged.'),
   review165('c7c42306', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates ADJUSTMENT_SECTION_TOOLS, whose color list is what the RAW card folds in focus mode. The helper that reads it came later (181a7e32).'),
@@ -1125,6 +1147,7 @@ const HINTS_165 = [
   ['0b85c91e', ['argentum-shell', 'tiff-export-metadata'], 'not-applicable', 'Border strings; no metadata.'],
   ['b88424ed', ['argentum-shell', 'tiff-export-metadata'], 'not-applicable', 'Pad strings; no metadata.'],
   ['1cbb313c', ['highlight-recovery'], 'not-applicable', '"Recovery" matched nothing of ours: this is library scroll offset.'],
+  ['0ca6152a', ['memory-release', 'shared-unchanged-copies'], 'not-applicable', 'Merges d6cda855, which uploads a float image to the GPU without converting a copy first, in gpu_processing.rs. A copy that lived for one upload; it does not unload a model, hand memory back, or share a cached copy, and nothing of ours does what it does.'],
 ];
 
 const hints165 = HINTS_165.flatMap(([commit, entries, verdict, why]) =>
@@ -1141,10 +1164,11 @@ export const REVIEW_165_DECISIONS = [
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
 // registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
 // for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
-// 10 for mask-falloff and 26 for mask-guides (26.41.9), and 16 for mask-guides
-// reaching the AI panel and their radial Transformer.
-if (REVIEW_165_DECISIONS.length !== 964) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 964 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 10 for mask-falloff and 26 for mask-guides (26.41.9), 16 for mask-guides
+// reaching the AI panel and their radial Transformer, 33 for memory-release and
+// shared-unchanged-copies, and 2 for ai-sessions-without-arena (26.41.10).
+if (REVIEW_165_DECISIONS.length !== 999) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 999 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

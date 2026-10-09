@@ -248,7 +248,7 @@ fn compute_full_transformed_res(
         adjustments,
     );
 
-    Ok((Arc::new(transformed_img.into_owned()), offset))
+    Ok((match transformed_img { Cow::Borrowed(_) => Arc::clone(&warped_arc), Cow::Owned(img) => Arc::new(img) }, offset)) // Argentum: no crop or rotation leaves it unchanged - share it, do not copy the photo
 }
 
 fn compute_patched_and_warped(
@@ -272,7 +272,7 @@ fn compute_patched_and_warped(
     let warped = apply_geometry_warp(patched_image, adjustments);
     let blurred = crate::lens_blur::apply_lens_blur(warped, adjustments);
 
-    Ok(Arc::new(blurred.into_owned()))
+    Ok(match blurred { Cow::Borrowed(_) => Arc::clone(&loaded_image.image), Cow::Owned(img) => Arc::new(img) }) // Argentum: unchanged by every step it is the original - share it, do not copy the photo
 }
 
 #[tauri::command]

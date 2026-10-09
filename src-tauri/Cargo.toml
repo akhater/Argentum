@@ -52,6 +52,9 @@ rand = "0.10"
 tauri-plugin-shell = "2.3.5"
 tempfile = "3.27.0"
 mimalloc = "0.1.52"
+# Argentum: mods/memory.rs asks the allocator for the process's memory and to
+# hand freed pages back. Same crate mimalloc already builds, with its extended API.
+libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
 image_hasher = "3.1.1"
 regex = "1.13.1"
 memmap2 = "0.9.11"

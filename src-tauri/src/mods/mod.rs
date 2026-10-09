@@ -9,6 +9,7 @@
 //! `docs/ADDING_A_TOOL.md` for the recipe.
 
 pub mod ag_settings;
+pub mod ai_session;
 pub mod auto_wb;
 pub mod cache_key;
 pub mod cache_version;
@@ -29,6 +30,7 @@ pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;
 pub mod mask_falloff;
+pub mod memory;
 pub mod model_catalog;
 pub mod model_manager;
 pub mod preview_encode;

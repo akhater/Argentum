@@ -121,6 +121,33 @@ export const ANCHORS = [
     ],
   },
   {
+    // Taken 2026-10-09, from a budget of zero, by AK's decision (DEC in the
+    // brain). Their AI sessions keep ONNX Runtime's CPU memory arena, so a model
+    // keeps the most working memory it ever needed for as long as it is loaded:
+    // the five mask models held 6.1 GB after one selection on a 32 MP raw. The
+    // arena can only be turned off where a session is built, and every session
+    // is built here, so there is no shape without a line of theirs. One import,
+    // as in mask_generation.rs; the eight builder calls name only the imported
+    // function, so they are one-for-one swaps rather than hooks.
+    file: 'src-tauri/src/ai_processing.rs',
+    hooks: 1,
+    what: 'the import of mods::ai_session::session_builder, which every model session is built with',
+    instead: 'change how sessions are built in mods/ai_session.rs',
+    requires: [
+      {
+        // The calls mention no module of ours, so a merge that resolves one back
+        // to `Session::builder()` passes every other gate, and that model quietly
+        // keeps its arena again. The SAM encoder is the one that costs most.
+        pattern: /session_builder\(\)\?\.commit_from_file\(encoder_path\)/,
+        why: 'the mask models have to be built through ours or they keep gigabytes of working memory again',
+      },
+      {
+        pattern: /session_builder\(\)\?\.commit_from_file\(depth_path\)/,
+        why: 'and the depth model, the other large one in the same set',
+      },
+    ],
+  },
+  {
     file: 'src/App.tsx',
     hooks: 2,
     what: 'the single <Argentum /> mount',

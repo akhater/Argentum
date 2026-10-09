@@ -115,6 +115,16 @@ fn result_slot() -> &'static Mutex<Option<DynamicImage>> {
     RESULT.get_or_init(|| Mutex::new(None))
 }
 
+/// The bytes held by the last enlargement, for mods::memory's report. Zero if
+/// the slot is busy: that thread is never made to wait.
+pub fn result_bytes() -> usize {
+    RESULT
+        .get()
+        .and_then(|slot| slot.try_lock().ok())
+        .and_then(|g| g.as_ref().map(|img| img.as_bytes().len()))
+        .unwrap_or(0)
+}
+
 fn models_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf> {
     let dir = app_handle.path().app_data_dir()?.join("models");
     fs::create_dir_all(&dir)?;

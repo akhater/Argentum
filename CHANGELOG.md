@@ -4,6 +4,48 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
+## 26.41.10 — 2026-10-09
+
+### Fixed
+
+- **Argentum no longer holds 8-12 GB after an AI mask or an AI erase.**
+  Measured on a Canon R6 Mark III raw (6960x4640): one AI erase took the
+  process from 2.6 GB to 12 GB, and it settled at 8.5 GB, where it stayed after
+  a change of photo. The eraser was blamed first; unloading it freed nothing.
+  The AI mask models were 6.1 GB of it - SAM's encoder and decoder, U2-Net, the
+  sky model and Depth Anything, which load together and which the eraser uses
+  to select. ONNX Runtime's CPU memory arena keeps the most working memory a
+  session has ever needed for as long as the session lives, and RapidRAW keeps
+  its sessions until the app quits. Two changes:
+  - Every model session is built without the arena (`mods/ai_session.rs`), so
+    a run's working memory goes back when the run ends. Their
+    `ai_processing.rs` imports it, on an anchor taken by AK's decision today,
+    and its eight `Session::builder()` calls became `session_builder()`, one
+    line for one. The same test now settles at 3-4.5 GB with the models loaded,
+    peaking at 7.2 GB for a few seconds while they run.
+  - Models nothing is using are unloaded (`mods/memory.rs`, started from the
+    startup anchor): the eraser, denoise and tagging after a minute, the mask
+    models after five, because they are clicked again and again and take a few
+    seconds to load. A model is in use while anything besides `AiState` holds
+    its `Arc`; their `get_or_init_*` loads it again on the next click. With
+    nothing loaded the same photo sits at 1.5-2.5 GB.
+- **Freed memory goes back to Windows.** mimalloc keeps freed pages for reuse;
+  `mi_collect(true)` every 20 seconds returns them, 1.3 GB at once in testing.
+- **A photo no step changed is no longer copied.** `compute_patched_and_warped`
+  and `compute_full_transformed_res` copied the 500 MB photo even when every
+  step handed it back unchanged: no patches, lens correction or blur; no crop,
+  rotation or flip. They share it now - two lines of their `lib.rs`, one for
+  one. Worth sending upstream.
+
+### Added
+
+- **The log says where the memory is.** A `[memory]` line whenever the total
+  moves by 256 MB: the open photo's copies, the mask cache, results, which AI
+  models are loaded, and the rest. It is how the mask models were found.
+
+Registered as `memory-release`, `shared-unchanged-copies` and
+`ai-sessions-without-arena`, with 35 decisions against the 1.6.5 review.
+
 ## 26.41.9 — 2026-10-09
 
 ### Changed

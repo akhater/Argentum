@@ -1265,6 +1265,98 @@ export const REGISTRY = [
     ],
     keywords: /linear.?(mask|gradient)|radial.?(mask|gradient)|graduated|mask.?(handle|overlay|canvas)|konva/i,
   },
+  {
+    id: 'memory-release',
+    kind: 'behaviour-change',
+    what:
+      'AI models nothing is using are unloaded (the eraser, denoise and tagging after a minute, the '
+      + 'mask models after five), freed memory is handed back to the system every 20 seconds, and the '
+      + 'log says where the memory is whenever the total moves by 256 MB. RapidRAW keeps every model '
+      + 'it has loaded until the app quits: one AI erase on a 32 MP raw left 6 GB behind that '
+      + 'survived a change of photo.',
+    ours: ['src-tauri/src/mods/memory.rs', 'src-tauri/src/mods/startup.rs'],
+    // No line of theirs: the thread starts from the startup anchor and reads
+    // their state through its public fields.
+    dependsOn: [
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'AiState', how: 'calls',
+        note:
+          'Ours takes lama_model, denoise_model, clip_models and models out of it when only AiState '
+          + 'holds them. That is safe because every one of their callers goes through get_or_init_*, '
+          + 'which loads the model again when its slot is empty, and clones the Arc for the length of '
+          + 'the job, which is what in-use means here. A model they add as a new field is never '
+          + 'unloaded until it is listed in mods/memory.rs; a caller that keeps a model without '
+          + 'holding its Arc would have it dropped under it.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_ai_models', how: 'calls',
+        note:
+          'Reloading after an unload verifies every model file\'s SHA-256 again and builds the '
+          + 'sessions: a few seconds for the five mask models, which is why they wait longest.' },
+      { file: 'src-tauri/src/app_state.rs', symbol: 'AppState', how: 'calls',
+        note:
+          'The report reads original_image, cached_preview, the warped, patched and transformed '
+          + 'caches, the geometry, thumbnail and mask caches and the four results, with try_lock. '
+          + 'decoded_image_cache keeps its items private, so its other photos are part of "the rest".' },
+    ],
+    tests: [
+      'src-tauri/src/mods/memory.rs #[cfg(test)]',
+      'Manual: open a raw, AI-erase something, then leave it: the log says "unloaded the idle AI '
+        + 'eraser" a minute later and Task Manager drops with it; erase again and it works.',
+    ],
+    keywords: /memory|\bram\b|leak|unload|ai.?model|onnx|session|mimalloc|allocator|cache.?size/i,
+  },
+  {
+    id: 'ai-sessions-without-arena',
+    kind: 'behaviour-change',
+    what:
+      'Every AI model session is built with ONNX Runtime\'s CPU memory arena off, so a run\'s working '
+      + 'memory is returned when it ends instead of being kept for the life of the model. The mask '
+      + 'models held 6.1 GB after one selection on a 32 MP raw, 1.4 GB of it their weights.',
+    ours: ['src-tauri/src/mods/ai_session.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_ai_models', how: 'calls',
+        note:
+          'Its five Session::builder() calls are session_builder(), one line for one, on the anchor '
+          + 'taken 2026-10-09. A model they add here with Session::builder() keeps its arena until '
+          + 'it is switched too; the anchor\'s requires only guard the SAM encoder and depth lines.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_denoise_model', how: 'calls',
+        note: 'The denoise session, built the same way.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_clip_models', how: 'calls',
+        note: 'The tagging session, built the same way.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_lama_model', how: 'calls',
+        note: 'The eraser session, built the same way.' },
+    ],
+    tests: [
+      'Manual: open a raw, make an AI Subject mask: the [memory] line after it says the masks are '
+        + 'loaded at around 1.5 GB more than before, not 5 or 6; the mask is the same as before; '
+        + 'a second mask takes no longer than the first did.',
+    ],
+    keywords: /onnx|\bort\b|arena|ai.?model|inference/i,
+  },
+  {
+    id: 'shared-unchanged-copies',
+    kind: 'behaviour-change',
+    what:
+      'A step that changes nothing shares the photo it was given instead of copying it. Each '
+      + 'full-size copy of a 32 MP raw is 500 MB, and with no crop, no lens correction and no '
+      + 'patches the open photo was held three times over.',
+    ours: [],
+    dependsOn: [
+      { file: 'src-tauri/src/lib.rs', symbol: 'compute_patched_and_warped', how: 'extends',
+        note:
+          'Their `Arc::new(blurred.into_owned())`, one line for one: a Cow::Borrowed result is the '
+          + 'original itself, so it is the original\'s Arc. Correct only while every step it passes '
+          + 'through (composite_patches_on_image, apply_geometry_warp, apply_lens_blur) returns '
+          + 'Borrowed when, and only when, it changed nothing. Worth sending upstream.' },
+      { file: 'src-tauri/src/lib.rs', symbol: 'compute_full_transformed_res', how: 'extends',
+        note:
+          'Same, one line for one, for apply_spatial_transformations over the warped image: no '
+          + 'crop, rotation or flip shares the warped Arc.' },
+    ],
+    tests: [
+      'Manual: open a raw with no edits; the [memory] line in the log counts fewer copies of the '
+        + 'open photo than before, and the picture is unchanged.',
+    ],
+    keywords: /into_owned|patched_warped|transformed_cache|warped_cache|copy|memory/i,
+  },
 ];
 
 /**
