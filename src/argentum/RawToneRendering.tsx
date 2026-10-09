@@ -80,20 +80,20 @@ export default function RawToneRendering() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-text-secondary select-none">{t('rawToneLabel')}</span>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 text-sm font-medium text-text-secondary select-none">{t('rawToneLabel')}</span>
+        <select
+          value={current}
+          disabled={busy}
+          onChange={(e) => choose(e.target.value as RawToneRenderingMode)}
+          className="min-w-0 flex-1 text-xs bg-bg-primary text-text-primary rounded px-2 py-1.5 truncate disabled:opacity-50"
+          data-tooltip={t('rawToneHelp')}
+        >
+          <option value="default">{t('rawToneDefault')}</option>
+          <option value="baseCurve">{t('rawToneBaseCurve')}</option>
+          <option value="autoMatched">{t('rawToneAutoMatched')}</option>
+        </select>
       </div>
-      <select
-        value={current}
-        disabled={busy}
-        onChange={(e) => choose(e.target.value as RawToneRenderingMode)}
-        className="w-full text-xs bg-bg-primary text-text-primary rounded px-2 py-1.5 disabled:opacity-50"
-        data-tooltip={t('rawToneHelp')}
-      >
-        <option value="default">{t('rawToneDefault')}</option>
-        <option value="baseCurve">{t('rawToneBaseCurve')}</option>
-        <option value="autoMatched">{t('rawToneAutoMatched')}</option>
-      </select>
       {busy && <p className="mt-1 text-xs text-text-secondary">{t('rawToneCalculating')}</p>}
     </div>
   );
