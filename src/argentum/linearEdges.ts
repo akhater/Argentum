@@ -17,6 +17,7 @@
 import { Adjustments, MaskContainer } from '../utils/adjustments';
 import { Mask, SubMask } from '../components/panel/right/Masks';
 import { useEditorStore } from '../store/useEditorStore';
+import { Panel } from '../components/ui/AppProperties';
 
 export interface Point {
   x: number;
@@ -113,31 +114,51 @@ export function handleLength(): number {
   return frame ? Math.min(frame.width, frame.height) * 0.2 : 200;
 }
 
-/** The selected mask component, if it is of `type`. */
-export function findSelectedSubMask(adjustments: Adjustments, activeMaskId: string | null, type: Mask): SubMask | null {
-  if (!activeMaskId) {
-    return null;
+/**
+ * The component their canvas is editing: the masks panel's selection, or the
+ * AI panel's, which keeps its own. Null in any other panel.
+ */
+export function selectedSubMaskId(
+  panel: Panel | null,
+  activeMaskId: string | null,
+  activeAiSubMaskId: string | null,
+): string | null {
+  if (panel === Panel.Masks) {
+    return activeMaskId;
   }
-  for (const container of (adjustments.masks || []) as MaskContainer[]) {
-    const found = container.subMasks.find((sm) => sm.id === activeMaskId);
-    if (found) {
-      return found.type === type ? found : null;
-    }
+  if (panel === Panel.Ai) {
+    return activeAiSubMaskId;
   }
   return null;
 }
 
-/** Replace one component's parameters. */
+/** Every component, in masks and in AI patches. */
+function allSubMasks(adjustments: Adjustments): SubMask[] {
+  return [
+    ...((adjustments.masks || []) as MaskContainer[]).flatMap((c) => c.subMasks),
+    ...(adjustments.aiPatches || []).flatMap((p) => p.subMasks),
+  ];
+}
+
+/** The component with this id, if it is of `type`. */
+export function findSelectedSubMask(adjustments: Adjustments, id: string | null, type: Mask): SubMask | null {
+  if (!id) {
+    return null;
+  }
+  const found = allSubMasks(adjustments).find((sm) => sm.id === id);
+  return found?.type === type ? found : null;
+}
+
+/** Replace one component's parameters, wherever it lives, as their `updateSubMaskLocal` does. */
 export function withParameters(
   prev: Adjustments,
   id: string,
   update: (parameters: Record<string, unknown>) => Record<string, unknown>,
 ): Adjustments {
+  const apply = (sm: SubMask) => (sm.id === id ? { ...sm, parameters: update(sm.parameters || {}) } : sm);
   return {
     ...prev,
-    masks: (prev.masks || []).map((c: MaskContainer) => ({
-      ...c,
-      subMasks: c.subMasks.map((sm) => (sm.id === id ? { ...sm, parameters: update(sm.parameters || {}) } : sm)),
-    })),
+    masks: (prev.masks || []).map((c: MaskContainer) => ({ ...c, subMasks: c.subMasks.map(apply) })),
+    aiPatches: (prev.aiPatches || []).map((p) => ({ ...p, subMasks: p.subMasks.map(apply) })),
   };
 }

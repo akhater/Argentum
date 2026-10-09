@@ -25,8 +25,8 @@ Newest first.
   nothing says which side gets the effect; drawing one, the drag starts at the
   middle of the fade and the effect lands behind it. It is now a solid line
   where the effect is full and a dashed line where it has gone, with handles
-  marked 100% and 0%. You draw it by dragging from where the effect should
-  start to where it should be full. A handle moves its own end and the lines
+  marked 100% and 0%. You draw it as a graduated filter: press where the
+  effect should be full and let go where it should be gone. A handle moves its own end and the lines
   turn to follow, a line slides on its own (closer is a harder edge), and the
   band between them moves both. Stored exactly as RapidRAW stores it, so old
   masks open in it. `src/argentum/LinearMask.tsx` and `linearEdges.ts`. No line

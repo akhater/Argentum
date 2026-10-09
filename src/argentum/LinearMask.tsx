@@ -14,7 +14,8 @@
  *
  * A solid line where the effect is full and a dashed line where it has gone,
  * each with a handle marked 100% and 0%. Drawing is dragging from where the
- * effect should start to where it should be full. Afterwards:
+ * effect is full to where it has gone, as a graduated filter is drawn: start
+ * on the sky, let go at the horizon. Afterwards:
  *
  * - a handle moves its own end, and the lines turn to follow;
  * - a line, grabbed anywhere, slides on its own, which sets how soft the edge is;
@@ -32,7 +33,7 @@
  * canvas; while this is active that canvas is hidden. It is drawn into the
  * layer that holds the photo's overlay svg, so it follows their pan and zoom.
  *
- * Only the masks panel. The AI panel's linear masks keep their canvas.
+ * In the masks panel and the AI panel, which share their canvas.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -40,7 +41,6 @@ import { createPortal } from 'react-dom';
 import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useEditorActions } from '../hooks/useEditorActions';
-import { Panel } from '../components/ui/AppProperties';
 import { Mask } from '../components/panel/right/Masks';
 import { Adjustments } from '../utils/adjustments';
 import { usePhotoLayer } from './photoLayer';
@@ -52,6 +52,7 @@ import {
   dot,
   edgesOf,
   findSelectedSubMask,
+  selectedSubMaskId,
   handleLength,
   parametersFor,
   withParameters,
@@ -109,10 +110,11 @@ function hit(p: Point, e: Edges, screenPerPixel: number): Grab | null {
 function moved(drag: Drag, p: Point): { full: Point; none: Point; dir: Point } | null {
   const e = drag.edges;
   if (drag.grab === 'create' || !e) {
-    // From where the effect starts to where it is full.
-    const span = { x: drag.start.x - p.x, y: drag.start.y - p.y };
+    // Full where the drag began, gone where it ends. AK tried it the other way
+    // round first and wanted it back: the press is the dark end of the filter.
+    const span = { x: p.x - drag.start.x, y: p.y - drag.start.y };
     const len = Math.hypot(span.x, span.y) || 1;
-    return { full: p, none: drag.start, dir: { x: span.x / len, y: span.y / len } };
+    return { full: drag.start, none: p, dir: { x: span.x / len, y: span.y / len } };
   }
   const delta = { x: p.x - drag.start.x, y: p.y - drag.start.y };
   const slide = (q: Point) => {
@@ -143,10 +145,15 @@ export default function LinearMask() {
   const { setAdjustments } = useEditorActions();
   const activePanel = useUIStore((s) => s.activePanel);
   const activeMaskId = useEditorStore((s) => s.activeMaskId);
+  const activeAiSubMaskId = useEditorStore((s) => s.activeAiSubMaskId);
   const adjustments = useEditorStore((s) => s.adjustments);
   const showOriginal = useEditorStore((s) => s.showOriginal);
 
-  const subMask = activePanel === Panel.Masks ? findSelectedSubMask(adjustments, activeMaskId, Mask.Linear) : null;
+  const subMask = findSelectedSubMask(
+    adjustments,
+    selectedSubMaskId(activePanel, activeMaskId, activeAiSubMaskId),
+    Mask.Linear,
+  );
   const active = !!subMask && !showOriginal;
 
   const layout = usePhotoLayer(active);
@@ -236,6 +243,12 @@ export default function LinearMask() {
       }
       e.stopPropagation();
       e.preventDefault();
+      // Preventing the press also keeps focus where it was, often a slider,
+      // and their shortcuts ignore keys while an input has focus: Delete then
+      // did nothing. A press on their stage would have taken focus away.
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
       tookPress = true;
       drag.current = { grab, id: sm.id, start: at.p, edges };
       setDragging(grab);
