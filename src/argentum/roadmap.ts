@@ -132,15 +132,15 @@ const MILESTONES: Milestone[] = [
       + 'Strong choice and avoid sharpening twice when no resize is requested.',
   },
   {
-    stage: 'planned',
+    stage: 'building',
     what: 'Use less memory',
     why:
-      'Nobody has measured what Argentum costs on a large RAW, and the pipeline '
-      + 'has been gaining full-resolution copies of the photo rather than losing '
-      + 'them — the 16-bit export target is twice the size of the one it sits '
-      + 'beside, and keeping metadata on a TIFF rewrites the whole file through '
-      + 'memory to do it. Measure it on a 45MP file first; a machine that swaps '
-      + 'is slower than any shader is fast.',
+      'Measured on a 32MP RAW in 26.41.10: the AI mask models kept 6 GB after one '
+      + 'selection, and a photo nothing had changed was copied twice. Both are '
+      + 'fixed, so editing with AI settles at 3-4 GB instead of 8-12, and the '
+      + 'models unload when unused. Still to do: export, where the 16-bit target '
+      + 'and keeping metadata on a TIFF cost the most, and the AI eraser, which '
+      + 'works on the whole photo to fix one spot.',
   },
   {
     stage: 'done',
