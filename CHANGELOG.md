@@ -15,8 +15,10 @@ Newest first.
   "RAW", that folds like White Balance and remembers being folded. Inside it the
   rows read like slider labels, and "RAW rendering" is just "Rendering".
   `src/argentum/RawSection.tsx` uses their AdjustmentSubSection, with an id of
-  ours (`argentumRaw`) in their `collapsedTools` setting. No file of theirs
-  changes. The dependency is registered under `camera-profile`, with its 5
+  ours (`argentumRaw`) in their `collapsedTools` setting. Their focus mode
+  only folds tools on their own list, so the card follows it from our side:
+  opening RAW folds the Color tools, and opening one of them folds RAW. No file
+  of theirs changes. The dependencies are registered under `camera-profile`, with their 13
   decisions against the 1.6.5 review.
 
 ## 26.41.8 — 2026-10-09

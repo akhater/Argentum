@@ -653,7 +653,7 @@ const UNREACHED_165 = [
   ['11e20e77', 'src-tauri/src/multi_exposure.rs', null, ['highlight-recovery#neutralize_wb_if_multiexposure']],
   ['9ba20c02', 'src-tauri/src/image_processing.rs', 'crate, GlobalAdjustments, MaskAdjustments, AdjustmentScales and 5 more', ['clipping-view#show_clipping', 'preview-encode#apply_cpu_default_raw_processing', 'import-dialogue-1714#calculate_auto_adjustments']],
   ['9ba20c02', 'src-tauri/src/shaders/shader.wgsl', 'GlobalAdjustments, MaskAdjustments, apply_color_calibration, main', ['camera-profile#ag_stage_scene_linear', 'clipping-view#ag_stage_display', 'highlight-recovery#ag_stage_scene_linear', 'high-precision-export#output_texture']],
-  ['9ba20c02', 'src/utils/adjustments.ts', 'import type { AdjustmentLayout, ColorAdjustment, Adjustments, INITIAL_ADJUSTMENTS and 2 more', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['9ba20c02', 'src/utils/adjustments.ts', 'import type { AdjustmentLayout, ColorAdjustment, Adjustments, INITIAL_ADJUSTMENTS and 2 more', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['9ba20c02', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['clipping-view:showClipping']],
   ['9ba20c02', 'src-tauri/src/raw_processing.rs', 'crate, rawler, develop_internal', ['raw-decode#on_raw_decoded', 'canon-old-wb#on_raw_decoded', 'raw-tone#develop_raw_image']],
   ['9ba20c02', 'src-tauri/src/image_loader.rs', 'crate, LoadImageResult, load_image', ['raw-decode#load_base_image_from_bytes', 'highlight-recovery#load_base_image_from_bytes', 'raw-tone#embedded_preview_fallback']],
@@ -707,14 +707,14 @@ const UNREACHED_165 = [
   ['66b800f5', 'src/components/panel/right/ControlsPanel.tsx', null, ['clipping-view:showClipping']],
   ['66b800f5', 'src/components/panel/right/MasksPanel.tsx', null, ['clipping-view:showClipping']],
   ['b4994ed4', 'src-tauri/src/app_settings.rs', 'FilterCriteria', ['import-dialogue-1714#last_import_settings']],
-  ['b4a9d1a3', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['b4a9d1a3', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['b4a9d1a3', 'src-tauri/src/app_settings.rs', 'AdjustmentLayout', ['import-dialogue-1714#last_import_settings']],
   ['6d348a0d', 'src/components/panel/right/CropPanel.tsx', 'import Dropdown from \'../../ui', ['argentum-shell#useAutoDetectOnLoad']],
   ['454c33d6', 'src/components/panel/right/CropPanel.tsx', 'import Dropdown from \'../../ui, CropPanel', ['argentum-shell#useAutoDetectOnLoad']],
   ['7514c8f6', 'src/utils/adjustments.ts', 'AdjustmentSectionTool, ADJUSTMENT_SECTION_TOOLS', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
   ['7514c8f6', 'src-tauri/src/app_settings.rs', 'AdjustmentLayout, default_tagging_shortcuts_option, AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['7514c8f6', 'src/components/ui/AppProperties.tsx', 'AppSettings, AdjustmentLayout', ['import-dialogue-1714#ImportSettings']],
-  ['2f907e36', 'src/utils/adjustments.ts', 'import { SubMask, SubMaskMode , getAdjustmentSectionOrder', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['2f907e36', 'src/utils/adjustments.ts', 'import { SubMask, SubMaskMode , getAdjustmentSectionOrder', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['2f907e36', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['clipping-view:showClipping']],
   ['2f907e36', 'src/components/panel/right/MasksPanel.tsx', 'SettingsPanel', ['clipping-view:showClipping']],
   ['2f907e36', 'src-tauri/src/app_settings.rs', 'default_export_presets, AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
@@ -722,7 +722,7 @@ const UNREACHED_165 = [
   ['d94777fe', 'src/utils/adjustments.ts', null, ['wb-legacy:whiteBalance']],
   ['d94777fe', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['d94777fe', 'src/components/ui/AppProperties.tsx', 'AppSettings', ['import-dialogue-1714#ImportSettings']],
-  ['f4a4c8d0', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS, getAdjustmentSectionOrder, ADJUSTMENT_SECTION_TOOLS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['f4a4c8d0', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS, getAdjustmentSectionOrder, ADJUSTMENT_SECTION_TOOLS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['f4a4c8d0', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['f4a4c8d0', 'src/components/ui/AppProperties.tsx', 'AppSettings', ['import-dialogue-1714#ImportSettings']],
   ['c7c42306', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
@@ -731,7 +731,7 @@ const UNREACHED_165 = [
   ['45fa2ca1', 'src-tauri/src/app_settings.rs', 'default_export_presets', ['import-dialogue-1714#last_import_settings']],
   ['7ce629fc', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['7ce629fc', 'src/components/ui/AppProperties.tsx', 'AppSettings, UiVisibility', ['import-dialogue-1714#ImportSettings']],
-  ['0f564b59', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
+  ['0f564b59', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['0f564b59', 'src/components/panel/right/ControlsPanel.tsx', 'import Resizer from \'../../ui/, Controls', ['clipping-view:showClipping']],
   ['0f564b59', 'src/components/panel/right/MasksPanel.tsx', 'import {, SettingsPanel', ['clipping-view:showClipping']],
   ['0f564b59', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
@@ -967,6 +967,9 @@ const merges165 = MERGES_165.flatMap(([commit, what, targets]) =>
 
 // Where the diff reaches what we rely on, one at a time.
 const reached165 = [
+  review165('c7c42306', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates ADJUSTMENT_SECTION_TOOLS, whose color list is what the RAW card folds in focus mode. The helper that reads it came later (181a7e32).'),
+  review165('7514c8f6', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'not-applicable', 'Drops isVisibleByDefault from each tool; the six color ids the RAW card folds are unchanged.'),
+  review165('181a7e32', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates getAdjustmentSectionToolIds and has their focus mode use it. The RAW card calls it the same way for the color section, so both fold the same tools.'),
   review165('66fa1600', 'high-precision-export:src-tauri/src/gpu_processing.rs#process_and_get_dynamic_image_inner', 'combine', 'Their preview now builds guided-filter coefficients (build_guided_coeffs) before run(), which takes two more views. Our 32-bit export builds its own processor, so it does the same in export_precision::render_high_precision; their shadows, highlights, clarity and dehaze render in TIFF exports as on screen.'),
   review165('b66691ba', 'no-cloud:src/App.tsx#initAuth', 'keep-ours', 'This is where they start Clerk at every launch. Left in place: noCloud.ts marks the store unsupported first, and their initAuth returns at that state.'),
   review165('b66691ba', 'no-cloud:src/store/useCloudStore.ts#initAuth', 'keep-ours', 'Their guard returns on unsupported before Clerk is touched, which is what noCloud.ts relies on.'),
@@ -1108,10 +1111,10 @@ export const REVIEW_165_DECISIONS = [
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
-// registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 5
-// for the RAW card's use of AdjustmentSubSection (26.41.9).
-if (REVIEW_165_DECISIONS.length !== 904) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 904 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
+// for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9).
+if (REVIEW_165_DECISIONS.length !== 912) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 912 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

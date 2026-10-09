@@ -161,7 +161,13 @@ export const REGISTRY = [
         note: 'The RAW card is their section component, so it looks and folds like White Balance. '
           + 'Its fold state is kept in their adjustmentLayout.collapsedTools under argentumRaw, an id '
           + 'none of their tools has. Change its props, or start pruning unknown ids, and the card '
-          + 'stops building or forgets being folded.' },
+          + 'stops building or forgets being folded. Their focus mode folds siblings from '
+          + 'ADJUSTMENT_SECTION_TOOLS, which ours is not in, so RawSection.tsx mirrors it by watching '
+          + 'collapsedTools with enableToolFocusMode and getAdjustmentSectionToolIds for color. If '
+          + 'focus mode changes what it folds, the RAW card no longer matches.' },
+      { file: 'src/utils/adjustments.ts', symbol: 'getAdjustmentSectionToolIds', how: 'calls',
+        note: 'The Color tools the RAW card folds in focus mode, and folds itself for. A tool added '
+          + 'to their color list is picked up; one moved out of it is not.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
         note: 'The scene-linear anchor, placed immediately before their apply_white_balance so the '
           + 'profile decides what the colours are before their white balance decides the light. '
