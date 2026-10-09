@@ -4,6 +4,18 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
+## Unreleased
+
+### Changed
+
+- **The Subject mask is called Object**, Lightroom's name for a tool you draw
+  a box round something with. Lightroom's Subject is one click and automatic,
+  which is our Foreground. Only the label changes, in all 15 languages and in
+  the Built-in AI card's list: the type is still `ai-subject`, so saved masks
+  load as before, and a mask already named "Subject" keeps its name. Replaced
+  in i18next at startup (`src/argentum/locales/renames.ts`), so no locale file
+  of theirs is edited. Registry entry `object-label`.
+
 ## 26.41.6 — 2026-10-07
 
 Merges RapidRAW 1.6.5 (`71a07921..79c2a46b`, 149 commits). The review is the

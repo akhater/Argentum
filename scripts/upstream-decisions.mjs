@@ -750,6 +750,19 @@ const UNREACHED_165 = [
   ['f62a8365', 'src-tauri/src/lib.rs', 'run', ['display-transform#ag_display_matrix', 'cache-keys#cache_version', 'ai-gpu-runtime#ORT_DYLIB_PATH']],
   ['f62a8365', 'src/components/ui/AppProperties.tsx', 'Invokes', ['import-dialogue-1714#ImportSettings']],
   ['f3e50211', 'src/components/panel/right/CropPanel.tsx', 'RATIO_TOLERANCE, CropPanel', ['argentum-shell#useAutoDetectOnLoad']],
+  // object-label was registered after this review; its Settings dependency is
+  // checked against the same window here. Only 48a124f5 reaches the line, by hand below.
+  ['2641891c', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['b66691ba', 'src/components/panel/SettingsPanel.tsx', 'import { getCurrentWindow } from, AiProviderSwitch, CloudDashboard, SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['f98d68a4', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['c4ba9ac9', 'src/components/panel/SettingsPanel.tsx', 'import { useTranslation } from, KeybindRow, SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['3e186ce2', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['290818d5', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['66b800f5', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['c7c42306', 'src/components/panel/SettingsPanel.tsx', 'MyLens, SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['9b7e3368', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['5c4b7800', 'src/components/panel/SettingsPanel.tsx', 'CloudDashboard', ['object-label#settings.processing.ai.cpu.feature1']],
+  ['06c52a49', 'src/components/panel/SettingsPanel.tsx', 'import {, AiProviderSwitch, CloudDashboard, SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -898,6 +911,7 @@ const MERGES_165 = [
     'argentum-shell:src/components/panel/SettingsPanel.tsx',
     'model-manager:src/components/panel/SettingsPanel.tsx',
     'no-cloud:src/components/panel/SettingsPanel.tsx',
+    'object-label:src/components/panel/SettingsPanel.tsx#settings.processing.ai.cpu.feature1',
   ]],
   ['a1e2dda0', 'Merge of #1767 (367029d7, 7514c8f6, bbe7e986, de8d6ffe, 2f907e36, 4227dcbd, and 6 more)', [
     'import-dialogue-1714:src-tauri/src/app_settings.rs#last_import_settings',
@@ -973,11 +987,13 @@ const reached165 = [
   review165('ad25d2ba', 'export-precision-selector:src-tauri/src/export_processing.rs#estimate_export_sizes', 'combine', 'The estimate includes border and padding; it still renders through render_for_estimate at the chosen depth.'),
   review165('9b7e3368', 'raw-decode:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'keep-ours', 'Apple RAW 9 is an opt-in macOS path (use_apple_raw9) that develops through Core Image and never reaches our decode anchor. Off by default; registered so the gap is visible.'),
   review165('9b7e3368', 'highlight-recovery:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'keep-ours', 'On the Apple RAW 9 path there is no highlight recovery or settle_blown. Off by default; rawler remains the decode that re-decodes for the switch.'),
+  review165('48a124f5', 'object-label:src/components/panel/SettingsPanel.tsx#settings.processing.ai.cpu.feature1', 'not-applicable', 'Moves their AI card, this list with it, from Processing to General. The key is unchanged, so the card still lists Object, Sky, Foreground.'),
 ];
 
 // Subject hints: the word matched, and what is actually true.
 const HINTS_165 = [
   ['48431439', ['mask-stage-size-guard'], 'not-applicable', 'AI inpainting skips mask refinement; the mask Stage is unaffected.'],
+  ['48431439', ['object-label'], 'not-applicable', 'Inpainting skips the Subject mask\'s refinement; its label and key are untouched.'],
   ['37a2fcd7', ['rapidraw-164-catchup'], 'not-applicable', 'Merges the curve endpoint fix; curves are theirs and none of the 1.6.4 carries.'],
   ['1b17dd52', ['rapidraw-164-catchup'], 'not-applicable', 'Curve endpoint handling only.'],
   ['d4429f1f', ['ci-desktop-only'], 'not-applicable', 'Android CI, which we do not build.'],
@@ -1053,8 +1069,9 @@ export const REVIEW_165_DECISIONS = [
   ...hints165,
 ];
 
-if (REVIEW_165_DECISIONS.length !== 818) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 818 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 818 at the merge, plus 14 for object-label, registered after it (26.41.7).
+if (REVIEW_165_DECISIONS.length !== 832) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 832 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
