@@ -172,6 +172,11 @@ pub async fn ag(
             serde_json::to_value(commands::raw_tone_curve(a.path, a.mode, app_handle)?)
                 .map_err(|e| e.to_string())
         }
+        "sharpen_auto" => {
+            // What auto picked for this photo, for the Sharpening card to show.
+            let a: PathArgs = args_for(&name, args)?;
+            Ok(crate::mods::sharpen::auto_values(&a.path))
+        }
         "camera_profile_status" => {
             let a: PathArgs = args_for(&name, args)?;
             serde_json::to_value(commands::camera_profile_status(a.path)?)

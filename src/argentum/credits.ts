@@ -44,7 +44,8 @@ export const CREDITS: CreditGroup[] = [
         href: 'https://github.com/darktable-org/darktable',
         what:
           'The reference Argentum is measured against, and the source of its automatic ' +
-          'white balance and of the raw-level behaviour its decoder gets right.',
+          'white balance, of the raw-level behaviour its decoder gets right, and of the ' +
+          'unsharp mask in Sharpening (its sharpen module).',
       },
     ],
   },
@@ -76,6 +77,20 @@ export const CREDITS: CreditGroup[] = [
         name: '#1633, the sRGB exponent',
         href: 'https://github.com/CyberTimon/RapidRAW/pull/1633',
         what: 'sRGB decoding uses an exponent of 2.4, which is what the standard says.',
+      },
+    ],
+  },
+  {
+    heading: 'Sharpening',
+    entries: [
+      {
+        name: 'RawTherapee',
+        href: 'https://github.com/RawTherapee/RawTherapee',
+        what:
+          "Capture sharpening is RawTherapee's, by Ingo Weyrich: the Richardson-Lucy " +
+          'deconvolution, the radius it reads from the RAW, and the contrast mask that ' +
+          'keeps it off flat areas and noise, with its automatic threshold. Ported to ' +
+          'the GPU from rtengine/capturesharpening.cc and rt_algo.cc.',
       },
     ],
   },

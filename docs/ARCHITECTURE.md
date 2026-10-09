@@ -146,11 +146,12 @@ feature must not need it to.
 | Their file | Anchor | A new feature instead |
 |---|---|---|
 | `lib.rs` | `mod mods`, the cache check, one `ag` command | add a match arm in `mods/dispatch.rs` |
-| `shader.wgsl` | one call to `ag_stage_scene_linear` | add your tool inside that function in `modules.wgsl` |
+| `shader.wgsl` | one call to `ag_stage_scene_linear`, one to `ag_stage_display` | add your tool inside one of those functions in `modules.wgsl` |
+| `gpu_processing.rs` | the `Precision` import, and one call to `mods::input_stage::run` | a whole-image GPU pass on the input (sharpening, a denoiser) goes inside `mods/input_stage.rs` |
 | `raw_processing.rs` | one call to `mods::decode::on_raw_decoded` | add a step in `mods/decode.rs` |
 | `image_processing.rs` | the CPU preview encode interception | change `mods/preview_encode.rs` |
 | `App.tsx` | one `<Argentum />` | add a portal in `argentum/Argentum.tsx` |
-| `Color.tsx`, `MetadataPanel.tsx` | one `data-argentum` marker each | portal into the existing marker |
+| `Color.tsx`, `MetadataPanel.tsx`, `Details.tsx` | `data-argentum` markers | portal into the existing marker |
 | 13 locale files | nothing | add a string to `argentum/locales/en.json` |
 
 `scripts/check-mergeability.mjs` enforces this. It knows the difference between

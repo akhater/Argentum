@@ -173,4 +173,37 @@ mod tests {
             "the display stage should be called exactly once"
         );
     }
+
+    /// The adjustments buffer is written from Rust and read by WGSL, and the
+    /// two sides are kept in step by hand. A field added to one and not the
+    /// other - or added with a different size - shifts everything after it,
+    /// and the shader reads garbage with no error anywhere. Argentum adds
+    /// fields to their struct (the camera profile, RAW tone, sharpening), so
+    /// this compares the sizes naga computes with the sizes Rust lays out.
+    #[test]
+    fn the_adjustments_have_the_same_layout_on_both_sides() {
+        let module = wgpu::naga::front::wgsl::parse_str(SOURCE).expect("parses");
+        let mut layouter = wgpu::naga::proc::Layouter::default();
+        layouter.update(module.to_ctx()).expect("lays out");
+        let size_of = |name: &str| {
+            let (handle, _) = module
+                .types
+                .iter()
+                .find(|(_, t)| t.name.as_deref() == Some(name))
+                .unwrap_or_else(|| panic!("no struct {name} in the shader"));
+            layouter[handle].size as usize
+        };
+        assert_eq!(
+            size_of("AgSharpen"),
+            std::mem::size_of::<crate::mods::sharpen::Params>()
+        );
+        assert_eq!(
+            size_of("GlobalAdjustments"),
+            std::mem::size_of::<crate::image_processing::GlobalAdjustments>()
+        );
+        assert_eq!(
+            size_of("AllAdjustments"),
+            std::mem::size_of::<crate::image_processing::AllAdjustments>()
+        );
+    }
 }

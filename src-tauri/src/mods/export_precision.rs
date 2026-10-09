@@ -482,8 +482,12 @@ pub fn render_high_precision(
     let is_raw = request.adjustments.global.is_raw_image;
     let (gf_coeffs_view, gf_dehaze_view) =
         processor.build_guided_coeffs(&input_view, width, height, is_raw);
+    // Sharpening, as the preview path gets it through their anchor - this
+    // render does not go through `process_and_get_dynamic_image`, so it asks
+    // for itself. A texture of its own: this runs outside their processor lock.
+    let staged = super::input_stage::run_for_export(context, base_image, &input_view, &request);
     let (bytes, out_w, out_h, _, _) = processor.run(
-        &input_view,
+        staged.as_ref().unwrap_or(&input_view),
         &gf_coeffs_view,
         &gf_dehaze_view,
         width,
