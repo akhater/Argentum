@@ -1165,9 +1165,9 @@ export const REGISTRY = [
     id: 'mask-falloff',
     kind: 'behaviour-change',
     what:
-      'Linear and radial masks fade with an S-curve instead of a straight ramp, so neither shows a '
-      + 'line at its handles. Linear is darktable\'s gradient (erf); radial is smoothstep, the '
-      + 'curve their own brush feather uses.',
+      'Linear and radial masks fade with smoothstep instead of a straight ramp, so neither shows a '
+      + 'line where the fade starts or stops. Linear is exactly 100% and 0% on its two outer lines; '
+      + 'radial uses the curve their own brush feather uses.',
     ours: ['src-tauri/src/mods/mask_falloff.rs'],
     // One import and two lines in their file, each handing their ramp to ours.
     dependsOn: [
@@ -1175,8 +1175,9 @@ export const REGISTRY = [
         note:
           'Their `0.5 - t * 0.5` is replaced by mask_falloff::linear(t). The curve assumes their '
           + 'meaning of t: distance from the centre line over `range`, the distance to each outer '
-          + 'handle drawn in ImageCanvas, positive towards the end handle. If they redefine range '
-          + 'as the full width, or flip the sign, the fade is the wrong width or the wrong way round.' },
+          + 'line, positive towards the side that fades out. If they redefine range as the full '
+          + 'width, or flip the sign, the fade is the wrong width or the wrong way round, and the '
+          + 'two lines mask-guides draws no longer mark 100% and 0%.' },
       { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_radial_bitmap', how: 'calls',
         note:
           'Their clamp of the feather ramp is replaced by mask_falloff::radial, which clamps and '
@@ -1184,17 +1185,68 @@ export const REGISTRY = [
           + 'the outer; a change to how they compute it changes what ours shapes.' },
       { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'handleLinearRangeDragMove', how: 'calls',
         note:
-          'Where range comes from: the outer lines are dragged to set it. darktable draws its own '
-          + 'border lines at the same distance its erf is scaled by, which is why the curve was '
-          + 'taken with that scale.' },
+          'Where range comes from in their canvas: dragging the outer lines sets it, so their '
+          + 'dashed lines sit exactly where the curve reaches 100% and 0%.' },
     ],
     tests: [
       'src-tauri/src/mods/mask_falloff.rs #[cfg(test)]',
-      'Manual: a linear mask with Exposure -2 over a sky fades with no line at either outer handle '
-        + 'and runs a little past them; a radial mask with feather fades with no ring at the inner '
-        + 'edge. Feather 0 is still a hard edge.',
+      'Manual: a linear mask with Exposure -2 over a sky fades with no line at either outer line '
+        + 'and stops at them; a radial mask with feather fades with no ring at the inner edge. '
+        + 'Feather 0 is still a hard edge.',
     ],
     keywords: /linear.?(mask|gradient)|radial.?(mask|gradient)|graduated|fall.?off|mask.?feather/i,
+  },
+  {
+    id: 'mask-guides',
+    kind: 'feature',
+    what:
+      'The linear mask on the canvas as two lines, full effect and none, with handles marked 100% '
+      + 'and 0%; drawn by dragging from where the effect starts to where it is full. The radial '
+      + 'mask gets a solid inner ellipse where its full effect ends, following the Feather slider.',
+    ours: [
+      'src/argentum/LinearMask.tsx',
+      'src/argentum/RadialFeather.tsx',
+      'src/argentum/linearEdges.ts',
+      'src/argentum/photoLayer.ts',
+    ],
+    // None of their files is edited. Presses are taken before their stage sees
+    // them, as the object brush did, and the mask is stored in their format.
+    dependsOn: [
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'isInitialDraw', how: 'calls',
+        note:
+          'A new linear component waits for a drag while parameters.isInitialDraw is set. Ours '
+          + 'takes that press with a capturing window listener on .konvajs-content, writes the '
+          + 'geometry and deletes isInitialDraw on the first move. Their handleUp returns early '
+          + 'because isDrawing never went true; if it stops checking that, it would write their '
+          + 'empty localInitialDrawParams over ours on release.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'MaskOverlay', how: 'shadows',
+        note:
+          'Their linear overlay (centre line, two dashed lines, two handles) is drawn on the Konva '
+          + 'stage canvas, which is hidden by CSS while a linear component is selected, so the other '
+          + 'components\' outlines hide with it. Their hit shapes stay live underneath: the dashed '
+          + 'lines coincide with ours and the centre line lies in our band, so ours take those '
+          + 'presses first. A press anywhere else goes through to them.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'isSliderDragging', how: 'calls',
+        note:
+          'Why the radial inner ellipse exists: their red mask preview goes to opacity 0 while any '
+          + 'slider is dragged, Feather included. If they keep the preview up for mask sliders, the '
+          + 'ellipse is still right but no longer the only way to see the feather.' },
+      { file: 'src/components/panel/right/MasksPanel.tsx', symbol: 'createMaskLogic', how: 'calls',
+        note:
+          'New linear and radial components start with isInitialDraw and their geometry at -10000, '
+          + 'which is what tells ours a mask is waiting to be drawn.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'activeMaskId', how: 'calls',
+        note: 'The selected component, read with adjustments, showOriginal and selectedImage.' },
+      { file: 'src/store/useUIStore.ts', symbol: 'activePanel', how: 'calls',
+        note: 'Only the masks panel. The AI panel\'s linear masks keep their canvas.' },
+    ],
+    tests: [
+      'Manual: Masks > Linear, drag from a point to another: the effect is full where the drag '
+        + 'ended, 0% where it began, smooth between. Drag a handle, a line and the band. Undo is '
+        + 'one step per drag. Radial: move Feather and the inner ellipse follows; Feather 0 puts it '
+        + 'on the outer one.',
+    ],
+    keywords: /linear.?(mask|gradient)|radial.?(mask|gradient)|graduated|mask.?(handle|overlay|canvas)|konva/i,
   },
 ];
 

@@ -31,6 +31,8 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import './noCloud';
 import RgbReadout from './RgbReadout';
+import LinearMask from './LinearMask';
+import RadialFeather from './RadialFeather';
 import RgbReadoutButton from './RgbReadoutButton';
 import RenderStatus from './RenderStatus';
 import RefreshMetadataButton from './RefreshMetadataButton';
@@ -178,6 +180,8 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
         </>
       )}
       <RgbReadout />
+      <LinearMask />
+      <RadialFeather />
       <WhiteBalanceUpgrade />
       <SuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
     </>
