@@ -44,8 +44,7 @@ export const CREDITS: CreditGroup[] = [
         href: 'https://github.com/darktable-org/darktable',
         what:
           'The reference Argentum is measured against, and the source of its automatic ' +
-          'white balance, of the way its linear masks fade, and of the raw-level ' +
-          'behaviour its decoder gets right.',
+          'white balance and of the raw-level behaviour its decoder gets right.',
       },
     ],
   },
