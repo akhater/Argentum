@@ -614,7 +614,7 @@ const UNREACHED_165 = [
   ['d14887fd', 'src/App.tsx', 'App', ['no-cloud#initAuth']],
   ['83fc86a8', 'src-tauri/src/app_settings.rs', 'FilterCriteria, Default', ['import-dialogue-1714#last_import_settings']],
   ['83fc86a8', 'src/components/ui/AppProperties.tsx', 'FlagStatus, FilterCriteria', ['import-dialogue-1714#ImportSettings']],
-  ['48a124f5', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['clipping-view:showClipping']],
+  ['48a124f5', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['c91e0bf7', 'src-tauri/src/image_processing.rs', 'SCALES', ['camera-profile#GlobalAdjustments', 'clipping-view#show_clipping', 'preview-encode#apply_cpu_default_raw_processing', 'adjustments-path-argument#get_all_adjustments_from_json', 'import-dialogue-1714#calculate_auto_adjustments', 'wb-legacy#get_all_adjustments_from_json', 'raw-tone#GlobalAdjustments']],
   ['c91e0bf7', 'src-tauri/src/shaders/shader.wgsl', 'apply_tonal_adjustments, main', ['camera-profile#GlobalAdjustments', 'camera-profile#ag_stage_scene_linear', 'clipping-view#ag_stage_display', 'highlight-recovery#ag_stage_scene_linear', 'high-precision-export#output_texture', 'raw-tone#GlobalAdjustments']],
   ['c91e0bf7', 'src-tauri/src/gpu_processing.rs', 'GpuProcessor', ['display-transform#ag_display_matrix', 'high-precision-export#GpuProcessor::new', 'high-precision-export#read_texture_data_roi', 'high-precision-export#to_rgba_f16', 'high-precision-export#GpuProcessor::run', 'high-precision-export#process_and_get_dynamic_image_inner']],
@@ -686,7 +686,7 @@ const UNREACHED_165 = [
   ['43248097', 'src-tauri/src/file_management.rs', 'try_load_embedded_raw_preview', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
   ['4e45e620', 'src-tauri/src/raw_processing.rs', 'rawler, develop_raw_image, develop_internal', ['raw-decode#on_raw_decoded', 'canon-old-wb#on_raw_decoded', 'canon-old-wb#read_as_shot_white_balance']],
   ['4e45e620', 'src-tauri/src/file_management.rs', 'apply_exif_orientation, try_load_embedded_raw_preview', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
-  ['9671795e', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['clipping-view:showClipping']],
+  ['9671795e', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['078c90a8', 'src-tauri/src/image_processing.rs', 'get_all_adjustments_from_json', ['camera-profile#GlobalAdjustments', 'clipping-view#show_clipping', 'preview-encode#apply_cpu_default_raw_processing', 'import-dialogue-1714#calculate_auto_adjustments', 'raw-tone#GlobalAdjustments']],
   ['078c90a8', 'src-tauri/src/lib.rs', 'crate, get_cached_full_warped_image, process_preview_job, generate_uncropped_preview and 2 more', ['display-transform#ag_display_matrix', 'cache-keys#cache_version', 'ai-gpu-runtime#ORT_DYLIB_PATH']],
   ['078c90a8', 'src-tauri/src/export_processing.rs', 'crate, process_image_for_export_pipeline, export_masks_for_image, export_images_impl and 1 more', ['adjustments-path-argument#get_all_adjustments_from_json', 'high-precision-export#process_image_for_export', 'high-precision-export#apply_watermark', 'high-precision-export#encode_image_to_bytes', 'tiff-export-metadata#save_image_with_metadata']],
@@ -716,7 +716,7 @@ const UNREACHED_165 = [
   ['7514c8f6', 'src/components/ui/AppProperties.tsx', 'AppSettings, AdjustmentLayout', ['import-dialogue-1714#ImportSettings']],
   ['2f907e36', 'src/utils/adjustments.ts', 'import { SubMask, SubMaskMode , getAdjustmentSectionOrder', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['2f907e36', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['clipping-view:showClipping']],
-  ['2f907e36', 'src/components/panel/right/MasksPanel.tsx', 'SettingsPanel', ['clipping-view:showClipping']],
+  ['2f907e36', 'src/components/panel/right/MasksPanel.tsx', 'SettingsPanel', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['2f907e36', 'src-tauri/src/app_settings.rs', 'default_export_presets, AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['2f907e36', 'src/components/ui/AppProperties.tsx', 'AppSettings, CollapsibleSectionsState', ['import-dialogue-1714#ImportSettings']],
   ['d94777fe', 'src/utils/adjustments.ts', null, ['wb-legacy:whiteBalance']],
@@ -727,13 +727,13 @@ const UNREACHED_165 = [
   ['f4a4c8d0', 'src/components/ui/AppProperties.tsx', 'AppSettings', ['import-dialogue-1714#ImportSettings']],
   ['c7c42306', 'src/utils/adjustments.ts', 'getVisibleAdjustmentSections', ['camera-profile:cameraProfile', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments']],
   ['f6220886', 'src/components/panel/right/ControlsPanel.tsx', 'import Resizer from \'../../ui/, Controls', ['clipping-view:showClipping']],
-  ['f6220886', 'src/components/panel/right/MasksPanel.tsx', 'import {, import { DepthRangePicker } fr, SettingsPanel', ['clipping-view:showClipping']],
+  ['f6220886', 'src/components/panel/right/MasksPanel.tsx', 'import {, import { DepthRangePicker } fr, SettingsPanel', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['45fa2ca1', 'src-tauri/src/app_settings.rs', 'default_export_presets', ['import-dialogue-1714#last_import_settings']],
   ['7ce629fc', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['7ce629fc', 'src/components/ui/AppProperties.tsx', 'AppSettings, UiVisibility', ['import-dialogue-1714#ImportSettings']],
   ['0f564b59', 'src/utils/adjustments.ts', 'ADJUSTMENT_SECTIONS', ['camera-profile:cameraProfile', 'wb-legacy:whiteBalance', 'raw-tone:rawToneRendering', 'white-balance-presets#normalizeLoadedAdjustments', 'camera-profile#getAdjustmentSectionToolIds']],
   ['0f564b59', 'src/components/panel/right/ControlsPanel.tsx', 'import Resizer from \'../../ui/, Controls', ['clipping-view:showClipping']],
-  ['0f564b59', 'src/components/panel/right/MasksPanel.tsx', 'import {, SettingsPanel', ['clipping-view:showClipping']],
+  ['0f564b59', 'src/components/panel/right/MasksPanel.tsx', 'import {, SettingsPanel', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['0f564b59', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['0f564b59', 'src/components/ui/AppProperties.tsx', 'AppSettings', ['import-dialogue-1714#ImportSettings']],
   ['edb8c82c', 'src-tauri/src/export_processing.rs', 'compute_fused_geometry', ['adjustments-path-argument#get_all_adjustments_from_json', 'high-precision-export#process_image_for_export', 'high-precision-export#export_masks_for_image', 'high-precision-export#apply_watermark', 'high-precision-export#encode_image_to_bytes', 'export-precision-selector#estimate_export_sizes', 'tiff-export-metadata#save_image_with_metadata']],
@@ -757,7 +757,7 @@ const UNREACHED_165 = [
   ['5c4b7800', 'src-tauri/src/app_state.rs', 'impl<\'a> Drop for AiTaskGuard<', ['auto-white-balance#as_shot_white_balance']],
   ['06c52a49', 'src/store/useCloudStore.ts', 'only top-level lines (imports and declarations)', ['no-cloud#initAuth']],
   ['f62a8365', 'src-tauri/src/app_state.rs', 'std, tokio, crate, AppState', ['auto-white-balance#as_shot_white_balance']],
-  ['f62a8365', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel, DraggableGridItem, ContainerRow, SubMaskRow', ['clipping-view:showClipping']],
+  ['f62a8365', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel, DraggableGridItem, ContainerRow, SubMaskRow', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['f62a8365', 'src-tauri/src/lib.rs', 'run', ['display-transform#ag_display_matrix', 'cache-keys#cache_version', 'ai-gpu-runtime#ORT_DYLIB_PATH']],
   ['f62a8365', 'src/components/ui/AppProperties.tsx', 'Invokes', ['import-dialogue-1714#ImportSettings']],
   ['f3e50211', 'src/components/panel/right/CropPanel.tsx', 'RATIO_TOLERANCE, CropPanel', ['argentum-shell#useAutoDetectOnLoad']],
@@ -789,6 +789,16 @@ const UNREACHED_165 = [
   ['1b17dd52', 'src/components/adjustments/Curves.tsx', 'CurveGraph, convertParametricToPoints', ['compact-sliders#viewBox="0 0 255 255"']],
   ['e2771bc6', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
   ['b5802863', 'src/components/ui/Slider.tsx', 'SliderChangeEvent, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
+  ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', ['mask-falloff#generate_linear_bitmap', 'mask-falloff#generate_radial_bitmap']],
+  ['078c90a8', 'src-tauri/src/mask_generation.rs', 'imports, resolve_warped_image_for_masks, get_cached_or_generate_mask', ['mask-falloff#generate_linear_bitmap', 'mask-falloff#generate_radial_bitmap']],
+  ['aff9b3f2', 'src/components/panel/editor/ImageCanvas.tsx', 'ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
+  ['e4d6fd16', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
+  ['9fe2ee29', 'src/components/panel/editor/ImageCanvas.tsx', 'linearToSrgb8, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
+  ['8155513d', 'src/components/panel/editor/ImageCanvas.tsx', 'ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
+  ['3ba2fcae', 'src/components/panel/editor/ImageCanvas.tsx', 'MaskOverlayProps, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isSliderDragging']],
+  ['d14887fd', 'src/store/useUIStore.ts', 'useUIStore, UIState', ['mask-guides#activePanel']],
+  ['7ce629fc', 'src/store/useUIStore.ts', 'imports', ['mask-guides#activePanel']],
+  ['9ba20c02', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove', 'mask-guides#isInitialDraw', 'mask-guides#MaskOverlay', 'mask-guides#isSliderDragging']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -967,6 +977,8 @@ const merges165 = MERGES_165.flatMap(([commit, what, targets]) =>
 
 // Where the diff reaches what we rely on, one at a time.
 const reached165 = [
+  review165('3ba2fcae', 'mask-guides:src/components/panel/editor/ImageCanvas.tsx#isInitialDraw', 'not-applicable', 'Adds the area picker\'s drag to handleStart, handleMove and handleUp, each behind isWbPickerActive. handleUp still returns first when isDrawing is false, which is what keeps it from writing over a linear mask ours drew, and the isInitialDraw branches are unchanged.'),
+  review165('3ba2fcae', 'mask-guides:src/components/panel/editor/ImageCanvas.tsx#MaskOverlay', 'not-applicable', 'The hunk labelled MaskOverlayProps adds the picker\'s constants and WbSample after that interface. MaskOverlay and its linear branch, which ours hides and steps around, are unchanged.'),
   review165('c7c42306', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates ADJUSTMENT_SECTION_TOOLS, whose color list is what the RAW card folds in focus mode. The helper that reads it came later (181a7e32).'),
   review165('7514c8f6', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'not-applicable', 'Drops isVisibleByDefault from each tool; the six color ids the RAW card folds are unchanged.'),
   review165('181a7e32', 'camera-profile:src/utils/adjustments.ts#getAdjustmentSectionToolIds', 'combine', 'Creates getAdjustmentSectionToolIds and has their focus mode use it. The RAW card calls it the same way for the color section, so both fold the same tools.'),
@@ -1112,9 +1124,10 @@ export const REVIEW_165_DECISIONS = [
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
 // registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
-// for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9).
-if (REVIEW_165_DECISIONS.length !== 912) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 912 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
+// 10 for mask-falloff and 26 for mask-guides (26.41.9).
+if (REVIEW_165_DECISIONS.length !== 948) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 948 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

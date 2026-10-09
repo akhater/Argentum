@@ -99,6 +99,28 @@ export const ANCHORS = [
     instead: 'change mods/preview_encode.rs, or mods/clipping.rs',
   },
   {
+    // One import, as in export_processing.rs. Their two shape masks each hand
+    // their straight ramp to ours, one line apiece, and every later change to
+    // how a mask fades belongs in that module, not in another line here.
+    file: 'src-tauri/src/mask_generation.rs',
+    hooks: 1,
+    what: 'the import of mods::mask_falloff, which shapes the linear and radial fall-off',
+    instead: 'change the curve in mods/mask_falloff.rs',
+    requires: [
+      {
+        // The calls mention no module of ours, so a merge that resolves either
+        // line back to theirs passes every other gate: that mask goes back to
+        // a straight ramp with a line at each handle, and nothing says so.
+        pattern: /mask_falloff::linear\(/,
+        why: 'the linear mask has to fade through ours or it gets its hard edges back',
+      },
+      {
+        pattern: /mask_falloff::radial\(/,
+        why: 'the radial mask has to fade through ours or its feather gets a hard inner edge back',
+      },
+    ],
+  },
+  {
     file: 'src/App.tsx',
     hooks: 2,
     what: 'the single <Argentum /> mount',

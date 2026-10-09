@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use crate::app_state::AppState;
 use crate::image_processing::{apply_cpu_default_raw_processing, apply_geometry_warp};
+use crate::mods::mask_falloff; // Argentum: linear and radial fall-off, see mods/mask_falloff.rs
 use crate::{get_cached_full_warped_image, get_cached_full_warped_image_for_path};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -573,7 +574,7 @@ fn generate_radial_bitmap(
 
             let inner_bound = 1.0 - params.feather.clamp(0.0, 1.0);
             let intensity = 1.0 - (dist - inner_bound) / (1.0 - inner_bound).max(0.01);
-            let clamped_intensity = intensity.clamp(0.0, 1.0);
+            let clamped_intensity = mask_falloff::radial(intensity); // Argentum
 
             mask.put_pixel(x, y, Luma([(clamped_intensity * 255.0) as u8]));
         }
@@ -625,7 +626,7 @@ fn generate_linear_bitmap(
 
             let t = dist_perp / half_width;
 
-            let intensity = 0.5 - t * 0.5;
+            let intensity = mask_falloff::linear(t); // Argentum
 
             let clamped_intensity = intensity.clamp(0.0, 1.0);
 

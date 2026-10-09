@@ -20,6 +20,36 @@ Newest first.
   opening RAW folds the Color tools, and opening one of them folds RAW. No file
   of theirs changes. The dependencies are registered under `camera-profile`,
   with their 13 decisions against the 1.6.5 review.
+- **The linear mask is two lines: full effect, and none.** RapidRAW draws it
+  as a dotted centre line at half strength with a dashed line either side, and
+  nothing says which side gets the effect; drawing one, the drag starts at the
+  middle of the fade and the effect lands behind it. It is now a solid line
+  where the effect is full and a dashed line where it has gone, with handles
+  marked 100% and 0%. You draw it by dragging from where the effect should
+  start to where it should be full. A handle moves its own end and the lines
+  turn to follow, a line slides on its own (closer is a harder edge), and the
+  band between them moves both. Stored exactly as RapidRAW stores it, so old
+  masks open in it. `src/argentum/LinearMask.tsx` and `linearEdges.ts`. No line
+  of theirs: presses on their mask stage are taken by a capturing listener, as
+  the object brush did, and their stage canvas is hidden while a linear
+  component is selected. Masks panel only; the AI panel keeps theirs.
+- **The radial mask shows where its full effect ends.** A solid inner ellipse,
+  inside their dashed outer one, that follows the Feather slider as it moves.
+  Their red mask preview is hidden while any slider is dragged, so Feather had
+  nothing to show for itself. `src/argentum/RadialFeather.tsx`. Both are
+  registry entry `mask-guides`, with its 26 decisions against the 1.6.5 review.
+- **Linear and radial masks fade out instead of stopping.** Both were a
+  straight ramp clamped to 0..1, and the clamp leaves a corner at each end that
+  the eye sees as a line. Both now fade with smoothstep, level at each end: the
+  linear mask is exactly 100% and 0% on its two lines, and the radial feather
+  uses the curve their brush feather already uses. darktable's gradient
+  (`erf`) was tried first and dropped, because it carries on past its lines;
+  its ellipse (`f * f`) keeps a corner at the inner edge. Feather 0 is still a
+  hard edge. Edits that already have these masks render slightly softer.
+  `src-tauri/src/mods/mask_falloff.rs`; their `mask_generation.rs` gets one
+  import and two calls, its first anchor. Thumbnails are regenerated once
+  (pipeline 6). Registry entry `mask-falloff`, with its 10 decisions against
+  the 1.6.5 review.
 
 ### Fixed
 
