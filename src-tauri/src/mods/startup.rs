@@ -37,6 +37,9 @@ pub fn init(app: &AppHandle) {
     // And notice if that screen's profile is changed under a window that never
     // moves — there is no frame to catch it on.
     super::display_monitor::watch();
+    // Unload AI models nothing is using, hand freed memory back, and log where
+    // the memory is whenever the total moves.
+    super::memory::watch(app.clone());
 
     if let Ok(cache) = app.path().app_cache_dir() {
         super::cache_version::clear_thumbnails_if_pipeline_changed(&cache);

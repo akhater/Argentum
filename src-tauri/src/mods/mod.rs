@@ -29,6 +29,7 @@ pub mod highlights;
 pub mod lens_crop;
 pub mod makernote_lens;
 pub mod mask_falloff;
+pub mod memory;
 pub mod model_catalog;
 pub mod model_manager;
 pub mod preview_encode;
