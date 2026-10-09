@@ -327,7 +327,7 @@ fn cct_from_xy(x: f32, y: f32) -> f32 {
 /// problem with a clicked colour and solves it in `pick_white_balance`: take
 /// that colour to white, on top of the as-shot balance. An illuminant is just
 /// the colour a white object takes under it, so it goes through the same door,
-/// and the wand and their picker answer in the same units by construction
+/// and Auto and their picker answer in the same units by construction
 /// rather than by two hand-written inverses that had to be kept in step.
 pub fn removing_illuminant(x: f64, y: f64, as_shot: WhiteBalance) -> Option<WhiteBalance> {
     if !x.is_finite() || !y.is_finite() || y <= 0.0 {

@@ -70,29 +70,61 @@ export const REGISTRY = [
     what:
       'Auto white balance: darktable\'s illuminant detection, answered in RapidRAW 1.6.5\'s '
       + 'white balance units. Until 1.6.5 the white balance engine and the picker were ours too; '
-      + 'theirs replaced both (review 79c2a46b).',
+      + 'theirs replaced both (review 79c2a46b). Auto was a wand button until 26.41.8 and is now an '
+      + 'entry in the white balance menu (white-balance-presets).',
     ours: [
-      'src/argentum/AutoWhiteBalanceButton.tsx',
+      'src/argentum/WhiteBalanceMenu.tsx',
       'src-tauri/src/mods/auto_wb.rs',
     ],
     dependsOn: [
       { file: 'src-tauri/src/white_balance.rs', symbol: 'pick_white_balance', how: 'calls',
         note: 'removing_illuminant hands the detected illuminant to it, the door their picker uses, '
-          + 'so the wand and the picker answer in the same units. If it changes what "current" means, '
-          + 'or stops returning an absolute white balance, the wand is wrong by exactly that.' },
+          + 'so Auto and the picker answer in the same units. If it changes what "current" means, '
+          + 'or stops returning an absolute white balance, Auto is wrong by exactly that.' },
       { file: 'src-tauri/src/white_balance.rs', symbol: 'adaptation_log_gains', how: 'calls',
         note: 'Only in tests: the answer is checked by applying it the way their shader does.' },
       { file: 'src/utils/whiteBalance.ts', symbol: 'withRelativeWhiteBalance', how: 'calls',
-        note: 'The button writes its answer with their helpers (withKelvinWhiteBalance, '
+        note: 'Auto writes its answer with their helpers (withKelvinWhiteBalance, '
           + 'toRelativeWhiteBalance, getWhiteBalanceMode), exactly as their picker in ImageCanvas does.' },
       { file: 'src-tauri/src/app_state.rs', symbol: 'as_shot_white_balance', how: 'calls',
         note: 'The as-shot white balance of the open photo, which the answer is given on top of.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'calls',
         note: 'data-argentum="color-tools" mount point, in their white balance actions row beside '
-          + 'the K and picker buttons. If the white balance tool is hidden, the wand goes with it.' },
+          + 'the K and picker buttons. If the white balance tool is hidden, Auto goes with it.' },
     ],
     tests: ['src-tauri/src/mods/auto_wb.rs #[cfg(test)]'],
     keywords: /white.?balance|temperature|tint|auto.?wb|grey.?world|gray.?world|eyedropper|wb.?picker/i,
+  },
+  {
+    id: 'white-balance-presets',
+    kind: 'feature',
+    what:
+      'Lightroom\'s white balance menu: As Shot, Auto, Daylight, Cloudy, Shade, Tungsten, Fluorescent, '
+      + 'Flash, and Custom once a slider has moved. It took the auto white balance wand\'s place.',
+    ours: ['src/argentum/WhiteBalanceMenu.tsx'],
+    dependsOn: [
+      { file: 'src-tauri/src/white_balance.rs', symbol: 'TINT_SCALE', how: 'calls',
+        note: 'The presets are Adobe Camera Raw\'s numbers, and mean what Lightroom means only while '
+          + 'their kelvin and tint are the DNG SDK\'s: Robertson isotherms, a tint scale of -3000. '
+          + 'Change either and every preset lands somewhere else.' },
+      { file: 'src/utils/whiteBalance.ts', symbol: 'withKelvinWhiteBalance', how: 'calls',
+        note: 'Presets are written with it, as an absolute kelvin in either slider mode; As Shot with '
+          + 'withRelativeWhiteBalance at zero. The menu\'s label comes from resolveWhiteBalance, so if '
+          + 'what an edit resolves to changes, the menu names the wrong entry.' },
+      { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
+        note: 'Auto\'s answer is kept in the edit as whiteBalanceAuto, a key their type does not declare. '
+          + 'It survives a reload only because their loader spreads the saved edit over the defaults. '
+          + 'If the loader starts picking keys, the menu says Custom where it said Auto; nothing renders differently.' },
+      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
+        note: 'The data-argentum="color-tools" mount point in their white balance actions row, beside '
+          + 'the K and picker buttons. Shared with auto-white-balance.' },
+    ],
+    tests: [
+      'Manual: on a RAW, each preset shows its kelvin on the Temperature slider in K mode and its name '
+        + 'on the button; dragging a slider turns the name to Custom, undo brings it back; Auto says Auto '
+        + 'and still does after reopening the photo; As Shot returns both sliders to the camera\'s.',
+    ],
+    keywords: /white.?balance|wb.?preset|daylight|cloudy|tungsten|fluorescent|as.?shot/i,
   },
   {
     id: 'camera-profile',
