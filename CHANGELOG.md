@@ -18,8 +18,8 @@ Newest first.
   ours (`argentumRaw`) in their `collapsedTools` setting. Their focus mode
   only folds tools on their own list, so the card follows it from our side:
   opening RAW folds the Color tools, and opening one of them folds RAW. No file
-  of theirs changes. The dependencies are registered under `camera-profile`, with their 13
-  decisions against the 1.6.5 review.
+  of theirs changes. The dependencies are registered under `camera-profile`,
+  with their 13 decisions against the 1.6.5 review.
 
 ## 26.41.8 — 2026-10-09
 
