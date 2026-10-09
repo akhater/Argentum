@@ -80,5 +80,6 @@
   "modelsAtNextStart": "Argentum is using this right now, so it can't be deleted yet. It will be removed the next time Argentum starts.",
   "compactSliders": "Compact panels",
   "compactSlidersSwitch": "Use compact panels",
-  "compactSlidersDesc": "Lightroom's layout: each slider on one line, with a small triangle on a thin bar, and a smaller tone curve, so more of a panel fits on screen. Long names are shortened; point at one to read it in full."
+  "compactSlidersDesc": "Lightroom's layout: each slider on one line, a thin bar with a short marker, and a smaller tone curve, so more of a panel fits on screen. Row spacing sets how much room each slider gets. Long names are shortened; point at one to read it in full.",
+  "compactSlidersGap": "Row spacing"
 }

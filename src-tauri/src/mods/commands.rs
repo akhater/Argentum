@@ -374,3 +374,25 @@ pub fn set_compact_sliders(on: bool) -> Result<(), String> {
         serde_json::Value::Bool(on),
     )
 }
+
+/// The most space Row spacing offers under a compact slider, in pixels.
+const MAX_SLIDER_GAP: u8 = 12;
+
+/// Space under each compact slider row, in pixels. 4 until chosen.
+pub fn compact_slider_gap() -> Result<u8, String> {
+    Ok(
+        crate::mods::ag_settings::get(profile_library()?, "compactSliderGap")
+            .and_then(|v| v.as_u64())
+            .map(|gap| gap.min(MAX_SLIDER_GAP as u64) as u8)
+            .unwrap_or(4),
+    )
+}
+
+/// Choose it. Anything past the slider's end is stored as its end.
+pub fn set_compact_slider_gap(gap: u8) -> Result<(), String> {
+    crate::mods::ag_settings::set(
+        profile_library()?,
+        "compactSliderGap",
+        serde_json::Value::from(gap.min(MAX_SLIDER_GAP)),
+    )
+}

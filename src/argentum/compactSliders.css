@@ -32,7 +32,7 @@
  *
  * Their colour grading sliders sit under the wheels, often half a panel wide,
  * where one line leaves no room for the bar. They keep two lines, identified by
- * their gradient track classes, but get the thin bar and triangle like the rest:
+ * their gradient track classes, but get the thin bar and the bar thumb like the rest:
  * the layout rules below exclude them, the bar and thumb rules do not.
  *
  * A name too long for its column ends in "..." and shows in full on hover,
@@ -44,10 +44,14 @@ html[data-ag-sliders='compact']
     :has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient)
   ) {
   display: grid;
-  grid-template-columns: minmax(0, 34%) minmax(0, 1fr) 2.75rem;
+  /* The name never narrower than 5.5rem, so on a narrow panel it does not run
+     into its bar. */
+  grid-template-columns: max(5.5rem, 34%) minmax(0, 1fr) 2.75rem;
   column-gap: 0.5rem;
   align-items: center;
-  margin-bottom: 0.25rem;
+  /* Space under each row: the Row spacing slider in Settings sets it live
+     (compactSliders.ts). 4px until chosen. */
+  margin-bottom: var(--ag-slider-gap, 4px);
 }
 
 html[data-ag-sliders='compact']
@@ -126,8 +130,8 @@ html[data-ag-sliders='compact']
  *
  * The hit area is cut from 28px to 16px, the height of a row, so neighbouring
  * sliders do not overlap and a click near the edge of one cannot grab the next.
- * The input is centred on the bar whatever its height, and the triangle's
- * offset below is measured from its top, so it is the same 16px everywhere.
+ * The input is centred on the bar whatever its height, and the thumb's offset
+ * below is measured from its top, so it is the same 16px everywhere.
  */
 html[data-ag-sliders='compact']
   .group:has(> .relative.w-full.h-5 > input.slider-input)
@@ -145,27 +149,32 @@ html[data-ag-sliders='compact']
 }
 
 /*
- * Lightroom's thumb: a small triangle under the line, its point on the value,
+ * The thumb: a short upright bar across the line, centred on the value,
  * instead of their 16px disc.
  *
- * Drawn as two gradients in a box as wide as their disc. The width matters:
- * the browser keeps the thumb's centre half a thumb from each end, and their
+ * It was a Lightroom triangle under the line first. That hung into the gap
+ * below, and with Temperature over Tint the two coloured lines and the triangle
+ * between them read as one cramped block. A bar centred on its own line takes
+ * nothing from the row underneath.
+ *
+ * Drawn as a gradient in a box as wide as their disc. The width matters: the
+ * browser keeps the thumb's centre half a thumb from each end, and their
  * markers (the as-shot white balance, other curve channels) are placed on that
  * same 16px assumption, so a narrower box would put them beside the value they
- * mark. Gradients rather than clip-path or border tricks, because every engine
- * Tauri ships draws a background on a slider thumb.
+ * mark. A background rather than clip-path or border tricks, because every
+ * engine Tauri ships draws a background on a slider thumb.
+ *
+ * 12px tall in the 16px input, so 2px down from its top centres it on the line.
  */
 html[data-ag-sliders='compact']
   .group:has(> .relative.w-full.h-5 > input.slider-input)
   > .relative.w-full.h-5
   > input.slider-input::-webkit-slider-thumb {
   width: 16px;
-  height: 8px;
+  height: 12px;
   border-radius: 0;
-  background:
-    linear-gradient(to bottom right, transparent 50%, var(--color-accent) 50%) 3px 0 / 5px 100% no-repeat,
-    linear-gradient(to bottom left, transparent 50%, var(--color-accent) 50%) 8px 0 / 5px 100% no-repeat;
-  margin-top: 8px;
+  background: linear-gradient(var(--color-accent), var(--color-accent)) center / 3px 100% no-repeat;
+  margin-top: 2px;
 }
 
 /*

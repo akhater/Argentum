@@ -15,16 +15,19 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import Slider from '../components/ui/Slider';
 import Switch from '../components/ui/Switch';
 import Text from '../components/ui/Text';
 import { TextVariants } from '../types/typography';
-import { useCompactSliders } from './compactSliders';
+import { DEFAULT_GAP, MAX_GAP, useCompactSliders } from './compactSliders';
 import { useAgTranslation } from './locales';
 
 function CompactSlidersRow() {
   const t = useAgTranslation();
   const on = useCompactSliders((s) => s.on);
+  const gap = useCompactSliders((s) => s.gap);
   const choose = useCompactSliders((s) => s.choose);
+  const chooseGap = useCompactSliders((s) => s.chooseGap);
 
   // Their SettingItem's markup: it is not exported, and the row has to look
   // like the ones around it.
@@ -39,6 +42,23 @@ function CompactSlidersRow() {
         label={t('compactSlidersSwitch')}
         onChange={(checked) => choose(checked)}
       />
+      {/* Their slider, so it is itself drawn compact and shows the spacing
+          it sets as it is dragged. Only while compact is on: it changes
+          nothing otherwise. */}
+      {on && (
+        <div className="mt-3">
+          <Slider
+            label={t('compactSlidersGap')}
+            min={0}
+            max={MAX_GAP}
+            step={1}
+            defaultValue={DEFAULT_GAP}
+            value={gap}
+            suffix="px"
+            onChange={(e) => chooseGap(Number(e.target.value))}
+          />
+        </div>
+      )}
       <Text variant={TextVariants.small} className="mt-2">
         {t('compactSlidersDesc')}
       </Text>

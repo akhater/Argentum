@@ -12,11 +12,15 @@ Newest first.
   Lightroom's layout, asked for by a tester who found the panels huge:
   - Sliders take one line, name, bar and value: about 20px a slider instead of
     56px, so a panel shows nearly three times as many. The bar is a thin line
-    and the thumb a small triangle under it, drawn in a box as wide as their
-    16px disc so their markers (as-shot white balance, other curve channels)
-    stay on the value they mark. Long names end in "..." and show in full on
-    hover. Colour grading sliders, half a panel wide under their wheels, keep
-    two lines but get the thin bar and triangle too.
+    and the thumb a short upright marker centred on it, drawn in a box as wide
+    as their 16px disc so their markers (as-shot white balance, other curve
+    channels) stay on the value they mark. A Lightroom triangle under the line
+    was tried first and hung into the row below. Long names end in "..." and
+    show in full on hover; the name column is never narrower than 5.5rem.
+    Colour grading sliders, half a panel wide under their wheels, keep two
+    lines but get the thin bar and marker too.
+  - **Row spacing**, a slider under the switch, 0-12px under each row (4 to
+    start), applied live. Stored as `compactSliderGap`.
   - The tone curve's graph is 62% of the panel, centred, with smaller mode and
     channel buttons above it: about a third of its height. Their drags are
     measured against the graph's on-screen size, so points still follow the

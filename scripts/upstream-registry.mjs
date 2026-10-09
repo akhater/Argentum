@@ -1064,7 +1064,7 @@ export const REGISTRY = [
     id: 'compact-sliders',
     kind: 'feature',
     what:
-      'Compact panels: sliders on one line with a small triangle on a thin bar, and a smaller tone '
+      'Compact panels: sliders on one line with a short upright marker on a thin bar, and a smaller tone '
       + 'curve, as Lightroom draws them, chosen in Settings > General. Their slider and curve are '
       + 'restyled from a stylesheet of ours; no line of either changes.',
     ours: [
@@ -1084,7 +1084,7 @@ export const REGISTRY = [
         note: 'The value column, moved to the third grid column. If it is renamed the value falls '
           + 'into the grid wherever it lands, so check the layout rather than just the selector. '
           + 'Their markers are placed with calc(8px + (100% - 16px) * f), a 16px thumb; our '
-          + 'triangle is drawn in a 16px box so they stay on the value they mark.' },
+          + 'marker is drawn in a 16px box so they stay on the value they mark.' },
       { file: 'src/components/adjustments/Curves.tsx', symbol: 'viewBox="0 0 255 255"', how: 'shadows',
         note: 'Their curve is found by its 255x255 graph: the graph (.relative > .aspect-square) and '
           + 'the button row above it (.flex, first child) are drawn at 62% of the panel, centred. '
@@ -1101,9 +1101,9 @@ export const REGISTRY = [
     ],
     tests: [
       'Manual: Settings > General > Compact panels on: every adjustment slider is one line with a '
-        + 'triangle thumb, drag, Shift fine-adjust, click to type, double-click and click-the-name '
+        + 'bar thumb, drag, Shift fine-adjust, click to type, double-click and click-the-name '
         + 'reset all work; a long name ends in ... and shows in full on hover; colour grading wheels '
-        + 'keep two lines with the triangle; the as-shot marker on Temperature sits under the triangle at as-shot. The '
+        + 'keep two lines with the bar thumb; the as-shot marker on Temperature sits under the thumb at as-shot; Row spacing moves the rows live and survives a restart. The '
         + 'tone curve is smaller and its points still follow the pointer, in point and parametric '
         + 'mode. Off restores their layout. The choice survives a restart.',
     ],
