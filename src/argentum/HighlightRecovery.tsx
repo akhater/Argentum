@@ -81,7 +81,7 @@ export default function HighlightRecovery() {
   }
 
   return (
-    <div className="p-2 bg-bg-tertiary rounded-md">
+    <div>
       {/*
         Their Switch, not one of ours. The first version was hand-rolled, and
         besides looking like a stranger in the panel its knob was white on an

@@ -833,6 +833,7 @@ const FILE_165 = {
   'auto-white-balance|src/components/adjustments/Color.tsx': ['combine', 'Their layout is taken; the color-tools marker sits in their white balance actions row beside K and the picker, placed at the merge.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'white-balance-presets|src/components/adjustments/AdjustmentSubSection.tsx': ['not-applicable', 'Only the fold logic changes; the header row, the folding wrapper after it and the body inside, which the menu row is placed by, are untouched.', ['181a7e32', '290818d5', '2f907e36', '3e186ce2', 'd94777fe']],
   'white-balance-presets|src/components/adjustments/Color.tsx': ['combine', 'The white balance menu is placed from the color-tools marker the merge seated in their actions row, beside K and the picker, where the wand was. Registered after this review (26.41.8).', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
+  'camera-profile|src/components/adjustments/AdjustmentSubSection.tsx': ['not-applicable', 'Only the fold logic changes; the props the RAW card passes and the collapsedTools setting its fold is kept in are untouched. Registered after this review (26.41.9).', ['181a7e32', '290818d5', '2f907e36', '3e186ce2', 'd94777fe']],
   'camera-profile|src/components/adjustments/Color.tsx': ['combine', 'Their layout is taken; the camera-profile marker is first in the panel, outside their tool sections, placed at the merge.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'raw-tone|src/components/adjustments/Color.tsx': ['combine', 'RAW tone rendering renders in the camera-profile marker, which the merge placed first in their new layout.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'compact-sliders|src/components/panel/SettingsPanel.tsx': ['not-applicable', 'Their Font row on General, which the Compact sliders switch is placed after, is not what this commit edits.', ['48a124f5', '2641891c', 'b66691ba', 'f98d68a4', 'c4ba9ac9', '3e186ce2', '290818d5', '66b800f5', 'c7c42306', '9b7e3368', '5c4b7800', '06c52a49']],
@@ -864,6 +865,7 @@ const FILE_165 = {
 
 // One commit in a group that did more than the rest.
 const FILE_OVERRIDE_165 = {
+  'camera-profile|src/components/adjustments/AdjustmentSubSection.tsx|d94777fe': ['combine', 'Creates AdjustmentSubSection, folding on an id kept in adjustmentLayout.collapsedTools. The RAW card is one, with an id of ours, so it folds like their sections.'],
   'white-balance-presets|src/components/adjustments/AdjustmentSubSection.tsx|d94777fe': ['combine', 'Creates AdjustmentSubSection: a header row, then a folding wrapper holding the body. The menu row is put first in that body, found from the color-tools marker in the header.'],
   'model-manager|src/components/panel/SettingsPanel.tsx|48a124f5': ['combine', 'This moves their AI card from Processing to General, so AI Models moves with it: out of the Processing tab and under their Generative AI card, placed from the existing slot by AiModelsPlacement.tsx.'],
   'no-cloud|src/components/panel/SettingsPanel.tsx|48a124f5': ['keep-ours', 'The Cloud dashboard moves to General with the AI card. It stays unreachable: the Cloud tile is hidden from our side.'],
@@ -1106,9 +1108,10 @@ export const REVIEW_165_DECISIONS = [
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
-// registered after it (26.41.7), and 37 for white-balance-presets (26.41.8).
-if (REVIEW_165_DECISIONS.length !== 899) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 899 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 5
+// for the RAW card's use of AdjustmentSubSection (26.41.9).
+if (REVIEW_165_DECISIONS.length !== 904) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 904 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

@@ -79,9 +79,9 @@ export default function RawToneRendering() {
   };
 
   return (
-    <div className="p-2 bg-bg-tertiary rounded-md">
+    <div>
       <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-semibold text-text-primary">{t('rawToneLabel')}</span>
+        <span className="text-sm font-medium text-text-secondary select-none">{t('rawToneLabel')}</span>
       </div>
       <select
         value={current}

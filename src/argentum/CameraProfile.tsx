@@ -118,9 +118,9 @@ export default function CameraProfile() {
   const current: string = adjustments?.cameraProfile ?? '';
 
   return (
-    <div className="p-2 bg-bg-tertiary rounded-md">
+    <div>
       <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-semibold text-text-primary">{t('profileLabel')}</span>
+        <span className="text-sm font-medium text-text-secondary select-none">{t('profileLabel')}</span>
         {/*
           RawTherapee publishes one profile per camera, so the offer to fetch it
           stands until that file is here — an imported profile does not answer

@@ -32,6 +32,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.9',
+    date: '2026-10-09',
+    notes: [
+      'Camera profile, RAW rendering and highlight recovery are together in one RAW section at the '
+      + 'top of the Color panel, which folds like the others.',
+    ],
+  },
+  {
     version: '26.41.8',
     date: '2026-10-09',
     notes: [
