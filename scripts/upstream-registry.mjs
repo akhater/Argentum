@@ -823,11 +823,44 @@ export const REGISTRY = [
           + 'correction, lens blur, then rotation, flips and crop. strip_non_transferable_adjustments '
           + 'removes every key that call reads from the enlarged photo’s sidecar, so nothing is applied '
           + 'twice. If upstream adds a geometric step here, or a new key it reads, add the key there too.' },
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'composite_patches_on_image', how: 'calls',
+        note:
+          'Inpainting is composited onto the decoded photo before framing, as the editor does in '
+          + 'compute_patched_and_warped, because its patches sit in source coordinates the enlargement '
+          + 'drops. Without it an enlarged photo silently lost every inpainted area.' },
+      { file: 'src-tauri/src/white_balance.rs', symbol: 'pick_white_balance', how: 'calls',
+        note:
+          'A raw’s white balance is restated for its enlargement with as_shot_white_balance, '
+          + 'from_adjustments, adaptation_log_gains, rgb_to_lms, pick_white_balance and '
+          + 'WhiteBalance::reference. It rests on as_shot_white_balance answering D65 for anything that '
+          + 'is not a raw, and on the gains being lms(as shot) / lms(chosen). If upstream starts reading '
+          + 'an as-shot white from a TIFF, or changes how the gains are formed, carry_white_balance must follow.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_curve', how: 'calls',
+        note:
+          'Mirrored, not called. encode_for_reopening is the inverse of the non-raw srgb_to_linear decode; '
+          + 'raw_basic_curve copies the basic tone mapper’s raw branch (BRIGHTNESS_GAMMA 1.1, CONTRAST_MIX '
+          + '0.75); apply_curve is ported step for step to fold that branch into the luma curve, which '
+          + 'runs after it. A change to any of the three makes an enlarged raw open looking different '
+          + 'from the raw.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'resolve_tonemapper_override', how: 'calls',
+        note:
+          'The Settings tone-mapper override is what a raw actually renders with, so it decides which '
+          + 'view transform the enlargement has to reproduce.' },
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_ai_bitmap_from_base64', how: 'calls',
+        note:
+          'carry_masks moves every mask into the enlargement. AI masks are re-rendered over the enlarged '
+          + 'frame with generate_ai_bitmap_from_base64 and TransformParams, and stored as the enlargement’s '
+          + 'own bitmap. Shapes rely on the generators measuring centre, ends, strokes and radii in the '
+          + 'straightened, uncropped source, with crop_offset subtracted. move_sample_point runs '
+          + 'generate_color_bitmap’s placement backwards. A change to any of those conventions moves masks '
+          + 'off what they covered.' },
     ],
     tests: [
       'Manual: open an upscaled image, zoom in and back out with the mouse wheel, and verify the full image fits in the editor.',
       'Manual: crop and straighten a photo, enlarge it; the result is the framed area only, and opens with no crop or rotation applied.',
+      'Manual: give a raw a custom white balance, an inpainted area, the basic tone mapper and a radial, a linear, a brush and an AI mask, enlarge it; the enlargement opens with the same colour, tone, inpainting and masks as the raw.',
       'super_resolution tests: framing already applied is not carried over, the look is',
+      'super_resolution tests: an enlarged raw decodes to its light, is balanced by the raw’s gains, and carries the raw tone curve (basic, base curve, own luma curve, AgX, unedited); shapes, AI masks and colour sample points move into the enlargement',
     ],
     keywords: /upscale|super.?resolution|zoom|image.?size/i,
   },

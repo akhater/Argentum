@@ -33,13 +33,16 @@ export interface Release {
 export const RELEASES: Release[] = [
   {
     version: '26.41.10',
-    date: '2026-10-09',
+    date: '2026-10-10',
     notes: [
       'Uses far less memory with AI masks and the AI eraser: about 3-4 GB while the AI models are '
       + 'loaded, where it used to sit at 8-12 GB, and they unload by themselves when you stop using '
       + 'them - a minute for the eraser, five for masks.',
       'The first AI mask after a five-minute break takes a few seconds longer while its models load '
       + 'again.',
+      'An enlarged raw photo opens looking like the raw: the same white balance and tone. It used to '
+      + 'come out bluer, with heavier greens.',
+      'Enlarging keeps your inpainting and your masks, moved onto the enlarged photo.',
     ],
   },
   {
