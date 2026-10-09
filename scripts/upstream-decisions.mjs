@@ -831,6 +831,7 @@ const UNREACHED_165 = [
   ['9ba20c02', 'src-tauri/src/app_state.rs', 'crate, LoadedImage', ['memory-release#AppState']],
   ['5c4b7800', 'src-tauri/src/app_state.rs', 'impl<\'a> Drop for AiTaskGuard<', ['memory-release#AppState']],
   ['f62a8365', 'src-tauri/src/ai_processing.rs', null, ['memory-release#get_or_init_ai_models']],
+  ['f62a8365', 'src-tauri/src/ai_processing.rs', null, ['ai-sessions-without-arena#get_or_init_ai_models', 'ai-sessions-without-arena#get_or_init_lama_model']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -1164,10 +1165,10 @@ export const REVIEW_165_DECISIONS = [
 // registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
 // for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
 // 10 for mask-falloff and 26 for mask-guides (26.41.9), 16 for mask-guides
-// reaching the AI panel and their radial Transformer, and 33 for memory-release
-// and shared-unchanged-copies (26.41.10).
-if (REVIEW_165_DECISIONS.length !== 997) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 997 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// reaching the AI panel and their radial Transformer, 33 for memory-release and
+// shared-unchanged-copies, and 2 for ai-sessions-without-arena (26.41.10).
+if (REVIEW_165_DECISIONS.length !== 999) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 999 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

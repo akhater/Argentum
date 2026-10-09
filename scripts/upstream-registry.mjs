@@ -1304,6 +1304,34 @@ export const REGISTRY = [
     keywords: /memory|\bram\b|leak|unload|ai.?model|onnx|session|mimalloc|allocator|cache.?size/i,
   },
   {
+    id: 'ai-sessions-without-arena',
+    kind: 'behaviour-change',
+    what:
+      'Every AI model session is built with ONNX Runtime\'s CPU memory arena off, so a run\'s working '
+      + 'memory is returned when it ends instead of being kept for the life of the model. The mask '
+      + 'models held 6.1 GB after one selection on a 32 MP raw, 1.4 GB of it their weights.',
+    ours: ['src-tauri/src/mods/ai_session.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_ai_models', how: 'calls',
+        note:
+          'Its five Session::builder() calls are session_builder(), one line for one, on the anchor '
+          + 'taken 2026-10-09. A model they add here with Session::builder() keeps its arena until '
+          + 'it is switched too; the anchor\'s requires only guard the SAM encoder and depth lines.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_denoise_model', how: 'calls',
+        note: 'The denoise session, built the same way.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_clip_models', how: 'calls',
+        note: 'The tagging session, built the same way.' },
+      { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_or_init_lama_model', how: 'calls',
+        note: 'The eraser session, built the same way.' },
+    ],
+    tests: [
+      'Manual: open a raw, make an AI Subject mask: the [memory] line after it says the masks are '
+        + 'loaded at around 1.5 GB more than before, not 5 or 6; the mask is the same as before; '
+        + 'a second mask takes no longer than the first did.',
+    ],
+    keywords: /onnx|\bort\b|arena|ai.?model|inference/i,
+  },
+  {
     id: 'shared-unchanged-copies',
     kind: 'behaviour-change',
     what:
