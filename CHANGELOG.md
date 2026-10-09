@@ -4,7 +4,7 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
-## 26.41.10 — 2026-10-09
+## 26.41.10 — 2026-10-10
 
 ### Fixed
 
@@ -36,6 +36,34 @@ Newest first.
   step handed it back unchanged: no patches, lens correction or blur; no crop,
   rotation or flip. They share it now - two lines of their `lib.rs`, one for
   one. Worth sending upstream.
+- **An enlarged raw opens looking like the raw.** Found on an R6 Mark III
+  photo balanced to 4076 K: its 2x enlargement opened plainly blue, with
+  crushed greens, without its three inpainted areas and without its masks.
+  The enlargement holds the framed photo and its look travels in the sidecar,
+  but the editor reopens it as an ordinary image, and none of the four
+  survived that (`mods/super_resolution.rs`, no file of theirs changed):
+  - *White balance* was copied as an absolute value. A raw is adapted from the
+    camera's as-shot white, an ordinary image from D65, so the same number
+    moved the enlargement further. It is restated as the white that adapts D65
+    by the gains the raw got, relative sliders folded in.
+  - *Tone was applied twice.* The enlargement held their CPU preview curve and
+    the carried look ran the view transform again on top. A raw is now enlarged
+    as linear light, encoded with the exact inverse of the editor's non-raw
+    sRGB decode. The basic tone mapper's raw branch, or a raw tone curve, which
+    ordinary images do not get, rides in the luma curve that follows it; AgX is
+    the same for both. An unedited raw gets a sidecar too, for a raw's default
+    look.
+  - *Inpainting* was stripped with the other source-coordinate keys and never
+    composited. It is composited before framing, as the editor does.
+  - *Masks* were stripped the same way. Shapes move by the crop and scale with
+    the enlargement, and stay editable. AI masks are re-rendered over the
+    enlarged frame with the editor's own placement. Colour and luminance masks
+    keep their sample point but select again from the enlarged pixels, so
+    their edge can differ a little.
+
+  What still differs: light above 1.0 clips in the 16-bit TIFF, a global
+  brightness move lands slightly differently, and a scene-referred LUT keeps
+  the raw's tone curve out.
 
 ### Added
 
@@ -44,7 +72,8 @@ Newest first.
   models are loaded, and the rest. It is how the mask models were found.
 
 Registered as `memory-release`, `shared-unchanged-copies` and
-`ai-sessions-without-arena`, with 35 decisions against the 1.6.5 review.
+`ai-sessions-without-arena`, with 35 decisions against the 1.6.5 review. The
+enlargement's five new dependencies are under `ai-super-resolution`, with 27.
 
 ## 26.41.9 — 2026-10-09
 
