@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Argentum"
-version = "26.41.9"
+version = "26.41.10"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
