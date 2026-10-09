@@ -51,7 +51,9 @@ use std::path::{Path, PathBuf};
 /// 4. RapidRAW 1.6.5: their white balance, guided-filter shadows, highlights,
 ///    whites, clarity and dehaze, and old white balance edits converted by
 ///    `mods/wb_legacy.rs`.
-pub const PIPELINE: u32 = 5;
+/// 5. Linear and radial masks fade with an S-curve instead of a straight ramp
+///    (`mods/mask_falloff.rs`).
+pub const PIPELINE: u32 = 6;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

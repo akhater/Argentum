@@ -37,6 +37,8 @@ export const RELEASES: Release[] = [
     notes: [
       'Camera profile, RAW rendering and highlight recovery are together in one RAW section at the '
       + 'top of the Color panel, which folds like the others.',
+      'Linear and radial masks fade out smoothly instead of stopping at a visible edge. Masks you '
+      + 'have already drawn look slightly softer.',
     ],
   },
   {

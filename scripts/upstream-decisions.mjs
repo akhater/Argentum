@@ -789,6 +789,14 @@ const UNREACHED_165 = [
   ['1b17dd52', 'src/components/adjustments/Curves.tsx', 'CurveGraph, convertParametricToPoints', ['compact-sliders#viewBox="0 0 255 255"']],
   ['e2771bc6', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
   ['b5802863', 'src/components/ui/Slider.tsx', 'SliderChangeEvent, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
+  ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', ['mask-falloff#generate_linear_bitmap', 'mask-falloff#generate_radial_bitmap']],
+  ['078c90a8', 'src-tauri/src/mask_generation.rs', 'imports, resolve_warped_image_for_masks, get_cached_or_generate_mask', ['mask-falloff#generate_linear_bitmap', 'mask-falloff#generate_radial_bitmap']],
+  ['aff9b3f2', 'src/components/panel/editor/ImageCanvas.tsx', 'ImageCanvas', ['mask-falloff#handleLinearRangeDragMove']],
+  ['e4d6fd16', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove']],
+  ['9fe2ee29', 'src/components/panel/editor/ImageCanvas.tsx', 'linearToSrgb8, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove']],
+  ['8155513d', 'src/components/panel/editor/ImageCanvas.tsx', 'ImageCanvas', ['mask-falloff#handleLinearRangeDragMove']],
+  ['3ba2fcae', 'src/components/panel/editor/ImageCanvas.tsx', 'MaskOverlayProps, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove']],
+  ['9ba20c02', 'src/components/panel/editor/ImageCanvas.tsx', 'imports, ImageCanvas', ['mask-falloff#handleLinearRangeDragMove']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -1112,9 +1120,10 @@ export const REVIEW_165_DECISIONS = [
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
 // registered after it (26.41.7), 37 for white-balance-presets (26.41.8), and 13
-// for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9).
-if (REVIEW_165_DECISIONS.length !== 912) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 912 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
+// and 10 for mask-falloff (26.41.9).
+if (REVIEW_165_DECISIONS.length !== 922) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 922 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

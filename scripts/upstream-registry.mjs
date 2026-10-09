@@ -1161,6 +1161,41 @@ export const REGISTRY = [
     // Not /slider/ alone: half of upstream's commits mention one.
     keywords: /compact|density|slider.?(layout|height|row|size)|one.?line/i,
   },
+  {
+    id: 'mask-falloff',
+    kind: 'behaviour-change',
+    what:
+      'Linear and radial masks fade with an S-curve instead of a straight ramp, so neither shows a '
+      + 'line at its handles. Linear is darktable\'s gradient (erf); radial is smoothstep, the '
+      + 'curve their own brush feather uses.',
+    ours: ['src-tauri/src/mods/mask_falloff.rs'],
+    // One import and two lines in their file, each handing their ramp to ours.
+    dependsOn: [
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_linear_bitmap', how: 'calls',
+        note:
+          'Their `0.5 - t * 0.5` is replaced by mask_falloff::linear(t). The curve assumes their '
+          + 'meaning of t: distance from the centre line over `range`, the distance to each outer '
+          + 'handle drawn in ImageCanvas, positive towards the end handle. If they redefine range '
+          + 'as the full width, or flip the sign, the fade is the wrong width or the wrong way round.' },
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_radial_bitmap', how: 'calls',
+        note:
+          'Their clamp of the feather ramp is replaced by mask_falloff::radial, which clamps and '
+          + 'then smoothsteps. It needs the ramp to be 1 at the inner edge of the feather and 0 at '
+          + 'the outer; a change to how they compute it changes what ours shapes.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'handleLinearRangeDragMove', how: 'calls',
+        note:
+          'Where range comes from: the outer lines are dragged to set it. darktable draws its own '
+          + 'border lines at the same distance its erf is scaled by, which is why the curve was '
+          + 'taken with that scale.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/mask_falloff.rs #[cfg(test)]',
+      'Manual: a linear mask with Exposure -2 over a sky fades with no line at either outer handle '
+        + 'and runs a little past them; a radial mask with feather fades with no ring at the inner '
+        + 'edge. Feather 0 is still a hard edge.',
+    ],
+    keywords: /linear.?(mask|gradient)|radial.?(mask|gradient)|graduated|fall.?off|mask.?feather/i,
+  },
 ];
 
 /**

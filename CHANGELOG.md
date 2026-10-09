@@ -20,6 +20,23 @@ Newest first.
   opening RAW folds the Color tools, and opening one of them folds RAW. No file
   of theirs changes. The dependencies are registered under `camera-profile`,
   with their 13 decisions against the 1.6.5 review.
+- **Linear and radial masks fade out instead of stopping.** Both were a
+  straight ramp clamped to 0..1, and the clamp leaves a corner at each end that
+  the eye sees as a line, so a graduated sky had two faint edges at the outer
+  handles. The linear mask now fades as darktable's gradient does,
+  `0.5 + 0.5 * erf(d / compression)`, harvested from
+  `src/develop/masks/gradient.c` (`_gradient_get_mask`) at darktable
+  `cb30520d0a5e23f094ef98d0578d903ddaa64804`; reference copy in
+  `docs/harvest/dt_gradient_mask.c`. RapidRAW's `range` plays the role of
+  darktable's `compression`, the distance its border lines are drawn at, so it
+  is 92% and 8% at the handles and fades to nothing at about twice that. The
+  radial feather is smoothstepped, the curve their brush feather already uses;
+  darktable's ellipse (`f * f`) keeps a corner at the inner edge, so it was not
+  taken. Feather 0 is still a hard edge. Edits that already have these masks
+  render slightly softer. `src-tauri/src/mods/mask_falloff.rs`; their
+  `mask_generation.rs` gets one import and two calls, its first anchor. Thumbnails
+  are regenerated once (pipeline 6). Registry entry `mask-falloff`, with its 10
+  decisions against the 1.6.5 review.
 
 ## 26.41.8 — 2026-10-09
 
