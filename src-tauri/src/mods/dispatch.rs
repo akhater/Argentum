@@ -250,7 +250,7 @@ pub async fn ag(
         }
         "save_super_resolution" => {
             let a: SuperResolutionSaveArgs = args_for(&name, args)?;
-            serde_json::to_value(crate::mods::super_resolution::save(a.path).await?)
+            serde_json::to_value(crate::mods::super_resolution::save(a.path, app_handle).await?)
                 .map_err(|e| e.to_string())
         }
         "batch_super_resolution" => {

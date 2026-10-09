@@ -832,6 +832,19 @@ const UNREACHED_165 = [
   ['5c4b7800', 'src-tauri/src/app_state.rs', 'impl<\'a> Drop for AiTaskGuard<', ['memory-release#AppState']],
   ['f62a8365', 'src-tauri/src/ai_processing.rs', null, ['memory-release#get_or_init_ai_models']],
   ['f62a8365', 'src-tauri/src/ai_processing.rs', null, ['ai-sessions-without-arena#get_or_init_ai_models', 'ai-sessions-without-arena#get_or_init_lama_model']],
+  // ai-super-resolution's new dependencies (26.41.10). Those that reach, by hand below.
+  ['078c90a8', 'src-tauri/src/image_processing.rs', 'get_all_adjustments_from_json', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['28fa5120', 'src-tauri/src/image_processing.rs', 'get_all_adjustments_from_json, get_global_adjustments_from_json, get_mask_adjustments_from_json, is_image_edited', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['3ba2fcae', 'src-tauri/src/image_processing.rs', 'calculate_auto_adjustments', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['3f3e7df1', 'src-tauri/src/image_processing.rs', 'sample_white_balance', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['9ba20c02', 'src-tauri/src/image_processing.rs', 'get_all_adjustments_from_json, get_global_adjustments_from_json, get_mask_adjustments_from_json, is_image_edited', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['9fe2ee29', 'src-tauri/src/image_processing.rs', 'apply_cpu_default_raw_processing, apply_srgb_to_linear', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['c4ba9ac9', 'src-tauri/src/image_processing.rs', 'the new ImageFlag enum and ImageMetadata.flag', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['c91e0bf7', 'src-tauri/src/image_processing.rs', 'the Whites scale in SCALES (30 to 40)', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['e4d6fd16', 'src-tauri/src/image_processing.rs', 'compute_white_balance_sample, point_in_convex_quad, sample_white_balance', ['ai-super-resolution#resolve_tonemapper_override']],
+  ['28fa5120', 'src-tauri/src/shaders/shader.wgsl', 'apply_color_calibration, apply_white_balance', ['ai-super-resolution#apply_curve']],
+  ['89020724', 'src-tauri/src/shaders/shader.wgsl', 'apply_creative_color, apply_hsl_panel', ['ai-super-resolution#apply_curve']],
+  ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', ['ai-super-resolution#apply_curve']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -1079,6 +1092,20 @@ const reached165 = [
   review165('9ba20c02', 'white-balance-presets:src-tauri/src/white_balance.rs#TINT_SCALE', 'combine', 'Creates white_balance.rs on the DNG SDK\'s Robertson isotherms and tint scale of -3000. That is why Adobe\'s preset numbers carry over unchanged.'),
   review165('28fa5120', 'white-balance-presets:src-tauri/src/white_balance.rs#TINT_SCALE', 'not-applicable', 'The hunk beside TINT_SCALE removes D65_XY and makes BRADFORD a DMat3. TINT_SCALE itself stays -3000.'),
   review165('9ba20c02', 'white-balance-presets:src/utils/whiteBalance.ts#withKelvinWhiteBalance', 'combine', 'Adds withKelvinWhiteBalance, the absolute white balance every preset is written as.'),
+  // ai-super-resolution carrying a raw's look to its enlargement (26.41.10).
+  review165('078c90a8', 'ai-super-resolution:src-tauri/src/image_loader.rs#composite_patches_on_image', 'not-applicable', 'Moves a caller in lib.rs to composite onto loaded_image.image, the decoded photo, which is the image load_source composites onto too. The function itself is unchanged.'),
+  review165('43248097', 'ai-super-resolution:src-tauri/src/image_loader.rs#composite_patches_on_image', 'not-applicable', 'Moves the embedded-preview fallback into embedded_preview_fallback; composite_patches_on_image is untouched.'),
+  review165('9b7e3368', 'ai-super-resolution:src-tauri/src/image_loader.rs#composite_patches_on_image', 'not-applicable', 'Adds the opt-in Apple RAW 9 decode inside load_base_image_from_bytes. Whatever decodes the raw, load_source composites onto its output, as the editor does.'),
+  review165('9ba20c02', 'ai-super-resolution:src-tauri/src/image_loader.rs#composite_patches_on_image', 'combine', 'Gives LoadedImage its as_shot_white_balance from as_shot_white_balance(path): D65 for anything that is not a raw. That is the as-shot white an enlargement opens with, and why carry_white_balance restates a raw\'s chosen white against D65.'),
+  review165('9ba20c02', 'ai-super-resolution:src-tauri/src/white_balance.rs#pick_white_balance', 'combine', 'Creates white_balance.rs: Bradford gains from the as-shot white to the chosen one, which carry_white_balance reproduces for the enlargement.'),
+  review165('28fa5120', 'ai-super-resolution:src-tauri/src/white_balance.rs#pick_white_balance', 'combine', 'Consolidates pick_white_balance and adaptation_log_gains here. restated_from_reference picks through the first and is tested through the second: an enlarged raw is balanced by the gains the raw was.'),
+  review165('11e20e77', 'ai-super-resolution:src-tauri/src/white_balance.rs#pick_white_balance', 'not-applicable', 'Changes how a raw\'s as-shot white is estimated (A and D65 matrices interpolated). carry_white_balance reads it through as_shot_white_balance, the same call the editor makes, so the restating moves with it.'),
+  review165('73bc73f4', 'ai-super-resolution:src-tauri/src/white_balance.rs#pick_white_balance', 'not-applicable', 'Floors lms() at a quarter of the locus for extreme tints. Both adaptation_log_gains and pick_white_balance go through lms(), so the restated white stays consistent with the gains.'),
+  review165('e4d6fd16', 'ai-super-resolution:src-tauri/src/white_balance.rs#pick_white_balance', 'not-applicable', 'Drops a #[tauri::command] attribute in the hunk after from_adjustments. from_adjustments and pick_white_balance are unchanged.'),
+  review165('1cc99d56', 'ai-super-resolution:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', 'Adds mid-scale detail reinjection to shadows and highlights, partly in main. The non-raw srgb_to_linear decode, the basic tone mapper\'s raw branch, apply_curve and the curves-before-LUT order are unchanged.'),
+  review165('66fa1600', 'ai-super-resolution:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', 'The guided filter decodes non-raw input with srgb_to_linear in its new paths too, which encode_for_reopening inverts. Its local-contrast gate also eases clarity and structure off near white for non-raw images only, so an enlarged raw with clarity differs slightly in its brightest tones.'),
+  review165('9ba20c02', 'ai-super-resolution:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', 'Adds apply_white_balance and its call in main. The tone mapping and curves that raw_basic_curve and apply_curve mirror are unchanged.'),
+  review165('c91e0bf7', 'ai-super-resolution:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', 'Rewrites Whites in apply_tonal_adjustments and passes it from main. The tone mapping and curves mirrored here are unchanged.'),
 ];
 
 // Subject hints: the word matched, and what is actually true.
@@ -1166,9 +1193,10 @@ export const REVIEW_165_DECISIONS = [
 // for the RAW card's use of AdjustmentSubSection and its focus mode (26.41.9),
 // 10 for mask-falloff and 26 for mask-guides (26.41.9), 16 for mask-guides
 // reaching the AI panel and their radial Transformer, 33 for memory-release and
-// shared-unchanged-copies, and 2 for ai-sessions-without-arena (26.41.10).
-if (REVIEW_165_DECISIONS.length !== 999) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 999 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// shared-unchanged-copies, 2 for ai-sessions-without-arena, and 25 for
+// ai-super-resolution carrying a raw's look to its enlargement (26.41.10).
+if (REVIEW_165_DECISIONS.length !== 1024) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1024 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

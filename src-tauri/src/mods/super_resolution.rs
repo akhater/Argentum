@@ -6,6 +6,11 @@
 //!
 //! It runs on the graphics card where `gpu_runtime` can provide one (Windows,
 //! DirectML) and on the CPU everywhere else, with the same output.
+//!
+//! The enlargement holds the framed photo and its inpainting; the look travels
+//! in its sidecar and is applied when it is opened. For a raw, that means the
+//! enlargement must open looking like the raw does, although the editor treats
+//! it as an ordinary image: see `encode_for_reopening` and `carry_raw_look`.
 
 use std::fs;
 use std::io::{Cursor, Read, Write};
@@ -15,19 +20,21 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::{Context, Result, anyhow};
 use base64::{Engine as _, engine::general_purpose};
+use glam::DVec3;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat, Rgb, Rgb32FImage};
 use ndarray::{Array4, Ix4};
 use ort::session::Session;
 use ort::value::Tensor;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sysinfo::System;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
 use super::gpu_runtime::{self, Device};
+use crate::white_balance::{self, WhiteBalance};
 
 const TILE_SIZES: [u32; 7] = [512, 384, 256, 192, 128, 96, 64];
 const MIN_TILE_OVERLAP: u32 = 8;
@@ -553,7 +560,7 @@ fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage
     let bytes = fs::read(&source_path)
         .with_context(|| format!("Could not read {}", source_path.display()))?;
     let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
-    let mut image = crate::image_loader::load_base_image_from_bytes(
+    let image = crate::image_loader::load_base_image_from_bytes(
         &bytes,
         &source_path.to_string_lossy(),
         false,
@@ -567,17 +574,53 @@ fn load_source(path: &str, app_handle: &tauri::AppHandle) -> Result<DynamicImage
             error
         )
     })?;
-    if crate::formats::is_raw_file(&source_path) {
-        crate::image_processing::apply_cpu_default_raw_processing(&mut image);
-    }
+    let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
+    // Inpainting is part of the photo, not of its look, and its patches are
+    // placed in source coordinates the enlargement no longer has. Composite
+    // them first, onto the same decoded image the editor composites them onto.
+    let patched = crate::image_loader::composite_patches_on_image(&image, &adjustments)
+        .map_err(|error| anyhow!("Could not apply the inpainted areas: {error}"))?;
     // Enlarge the photo as it is framed, not the whole sensor: the crop, with
     // the straightening, rotation, flips, perspective and lens correction it is
     // measured in. Enlarging everything and cropping afterwards spends most of
     // the work on pixels that are thrown away. The export frames a photo with
     // the same call, so the result matches what an export would contain.
-    let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
-    let (framed, _) = crate::adjustment_utils::apply_all_transformations(image, &adjustments);
-    Ok(framed.into_owned())
+    let (framed, _) = crate::adjustment_utils::apply_all_transformations(patched, &adjustments);
+    let mut framed = framed.into_owned();
+    if crate::formats::is_raw_file(&source_path) {
+        encode_for_reopening(&mut framed);
+    }
+    Ok(framed)
+}
+
+/// A raw decodes to scene-linear light, and is framed and enlarged as such. The
+/// enlargement is reopened as an ordinary image, which the editor decodes with
+/// the sRGB curve (`srgb_to_linear` in shader.wgsl). Encoding with exactly that
+/// curve's inverse hands the editor back the linear values the raw started
+/// from, so the look carried in the sidecar is applied once, as on the raw.
+///
+/// This replaced their CPU preview curve, which baked a tone curve into the
+/// enlargement that the carried look then applied a second time on top.
+/// Light above 1.0 is clipped: a 16-bit TIFF has nowhere to keep it.
+fn encode_for_reopening(image: &mut DynamicImage) {
+    use rayon::prelude::*;
+
+    let mut rgb = image.to_rgb32f();
+    rgb.par_chunks_mut(3).for_each(|pixel| {
+        for channel in pixel {
+            *channel = srgb_encode(*channel);
+        }
+    });
+    *image = DynamicImage::ImageRgb32F(rgb);
+}
+
+fn srgb_encode(linear: f32) -> f32 {
+    let c = linear.clamp(0.0, 1.0);
+    if c <= 0.003_130_8 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    }
 }
 
 async fn upscale(
@@ -636,16 +679,20 @@ pub async fn preview(
         .map_err(|error| error.to_string())
 }
 
-pub async fn save(original_path: String) -> Result<String, String> {
+pub async fn save(original_path: String, app_handle: tauri::AppHandle) -> Result<String, String> {
     let image = result_slot()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .take()
         .ok_or_else(|| "No super-resolution result found in memory".to_string())?;
-    save_image(&original_path, image).map_err(|error| error.to_string())
+    save_image(&original_path, image, &app_handle).map_err(|error| error.to_string())
 }
 
-fn save_image(original_path: &str, image: DynamicImage) -> Result<String> {
+fn save_image(
+    original_path: &str,
+    image: DynamicImage,
+    app_handle: &tauri::AppHandle,
+) -> Result<String> {
     let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(original_path);
     let parent = source_path
         .parent()
@@ -681,7 +728,7 @@ fn save_image(original_path: &str, image: DynamicImage) -> Result<String> {
             output_path.display()
         )
     })?;
-    write_super_resolution_sidecar(&source_path, &sidecar_path, &output_path)?;
+    write_super_resolution_sidecar(&source_path, &sidecar_path, &output_path, app_handle)?;
     Ok(output_path.to_string_lossy().to_string())
 }
 
@@ -733,18 +780,32 @@ fn strip_non_transferable_adjustments(adjustments: &mut Value) {
 
 /// `source_sidecar` is the edited photo's own sidecar, a virtual copy's when
 /// one was enlarged, so the edits carried over match the framing applied.
+///
+/// A raw always gets one, even unedited: its default look is a raw's, and the
+/// enlargement would otherwise open with an ordinary image's.
 fn write_super_resolution_sidecar(
     source_path: &Path,
     source_sidecar: &Path,
     output_path: &Path,
+    app_handle: &tauri::AppHandle,
 ) -> Result<()> {
-    if !source_sidecar.exists() {
+    let is_raw = crate::formats::is_raw_file(source_path);
+    if !source_sidecar.exists() && !is_raw {
         crate::exif_processing::write_rrexif_sidecar(&source_path.to_string_lossy(), output_path)
             .map_err(|error| anyhow!(error))?;
         return Ok(());
     }
 
     let mut metadata = crate::exif_processing::load_sidecar(source_sidecar);
+    if is_raw {
+        let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
+        carry_raw_look(
+            &mut metadata.adjustments,
+            white_balance::as_shot_white_balance(&source_path.to_string_lossy()),
+            crate::image_processing::resolve_tonemapper_override(&settings, true),
+            crate::image_processing::resolve_tonemapper_override(&settings, false),
+        );
+    }
     strip_non_transferable_adjustments(&mut metadata.adjustments);
 
     let output_sidecar = crate::exif_processing::get_primary_sidecar_path(output_path);
@@ -760,6 +821,258 @@ fn write_super_resolution_sidecar(
     crate::exif_processing::write_rrexif_sidecar(&source_path.to_string_lossy(), output_path)
         .map_err(|error| anyhow!(error))?;
     Ok(())
+}
+
+/// Restate a raw's look for its enlargement, which the editor opens as an
+/// ordinary image: same pixels as the raw (`encode_for_reopening`), but a
+/// different as-shot white and a different view transform.
+///
+/// `raw_override` and `non_raw_override` are the tone-mapper override from
+/// Settings for each kind of image, which wins over the sidecar's choice.
+fn carry_raw_look(
+    adjustments: &mut Value,
+    as_shot: WhiteBalance,
+    raw_override: Option<u32>,
+    non_raw_override: Option<u32>,
+) {
+    if !adjustments.is_object() {
+        *adjustments = json!({});
+    }
+    carry_white_balance(adjustments, as_shot);
+    carry_view_transform(adjustments, raw_override, non_raw_override);
+}
+
+/// The editor balances a photo by adapting it from its as-shot white to the
+/// chosen one. A raw's as-shot white is the camera's, and the enlargement's
+/// pixels already carry that balance; but an ordinary image's as-shot white is
+/// D65. Copied as it stands, the chosen white adapts the enlargement from D65
+/// instead. On 2026-10-09 that turned an R6 Mark III photo balanced to 4076 K
+/// plainly blue. So it is restated as the white that adapts D65 by the gains
+/// the raw got, with the relative sliders folded in.
+fn carry_white_balance(adjustments: &mut Value, as_shot: WhiteBalance) {
+    let chosen = white_balance::from_adjustments(adjustments, as_shot);
+    let gains = white_balance::adaptation_log_gains(as_shot, chosen);
+    let restated = if gains.iter().all(|gain| gain.abs() < 1e-6) {
+        None
+    } else {
+        let restated = restated_from_reference(gains);
+        if restated.is_none() {
+            log::warn!(
+                "Super resolution: could not restate the white balance; the enlargement opens as shot"
+            );
+        }
+        restated
+    };
+    adjustments["whiteBalance"] = restated
+        .and_then(|white| serde_json::to_value(white).ok())
+        .unwrap_or(Value::Null);
+    adjustments["temperature"] = json!(0);
+    adjustments["tint"] = json!(0);
+}
+
+/// The white whose adaptation from D65 has these log gains, which are
+/// ln(lms(as shot) / lms(chosen)). Picking, as neutral under D65, the colour
+/// whose LMS is white's times lms(chosen) / lms(as shot) lands on it.
+fn restated_from_reference(gains: [f32; 3]) -> Option<WhiteBalance> {
+    let rgb_to_lms = white_balance::rgb_to_lms().as_dmat3();
+    let white_lms = rgb_to_lms * DVec3::ONE;
+    let sample_lms = white_lms * DVec3::from_array(gains.map(|gain| (-f64::from(gain)).exp()));
+    let sample = rgb_to_lms.inverse() * sample_lms;
+    white_balance::pick_white_balance(sample.to_array(), WhiteBalance::reference())
+}
+
+/// What a raw's view transform does after the sRGB curve that an ordinary
+/// image's does not (shader.wgsl, ahead of brightness and the curves).
+enum RawViewCurve {
+    /// AgX, which both kinds of image get alike.
+    Nothing,
+    /// The basic tone mapper's raw branch.
+    Basic,
+    /// Raw tone rendering: the camera base curve, or the auto-matched one.
+    Points(Vec<(f32, f32)>),
+}
+
+fn raw_view_curve(adjustments: &Value, raw_override: Option<u32>) -> RawViewCurve {
+    let mode = adjustments["rawToneRendering"]
+        .as_str()
+        .unwrap_or("default");
+    if mode == "baseCurve" || mode == "autoMatched" {
+        let mut points = curve_points(&adjustments["rawToneCurve"]);
+        if mode == "baseCurve" && points.len() < 2 {
+            points = crate::mods::raw_tone::base_curve()
+                .into_iter()
+                .map(|point| (point.x, point.y))
+                .collect();
+        }
+        if points.len() >= 2 {
+            points.truncate(16);
+            return RawViewCurve::Points(points);
+        }
+    }
+    let agx = match raw_override {
+        Some(mode) => mode == 1,
+        None => adjustments["toneMapper"].as_str() == Some("agx"),
+    };
+    if agx {
+        RawViewCurve::Nothing
+    } else {
+        RawViewCurve::Basic
+    }
+}
+
+/// An ordinary image's basic tone mapper is the bare sRGB curve, so the raw's
+/// extra step can ride in the luma curve, which runs per channel after it just
+/// as that step does. AgX needs nothing. Only brightness sits between the two
+/// places, so a global brightness move lands a little differently.
+fn carry_view_transform(
+    adjustments: &mut Value,
+    raw_override: Option<u32>,
+    non_raw_override: Option<u32>,
+) {
+    let view = raw_view_curve(adjustments, raw_override);
+    let agx = matches!(view, RawViewCurve::Nothing);
+    adjustments["toneMapper"] = json!(if agx { "agx" } else { "basic" });
+    adjustments["rawToneRendering"] = json!("default");
+    if non_raw_override.is_some_and(|mode| (mode == 1) != agx) {
+        log::warn!(
+            "Super resolution: the tone-mapper override in Settings renders ordinary images with a different tone mapper, so the enlargement will not match the raw"
+        );
+    }
+
+    // A scene-referred LUT replaces the view transform's output rather than
+    // following it, so folding the raw's step into the curves would apply it
+    // to the LUT's result too.
+    let has_lut = !adjustments["lutPath"].is_null() || !adjustments["lutData"].is_null();
+    if !agx && has_lut && adjustments["lutIsSceneReferred"].as_bool() == Some(true) {
+        log::warn!(
+            "Super resolution: a scene-referred LUT is in use; the raw's tone curve is not carried over"
+        );
+        return;
+    }
+    match view {
+        RawViewCurve::Nothing => {}
+        RawViewCurve::Basic => fold_into_luma_curve(adjustments, &raw_basic_curve),
+        RawViewCurve::Points(points) => {
+            fold_into_luma_curve(adjustments, &|s| apply_curve(s, &points))
+        }
+    }
+}
+
+/// The basic tone mapper's raw branch after the sRGB curve (shader.wgsl): a
+/// 1.1 gamma lift, then three quarters of a smoothstep.
+fn raw_basic_curve(srgb: f32) -> f32 {
+    let lifted = srgb.clamp(0.0, 1.0).powf(1.0 / 1.1);
+    let s_curve = lifted * lifted * (3.0 - 2.0 * lifted);
+    lifted + (s_curve - lifted) * 0.75
+}
+
+/// Where the folded luma curve is sampled: closest together in the shadows,
+/// where the raw step bends hardest. Sixteen points is the shader's limit.
+const FOLD_SAMPLES: [f32; 16] = [
+    0.0, 6.0, 16.0, 30.0, 48.0, 68.0, 90.0, 112.0, 134.0, 156.0, 178.0, 200.0, 220.0, 236.0, 248.0,
+    255.0,
+];
+
+/// Replace the luma curve with `view` followed by it. The red, green and blue
+/// curves still follow, as they did. A hidden curves section would hide the
+/// raw's step too, so it is shown, with its curves left out as they were.
+fn fold_into_luma_curve(adjustments: &mut Value, view: &dyn Fn(f32) -> f32) {
+    let curves_shown = adjustments["sectionVisibility"]["curves"].as_bool() != Some(false);
+    let luma = if curves_shown {
+        curve_points(&adjustments["curves"]["luma"])
+    } else {
+        Vec::new()
+    };
+    let folded: Vec<Value> = FOLD_SAMPLES
+        .iter()
+        .map(|&x| json!({ "x": x, "y": apply_curve(view(x / 255.0), &luma) * 255.0 }))
+        .collect();
+
+    if !adjustments["curves"].is_object() || !curves_shown {
+        let identity = json!([{ "x": 0, "y": 0 }, { "x": 255, "y": 255 }]);
+        adjustments["curves"] = json!({ "red": identity, "green": identity, "blue": identity });
+    }
+    if !curves_shown {
+        adjustments["sectionVisibility"]["curves"] = json!(true);
+    }
+    adjustments["curves"]["luma"] = Value::Array(folded);
+    adjustments["pointCurves"] = adjustments["curves"].clone();
+    adjustments["curveMode"] = json!("point");
+}
+
+fn curve_points(value: &Value) -> Vec<(f32, f32)> {
+    value
+        .as_array()
+        .map(|points| {
+            points
+                .iter()
+                .filter_map(|point| {
+                    Some((point["x"].as_f64()? as f32, point["y"].as_f64()? as f32))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// shader.wgsl's `apply_curve`, step for step: a cubic Hermite through up to
+/// sixteen points on a 0-255 scale, with tangents limited to stay monotone.
+fn apply_curve(value: f32, points: &[(f32, f32)]) -> f32 {
+    let count = points.len().min(16);
+    if count < 2 {
+        return value;
+    }
+    let points = &points[..count];
+    let x = value * 255.0;
+    if x <= points[0].0 {
+        return points[0].1 / 255.0;
+    }
+    if x >= points[count - 1].0 {
+        return points[count - 1].1 / 255.0;
+    }
+    let slope = |a: (f32, f32), b: (f32, f32)| (b.1 - a.1) / (b.0 - a.0).max(0.001);
+    for i in 0..count - 1 {
+        let (p1, p2) = (points[i], points[i + 1]);
+        if x > p2.0 {
+            continue;
+        }
+        let p0 = points[i.saturating_sub(1)];
+        let p3 = points[(i + 2).min(count - 1)];
+        let (before, current, after) = (slope(p0, p1), slope(p1, p2), slope(p2, p3));
+        let mut m1 = if i == 0 {
+            current
+        } else if before * current <= 0.0 {
+            0.0
+        } else {
+            (before + current) / 2.0
+        };
+        let mut m2 = if i + 1 == count - 1 {
+            current
+        } else if current * after <= 0.0 {
+            0.0
+        } else {
+            (current + after) / 2.0
+        };
+        if current != 0.0 {
+            let (alpha, beta) = (m1 / current, m2 / current);
+            if alpha * alpha + beta * beta > 9.0 {
+                let tau = 3.0 / (alpha * alpha + beta * beta).sqrt();
+                m1 *= tau;
+                m2 *= tau;
+            }
+        }
+        let dx = p2.0 - p1.0;
+        if dx <= 0.0 {
+            return (p1.1 / 255.0).clamp(0.0, 1.0);
+        }
+        let t = (x - p1.0) / dx;
+        let (t2, t3) = (t * t, t * t * t);
+        let y = (2.0 * t3 - 3.0 * t2 + 1.0) * p1.1
+            + (t3 - 2.0 * t2 + t) * m1 * dx
+            + (-2.0 * t3 + 3.0 * t2) * p2.1
+            + (t3 - t2) * m2 * dx;
+        return (y / 255.0).clamp(0.0, 1.0);
+    }
+    points[count - 1].1 / 255.0
 }
 
 pub async fn batch(
@@ -791,7 +1104,7 @@ pub async fn batch(
                 run_with_fallback(&source.to_rgb32f(), &model, &app_handle, scale)
                     .map_err(|error| format!("Cannot upscale '{}': {}", path, error))?,
             );
-            saved.push(save_image(path, result).map_err(|error| error.to_string())?);
+            saved.push(save_image(path, result, &app_handle).map_err(|error| error.to_string())?);
         }
         Ok(saved)
     })
@@ -835,6 +1148,165 @@ mod tests {
             .collect();
         kept.sort_unstable();
         assert_eq!(kept, ["exposure", "temperature"]);
+    }
+
+    /// The editor's decode for an ordinary image (`srgb_to_linear`, shader.wgsl).
+    fn editor_srgb_to_linear(c: f32) -> f32 {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    #[test]
+    fn the_editor_decodes_an_enlarged_raw_back_to_its_light() {
+        for i in 0..=1000 {
+            let linear = i as f32 / 1000.0;
+            let decoded = editor_srgb_to_linear(srgb_encode(linear));
+            assert!(
+                (decoded - linear).abs() < 1e-5,
+                "{linear} came back as {decoded}"
+            );
+        }
+        assert!(
+            (srgb_encode(3.0) - 1.0).abs() < 1e-6,
+            "light above 1.0 clips to white"
+        );
+    }
+
+    /// What the editor adapts a photo by, up to the overall scale it divides
+    /// out (`apply_white_balance` normalises by the adapted white's luma).
+    fn white_balance_gains(adjustments: &Value, as_shot: WhiteBalance) -> [f32; 2] {
+        let chosen = white_balance::from_adjustments(adjustments, as_shot);
+        let [l, m, s] = white_balance::adaptation_log_gains(as_shot, chosen);
+        [l - m, s - m]
+    }
+
+    #[test]
+    fn an_enlarged_raw_is_balanced_by_the_gains_the_raw_was() {
+        let as_shot = WhiteBalance {
+            temperature: 5600.0,
+            tint: 4.0,
+        };
+        for raw in [
+            // The photo it was found on: balanced to 4076 K, enlarged, opened blue.
+            json!({ "whiteBalance": { "temperature": 4076.1086, "tint": 7.88477 } }),
+            json!({ "whiteBalance": null, "temperature": 12, "tint": -6 }),
+            json!({ "whiteBalance": { "temperature": 9000.0, "tint": -20.0 }, "temperature": -5, "tint": 3 }),
+        ] {
+            let mut enlarged = raw.clone();
+            carry_white_balance(&mut enlarged, as_shot);
+            let expected = white_balance_gains(&raw, as_shot);
+            let got = white_balance_gains(&enlarged, WhiteBalance::reference());
+            for (e, g) in expected.iter().zip(got) {
+                assert!(
+                    (e - g).abs() < 2e-3,
+                    "{raw}: raw {expected:?}, enlargement {got:?}"
+                );
+            }
+            assert_eq!(enlarged["temperature"], 0);
+            assert_eq!(enlarged["tint"], 0);
+        }
+    }
+
+    #[test]
+    fn a_raw_left_as_shot_opens_enlarged_as_shot() {
+        let mut adjustments = json!({ "exposure": 0.3 });
+        carry_white_balance(
+            &mut adjustments,
+            WhiteBalance {
+                temperature: 5600.0,
+                tint: 4.0,
+            },
+        );
+        assert!(adjustments["whiteBalance"].is_null());
+    }
+
+    fn worst_levels(luma: &Value, expected: impl Fn(f32) -> f32) -> f32 {
+        let luma = curve_points(luma);
+        (0..=255)
+            .map(|i| {
+                let s = i as f32 / 255.0;
+                (apply_curve(s, &luma) - expected(s)).abs() * 255.0
+            })
+            .fold(0.0, f32::max)
+    }
+
+    #[test]
+    fn the_raw_basic_tone_curve_rides_in_the_luma_curve() {
+        let mut adjustments = json!({ "toneMapper": "basic" });
+        carry_view_transform(&mut adjustments, None, None);
+        assert_eq!(adjustments["toneMapper"], "basic");
+        assert_eq!(adjustments["curveMode"], "point");
+        assert_eq!(adjustments["pointCurves"], adjustments["curves"]);
+        let worst = worst_levels(&adjustments["curves"]["luma"], raw_basic_curve);
+        assert!(worst < 1.0, "off by {worst} levels");
+    }
+
+    #[test]
+    fn a_luma_curve_of_its_own_still_follows_the_raw_tone_curve() {
+        let own = vec![(0.0, 12.0), (128.0, 140.0), (255.0, 250.0)];
+        let red = json!([{ "x": 0, "y": 0 }, { "x": 128, "y": 120 }, { "x": 255, "y": 255 }]);
+        let mut adjustments = json!({
+            "curves": {
+                "luma": own.iter().map(|(x, y)| json!({ "x": x, "y": y })).collect::<Vec<_>>(),
+                "red": red,
+            },
+        });
+        carry_view_transform(&mut adjustments, None, None);
+        let worst = worst_levels(&adjustments["curves"]["luma"], |s| {
+            apply_curve(raw_basic_curve(s), &own)
+        });
+        assert!(worst < 1.5, "off by {worst} levels");
+        assert_eq!(adjustments["curves"]["red"], red);
+    }
+
+    #[test]
+    fn the_camera_base_curve_rides_in_the_luma_curve() {
+        let mut adjustments = json!({ "rawToneRendering": "baseCurve", "toneMapper": "agx" });
+        carry_view_transform(&mut adjustments, None, None);
+        assert_eq!(adjustments["toneMapper"], "basic");
+        assert_eq!(adjustments["rawToneRendering"], "default");
+        let base: Vec<(f32, f32)> = crate::mods::raw_tone::base_curve()
+            .into_iter()
+            .map(|point| (point.x, point.y))
+            .collect();
+        let worst = worst_levels(&adjustments["curves"]["luma"], |s| apply_curve(s, &base));
+        assert!(worst < 1.5, "off by {worst} levels");
+    }
+
+    #[test]
+    fn agx_is_the_same_for_both_and_needs_no_curve() {
+        let luma = json!([{ "x": 0, "y": 10 }, { "x": 255, "y": 250 }]);
+        let mut adjustments = json!({ "toneMapper": "agx", "curves": { "luma": luma } });
+        carry_view_transform(&mut adjustments, None, None);
+        assert_eq!(adjustments["toneMapper"], "agx");
+        assert_eq!(adjustments["curves"]["luma"], luma);
+
+        // The Settings override is what the raw rendered with, not the sidecar.
+        let mut overridden = json!({ "toneMapper": "basic", "curves": { "luma": luma } });
+        carry_view_transform(&mut overridden, Some(1), None);
+        assert_eq!(overridden["toneMapper"], "agx");
+        assert_eq!(overridden["curves"]["luma"], luma);
+    }
+
+    #[test]
+    fn an_unedited_raw_gets_a_raws_default_look() {
+        let mut adjustments = Value::Null;
+        carry_raw_look(
+            &mut adjustments,
+            WhiteBalance {
+                temperature: 5600.0,
+                tint: 4.0,
+            },
+            None,
+            None,
+        );
+        assert_eq!(adjustments["toneMapper"], "basic");
+        assert!(adjustments["whiteBalance"].is_null());
+        let worst = worst_levels(&adjustments["curves"]["luma"], raw_basic_curve);
+        assert!(worst < 1.0, "off by {worst} levels");
     }
 
     /// The saving the overlap was halved for: an R6 Mark III frame.
