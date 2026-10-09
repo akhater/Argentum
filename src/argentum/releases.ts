@@ -36,8 +36,8 @@ export const RELEASES: Release[] = [
     date: '2026-10-09',
     notes: [
       'White balance presets, as in Lightroom: As Shot, Auto, Daylight, Cloudy, Shade, Tungsten, '
-      + 'Fluorescent and Flash, from the button in the White Balance header. Auto lives there now '
-      + 'instead of the wand, and moving a slider shows Custom.',
+      + 'Fluorescent and Flash, from the new Preset row at the top of White Balance. Auto lives '
+      + 'there now instead of the wand, and moving a slider shows Custom.',
     ],
   },
   {

@@ -117,7 +117,13 @@ export const REGISTRY = [
           + 'If the loader starts picking keys, the menu says Custom where it said Auto; nothing renders differently.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'calls',
         note: 'The data-argentum="color-tools" mount point in their white balance actions row, beside '
-          + 'the K and picker buttons. Shared with auto-white-balance.' },
+          + 'the K and picker buttons. Shared with auto-white-balance. The menu is placed from it, '
+          + 'not in it.' },
+      { file: 'src/components/adjustments/AdjustmentSubSection.tsx', how: 'calls',
+        note: 'The menu is a row of ours put first in the section\'s folding body, found from the '
+          + 'marker by their markup: up to the header row (.cursor-pointer), across to the element after '
+          + 'it, into its first child, which must hold a range input. Reshape that and the menu falls '
+          + 'back into the header slot, where it crowds the title on a narrow panel.' },
     ],
     tests: [
       'Manual: on a RAW, each preset shows its kelvin on the Temperature slider in K mode and its name '

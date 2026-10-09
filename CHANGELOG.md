@@ -9,22 +9,29 @@ Newest first.
 ### Added
 
 - **White balance presets**, Lightroom's menu: As Shot, Auto, Daylight, Cloudy,
-  Shade, Tungsten, Fluorescent, Flash, and Custom once a slider has moved. A
-  small "As Shot ▾" button in the White Balance header, left of K and the
-  picker, opens it; each entry shows its kelvin. The presets are Adobe Camera
-  Raw's numbers (5500/+10, 6500/+10, 7500/+10, 2850/0, 3800/+21, 5500/0), which
-  carry over unchanged because RapidRAW 1.6.5's kelvin and tint are the DNG
-  SDK's: Robertson isotherms and a tint scale of -3000. A preset is written as
-  an absolute kelvin in either slider mode, so Daylight is 5500 K on every
-  photo it is pasted to.
+  Shade, Tungsten, Fluorescent, Flash, and Custom once a slider has moved. It
+  is a Preset row at the top of the White Balance section, above Temperature,
+  where Lightroom has its WB row; each entry shows its kelvin. It was first in
+  the header beside K and the picker, which pushed "White Balance" onto two
+  lines on a narrow panel even for Flash, the shortest name.
+
+  The presets are Adobe Camera Raw's numbers (5500/+10, 6500/+10, 7500/+10,
+  2850/0, 3800/+21, 5500/0), which carry over unchanged because RapidRAW
+  1.6.5's kelvin and tint are the DNG SDK's: Robertson isotherms and a tint
+  scale of -3000. A preset is written as an absolute kelvin in either slider
+  mode, so Daylight is 5500 K on every photo it is pasted to.
 
   The label is worked out from the numbers on every render, so undo, paste and
   a slider drag keep it honest. Auto, the one entry the numbers cannot name, is
   remembered in the edit as `whiteBalanceAuto` and survives a reload because
   their loader keeps keys it does not know. JPEGs get the same menu for now.
-  `src/argentum/WhiteBalanceMenu.tsx`, in the existing `color-tools` slot: no
-  file of theirs changes. Registry entry `white-balance-presets`, with its 32
-  decisions against the 1.6.5 review.
+  `src/argentum/WhiteBalanceMenu.tsx`. Their file gives Argentum one slot in
+  that section, the `color-tools` marker in the header; the row is a container
+  of ours put first in the section body, found from the marker by
+  AdjustmentSubSection's markup, as AiModelsPlacement places its card. If that
+  markup changes, the menu falls back into the slot. No file of theirs changes.
+  Registry entry `white-balance-presets`, with its 37 decisions against the
+  1.6.5 review.
 
 ### Changed
 

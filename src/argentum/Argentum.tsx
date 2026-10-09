@@ -167,7 +167,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
           toolbar,
         )}
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
-      {colorTools && createPortal(<WhiteBalanceMenu />, colorTools)}
+      {colorTools && <WhiteBalanceMenu slot={colorTools as HTMLElement} />}
       {about && createPortal(<AboutPanel />, about)}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
       {cameraProfile &&
