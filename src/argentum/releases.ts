@@ -32,6 +32,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.7',
+    date: '2026-10-09',
+    notes: [
+      'Compact panels, in Settings > General: sliders on one line with a thin bar, and a '
+      + 'smaller tone curve, as Lightroom lays them out, so nearly three times as much of a '
+      + 'panel fits on screen. Row spacing sets how much room each slider gets.',
+      'The Subject mask is now called Object, Lightroom\'s name for it: you still draw a box '
+      + 'round the thing you want. Masks you already made are unchanged.',
+    ],
+  },
+  {
     version: '26.41.6',
     date: '2026-10-07',
     notes: [

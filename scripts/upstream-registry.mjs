@@ -1060,6 +1060,56 @@ export const REGISTRY = [
     ],
     keywords: /select.?object|select.?subject|subject.?mask|object.?mask/i,
   },
+  {
+    id: 'compact-sliders',
+    kind: 'feature',
+    what:
+      'Compact panels: sliders on one line with a short upright marker on a thin bar, and a smaller tone '
+      + 'curve, as Lightroom draws them, chosen in Settings > General. Their slider and curve are '
+      + 'restyled from a stylesheet of ours; no line of either changes.',
+    ours: [
+      'src/argentum/compactSliders.css',
+      'src/argentum/compactSliders.ts',
+      'src/argentum/CompactSlidersSetting.tsx',
+    ],
+    // None of their files is edited. The stylesheet finds their slider by its
+    // shape, so these are what a change of theirs could quietly undo.
+    dependsOn: [
+      { file: 'src/components/ui/Slider.tsx', symbol: 'relative w-full h-5', how: 'shadows',
+        note: 'The bar\'s wrapper, which identifies a slider: its root is the .group holding it, '
+          + 'beside the header row (.flex: the name in .grid, the value in .w-14). Their two-line '
+          + 'layout stays and is laid out on one line while compact is on. A reshaped slider stops '
+          + 'matching and is drawn their way again.' },
+      { file: 'src/components/ui/Slider.tsx', symbol: 'w-14 text-right shrink-0', how: 'shadows',
+        note: 'The value column, moved to the third grid column. If it is renamed the value falls '
+          + 'into the grid wherever it lands, so check the layout rather than just the selector. '
+          + 'Their markers are placed with calc(8px + (100% - 16px) * f), a 16px thumb; our '
+          + 'marker is drawn in a 16px box so they stay on the value they mark.' },
+      { file: 'src/components/adjustments/Curves.tsx', symbol: 'viewBox="0 0 255 255"', how: 'shadows',
+        note: 'Their curve is found by its 255x255 graph: the graph (.relative > .aspect-square) and '
+          + 'the button row above it (.flex, first child) are drawn at 62% of the panel, centred. '
+          + 'Their drags are measured against the graph\'s on-screen size, which is what makes a '
+          + 'smaller graph safe; if that changes, points stop following the pointer.' },
+      { file: 'src/components/ui/ColorWheel.tsx', symbol: 'cg-lum-gradient', how: 'shadows',
+        note: 'The colour grading sliders are left on two lines, recognised by the cg-hue, cg-sat '
+          + 'and cg-lum track classes ColorWheel passes in. They are half a panel wide or less, and '
+          + 'one line leaves the bar no room. A renamed class squeezes them.' },
+      { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
+        note: 'The switch is placed after their Font row on General, found by its translated label, '
+          + 'from the data-argentum slot argentum-shell registers. If the row is not found it goes '
+          + 'in the slot at the end of the page, in a card of its own.' },
+    ],
+    tests: [
+      'Manual: Settings > General > Compact panels on: every adjustment slider is one line with a '
+        + 'bar thumb, drag, Shift fine-adjust, click to type, double-click and click-the-name '
+        + 'reset all work; a long name ends in ... and shows in full on hover; colour grading wheels '
+        + 'keep two lines with the bar thumb; the as-shot marker on Temperature sits under the thumb at as-shot; Row spacing moves the rows live and survives a restart. The '
+        + 'tone curve is smaller and its points still follow the pointer, in point and parametric '
+        + 'mode. Off restores their layout. The choice survives a restart.',
+    ],
+    // Not /slider/ alone: half of upstream's commits mention one.
+    keywords: /compact|density|slider.?(layout|height|row|size)|one.?line/i,
+  },
 ];
 
 /**

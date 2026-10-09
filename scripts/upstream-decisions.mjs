@@ -594,6 +594,17 @@ const DID_165 = {
   'e8d0d2c3': 'Shares input handling between the export panel fields.',
   '3c864270': 'Resizes the crop from its centre while Ctrl is held on a handle.',
   '65472097': 'Fixes the crop frame jumping on Ctrl-drag in crop mode.',
+  // Added with compact-sliders, registered after this review: the first
+  // dependency of ours these commits reach.
+  '9b822ef1': 'Shares curve channel and gradient helpers; in Slider.tsx a getFraction helper replaces three inline fractions.',
+  'b5802863': 'Draws coloured markers on the slider bar for the inactive curve channels.',
+  'c8a368e7': 'Draws the inactive channels\' curves as coloured overlays on the curve graph.',
+  '126c2400': 'Adds colour axis strips to the curve graph.',
+  'db893479': 'Reverts the colour axis strips.',
+  '143d7262': 'Fixes type errors in the curve graph: typed points and channel keys.',
+  'a6832200': 'Adds a fine adjust mode to curve point drags.',
+  '1b17dd52': 'Makes the curve endpoints easier to grab and drag.',
+  'e2771bc6': 'Removes five comment lines from the curve graph.',
 };
 
 // The diff does not reach what we rely on: [commit, file, where its hunks are,
@@ -763,6 +774,21 @@ const UNREACHED_165 = [
   ['9b7e3368', 'src/components/panel/SettingsPanel.tsx', 'SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
   ['5c4b7800', 'src/components/panel/SettingsPanel.tsx', 'CloudDashboard', ['object-label#settings.processing.ai.cpu.feature1']],
   ['06c52a49', 'src/components/panel/SettingsPanel.tsx', 'import {, AiProviderSwitch, CloudDashboard, SettingsPanel', ['object-label#settings.processing.ai.cpu.feature1']],
+  // compact-sliders, registered after this review too. f2c3473b reaches the
+  // value column, by hand below.
+  ['f2c3473b', 'src/components/ui/Slider.tsx', 'Slider', ['compact-sliders#relative w-full h-5']],
+  ['9ba20c02', 'src/components/ui/Slider.tsx', 'import React, SliderMarker, SliderProps, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
+  ['9b822ef1', 'src/components/ui/Slider.tsx', 'FINE_ADJUSTMENT_MULTIPLIER, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
+  ['c8a368e7', 'src/components/adjustments/Curves.tsx', 'CurveGraph, buildParametricPoints', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['126c2400', 'src/components/adjustments/Curves.tsx', 'CurveGraph, getSplitterGradient', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['9b822ef1', 'src/components/adjustments/Curves.tsx', 'CurveGraph, buildParametricPoints, isDefaultParametricCurve', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['b5802863', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['143d7262', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['db893479', 'src/components/adjustments/Curves.tsx', 'CurveGraph, isDefaultParametricCurve', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['a6832200', 'src/components/adjustments/Curves.tsx', 'CurveGraph, convertParametricToPoints', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['1b17dd52', 'src/components/adjustments/Curves.tsx', 'CurveGraph, convertParametricToPoints', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['e2771bc6', 'src/components/adjustments/Curves.tsx', 'CurveGraph', ['compact-sliders#viewBox="0 0 255 255"']],
+  ['b5802863', 'src/components/ui/Slider.tsx', 'SliderChangeEvent, Slider', ['compact-sliders#relative w-full h-5', 'compact-sliders#w-14 text-right shrink-0']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -807,6 +833,7 @@ const FILE_165 = {
   'auto-white-balance|src/components/adjustments/Color.tsx': ['combine', 'Their layout is taken; the color-tools marker sits in their white balance actions row beside K and the picker, placed at the merge.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'camera-profile|src/components/adjustments/Color.tsx': ['combine', 'Their layout is taken; the camera-profile marker is first in the panel, outside their tool sections, placed at the merge.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
   'raw-tone|src/components/adjustments/Color.tsx': ['combine', 'RAW tone rendering renders in the camera-profile marker, which the merge placed first in their new layout.', ['5572f96a', 'f2c3473b', '28fa5120', 'bcc6e1e9', '9ba20c02', 'b4a9d1a3', 'fe5e2cc2', '7514c8f6', '2f907e36', '4227dcbd', 'd94777fe', 'f4a4c8d0', 'c7c42306', 'cbca858f']],
+  'compact-sliders|src/components/panel/SettingsPanel.tsx': ['not-applicable', 'Their Font row on General, which the Compact sliders switch is placed after, is not what this commit edits.', ['48a124f5', '2641891c', 'b66691ba', 'f98d68a4', 'c4ba9ac9', '3e186ce2', '290818d5', '66b800f5', 'c7c42306', '9b7e3368', '5c4b7800', '06c52a49']],
   'mask-stage-size-guard|src/components/panel/editor/ImageCanvas.tsx': ['not-applicable', 'The two positive-size checks on the mask Stage are intact after the merge.', ['aff9b3f2', 'e4d6fd16', '9fe2ee29', '8155513d', '3ba2fcae', '9ba20c02']],
   'rgb-readout|src/components/panel/editor/ImageCanvas.tsx': ['not-applicable', 'The overlay svg photoBox.ts finds is unchanged: still sized in px to the drawn image inside the pan/zoom transform.', ['aff9b3f2', 'e4d6fd16', '9fe2ee29', '8155513d', '3ba2fcae', '9ba20c02']],
   'identity|package.json': ['not-applicable', 'Our package name is untouched.', ['b66691ba', '1732175a']],
@@ -912,6 +939,7 @@ const MERGES_165 = [
     'model-manager:src/components/panel/SettingsPanel.tsx',
     'no-cloud:src/components/panel/SettingsPanel.tsx',
     'object-label:src/components/panel/SettingsPanel.tsx#settings.processing.ai.cpu.feature1',
+    'compact-sliders:src/components/panel/SettingsPanel.tsx',
   ]],
   ['a1e2dda0', 'Merge of #1767 (367029d7, 7514c8f6, bbe7e986, de8d6ffe, 2f907e36, 4227dcbd, and 6 more)', [
     'import-dialogue-1714:src-tauri/src/app_settings.rs#last_import_settings',
@@ -988,6 +1016,7 @@ const reached165 = [
   review165('9b7e3368', 'raw-decode:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'keep-ours', 'Apple RAW 9 is an opt-in macOS path (use_apple_raw9) that develops through Core Image and never reaches our decode anchor. Off by default; registered so the gap is visible.'),
   review165('9b7e3368', 'highlight-recovery:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'keep-ours', 'On the Apple RAW 9 path there is no highlight recovery or settle_blown. Off by default; rawler remains the decode that re-decodes for the switch.'),
   review165('48a124f5', 'object-label:src/components/panel/SettingsPanel.tsx#settings.processing.ai.cpu.feature1', 'not-applicable', 'Moves their AI card, this list with it, from Processing to General. The key is unchanged, so the card still lists Object, Sky, Foreground.'),
+  review165('f2c3473b', 'compact-sliders:src/components/ui/Slider.tsx#w-14 text-right shrink-0', 'combine', 'Widens the value column from w-12 to w-14 and stops the value wrapping. compactSliders.css is written against this markup: it finds the column by w-14 and moves it to the third grid column.'),
 ];
 
 // Subject hints: the word matched, and what is actually true.
@@ -1069,9 +1098,10 @@ export const REVIEW_165_DECISIONS = [
   ...hints165,
 ];
 
-// 818 at the merge, plus 14 for object-label, registered after it (26.41.7).
-if (REVIEW_165_DECISIONS.length !== 832) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 832 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
+// registered after it (26.41.7).
+if (REVIEW_165_DECISIONS.length !== 862) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 862 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

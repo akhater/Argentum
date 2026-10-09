@@ -118,6 +118,12 @@ struct DepthArgs {
     depth: u8,
 }
 
+/// Space under a compact slider row, in pixels.
+#[derive(Deserialize)]
+struct GapArgs {
+    gap: u8,
+}
+
 /// A catalogue id from `mods::model_catalog`, never a path.
 #[derive(Deserialize)]
 struct IdArgs {
@@ -215,6 +221,22 @@ pub async fn ag(
         "set_tiff_bit_depth" => {
             let a: DepthArgs = args_for(&name, args)?;
             commands::set_tiff_bit_depth(a.depth)?;
+            Ok(serde_json::Value::Null)
+        }
+        "compact_sliders" => {
+            serde_json::to_value(commands::compact_sliders()?).map_err(|e| e.to_string())
+        }
+        "set_compact_sliders" => {
+            let a: OnArgs = args_for(&name, args)?;
+            commands::set_compact_sliders(a.on)?;
+            Ok(serde_json::Value::Null)
+        }
+        "compact_slider_gap" => {
+            serde_json::to_value(commands::compact_slider_gap()?).map_err(|e| e.to_string())
+        }
+        "set_compact_slider_gap" => {
+            let a: GapArgs = args_for(&name, args)?;
+            commands::set_compact_slider_gap(a.gap)?;
             Ok(serde_json::Value::Null)
         }
         "super_resolution_preview" => {
