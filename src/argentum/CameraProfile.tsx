@@ -145,24 +145,23 @@ export default function CameraProfile() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-text-secondary select-none">{t('profileLabel')}</span>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 text-sm font-medium text-text-secondary select-none">{t('profileLabel')}</span>
+        <select
+          value={looking ? FIND : current}
+          disabled={looking}
+          onChange={(e) => (e.target.value === FIND ? findOnline() : choose(e.target.value))}
+          className="min-w-0 flex-1 text-xs bg-bg-primary text-text-primary rounded px-2 py-1.5 truncate disabled:opacity-50"
+        >
+          <option value="">{t('profileBuiltIn')}</option>
+          {status.available.map((p) => (
+            <option key={p.file} value={p.file}>
+              {p.name ?? p.file}
+            </option>
+          ))}
+          {canFind && <option value={FIND}>{looking ? t('gearLooking') : t('profileFind')}</option>}
+        </select>
       </div>
-
-      <select
-        value={looking ? FIND : current}
-        disabled={looking}
-        onChange={(e) => (e.target.value === FIND ? findOnline() : choose(e.target.value))}
-        className="w-full text-xs bg-bg-primary text-text-primary rounded px-2 py-1.5 truncate disabled:opacity-50"
-      >
-        <option value="">{t('profileBuiltIn')}</option>
-        {status.available.map((p) => (
-          <option key={p.file} value={p.file}>
-            {p.name ?? p.file}
-          </option>
-        ))}
-        {canFind && <option value={FIND}>{looking ? t('gearLooking') : t('profileFind')}</option>}
-      </select>
       {note && <p className="mt-1 text-xs text-text-secondary">{note}</p>}
     </div>
   );

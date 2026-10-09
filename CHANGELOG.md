@@ -31,6 +31,9 @@ Newest first.
   says so, and stops offering. The lookup now sends the camera's maker as My
   Gear's does, and a result that arrives after another photo has been opened
   is dropped. `src/argentum/CameraProfile.tsx`; no file of theirs changes.
+- **Profile and Rendering sit on one line with their dropdowns**, as a label
+  beside its value, rather than a heading above it. `CameraProfile.tsx` and
+  `RawToneRendering.tsx`.
 
 ## 26.41.8 — 2026-10-09
 
