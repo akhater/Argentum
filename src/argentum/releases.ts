@@ -32,6 +32,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.8',
+    date: '2026-10-09',
+    notes: [
+      'White balance presets, as in Lightroom: As Shot, Auto, Daylight, Cloudy, Shade, Tungsten, '
+      + 'Fluorescent and Flash, from the new Preset row at the top of White Balance. Auto lives '
+      + 'there now instead of the wand, and moving a slider shows Custom.',
+    ],
+  },
+  {
     version: '26.41.7',
     date: '2026-10-09',
     notes: [

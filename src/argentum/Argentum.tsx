@@ -34,7 +34,7 @@ import RgbReadout from './RgbReadout';
 import RgbReadoutButton from './RgbReadoutButton';
 import RenderStatus from './RenderStatus';
 import RefreshMetadataButton from './RefreshMetadataButton';
-import AutoWhiteBalanceButton from './AutoWhiteBalanceButton';
+import WhiteBalanceMenu from './WhiteBalanceMenu';
 import WhiteBalanceUpgrade from './WhiteBalanceUpgrade';
 import AboutPanel from './AboutPanel';
 import ExportPrecision from './ExportPrecision';
@@ -167,7 +167,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
           toolbar,
         )}
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
-      {colorTools && createPortal(<AutoWhiteBalanceButton />, colorTools)}
+      {colorTools && <WhiteBalanceMenu slot={colorTools as HTMLElement} />}
       {about && createPortal(<AboutPanel />, about)}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
       {cameraProfile &&

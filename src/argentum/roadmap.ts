@@ -44,7 +44,8 @@ const MILESTONES: Milestone[] = [
     why:
       'Real chromatic adaptation in Kelvin, with an auto mode and a picker — replacing '
       + 'three fixed multipliers. Since 26.41.6 the engine and picker are RapidRAW 1.6.5\x27s '
-      + 'own; the auto mode is still darktable\x27s, and Argentum\x27s.',
+      + 'own; the auto mode is still darktable\x27s, and Argentum\x27s. Lightroom\x27s presets '
+      + 'followed in 26.41.8.',
   },
   {
     stage: 'done',
@@ -89,6 +90,14 @@ const MILESTONES: Milestone[] = [
       'The preview now converts for the screen it is on, read from the display profile '
       + 'own profile. Without it a wide-gamut display showed every photo more '
       + 'saturated than it was, and nothing on screen said so.',
+  },
+  {
+    stage: 'planned',
+    what: 'White balance on RAW files only',
+    why:
+      'A JPEG\x27s colours were balanced in the camera, and nothing in the file says what '
+      + 'light they were balanced for, so a white balance preset on one corrects twice. '
+      + 'Take it away where it cannot mean anything.',
   },
   {
     stage: 'planned',

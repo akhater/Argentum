@@ -10,7 +10,7 @@
  *
  * So Argentum gets its own namespace, `ag`, registered here at startup.
  * A new string costs one line in `locales/en.json` next door and nothing at all
- * in theirs. Use it as `t('ag:autoWbTooltip')`.
+ * in theirs. Use it as `t('ag:wbMenuTooltip')`.
  *
  * WHAT STAYS IN THEIRS
  *
