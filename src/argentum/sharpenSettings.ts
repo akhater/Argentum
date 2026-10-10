@@ -116,6 +116,13 @@ export function useSharpenMask() {
     [sync],
   );
 
+  /** Stop showing any mask. */
+  const clear = useCallback(() => {
+    pinnedRef.current = null;
+    setPinnedState(null);
+    sync();
+  }, [sync]);
+
   // A different photo opens on the photo, not on a mask.
   useEffect(() => {
     pinnedRef.current = null;
@@ -163,5 +170,5 @@ export function useSharpenMask() {
     [sync],
   );
 
-  return { pinned, toggle, dragOf };
+  return { pinned, toggle, clear, dragOf };
 }

@@ -151,6 +151,15 @@ export default function Sharpening() {
   const auto = useAutoValues(path, adjustments);
   const mask = useSharpenMask();
 
+  // Nothing is sharpened, so there is no mask to look at: switching
+  // sharpening off - or capture, while its mask is up - goes back to the photo.
+  const { clear } = mask;
+  useEffect(() => {
+    if (mask.pinned !== null && (!s.enabled || (mask.pinned === CAPTURE_MASK && !s.capture))) {
+      clear();
+    }
+  }, [s.enabled, s.capture, mask.pinned, clear]);
+
   const set = (patch: Partial<AgSharpen>) =>
     setAdjustments((prev: any) => ({ ...prev, agSharpen: { ...(prev?.agSharpen ?? {}), ...patch } }));
   const num = (e: any) => parseFloat(String(e.target.value));
