@@ -78,7 +78,7 @@
 /// `mods/input_stage.rs` before this shader starts, and what arrives here as
 /// `input_texture` is already sharpened. The struct exists so their
 /// `GlobalAdjustments` has the same layout on both sides of the buffer -
-/// 48 bytes, field for field with `sharpen::Params`.
+/// 176 bytes, field for field with `sharpen::Params`.
 struct AgSharpen {
     capture_amount: f32,
     capture_radius: f32,
@@ -92,6 +92,7 @@ struct AgSharpen {
     usm_contrast: f32,
     _pad1: u32,
     _pad2: u32,
+    local: array<f32, 32>,
 }
 
 /// The camera profile, as a correction on already-decoded pixels.

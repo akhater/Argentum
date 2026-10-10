@@ -80,7 +80,7 @@ pub const FLAG_USM_AUTO_CONTRAST: u32 = 8;
 /// their uniform layout lined up. Their shader never reads it; the stage in
 /// `input_stage.rs` does.
 ///
-/// 48 bytes, a multiple of 16, so it does not move anything after it.
+/// 176 bytes, a multiple of 16, so it does not move anything after it.
 #[repr(C)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default, PartialEq)]
 pub struct Params {
@@ -104,7 +104,14 @@ pub struct Params {
     /// The same, for the manual sharpen's own mask when it has one.
     pub usm_contrast: f32,
     pub _pad: [u32; 2],
+    /// Each mask's own Sharpen, -1..1, indexed as their shader indexes masks.
+    /// Positive sharpens with darktable's unsharp mask at Sharpen's radius and
+    /// mask; negative softens towards that blur.
+    pub local: [f32; MAX_LOCAL],
 }
+
+/// RapidRAW's MAX_MASKS.
+pub const MAX_LOCAL: usize = 32;
 
 impl Params {
     pub fn capture_on(&self) -> bool {
@@ -125,6 +132,10 @@ impl Params {
 
     pub fn usm_auto_contrast(&self) -> bool {
         self.flags & FLAG_USM_AUTO_CONTRAST != 0
+    }
+
+    pub fn local_on(&self) -> bool {
+        self.local.iter().any(|a| *a != 0.0)
     }
 }
 
@@ -204,7 +215,41 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
         flags,
         usm_contrast: number(&s, "usmContrast", DEFAULT_CONTRAST).clamp(0.0, 200.0),
         _pad: [0; 2],
+        local: local_amounts(js),
     }
+}
+
+/// Each mask's Sharpen, in the order RapidRAW's shader indexes masks.
+///
+/// Their `get_all_adjustments_from_json` keeps the masks that are visible and
+/// have at least one sub-mask, in order, up to MAX_MASKS, and the mask
+/// bitmaps a render carries are built with the same rule. Read straight from
+/// the JSON rather than through their MaskDefinition, which would mean cloning
+/// every sub-mask's painted data for one number per mask.
+fn local_amounts(js: &Value) -> [f32; MAX_LOCAL] {
+    let mut out = [0.0; MAX_LOCAL];
+    let Some(masks) = js.get("masks").and_then(Value::as_array) else {
+        return out;
+    };
+    let kept = masks.iter().filter(|m| {
+        m.get("visible").and_then(Value::as_bool).unwrap_or(false)
+            && m.get("subMasks")
+                .and_then(Value::as_array)
+                .is_some_and(|s| !s.is_empty())
+    });
+    for (slot, mask) in out.iter_mut().zip(kept) {
+        let adjustments = mask.get("adjustments").cloned().unwrap_or(Value::Null);
+        let details_visible = adjustments
+            .get("sectionVisibility")
+            .and_then(|v| v.get("details"))
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        if details_visible {
+            let own = adjustments.get("agSharpen").cloned().unwrap_or(Value::Null);
+            *slot = (number(&own, "amount", 0.0) / 100.0).clamp(-1.0, 1.0);
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -883,10 +928,10 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn the_gpu_struct_is_48_bytes() {
+    fn the_gpu_struct_is_176_bytes() {
         // modules.wgsl's AgSharpen mirrors this; a size change shifts every
         // field of their adjustments that comes after it.
-        assert_eq!(std::mem::size_of::<Params>(), 48);
+        assert_eq!(std::mem::size_of::<Params>(), 176);
     }
 
     #[test]
@@ -939,6 +984,30 @@ mod tests {
         assert_eq!(own.usm_contrast, 40.0);
         // A JPEG has no capture mask to follow.
         assert!(from_json(&json!({}), false, None).usm_own_mask());
+    }
+
+    #[test]
+    fn each_masks_sharpen_lands_where_their_shader_indexes_it() {
+        let mask = |visible: bool, subs: usize, amount: f64| {
+            json!({
+                "visible": visible,
+                "subMasks": (0..subs).map(|i| json!({ "id": i })).collect::<Vec<_>>(),
+                "adjustments": { "agSharpen": { "amount": amount } },
+            })
+        };
+        let js = json!({ "masks": [
+            mask(true, 1, 50.0),
+            mask(false, 1, 80.0),   // hidden: not indexed
+            mask(true, 0, 90.0),    // no sub-masks: not indexed
+            mask(true, 2, -40.0),
+            mask(true, 1, 500.0),   // clamped
+        ] });
+        let p = from_json(&js, true, None);
+        assert_eq!(&p.local[..4], &[0.5, -0.4, 1.0, 0.0]);
+        assert!(p.local_on());
+        // The card's switch turns the local ones off with the rest.
+        let off = json!({ "agSharpen": { "enabled": false }, "masks": js["masks"].clone() });
+        assert!(!from_json(&off, true, None).local_on());
     }
 
     #[test]

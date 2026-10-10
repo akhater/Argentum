@@ -52,6 +52,13 @@ struct Params {
     centre_y: f32,
     clip: f32,
     usm_contrast: f32,
+    // Masks with a Sharpen of their own: how many layers local_masks has, and
+    // each one's amount, four to a vec4 as a uniform array has to be.
+    local_count: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+    local_amount: array<vec4<f32>, 8>,
 }
 
 const FLAG_CAPTURE: u32 = 1u;
@@ -74,6 +81,8 @@ const FLAG_CLIP: u32 = 64u;
 @group(0) @binding(7) var<storage, read_write> blend: array<f32>;
 @group(0) @binding(8) var<storage, read_write> stopped: array<atomic<u32>>;
 @group(0) @binding(9) var<storage, read_write> counter: array<u32>;
+// RapidRAW's own mask bitmaps for those masks, one layer each, render size.
+@group(0) @binding(10) var local_masks: texture_2d_array<f32>;
 
 // The largest blur any pass asks for. darktable caps its sharpen kernel at
 // MAXR 12; RawTherapee's largest deconvolution kernel is 13x13, radius 6.
@@ -444,10 +453,32 @@ fn usm_v(@builtin(global_invocation_id) id: vec3<u32>) {
     // sharpen_mix: amount * copysign(max(0, |delta| - threshold), delta).
     let delta = l - sum / wsum;
     let detail = sign(delta) * max(abs(delta) - p.usm_threshold, 0.0);
-    let sharpened = l + p.usm_amount * detail;
-    // The contrast mask decides where it lands, as it does for RawTherapee's
-    // own unsharp mask, so the mask view tells the truth about both.
-    est[i] = y_from_lstar(mix(l, sharpened, blend[i]));
+
+    // The contrast mask decides where sharpening lands, as it does for
+    // RawTherapee's own unsharp mask, so the mask view tells the truth.
+    var sharpen = p.usm_amount * blend[i];
+    // A mask's own Sharpen adds where the mask is. Softening is the same
+    // move the other way, towards the blur, and is not held back by the
+    // contrast mask or the threshold: flat areas and fine noise are exactly
+    // what a negative amount is for.
+    var soften = 0.0;
+    let g = global_of(id.x, id.y);
+    for (var k = 0u; k < p.local_count; k = k + 1u) {
+        let a = p.local_amount[k / 4u][k % 4u];
+        let m = textureLoad(local_masks, g, i32(k), 0).r;
+        if (a > 0.0) {
+            sharpen += a * m * blend[i];
+        } else {
+            soften += a * m;
+        }
+    }
+    // Where nothing moves the pixel keeps its luminance exactly, rather than
+    // a round trip through L* that is off in the last bit - outside every
+    // mask, with the global Amount at 0, that is the whole picture.
+    let moved = sharpen * detail + max(soften, -1.0) * delta;
+    if (moved != 0.0) {
+        est[i] = y_from_lstar(l + moved);
+    }
 }
 
 /// Back to colour: every channel scaled by how much the luminance moved, so
@@ -467,6 +498,14 @@ fn compose(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 
     let old_y = y0[i];
+    // Unchanged, copied as it was. Not multiplied by est / old_y: a GPU's
+    // division can come out a bit under 1, and a write to rgba16float may
+    // round towards zero, so "times one" would land a whole half-float step
+    // darker - on every pixel nothing touched.
+    if (est[i] == old_y) {
+        textureStore(dst, g, raw_px);
+        return;
+    }
     var ratio = 1.0;
     if (old_y > 0.00001) {
         ratio = est[i] / old_y;

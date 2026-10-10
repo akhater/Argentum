@@ -4,9 +4,9 @@
  * Mounted inside RapidRAW's own Sharpening section, through the one marker
  * their Details panel carries for it, so it sits where sharpening has always
  * been, folds and reorders with their Sections menu, and their title stays.
- * Their two sliders are hidden by `sharpening.css` while this is mounted -
- * only in the global panel: the marker in a mask's Details is skipped, and a
- * mask keeps their local Sharpness slider.
+ * Their two sliders are hidden by `sharpening.css` while this is mounted.
+ * The same marker in a mask's Details (flagged `data-mask`) takes
+ * LocalSharpening.tsx instead.
  *
  * Three things on screen, the rest folded away, because AK's first look at
  * every knob at once was "confusing AF":

@@ -1398,7 +1398,8 @@ export const REGISTRY = [
       + 'from the RAW), darktable\'s sharpen (unsharp mask on L), and RawTherapee\'s contrast mask '
       + 'deciding where either lands, with a view of that mask. Whole-image GPU passes before their '
       + 'shader, through the input-stage anchor. Replaces their Sharpness slider in Details, whose '
-      + 'radius grew with the sensor size.',
+      + 'radius grew with the sensor size, and their local Sharpness in a mask\'s Details with a '
+      + 'Sharpen of its own on the same engine.',
     ours: [
       'src-tauri/src/mods/input_stage.rs',
       'src-tauri/src/mods/sharpen.rs',
@@ -1411,6 +1412,7 @@ export const REGISTRY = [
       'src-tauri/src/mods/export_precision.rs',
       'src-tauri/src/mods/dispatch.rs',
       'src/argentum/Sharpening.tsx',
+      'src/argentum/LocalSharpening.tsx',
       'src/argentum/sharpenSettings.ts',
       'src/argentum/sharpening.css',
       'src/argentum/Argentum.tsx',
@@ -1429,8 +1431,23 @@ export const REGISTRY = [
           + 'tiles read 128 px past it. Raise their overlap past 160 and the edge of a zoomed drag '
           + 'reads unsharpened texels.' },
       { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
-        note: 'ag_sharpen (sharpen::Params, 48 bytes) at the end of their struct, filled by '
+        note: 'ag_sharpen (sharpen::Params, 176 bytes) at the end of their struct, filled by '
           + 'sharpen::from_json. The settings reach the stage the way every other adjustment reaches a render.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'calls',
+        note:
+          'Each mask\'s Sharpen is placed at the index their shader gives the mask: the masks that are '
+          + 'visible and have a sub-mask, in order, up to MAX_MASKS. sharpen::local_amounts repeats that '
+          + 'rule on the JSON. Change their filter and the amounts land on the wrong masks.' },
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_mask_bitmap', how: 'calls',
+        note:
+          'The render carries the mask bitmaps their shader reads, built by the same rule (None for a '
+          + 'hidden or empty mask), so bitmap i is mask i. The stage uploads the ones with a Sharpen of '
+          + 'their own and reads them as their get_mask_influence does: the red channel, opacity and '
+          + 'invert already in it.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'activeMaskContainerId', how: 'calls',
+        note:
+          'LocalSharpening.tsx edits the mask their Masks panel is editing, found the way their panel '
+          + 'finds it: adjustments.masks by activeMaskContainerId.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
         note: 'AgSharpen mirrored at the end of their WGSL struct, never read there. '
           + 'shader_check::the_adjustments_have_the_same_layout_on_both_sides fails if the sides drift.' },
@@ -1440,13 +1457,14 @@ export const REGISTRY = [
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_sharpen', how: 'shadows',
         note:
           'Their sharpening stays in their shader and still runs for an old edit with a sharpness '
-          + 'value and for a mask\'s local Sharpness. Its slider is hidden in the global Details; the '
-          + 'card offers to remove an old value. Fixes to it upstream do nothing for a new edit.' },
+          + 'value, global or in a mask. Both its sliders are hidden; each card offers to remove an '
+          + 'old value. Fixes to it upstream do nothing for a new edit.' },
       { file: 'src/components/adjustments/Details.tsx', how: 'calls',
         note:
           'data-argentum="sharpening" as the first child of their Sharpening section, data-mask in a '
-          + 'mask\'s Details. sharpening.css hides its siblings - their two sliders - only once our '
-          + 'card has mounted into it. Move their sliders out of that section and they reappear.' },
+          + 'mask\'s Details, where LocalSharpening.tsx mounts. sharpening.css hides its siblings - '
+          + 'their sliders - only once our card has mounted into it. Move their sliders out of that '
+          + 'section and they reappear.' },
       { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
         note:
           'agSharpen is a key their type does not declare, written only once a setting is changed so '
@@ -1474,7 +1492,8 @@ export const REGISTRY = [
     tests: [
       'src-tauri/src/mods/sharpen.rs #[cfg(test)]',
       'src-tauri/src/mods/sharpen_gpu.rs #[cfg(test)], and with --ignored on a GPU: deconvolution, '
-        + 'darktable\'s formula, the mask, regions, the whole render, and the software adapter (WARP)',
+        + 'darktable\'s formula, the mask, a mask\'s own Sharpen, regions, the whole render, and the '
+        + 'software adapter (WARP)',
       'src-tauri/src/mods/shader_check.rs the_adjustments_have_the_same_layout_on_both_sides',
     ],
     keywords: /sharpen|sharpness|deconvol|unsharp|capture.?sharp|richardson|lucy|detail|halo/i,

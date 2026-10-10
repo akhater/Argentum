@@ -117,5 +117,8 @@
   "sharpenMaskOwn": "Own",
   "sharpenMaskOwnHelp": "Give this its own mask",
   "sharpenMore": "More",
-  "sharpenLess": "Less"
+  "sharpenLess": "Less",
+  "sharpenLocal": "Sharpen",
+  "sharpenLocalHint": "Right sharpens, left softens. Uses the radius and mask set in Details > Sharpening > Sharpen.",
+  "sharpenLocalOff": "Sharpening is switched off in Details, so this does nothing until it is back on."
 }

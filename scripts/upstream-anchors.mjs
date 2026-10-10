@@ -249,7 +249,9 @@ export const ANCHORS = [
     // ours (a denoiser) mounts beside it, not into a second marker.
     file: 'src/components/adjustments/Details.tsx',
     hooks: 1,
-    what: 'the data-argentum="sharpening" marker, first in their Sharpening section, flagged data-mask in a mask',
+    what:
+      'the data-argentum="sharpening" marker, first in their Sharpening section, flagged data-mask '
+      + 'in a mask, where a mask\'s own Sharpen mounts',
     instead: 'portal into [data-argentum="sharpening"] from Argentum.tsx',
   },
   {

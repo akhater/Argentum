@@ -1269,6 +1269,14 @@ const UNREACHED_SHARPENING_165 = [
   ['f4a4c8d0', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
   ['f62a8365', 'src-tauri/src/app_state.rs', 'use image::DynamicImage, GrayImage;, use crate::launch_request::ExternalEditS, AppState', 'full_transformed_cache'],
   ['f62a8365', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['078c90a8', 'src-tauri/src/mask_generation.rs', 'use image::DynamicImage, GenericImageVi, use std::io::Cursor;, resolve_warped_image_for_masks, get_cached_or_generate_mask', 'generate_mask_bitmap'],
+  ['3ba2fcae', 'src-tauri/src/image_processing.rs', 'calculate_auto_adjustments', 'get_all_adjustments_from_json'],
+  ['3f3e7df1', 'src-tauri/src/image_processing.rs', 'sample_white_balance', 'get_all_adjustments_from_json'],
+  ['9fe2ee29', 'src-tauri/src/image_processing.rs', 'apply_cpu_default_raw_processing, WhiteBalanceSample', 'get_all_adjustments_from_json'],
+  ['c4ba9ac9', 'src-tauri/src/image_processing.rs', 'impl<a> IntoCowImage<a> for &a std::s, Default', 'get_all_adjustments_from_json'],
+  ['c91e0bf7', 'src-tauri/src/image_processing.rs', 'SCALES', 'get_all_adjustments_from_json'],
+  ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', 'generate_mask_bitmap'],
+  ['e4d6fd16', 'src-tauri/src/image_processing.rs', 'point_in_convex_quad, compute_white_balance_sample, sample_white_balance, mod white_balance_sample_tests', 'get_all_adjustments_from_json'],
 ];
 
 // Merges in that range, each touching a file sharpening depends on:
@@ -1303,6 +1311,9 @@ const sharpening165 = [
   review165('66fa1600', 'sharpening:src-tauri/src/shaders/shader.wgsl#absolute_coord', 'not-applicable', 'The guided-filter samples read absolute_coord; its meaning is unchanged, and the mask view reads input_texture at the same pixel.'),
   review165('66fa1600', 'sharpening:src-tauri/src/shaders/shader.wgsl#apply_sharpen', 'keep-ours', 'Rewrites apply_sharpen into the sharpener reviewed on 2026-10-10 and replaced: a radius from the short edge, the dark side of an edge cut to a tenth, a soft limit near the local range, diagonal smoothing, and fine taps read before noise reduction. It stays in their shader for old edits and for the local Sharpness of a mask; new edits are sharpened by RawTherapee capture sharpening and darktable sharpen, through the input stage.'),
   review165('66fa1600', 'sharpening:src-tauri/src/gpu_processing.rs#process_and_get_dynamic_image_inner', 'combine', 'Builds guided-filter coefficients when the input texture is cached and passes them to run(). The input stage runs after that: their coefficients come from the unsharpened input while every pass of theirs reads the sharpened one, which is the order RawTherapee has - capture sharpening first, everything else on its result.'),
+  review165('078c90a8', 'sharpening:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', 'combine', 'Builds colour and luminance mask sources from the exported image, and with it changes the mask filter to visible && !sub_masks.is_empty(). That is the rule sharpen::local_amounts repeats on the JSON, so a mask\'s Sharpen lands on the mask their shader gives the same index.'),
+  review165('28fa5120', 'sharpening:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', 'not-applicable', 'Folds the section-visibility read into is_section_visible; the mask filter and order are unchanged. local_amounts reads a mask\'s sectionVisibility.details the same way, true when absent.'),
+  review165('9ba20c02', 'sharpening:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', 'not-applicable', 'Passes the target white balance into each mask\'s adjustments; which masks are kept, and in what order, is unchanged.'),
   review165('2f907e36', 'sharpening:src/components/adjustments/Details.tsx', 'not-applicable', 'Reads the section order from adjustmentLayout.toolOrder. The Sharpening section the marker sits in is unchanged.'),
   review165('7514c8f6', 'sharpening:src/components/adjustments/Details.tsx', 'combine', 'Hides the Sharpening section through adjustmentLayout.hiddenTools. Hiding it hides the marker and our card with it, as hiding any section of theirs hides its controls; the settings still render.'),
   review165('b4a9d1a3', 'sharpening:src/components/adjustments/Details.tsx', 'not-applicable', 'Reads hidden tools through getHiddenAdjustmentTools, whose defaults hide chromatic aberration and calibration. Sharpening is not hidden by default.'),
@@ -1327,9 +1338,9 @@ export const REVIEW_165_DECISIONS = [
 // reaching the AI panel and their radial Transformer, 33 for memory-release and
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
-// and 102 for sharpening (26.41.11).
-if (REVIEW_165_DECISIONS.length !== 1128) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1128 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// and 113 for sharpening (26.41.11), 11 of them for a mask's own Sharpen.
+if (REVIEW_165_DECISIONS.length !== 1139) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1139 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
