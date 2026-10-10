@@ -1403,6 +1403,115 @@ export const REGISTRY = [
     ],
     keywords: /into_owned|patched_warped|transformed_cache|warped_cache|copy|memory/i,
   },
+  {
+    id: 'sharpening',
+    kind: 'feature',
+    what:
+      'Sharpening: RawTherapee capture sharpening (Richardson-Lucy deconvolution, auto radius read '
+      + 'from the RAW), darktable\'s sharpen (unsharp mask on L), and RawTherapee\'s contrast mask '
+      + 'deciding where either lands, with a view of that mask. Whole-image GPU passes before their '
+      + 'shader, through the input-stage anchor. Replaces their Sharpness slider in Details, whose '
+      + 'radius grew with the sensor size, and their local Sharpness in a mask\'s Details with a '
+      + 'Sharpen of its own on the same engine.',
+    ours: [
+      'src-tauri/src/mods/input_stage.rs',
+      'src-tauri/src/mods/sharpen.rs',
+      'src-tauri/src/mods/sharpen_gpu.rs',
+      'src-tauri/src/shaders/sharpen.wgsl',
+      'src-tauri/src/shaders/modules.wgsl',
+      'src-tauri/src/mods/clipping.rs',
+      'src-tauri/src/mods/decode.rs',
+      'src-tauri/src/mods/startup.rs',
+      'src-tauri/src/mods/export_precision.rs',
+      'src-tauri/src/mods/dispatch.rs',
+      'src/argentum/Sharpening.tsx',
+      'src/argentum/LocalSharpening.tsx',
+      'src/argentum/sharpenSettings.ts',
+      'src/argentum/sharpening.css',
+      'src/argentum/Argentum.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'process_and_get_dynamic_image_inner', how: 'calls',
+        note:
+          'The input-stage anchor: one call after their input texture and guided-filter cache exist, '
+          + 'and their processor.run handed staged.as_ref().unwrap_or(&cache.texture_view). Everything '
+          + 'of theirs downstream - main pass, sharpness/clarity blurs, flare - reads the sharpened '
+          + 'texture; the guided-filter coefficients stay built from the unsharpened one. Called under '
+          + 'their processor lock, which is what makes reusing one output texture between frames safe.' },
+      { file: 'src-tauri/src/gpu_processing.rs', symbol: 'TILE_OVERLAP', how: 'calls',
+        note:
+          'With a region of interest only that region is sharpened, widened by 160 px because their '
+          + 'tiles read 128 px past it. Raise their overlap past 160 and the edge of a zoomed drag '
+          + 'reads unsharpened texels.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
+        note: 'ag_sharpen (sharpen::Params, 176 bytes) at the end of their struct, filled by '
+          + 'sharpen::from_json. The settings reach the stage the way every other adjustment reaches a render.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'calls',
+        note:
+          'Each mask\'s Sharpen is placed at the index their shader gives the mask: the masks that are '
+          + 'visible and have a sub-mask, in order, up to MAX_MASKS. sharpen::local_amounts repeats that '
+          + 'rule on the JSON. Change their filter and the amounts land on the wrong masks.' },
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_mask_bitmap', how: 'calls',
+        note:
+          'The render carries the mask bitmaps their shader reads, built by the same rule (None for a '
+          + 'hidden or empty mask), so bitmap i is mask i. The stage uploads the ones with a Sharpen of '
+          + 'their own and reads them as their get_mask_influence does: the red channel, opacity and '
+          + 'invert already in it.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'activeMaskContainerId', how: 'calls',
+        note:
+          'LocalSharpening.tsx edits the mask their Masks panel is editing, found the way their panel '
+          + 'finds it: adjustments.masks by activeMaskContainerId.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
+        note: 'AgSharpen mirrored at the end of their WGSL struct, never read there. '
+          + 'shader_check::the_adjustments_have_the_same_layout_on_both_sides fails if the sides drift.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'absolute_coord', how: 'calls',
+        note: 'Passed to ag_stage_display, which in mode 7 reads input_texture at that pixel: the mask '
+          + 'the stage wrote there, unchanged by every adjustment in between.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_sharpen', how: 'shadows',
+        note:
+          'Their sharpening stays in their shader and still runs for an old edit with a sharpness '
+          + 'value, global or in a mask. Both its sliders are hidden; each card offers to remove an '
+          + 'old value. Fixes to it upstream do nothing for a new edit.' },
+      { file: 'src/components/adjustments/Details.tsx', how: 'calls',
+        note:
+          'data-argentum="sharpening" as the first child of their Sharpening section, data-mask in a '
+          + 'mask\'s Details, where LocalSharpening.tsx mounts. sharpening.css hides its siblings - '
+          + 'their sliders - only once our card has mounted into it. Move their sliders out of that '
+          + 'section and they reappear.' },
+      { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
+        note:
+          'agSharpen is a key their type does not declare, written only once a setting is changed so '
+          + 'the thumbnail cache hash of an untouched photo does not move. It survives a reload because '
+          + 'their loader spreads the saved edit over the defaults. If the loader starts picking keys, '
+          + 'every photo falls back to the defaults.' },
+      { file: 'src-tauri/src/app_state.rs', symbol: 'full_transformed_cache', how: 'calls',
+        note:
+          'Radii are in full-resolution pixels. A render whose transform hash matches the cached '
+          + 'full-resolution image is the editor preview at width / full width; anything else is 1:1. '
+          + 'The full image is also where auto contrast is measured, as RawTherapee measures on the RAW.' },
+      { file: 'src-tauri/src/lib.rs', symbol: 'generate_transformed_preview', how: 'calls',
+        note: 'Assumed: the preview is that cached full-resolution image downscaled, under the same transform hash.' },
+      { file: 'src-tauri/src/export_processing.rs', symbol: 'export_lut', how: 'calls',
+        note:
+          'Caller names the stage skips: their LUT export renders an identity cube as an image, and '
+          + 'sharpening it would bend the exported LUT. Also generate_thumbnail_data and the other '
+          + 'small previews in input_stage::NOT_SHARPENED. A renamed caller gets sharpened at 1:1.' },
+      { file: 'src-tauri/src/app_settings.rs', symbol: 'raw_preprocessing_sharpening', how: 'calls',
+        note: 'Set to 0 once (AK, 2026-10-10): their load-time box-blur pre-sharpening would stack '
+          + 'on capture sharpening. A user who turns it back up keeps it.' },
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'remove_raw_artifacts_and_enhance', how: 'calls',
+        note: 'Where that pre-sharpening runs. If upstream makes it unconditional, the stacking is back.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/sharpen.rs #[cfg(test)]',
+      'src-tauri/src/mods/sharpen_gpu.rs #[cfg(test)], and with --ignored on a GPU: deconvolution, '
+        + 'darktable\'s formula, the mask, a mask\'s own Sharpen, regions, the whole render, and the '
+        + 'software adapter (WARP), and on OpenGL - including another thread using the GPU while '
+        + 'it runs, which crashed the app on GL before submissions were made small',
+      'src-tauri/src/mods/shader_check.rs the_adjustments_have_the_same_layout_on_both_sides',
+    ],
+    keywords: /sharpen|sharpness|deconvol|unsharp|capture.?sharp|richardson|lucy|detail|halo/i,
+  },
 ];
 
 /**

@@ -126,6 +126,7 @@ struct GlobalAdjustments {
     _pad_raw_tone1: u32,
     _pad_raw_tone2: u32,
     raw_tone_curve: array<Point, 16>,
+    ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
 }
 
 struct MaskAdjustments {
@@ -2009,7 +2010,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         final_rgb += vec3<f32>(noise_val) * amount * luma_mask;
     }
 
-    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping);  // Argentum: the display-referred anchor, see modules.wgsl
+    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping, absolute_coord);  // Argentum: the display-referred anchor, see modules.wgsl
 
     // upstream #1466
     if (!HIGH_PRECISION_OUTPUT) {

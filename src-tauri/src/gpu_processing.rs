@@ -2184,9 +2184,10 @@ fn process_and_get_dynamic_image_inner(
     }
 
     let cache = cache_lock.as_ref().unwrap();
+    let staged = crate::mods::input_stage::run(context, state, base_image, transform_hash, caller_id, &cache.texture_view, cache.width, cache.height, &request); // Argentum: the input stage, see mods/input_stage.rs
 
     let (processed_pixels, out_w, out_h, out_x, out_y) = processor.run(
-        &cache.texture_view,
+        staged.as_ref().unwrap_or(&cache.texture_view),
         &cache.gf_coeffs_view,
         &cache.gf_dehaze_view,
         cache.width,

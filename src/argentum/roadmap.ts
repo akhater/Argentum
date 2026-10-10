@@ -92,12 +92,29 @@ const MILESTONES: Milestone[] = [
       + 'saturated than it was, and nothing on screen said so.',
   },
   {
+    stage: 'done',
+    what: 'Sharpening',
+    release: '26.41.11',
+    why:
+      'RapidRAW\x27s sharpening was one slider with no way to see what it touched. Now '
+      + 'RawTherapee\x27s capture sharpening for RAW photos, darktable\x27s Sharpen, an eye '
+      + 'that shows where each one works, and a Sharpen slider on every mask.',
+  },
+  {
     stage: 'planned',
     what: 'White balance on RAW files only',
     why:
       'A JPEG\x27s colours were balanced in the camera, and nothing in the file says what '
       + 'light they were balanced for, so a white balance preset on one corrects twice. '
       + 'Take it away where it cannot mean anything.',
+  },
+  {
+    stage: 'planned',
+    what: 'Auto picks the fastest graphics mode',
+    why:
+      'Auto takes Vulkan on Windows without measuring, and on some laptops that is '
+      + 'several times slower than OpenGL or DirectX. Time each one on this computer, '
+      + 'once, and use the fastest.',
   },
   {
     stage: 'planned',

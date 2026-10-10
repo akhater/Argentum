@@ -1,0 +1,11 @@
+/*
+ * RapidRAW's Sharpness (and, in Details, Threshold) sliders, hidden while one
+ * of our cards is in their Sharpening section - Sharpening.tsx in the main
+ * Details, LocalSharpening.tsx in a mask's. Ours.
+ *
+ * `:not(:empty)` - only once our card has actually mounted into the marker,
+ * so if it ever fails to, their sliders are still there rather than nothing.
+ */
+[data-argentum='sharpening']:not(:empty) ~ * {
+  display: none !important;
+}

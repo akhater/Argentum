@@ -1183,12 +1183,153 @@ const HINTS_165 = [
 const hints165 = HINTS_165.flatMap(([commit, entries, verdict, why]) =>
   entries.map((entry) => review165(commit, entry, verdict, why, 'feature')));
 
+// Sharpening (26.41.11), registered after the merge. Its dependencies reach back
+// into the 1.6.5 range, so each commit there that touched one of those files is
+// decided here. Found from each commit's diff of the file, as UNREACHED_165 was:
+// [commit, file, what it changes there, the symbol we depend on].
+const UNREACHED_SHARPENING_165 = [
+  ['078c90a8', 'src-tauri/src/export_processing.rs', 'use crate::image_processing::, process_image_for_export_pipeline, export_masks_for_image, export_images_impl, estimate_export_sizes', 'export_lut'],
+  ['078c90a8', 'src-tauri/src/image_processing.rs', 'get_all_adjustments_from_json', 'GlobalAdjustments'],
+  ['078c90a8', 'src-tauri/src/lib.rs', 'use crate::formats::is_raw_file;, get_cached_full_warped_image, process_preview_job, generate_uncropped_preview, generate_preset_preview, generate_preview_for_path', 'generate_transformed_preview'],
+  ['0f564b59', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['0f564b59', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
+  ['181a7e32', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
+  ['1cc99d56', 'src-tauri/src/shaders/shader.wgsl', 'GF_LUMA_FLOOR, apply_curve, apply_tonal_adjustments, apply_highlights_adjustment, apply_glow_bloom, apply_halation', 'GlobalAdjustments'],
+  ['1cc99d56', 'src-tauri/src/shaders/shader.wgsl', 'GF_LUMA_FLOOR, apply_curve, apply_tonal_adjustments, apply_highlights_adjustment, apply_glow_bloom, apply_halation', 'apply_sharpen'],
+  ['2641891c', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['28fa5120', 'src-tauri/src/shaders/shader.wgsl', 'GlobalAdjustments, apply_color_calibration', 'absolute_coord'],
+  ['28fa5120', 'src-tauri/src/shaders/shader.wgsl', 'GlobalAdjustments, apply_color_calibration', 'apply_sharpen'],
+  ['290818d5', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['2f907e36', 'src-tauri/src/app_settings.rs', 'default_export_presets, AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['2f907e36', 'src/utils/adjustments.ts', 'reconcileOrder', 'normalizeLoadedAdjustments'],
+  ['3ba2fcae', 'src-tauri/src/image_processing.rs', 'calculate_auto_adjustments', 'GlobalAdjustments'],
+  ['3ba2fcae', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['3e186ce2', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['3f3e7df1', 'src-tauri/src/image_processing.rs', 'sample_white_balance', 'GlobalAdjustments'],
+  ['43248097', 'src-tauri/src/image_loader.rs', 'largest_tiff_jpeg_preview, embedded_preview_fallback', 'remove_raw_artifacts_and_enhance'],
+  ['45fa2ca1', 'src-tauri/src/app_settings.rs', 'default_export_presets', 'raw_preprocessing_sharpening'],
+  ['476389ad', 'src-tauri/src/app_settings.rs', 'ExportPreset, default_export_presets', 'raw_preprocessing_sharpening'],
+  ['5c4b7800', 'src-tauri/src/app_state.rs', 'impl<a> AiTaskGuard<a>', 'full_transformed_cache'],
+  ['667f2e4d', 'src-tauri/src/lib.rs', 'MonitorBounds, available_monitor_bounds, frontend_ready, run', 'generate_transformed_preview'],
+  ['66fa1600', 'src-tauri/src/app_state.rs', 'CachedPreview', 'full_transformed_cache'],
+  ['66fa1600', 'src-tauri/src/gpu_processing.rs', 'use std::num::NonZero;, BlurParams, GpuProcessor, process_and_get_dynamic_image_inner', 'TILE_OVERLAP'],
+  ['66fa1600', 'src-tauri/src/shaders/shader.wgsl', 'HSL_RANGES, apply_curve, apply_tonal_adjustments, apply_highlights_adjustment, apply_color_grading, apply_sharpen', 'GlobalAdjustments'],
+  ['706026a6', 'src-tauri/src/app_settings.rs', 'MyLens, AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['7514c8f6', 'src-tauri/src/app_settings.rs', 'AdjustmentLayout, default_tagging_shortcuts_option, AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['7514c8f6', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
+  ['7ce629fc', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['83fc86a8', 'src-tauri/src/app_settings.rs', 'FilterCriteria, Default', 'raw_preprocessing_sharpening'],
+  ['89020724', 'src-tauri/src/shaders/shader.wgsl', 'apply_creative_color', 'GlobalAdjustments'],
+  ['89020724', 'src-tauri/src/shaders/shader.wgsl', 'apply_creative_color', 'absolute_coord'],
+  ['89020724', 'src-tauri/src/shaders/shader.wgsl', 'apply_creative_color', 'apply_sharpen'],
+  ['9a17644d', 'src-tauri/src/export_processing.rs', 'BorderOptions, PadOptions, parse_hex_color, calculate_pad_target, calculate_border_thickness, compute_export_geometry', 'export_lut'],
+  ['9b7e3368', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['9b7e3368', 'src-tauri/src/image_loader.rs', 'load_base_image_from_bytes', 'remove_raw_artifacts_and_enhance'],
+  ['9b7e3368', 'src-tauri/src/lib.rs', 'mod ai_processing;, run', 'generate_transformed_preview'],
+  ['9ba20c02', 'src-tauri/src/app_settings.rs', 'all_available_adjustments, AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['9ba20c02', 'src-tauri/src/app_state.rs', 'use crate::image_processing::GpuContext;, LoadedImage', 'full_transformed_cache'],
+  ['9ba20c02', 'src-tauri/src/export_processing.rs', 'use crate::lut_processing::, process_image_for_export_pipeline, export_masks_for_image, export_adjustments_as_lut, estimate_export_sizes', 'export_lut'],
+  ['9ba20c02', 'src-tauri/src/image_loader.rs', 'use crate::image_processing::, LoadImageResult, load_image', 'remove_raw_artifacts_and_enhance'],
+  ['9ba20c02', 'src-tauri/src/lib.rs', 'mod preset_converter;, use crate::mask_generation::, process_preview_job, generate_uncropped_preview, generate_preset_preview, generate_all_community_previews', 'generate_transformed_preview'],
+  ['9ba20c02', 'src-tauri/src/shaders/shader.wgsl', 'GlobalAdjustments, MaskAdjustments, apply_color_calibration, main', 'absolute_coord'],
+  ['9ba20c02', 'src-tauri/src/shaders/shader.wgsl', 'GlobalAdjustments, MaskAdjustments, apply_color_calibration, main', 'apply_sharpen'],
+  ['9ba20c02', 'src/utils/adjustments.ts', 'import Crop from react-image-crop;, enum, interface, const', 'normalizeLoadedAdjustments'],
+  ['9fe2ee29', 'src-tauri/src/image_processing.rs', 'apply_cpu_default_raw_processing, WhiteBalanceSample', 'GlobalAdjustments'],
+  ['ad25d2ba', 'src-tauri/src/app_settings.rs', 'ExportPreset, default_export_presets', 'raw_preprocessing_sharpening'],
+  ['ad25d2ba', 'src-tauri/src/export_processing.rs', 'ResizeOptions, ExportSettings, apply_watermark, calculate_resize_target, relative_export_dir_for_preserved_folders, export_masks_for_image', 'export_lut'],
+  ['b4994ed4', 'src-tauri/src/app_settings.rs', 'SortCriteria', 'raw_preprocessing_sharpening'],
+  ['b4a9d1a3', 'src-tauri/src/app_settings.rs', 'AdjustmentLayout', 'raw_preprocessing_sharpening'],
+  ['b4a9d1a3', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
+  ['b64adfc6', 'src-tauri/src/export_processing.rs', 'run_headless_export', 'export_lut'],
+  ['b64adfc6', 'src-tauri/src/lib.rs', 'use mimalloc::MiMalloc;, setup_logging, run', 'generate_transformed_preview'],
+  ['b66691ba', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['c4ba9ac9', 'src-tauri/src/app_settings.rs', 'FilterCriteria, Default', 'raw_preprocessing_sharpening'],
+  ['c4ba9ac9', 'src-tauri/src/image_processing.rs', 'impl<a> IntoCowImage<a> for &a std::s, Default', 'GlobalAdjustments'],
+  ['c4ba9ac9', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['c7c42306', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
+  ['c91e0bf7', 'src-tauri/src/gpu_processing.rs', 'GpuProcessor', 'TILE_OVERLAP'],
+  ['c91e0bf7', 'src-tauri/src/gpu_processing.rs', 'GpuProcessor', 'process_and_get_dynamic_image_inner'],
+  ['c91e0bf7', 'src-tauri/src/image_processing.rs', 'SCALES', 'GlobalAdjustments'],
+  ['c91e0bf7', 'src-tauri/src/shaders/shader.wgsl', 'apply_tonal_adjustments, main', 'GlobalAdjustments'],
+  ['c91e0bf7', 'src-tauri/src/shaders/shader.wgsl', 'apply_tonal_adjustments, main', 'absolute_coord'],
+  ['c91e0bf7', 'src-tauri/src/shaders/shader.wgsl', 'apply_tonal_adjustments, main', 'apply_sharpen'],
+  ['cf6813f1', 'src-tauri/src/export_processing.rs', 'export_images_impl', 'export_lut'],
+  ['d151849b', 'src-tauri/src/app_settings.rs', 'ExportPreset, default_export_presets', 'raw_preprocessing_sharpening'],
+  ['d151849b', 'src-tauri/src/export_processing.rs', 'ResizeOptions, ExportSettings, apply_watermark, ExportGeometry, calculate_pad_target, compute_padded_geometry', 'export_lut'],
+  ['d6cda855', 'src-tauri/src/gpu_processing.rs', 'read_texture_data_roi', 'TILE_OVERLAP'],
+  ['d6cda855', 'src-tauri/src/gpu_processing.rs', 'read_texture_data_roi', 'process_and_get_dynamic_image_inner'],
+  ['d94777fe', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['e3022f65', 'src-tauri/src/export_processing.rs', 'use std::sync::atomic::AtomicBool, Atom, encode_grayscale_to_png, encode_image_to_bytes', 'export_lut'],
+  ['e4d6fd16', 'src-tauri/src/image_processing.rs', 'point_in_convex_quad, compute_white_balance_sample, sample_white_balance, mod white_balance_sample_tests', 'GlobalAdjustments'],
+  ['e4d6fd16', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', 'GlobalAdjustments'],
+  ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', 'absolute_coord'],
+  ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', 'apply_sharpen'],
+  ['edb8c82c', 'src-tauri/src/export_processing.rs', 'compute_fused_geometry', 'export_lut'],
+  ['f4a4c8d0', 'src-tauri/src/app_settings.rs', 'AppSettings, Default', 'raw_preprocessing_sharpening'],
+  ['f4a4c8d0', 'src/utils/adjustments.ts', 'const', 'normalizeLoadedAdjustments'],
+  ['f62a8365', 'src-tauri/src/app_state.rs', 'use image::DynamicImage, GrayImage;, use crate::launch_request::ExternalEditS, AppState', 'full_transformed_cache'],
+  ['f62a8365', 'src-tauri/src/lib.rs', 'run', 'generate_transformed_preview'],
+  ['078c90a8', 'src-tauri/src/mask_generation.rs', 'use image::DynamicImage, GenericImageVi, use std::io::Cursor;, resolve_warped_image_for_masks, get_cached_or_generate_mask', 'generate_mask_bitmap'],
+  ['3ba2fcae', 'src-tauri/src/image_processing.rs', 'calculate_auto_adjustments', 'get_all_adjustments_from_json'],
+  ['3f3e7df1', 'src-tauri/src/image_processing.rs', 'sample_white_balance', 'get_all_adjustments_from_json'],
+  ['9fe2ee29', 'src-tauri/src/image_processing.rs', 'apply_cpu_default_raw_processing, WhiteBalanceSample', 'get_all_adjustments_from_json'],
+  ['c4ba9ac9', 'src-tauri/src/image_processing.rs', 'impl<a> IntoCowImage<a> for &a std::s, Default', 'get_all_adjustments_from_json'],
+  ['c91e0bf7', 'src-tauri/src/image_processing.rs', 'SCALES', 'get_all_adjustments_from_json'],
+  ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', 'generate_mask_bitmap'],
+  ['e4d6fd16', 'src-tauri/src/image_processing.rs', 'point_in_convex_quad, compute_white_balance_sample, sample_white_balance, mod white_balance_sample_tests', 'get_all_adjustments_from_json'],
+];
+
+// Merges in that range, each touching a file sharpening depends on:
+// [merge, file#symbol]. What each merges is in MERGES_165.
+const MERGED_SHARPENING_165 = [
+  ['55be8227', 'src-tauri/src/lib.rs#generate_transformed_preview'],
+  ['a1e2dda0', 'src-tauri/src/app_settings.rs#raw_preprocessing_sharpening'],
+  ['a96c0e7e', 'src-tauri/src/export_processing.rs#export_lut'],
+  ['a96c0e7e', 'src-tauri/src/lib.rs#generate_transformed_preview'],
+  ['c50001a8', 'src-tauri/src/export_processing.rs#export_lut'],
+  ['f513a4ee', 'src-tauri/src/app_settings.rs#raw_preprocessing_sharpening'],
+];
+
+const sharpening165 = [
+  ...UNREACHED_SHARPENING_165.map(([commit, file, where, symbol]) => review165(
+    commit,
+    `sharpening:${file}#${symbol}`,
+    'not-applicable',
+    `${DID_165[commit]} In ${file} it changes ${where}; no changed line names ${symbol}, and no hunk is labelled with it.`,
+  )),
+  ...MERGED_SHARPENING_165.map(([commit, target]) => review165(
+    commit,
+    `sharpening:${target}`,
+    'not-applicable',
+    `${MERGES_165.find(([c]) => c === commit)[1]}. It changes nothing of its own here; the work is reviewed in those commits.`,
+  )),
+  review165('28fa5120', 'sharpening:src-tauri/src/image_processing.rs#GlobalAdjustments', 'combine', 'Consolidates their white balance fields in GlobalAdjustments (wb_rgb_to_lms_matrix, wb_lms_to_rgb_matrix). ag_sharpen is appended after raw_tone_curve, past every field this touches; shader_check compares the layouts of the two sides.'),
+  review165('28fa5120', 'sharpening:src-tauri/src/shaders/shader.wgsl#GlobalAdjustments', 'combine', 'The same consolidation on the GPU side. AgSharpen is the last field, after it.'),
+  review165('9ba20c02', 'sharpening:src-tauri/src/image_processing.rs#GlobalAdjustments', 'combine', 'Replaces temperature and tint with log-LMS gains in GlobalAdjustments. ag_sharpen is at the end, after both, and the layout test checks that the two sides agree.'),
+  review165('9ba20c02', 'sharpening:src-tauri/src/shaders/shader.wgsl#GlobalAdjustments', 'combine', 'The same change on the GPU side; AgSharpen follows raw_tone_curve.'),
+  review165('1cc99d56', 'sharpening:src-tauri/src/shaders/shader.wgsl#absolute_coord', 'not-applicable', 'Adds a broad guided-filter sample at absolute_coord in main. It is still the pixel in the full image, which is where ag_stage_display reads the mask.'),
+  review165('66fa1600', 'sharpening:src-tauri/src/shaders/shader.wgsl#absolute_coord', 'not-applicable', 'The guided-filter samples read absolute_coord; its meaning is unchanged, and the mask view reads input_texture at the same pixel.'),
+  review165('66fa1600', 'sharpening:src-tauri/src/shaders/shader.wgsl#apply_sharpen', 'keep-ours', 'Rewrites apply_sharpen into the sharpener reviewed on 2026-10-10 and replaced: a radius from the short edge, the dark side of an edge cut to a tenth, a soft limit near the local range, diagonal smoothing, and fine taps read before noise reduction. It stays in their shader for old edits and for the local Sharpness of a mask; new edits are sharpened by RawTherapee capture sharpening and darktable sharpen, through the input stage.'),
+  review165('66fa1600', 'sharpening:src-tauri/src/gpu_processing.rs#process_and_get_dynamic_image_inner', 'combine', 'Builds guided-filter coefficients when the input texture is cached and passes them to run(). The input stage runs after that: their coefficients come from the unsharpened input while every pass of theirs reads the sharpened one, which is the order RawTherapee has - capture sharpening first, everything else on its result.'),
+  review165('078c90a8', 'sharpening:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', 'combine', 'Builds colour and luminance mask sources from the exported image, and with it changes the mask filter to visible && !sub_masks.is_empty(). That is the rule sharpen::local_amounts repeats on the JSON, so a mask\'s Sharpen lands on the mask their shader gives the same index.'),
+  review165('28fa5120', 'sharpening:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', 'not-applicable', 'Folds the section-visibility read into is_section_visible; the mask filter and order are unchanged. local_amounts reads a mask\'s sectionVisibility.details the same way, true when absent.'),
+  review165('9ba20c02', 'sharpening:src-tauri/src/image_processing.rs#get_all_adjustments_from_json', 'not-applicable', 'Passes the target white balance into each mask\'s adjustments; which masks are kept, and in what order, is unchanged.'),
+  review165('2f907e36', 'sharpening:src/components/adjustments/Details.tsx', 'not-applicable', 'Reads the section order from adjustmentLayout.toolOrder. The Sharpening section the marker sits in is unchanged.'),
+  review165('7514c8f6', 'sharpening:src/components/adjustments/Details.tsx', 'combine', 'Hides the Sharpening section through adjustmentLayout.hiddenTools. Hiding it hides the marker and our card with it, as hiding any section of theirs hides its controls; the settings still render.'),
+  review165('b4a9d1a3', 'sharpening:src/components/adjustments/Details.tsx', 'not-applicable', 'Reads hidden tools through getHiddenAdjustmentTools, whose defaults hide chromatic aberration and calibration. Sharpening is not hidden by default.'),
+  review165('cbca858f', 'sharpening:src/components/adjustments/Details.tsx', 'not-applicable', 'Container padding, p-2 to p-1. Nothing the marker or its CSS depends on.'),
+  review165('d94777fe', 'sharpening:src/components/adjustments/Details.tsx', 'combine', 'Turns each section into their collapsible AdjustmentSubSection. The marker is the first child of the Sharpening one, so our card folds with it and their sliders are its siblings, which is what sharpening.css hides.'),
+  review165('f4a4c8d0', 'sharpening:src/components/adjustments/Details.tsx', 'combine', 'Orders each section by toolOrder. The marker is inside Sharpening, so our card moves wherever the section is placed.'),
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
   ...merges165,
   ...reached165,
   ...hints165,
+  ...sharpening165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1198,9 +1339,10 @@ export const REVIEW_165_DECISIONS = [
 // reaching the AI panel and their radial Transformer, 33 for memory-release and
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
-// and 6 for my-gear writing a recovered lens through update_exif_fields (26.41.11).
-if (REVIEW_165_DECISIONS.length !== 1032) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1032 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
+// sharpening, 11 of them for a mask's own Sharpen (26.41.11).
+if (REVIEW_165_DECISIONS.length !== 1145) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1145 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

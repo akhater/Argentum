@@ -8,11 +8,12 @@
 //! So the button cycles rather than toggles: off, all channels, then red, green
 //! and blue on their own.
 //!
-//! Two more modes are not on that cycle because they are *held*, not chosen:
+//! Three more modes are not on that cycle because they are *held*, not chosen:
 //! Ctrl while dragging Whites or Blacks empties the picture to black or white
 //! and shows only what is being blown or crushed, which is how a white point
 //! and a black point are actually set. Lightroom does this with Alt; Alt and
-//! Shift on a slider here already mean fine adjustment, so it is Ctrl.
+//! Shift on a slider here already mean fine adjustment, so it is Ctrl. The
+//! third is the sharpening mask, held from the Sharpening card the same way.
 //!
 //! WHY NOT ONE VIEW WITH THE CHANNELS COLOUR-CODED
 //!
@@ -55,8 +56,14 @@ pub const WHITE_POINT: u32 = 5;
 /// Setting the black point: the picture goes white and only what is being
 /// crushed shows.
 pub const BLACK_POINT: u32 = 6;
-/// Every mode, including the two held ones.
-pub const LAST: u32 = 6;
+/// What sharpening touches: white where it sharpens, black where the contrast
+/// mask leaves the picture alone - RawTherapee's "show contrast mask". Held
+/// from the Sharpening card, never saved; see `mods/sharpen.rs`.
+pub const SHARPEN_MASK: u32 = 7;
+/// The same for the manual sharpen's mask, when it has its own.
+pub const SHARPEN_MASK_USM: u32 = 8;
+/// Every mode, including the held ones.
+pub const LAST: u32 = 8;
 
 /// Read the mode out of the adjustments the frontend sent.
 ///
@@ -108,6 +115,8 @@ mod tests {
     fn rubbish_lands_on_a_real_mode() {
         assert_eq!(mode(&json!({ "showClipping": 5 })), WHITE_POINT);
         assert_eq!(mode(&json!({ "showClipping": 6 })), BLACK_POINT);
+        assert_eq!(mode(&json!({ "showClipping": 7 })), SHARPEN_MASK);
+        assert_eq!(mode(&json!({ "showClipping": 8 })), SHARPEN_MASK_USM);
         assert_eq!(mode(&json!({ "showClipping": 99 })), OFF);
         assert_eq!(mode(&json!({ "showClipping": "yes" })), OFF);
     }

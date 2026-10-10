@@ -31,6 +31,12 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // pixels, and before the matrix, which multiplies whatever they are.
     super::canon_old_wb::fix(raw, file_bytes);
 
+    // How soft the sharpest edge is, for capture sharpening's auto radius.
+    // On the mosaic as the sensor wrote it: after the levels, which say what
+    // a value means, and before recovery rewrites the clipped photosites the
+    // measurement is careful to skip.
+    super::sharpen::record_raw(raw, photo_path);
+
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and
     // before anything reads a pixel as colour.

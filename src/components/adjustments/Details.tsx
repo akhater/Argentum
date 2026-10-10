@@ -37,6 +37,7 @@ export default function DetailsPanel({
           order={toolOrder.indexOf('sharpening')}
           title={t('adjustments.details.sharpening')}
         >
+          <div data-argentum="sharpening" data-mask={isForMask || undefined} />
           <Slider
             label={t('adjustments.details.sharpness')}
             max={100}

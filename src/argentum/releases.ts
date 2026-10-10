@@ -35,6 +35,13 @@ export const RELEASES: Release[] = [
     version: '26.41.11',
     date: '2026-10-10',
     notes: [
+      'New sharpening, in Details: capture sharpening for RAW photos from RawTherapee, which '
+      + 'undoes the slight blur of the lens and sensor, and a manual Sharpen from darktable.',
+      'An eye next to each one shows what it sharpens: white where it works, black where it leaves '
+      + 'the photo alone. One switch turns all of it off, to compare before and after.',
+      'Masks have their own Sharpen slider, which softens when you drag it below zero.',
+      'Judge sharpening at 100%: at fit-to-screen, capture sharpening is too fine to show.',
+      'RapidRAW\x27s Base Pre-Sharpening is set to 0 once, since capture sharpening replaces it.',
       'Lens correction finds your lens on CR3 files and every other format, not only CR2, and adds '
       + 'it to My Lenses. Photos that said "Lens profile not found" pick it up when you open them.',
     ],

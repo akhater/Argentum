@@ -33,6 +33,7 @@ const OURS = [
   'src-tauri/src/mods/',
   'src-tauri/src/shaders/modules.wgsl',
   'src-tauri/src/shaders/ag_display.wgsl',
+  'src-tauri/src/shaders/sharpen.wgsl',
   'src/argentum/',
   'scripts/',
   'docs/',

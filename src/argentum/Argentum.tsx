@@ -41,6 +41,8 @@ import WhiteBalanceUpgrade from './WhiteBalanceUpgrade';
 import AboutPanel from './AboutPanel';
 import ExportPrecision from './ExportPrecision';
 import RawSection from './RawSection';
+import Sharpening from './Sharpening';
+import LocalSharpening from './LocalSharpening';
 import MyGear from './MyGear';
 import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
@@ -155,6 +157,13 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // no state of ours and no polling.
   const exportPrecision = useAnchor('[data-argentum="export-precision"]');
 
+  // Inside their Sharpening section in Details, first: our sharpening takes
+  // the place of their two sliders there. The same marker in a mask's
+  // Details, flagged data-mask, takes a mask's own Sharpen in place of their
+  // local slider.
+  const sharpening = useAnchor('[data-argentum="sharpening"]:not([data-mask])');
+  const localSharpening = useAnchor('[data-argentum="sharpening"][data-mask]');
+
   return (
     <>
       {toolbar &&
@@ -171,6 +180,8 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {about && createPortal(<AboutPanel />, about)}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
       {cameraProfile && createPortal(<RawSection />, cameraProfile)}
+      {sharpening && createPortal(<Sharpening />, sharpening)}
+      {localSharpening && createPortal(<LocalSharpening />, localSharpening)}
       {gear && createPortal(<MyGear />, gear)}
       {general && (
         <>

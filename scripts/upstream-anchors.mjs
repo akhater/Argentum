@@ -61,9 +61,27 @@ export const ANCHORS = [
     // the bytes per pixel of the readback. A second hook here would mean some of
     // that decision had been written into their file instead of ours.
     file: 'src-tauri/src/gpu_processing.rs',
-    hooks: 1,
-    what: 'the import of Precision, which the processor carries and reads from',
-    instead: 'add a method to mods/export_precision.rs - the processor already has a Precision',
+    // Two since 2026-10-10, by AK's decision (DEC in the brain): the input
+    // stage. Precision decides how a render is *stored*; it was never the
+    // place for whole-image passes on the input, and routing sharpening
+    // through it would have hidden a second feature behind the first one's
+    // name. Every later multi-pass tool goes inside mods/input_stage.rs.
+    hooks: 2,
+    what:
+      'the import of Precision, which the processor carries and reads from; and the input stage, '
+      + 'one call to mods::input_stage::run before their passes',
+    instead:
+      'a storage decision goes in mods/export_precision.rs; a whole-image pass on the input goes '
+      + 'inside mods/input_stage.rs',
+    requires: [
+      {
+        // The use of the result mentions nothing of ours, so a merge that
+        // resolves it back to `&cache.texture_view` passes every other gate:
+        // sharpening would run, and nothing would read what it made.
+        pattern: /staged\.as_ref\(\)\.unwrap_or\(&cache\.texture_view\)/,
+        why: 'their render has to read what the input stage returns, or sharpening silently does nothing',
+      },
+    ],
   },
   {
     // Still one, and it stays one: a single `use crate::mods::{...}` block. The
@@ -222,6 +240,19 @@ export const ANCHORS = [
       + 'estimatedSize is useState inside their component and the debounced estimator '
       + 'is a useMemo beside it, so an effect dependency is the only way in. Any later '
       + 'control publishes into src/argentum/exportDepth.ts and rides the same one.',
+  },
+  {
+    // Taken 2026-10-10, from zero, by AK's decision: our sharpening replaces
+    // their two sliders inside their own Sharpening section, so it folds,
+    // hides and reorders with their Sections menu and keeps their title. A
+    // block slot in Details, as Color has one: the next Details control of
+    // ours (a denoiser) mounts beside it, not into a second marker.
+    file: 'src/components/adjustments/Details.tsx',
+    hooks: 1,
+    what:
+      'the data-argentum="sharpening" marker, first in their Sharpening section, flagged data-mask '
+      + 'in a mask, where a mask\'s own Sharpen mounts',
+    instead: 'portal into [data-argentum="sharpening"] from Argentum.tsx',
   },
   {
     file: 'src/components/panel/SettingsPanel.tsx',
