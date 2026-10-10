@@ -1493,7 +1493,8 @@ export const REGISTRY = [
       'src-tauri/src/mods/sharpen.rs #[cfg(test)]',
       'src-tauri/src/mods/sharpen_gpu.rs #[cfg(test)], and with --ignored on a GPU: deconvolution, '
         + 'darktable\'s formula, the mask, a mask\'s own Sharpen, regions, the whole render, and the '
-        + 'software adapter (WARP)',
+        + 'software adapter (WARP), and on OpenGL - including another thread using the GPU while '
+        + 'it runs, which crashed the app on GL before submissions were made small',
       'src-tauri/src/mods/shader_check.rs the_adjustments_have_the_same_layout_on_both_sides',
     ],
     keywords: /sharpen|sharpness|deconvol|unsharp|capture.?sharp|richardson|lucy|detail|halo/i,

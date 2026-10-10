@@ -23,6 +23,22 @@
 //! region of interest (zoomed in, mid-drag) only that region and a margin is
 //! sharpened; the rest is copied across untouched.
 //!
+//! ON OPENGL
+//!
+//! RapidRAW offers OpenGL as a processing backend, and falls back to it on
+//! its own after a crash during start-up. Two things differ there, both found
+//! on AK's machine on 2026-10-10:
+//!
+//! - A texture with one layer cannot be viewed as an array, so every layered
+//!   texture here has at least two (their mask array does the same).
+//! - The GL context is one lock for the whole device, and wgpu panics in any
+//!   thread that waits more than a second for it - "Could not lock adapter
+//!   context. This is most-likely a deadlock." A blocking poll holds it until
+//!   the GPU is done, so seconds of deconvolution queued at once meant the next
+//!   thread to want the context crashed, and with it their preview worker.
+//!   On GL the work goes in small submissions, each waited for without the
+//!   lock held (`wait_politely`), so nobody waits behind more than one.
+//!
 //! WHICH TEXTURE IT WRITES
 //!
 //! `Target::Kept` reuses one texture between calls. That is only safe where
@@ -31,7 +47,9 @@
 //! (the 16-bit export) asks for `Target::Fresh`, and gets a texture of its own
 //! that dies with the render.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use bytemuck::{Pod, Zeroable};
 
@@ -341,6 +359,8 @@ struct Pipelines {
 /// Everything the passes need, made once per device.
 struct Engine {
     device: Arc<wgpu::Device>,
+    /// OpenGL: small submissions, waited for without holding its context.
+    gl: bool,
     layout: wgpu::BindGroupLayout,
     pipelines: Pipelines,
     uniform: wgpu::Buffer,
@@ -483,6 +503,7 @@ impl Engine {
 
         Engine {
             device: Arc::clone(device),
+            gl: device.adapter_info().backend == wgpu::Backend::Gl,
             layout,
             pipelines,
             uniform: buffer(
@@ -502,10 +523,11 @@ impl Engine {
             no_masks: device
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some("Argentum Sharpen No Masks"),
+                    // Two: on OpenGL a one-layer texture is not an array.
                     size: wgpu::Extent3d {
                         width: 1,
                         height: 1,
-                        depth_or_array_layers: 1,
+                        depth_or_array_layers: 2,
                     },
                     mip_level_count: 1,
                     sample_count: 1,
@@ -543,6 +565,10 @@ impl Engine {
             data.extend_from_slice(bitmap.as_raw());
             amounts[k / 4][k % 4] = *amount;
         }
+        // Never one layer: on OpenGL that is a plain texture, not an array.
+        // The extra layer is blank and local_count never reaches it.
+        let depth = layers.len().max(2);
+        data.resize(depth * (job.width * job.height) as usize, 0);
         use wgpu::util::DeviceExt;
         let texture = self.device.create_texture_with_data(
             queue,
@@ -551,7 +577,7 @@ impl Engine {
                 size: wgpu::Extent3d {
                     width: job.width,
                     height: job.height,
-                    depth_or_array_layers: layers.len() as u32,
+                    depth_or_array_layers: depth as u32,
                 },
                 mip_level_count: 1,
                 sample_count: 1,
@@ -672,6 +698,9 @@ impl Engine {
                 );
             }
             queue.submit(Some(encoder.finish()));
+            if self.gl {
+                wait_politely(&self.device, queue);
+            }
         }
 
         let mut ty = ay0;
@@ -704,67 +733,99 @@ impl Engine {
 
     fn tile(&self, queue: &wgpu::Queue, bind_group: &wgpu::BindGroup, u: &Uniform, plan: &Plan) {
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(u));
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Argentum Sharpen Tile"),
-            });
-        encoder.clear_buffer(&self.stopped, 0, None);
-        encoder.clear_buffer(&self.counter, 0, None);
-        {
-            let groups = (u.ext_w.div_ceil(WORKGROUP), u.ext_h.div_ceil(WORKGROUP));
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Argentum Sharpen"),
-                timestamp_writes: None,
-            });
-            pass.set_bind_group(0, bind_group, &[]);
-            let mut run = |pipeline: &wgpu::ComputePipeline| {
-                pass.set_pipeline(pipeline);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
-            };
-            let p = &self.pipelines;
-            run(&p.prep);
-            if plan.flags & FLAG_MASK != 0 {
-                run(&p.mask_h);
-                run(&p.mask_v);
+        let whole = (u.ext_w.div_ceil(WORKGROUP), u.ext_h.div_ceil(WORKGROUP));
+        let one = (1, 1);
+        let p = &self.pipelines;
+
+        // The tile's work as steps, each a few dispatches. On Vulkan and DX12
+        // they all go in one submission; on OpenGL each step is its own.
+        let mut steps: Vec<Vec<(&wgpu::ComputePipeline, (u32, u32))>> = Vec::new();
+        let mut first = vec![(&p.prep, whole)];
+        if plan.flags & FLAG_MASK != 0 {
+            first.push((&p.mask_h, whole));
+            first.push((&p.mask_v, whole));
+        }
+        steps.push(first);
+        if plan.flags & FLAG_CAPTURE != 0 {
+            for _ in 0..plan.iterations {
+                steps.push(vec![
+                    (&p.tick, one),
+                    (&p.rl_blur_est_h, whole),
+                    (&p.rl_ratio_v, whole),
+                    (&p.rl_blur_ratio_h, whole),
+                    (&p.rl_update_v, whole),
+                ]);
             }
-            if plan.flags & FLAG_CAPTURE != 0 {
-                for _ in 0..plan.iterations {
-                    pass.set_pipeline(&p.tick);
-                    pass.dispatch_workgroups(1, 1, 1);
-                    pass.set_pipeline(&p.rl_blur_est_h);
-                    pass.dispatch_workgroups(groups.0, groups.1, 1);
-                    pass.set_pipeline(&p.rl_ratio_v);
-                    pass.dispatch_workgroups(groups.0, groups.1, 1);
-                    pass.set_pipeline(&p.rl_blur_ratio_h);
-                    pass.dispatch_workgroups(groups.0, groups.1, 1);
-                    pass.set_pipeline(&p.rl_update_v);
+            steps.push(vec![(&p.capture_mix, whole)]);
+        }
+        if plan.flags & FLAG_USM_MASK != 0 {
+            // Capture is done with its mask; the manual sharpen's replaces it.
+            steps.push(vec![
+                (&p.usm_mask_prep, whole),
+                (&p.mask_h, whole),
+                (&p.mask_v, whole),
+            ]);
+        }
+        if plan.flags & FLAG_USM != 0 {
+            steps.push(vec![
+                (&p.usm_prep, whole),
+                (&p.usm_h, whole),
+                (&p.usm_v, whole),
+            ]);
+        }
+        steps.push(vec![(&p.compose, whole)]);
+
+        let chunks: Vec<Vec<_>> = if self.gl {
+            steps
+        } else {
+            vec![steps.into_iter().flatten().collect()]
+        };
+        for (n, chunk) in chunks.iter().enumerate() {
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Argentum Sharpen Tile"),
+                });
+            if n == 0 {
+                encoder.clear_buffer(&self.stopped, 0, None);
+                encoder.clear_buffer(&self.counter, 0, None);
+            }
+            {
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Argentum Sharpen"),
+                    timestamp_writes: None,
+                });
+                pass.set_bind_group(0, bind_group, &[]);
+                for (pipeline, groups) in chunk {
+                    pass.set_pipeline(pipeline);
                     pass.dispatch_workgroups(groups.0, groups.1, 1);
                 }
-                pass.set_pipeline(&p.capture_mix);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
             }
-            if plan.flags & FLAG_USM_MASK != 0 {
-                // Capture is done with its mask; the manual sharpen's replaces it.
-                pass.set_pipeline(&p.usm_mask_prep);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
-                pass.set_pipeline(&p.mask_h);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
-                pass.set_pipeline(&p.mask_v);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
+            queue.submit(Some(encoder.finish()));
+            if self.gl {
+                wait_politely(&self.device, queue);
             }
-            if plan.flags & FLAG_USM != 0 {
-                pass.set_pipeline(&p.usm_prep);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
-                pass.set_pipeline(&p.usm_h);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
-                pass.set_pipeline(&p.usm_v);
-                pass.dispatch_workgroups(groups.0, groups.1, 1);
-            }
-            pass.set_pipeline(&p.compose);
-            pass.dispatch_workgroups(groups.0, groups.1, 1);
         }
-        queue.submit(Some(encoder.finish()));
+    }
+}
+
+/// Wait for everything submitted so far, without holding OpenGL's context.
+///
+/// A blocking poll on GL keeps the one context lock for as long as the GPU
+/// takes, and every other thread that wants it panics after a second. Asking
+/// for a callback and polling without blocking takes the lock only for a
+/// moment at a time. Gives up after thirty seconds rather than hang a render;
+/// the work is still queued, and their own wait picks it up.
+fn wait_politely(device: &wgpu::Device, queue: &wgpu::Queue) {
+    let done = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&done);
+    queue.on_submitted_work_done(move || flag.store(true, Ordering::Release));
+    let started = Instant::now();
+    while !done.load(Ordering::Acquire) && started.elapsed() < Duration::from_secs(30) {
+        let _ = device.poll(wgpu::PollType::Poll);
+        if !done.load(Ordering::Acquire) {
+            std::thread::sleep(Duration::from_micros(500));
+        }
     }
 }
 
@@ -1001,7 +1062,19 @@ mod tests {
     // ------------------------------------------------------------------
 
     fn device(fallback: bool) -> Option<GpuContext> {
-        let instance = wgpu::Instance::default();
+        device_on(wgpu::Instance::default(), fallback)
+    }
+
+    /// The OpenGL backend, as RapidRAW selects it: WGPU_BACKEND=gl.
+    fn gl_device() -> Option<GpuContext> {
+        let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        desc.backends = wgpu::Backends::GL;
+        let ctx = device_on(wgpu::Instance::new(desc), false)?;
+        assert_eq!(ctx.device.adapter_info().backend, wgpu::Backend::Gl);
+        Some(ctx)
+    }
+
+    fn device_on(instance: wgpu::Instance, fallback: bool) -> Option<GpuContext> {
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: fallback,
@@ -1371,6 +1444,106 @@ mod tests {
             "the edge should show white, showed {}",
             row[128]
         );
+    }
+
+    /// Everything the engine does, on OpenGL: deconvolution, a mask's own
+    /// Sharpen with a single mask (one layer, which GL cannot view as an
+    /// array unless padded), the mask view, and the whole render.
+    #[test]
+    #[ignore = "needs a GPU with OpenGL; run with --ignored"]
+    fn everything_runs_on_opengl() {
+        let ctx = gl_device().expect("no OpenGL adapter");
+        deconvolution_steepens_the_edge(&ctx);
+
+        let (w, h) = (128u32, 32u32);
+        let px = edge(w, h, 1.5);
+        let src = upload(&ctx, w, h, &px);
+        let mask = MaskBitmap::from_pixel(w, h, image::Luma([255]));
+        let mut local = [0.0; super::super::sharpen::MAX_LOCAL];
+        local[0] = 0.8;
+        let job = Job {
+            src: &src,
+            width: w,
+            height: h,
+            is_raw: true,
+            params: Params {
+                usm_radius: 2.0,
+                usm_threshold: 0.5,
+                local,
+                ..Params::default()
+            },
+            contrast: 0.0,
+            usm_contrast: 0.0,
+            px_scale: 1.0,
+            mask_view: MaskView::Off,
+            masks: std::slice::from_ref(&mask),
+            region: None,
+        };
+        let got = read(&ctx, &run(&ctx, &job, Target::Fresh).unwrap(), w, h);
+        let mid = (h / 2 * w) as usize;
+        assert!(steepest(&got[mid..mid + w as usize]) > steepest(&px[mid..mid + w as usize]) * 1.1);
+
+        let row = render(
+            &ctx,
+            serde_json::json!({ "agSharpen": { "autoContrast": false, "contrast": 10 } }),
+            crate::mods::clipping::SHARPEN_MASK,
+        );
+        assert!(row[20] < 0.02 && row[128] > 0.9, "the mask view on GL");
+    }
+
+    /// What crashed the app on AK's machine: another thread wanting the GL
+    /// context while sharpening ran. Their readback polls and waits, which
+    /// holds the context until the GPU is done; behind a whole photo's
+    /// deconvolution that was seconds, and wgpu panics after one.
+    #[test]
+    #[ignore = "needs a GPU with OpenGL; run with --ignored"]
+    fn opengl_survives_another_thread_using_the_gpu() {
+        let ctx = gl_device().expect("no OpenGL adapter");
+        // A 24 MP photo at 100%: on this machine about two seconds of
+        // deconvolution, twice what GL lets another thread wait.
+        let (w, h) = (6000u32, 4000u32);
+        let px = edge(w, h, 1.2);
+        let src = upload(&ctx, w, h, &px);
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let other = {
+            let ctx = ctx.clone();
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("the other thread"),
+                    size: 256,
+                    usage: wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                let mut rounds = 0;
+                while !stop.load(Ordering::Acquire) {
+                    ctx.queue.write_buffer(&buffer, 0, &[0u8; 256]);
+                    ctx.queue.submit(None);
+                    let _ = ctx.device.poll(wgpu::PollType::Wait {
+                        submission_index: None,
+                        timeout: Some(Duration::from_secs(60)),
+                    });
+                    rounds += 1;
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                rounds
+            })
+        };
+
+        let mut job = capture_job(&src, w, h, 0.0);
+        job.params.capture_iterations = 40;
+        let started = Instant::now();
+        let out = run(&ctx, &job, Target::Fresh).expect("work to do");
+        let _ = read(&ctx, &out, 16, 16);
+        eprintln!(
+            "sharpened {w}x{h}, 40 iterations, on GL in {:?}",
+            started.elapsed()
+        );
+
+        stop.store(true, Ordering::Release);
+        let rounds = other.join().expect("the other thread must not panic");
+        assert!(rounds > 0);
     }
 
     /// Where nothing is sharpened the picture comes back bit for bit.
