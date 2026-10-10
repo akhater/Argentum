@@ -118,7 +118,12 @@ fn stage(
         px_scale,
         full.as_deref().unwrap_or(base_image),
         transform_hash,
-        source_key(base_image, transform_hash),
+        (
+            source_key(base_image, transform_hash),
+            // The drag preview is a smaller copy of the same full picture.
+            full.as_deref()
+                .map_or(0, |full| source_key(full, transform_hash)),
+        ),
         Target::Kept,
     );
     // The transform cache matched, so this is the editor's render of the open
@@ -156,7 +161,7 @@ pub fn run_for_export(
             1.0,
             base_image,
             0,
-            0,
+            (0, 0),
             Target::Fresh,
         )
         .0
@@ -173,7 +178,7 @@ fn sharpening(
     px_scale: f32,
     measure_on: &DynamicImage,
     measure_key: u64,
-    source: u64,
+    (source, family): (u64, u64),
     target: Target,
 ) -> (Option<wgpu::TextureView>, Option<f32>) {
     let global = &request.adjustments.global;
@@ -194,6 +199,7 @@ fn sharpening(
             &Job {
                 src: input,
                 source: 0,
+                family: 0,
                 width,
                 height,
                 is_raw,
@@ -217,6 +223,7 @@ fn sharpening(
         &Job {
             src: input,
             source,
+            family,
             width,
             height,
             is_raw,

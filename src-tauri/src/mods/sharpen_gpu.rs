@@ -17,11 +17,18 @@
 //! WHEN IT RUNS
 //!
 //! Only when its inputs change. The result is kept with everything that went
-//! into it - the source texture itself, the settings, the scale, the region -
-//! and handed back as is while those match, so dragging Exposure costs nothing
-//! here. Dragging a sharpening slider recomputes, and while their render has a
-//! region of interest (zoomed in, mid-drag) only that region and a margin is
-//! sharpened; the rest is copied across untouched.
+//! into it - the picture, the settings, the scale - and handed back as is
+//! while those match, so dragging Exposure costs nothing here. Dragging a
+//! sharpening slider recomputes, and while their render has a region of
+//! interest (zoomed in, mid-drag) only that region and a margin is sharpened;
+//! the rest is copied across untouched.
+//!
+//! Zoomed in, the editor alternates between two pictures: a smaller copy of
+//! the photo while something moves, and the photo itself once it stops. Two
+//! results are kept, one of each, so neither undoes the other. And the kept
+//! result remembers which part of it is sharpened: panning sharpens only the
+//! strip that comes into view, not the whole view again every frame - which
+//! made dragging the photo around at 100% several times slower.
 //!
 //! ON OPENGL
 //!
@@ -37,7 +44,7 @@
 //!   the GPU is done, so seconds of deconvolution queued at once meant the next
 //!   thread to want the context crashed, and with it their preview worker.
 //!   On GL the work goes in small submissions, each waited for without the
-//!   lock held (`wait_politely`), so nobody waits behind more than one.
+//!   lock held for long (`wait_briefly`), so nobody waits behind more than one.
 //!
 //! WHICH TEXTURE IT WRITES
 //!
@@ -127,6 +134,9 @@ pub struct Job<'a> {
     /// number means the same picture whichever texture holds it. 0 is
     /// unknown, and is never reused.
     pub source: u64,
+    /// Which photo, at whatever size the render is: the drag preview and the
+    /// still one share it. Kept results of any other are dropped.
+    pub family: u64,
     pub width: u32,
     pub height: u32,
     pub is_raw: bool,
@@ -182,6 +192,49 @@ struct Plan {
     area: [u32; 4],
 }
 
+impl Plan {
+    /// The same work, wherever in the picture it is done.
+    fn same_work(&self, other: &Plan) -> bool {
+        Plan {
+            area: other.area,
+            ..*self
+        } == *other
+    }
+}
+
+/// What of `area` is not sharpened yet, given that `done` is, as at most four
+/// rectangles, and what is sharpened once they are. When taking `area` in
+/// would cost more than redoing it, `area` alone is done again: the result
+/// is correct either way, since everything outside `done` is the source as it
+/// was or sharpened with these same settings.
+fn missing(done: [u32; 4], area: [u32; 4]) -> (Vec<[u32; 4]>, [u32; 4]) {
+    let b = [
+        done[0].min(area[0]),
+        done[1].min(area[1]),
+        done[2].max(area[2]),
+        done[3].max(area[3]),
+    ];
+    let mut todo = Vec::new();
+    if b[1] < done[1] {
+        todo.push([b[0], b[1], b[2], done[1]]);
+    }
+    if done[3] < b[3] {
+        todo.push([b[0], done[3], b[2], b[3]]);
+    }
+    if b[0] < done[0] {
+        todo.push([b[0], done[1], done[0], done[3]]);
+    }
+    if done[2] < b[2] {
+        todo.push([done[2], done[1], b[2], done[3]]);
+    }
+    let size = |r: &[u32; 4]| u64::from(r[2] - r[0]) * u64::from(r[3] - r[1]);
+    if todo.iter().map(size).sum::<u64>() > size(&area) {
+        (vec![area], area)
+    } else {
+        (todo, b)
+    }
+}
+
 /// Whether anything would run - asked before the contrast threshold is
 /// measured, since that is a pass over the whole photo.
 pub fn needs_work(
@@ -229,14 +282,29 @@ fn local_layers<'a>(job: &'a Job) -> Vec<(&'a MaskBitmap, f32)> {
         .collect()
 }
 
+/// Every pixel of every such mask, read at close to memory speed. It runs on
+/// every render, kept or not, and SipHash over five masks of a 32 MP photo
+/// took a tenth of a second. Four lanes of multiply-rotate: each step is a
+/// bijection, so any one changed word changes the key.
 fn local_key(layers: &[(&MaskBitmap, f32)]) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut h = std::collections::hash_map::DefaultHasher::new();
+    const K: u64 = 0x517c_c1b7_2722_0a95;
+    let step = |h: u64, v: u64| (h.rotate_left(5) ^ v).wrapping_mul(K);
+    let mut lanes = [1u64, 2, 3, 4];
     for (bitmap, amount) in layers {
-        amount.to_bits().hash(&mut h);
-        bitmap.as_raw().hash(&mut h);
+        let raw = bitmap.as_raw();
+        lanes[0] = step(lanes[0], u64::from(amount.to_bits()));
+        lanes[1] = step(lanes[1], raw.len() as u64);
+        let (blocks, rest) = raw.as_chunks::<32>();
+        for block in blocks {
+            for (lane, word) in lanes.iter_mut().zip(block.as_chunks::<8>().0) {
+                *lane = step(*lane, u64::from_le_bytes(*word));
+            }
+        }
+        for &byte in rest {
+            lanes[0] = step(lanes[0], u64::from(byte));
+        }
     }
-    h.finish()
+    lanes.iter().fold(0, |h, &lane| step(h, lane))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -372,8 +440,16 @@ struct Engine {
     counter: wgpu::Buffer,
     /// Bound when no mask has a Sharpen of its own.
     no_masks: wgpu::TextureView,
-    kept: Option<Kept>,
+    /// Oldest first, at most `KEEP`.
+    kept: Vec<Kept>,
 }
+
+/// The drag preview, the still one, and the mask while it is on show.
+const KEEP: usize = 3;
+
+/// The masks with a Sharpen of their own as one texture, how many, and their
+/// amounts - kept with a result, so panning does not upload them again.
+type Local = (Option<wgpu::TextureView>, u32, [[f32; 4]; 8]);
 
 /// The last result, and what it was made from.
 ///
@@ -383,10 +459,15 @@ struct Engine {
 /// texture made each of those redo a whole photo's deconvolution, seconds at
 /// 100%. Holding no reference to their texture also lets it go when they do.
 struct Kept {
+    family: u64,
     source: u64,
     size: (u32, u32),
     is_raw: bool,
     plan: Plan,
+    /// The part of `view` that is sharpened; the rest is the source as it
+    /// was, or sharpened with the same settings earlier.
+    done: [u32; 4],
+    local: Local,
     view: wgpu::TextureView,
 }
 
@@ -549,18 +630,13 @@ impl Engine {
                     dimension: Some(wgpu::TextureViewDimension::D2Array),
                     ..Default::default()
                 }),
-            kept: None,
+            kept: Vec::new(),
         }
     }
 
     /// The masks with a Sharpen of their own, as one layered texture, and
     /// each one's amount in the order of its layer.
-    fn local_masks(
-        &self,
-        queue: &wgpu::Queue,
-        job: &Job,
-        plan: &Plan,
-    ) -> (Option<wgpu::TextureView>, u32, [[f32; 4]; 8]) {
+    fn local_masks(&self, queue: &wgpu::Queue, job: &Job, plan: &Plan) -> Local {
         let mut amounts = [[0.0f32; 4]; 8];
         if plan.flags & FLAG_USM == 0 {
             return (None, 0, amounts);
@@ -627,8 +703,22 @@ impl Engine {
         (texture, view)
     }
 
-    fn encode(&self, queue: &wgpu::Queue, job: &Job, plan: &Plan, dst: &wgpu::TextureView) {
-        let (masks, local_count, local_amount) = self.local_masks(queue, job, plan);
+    /// Sharpen `areas` of the picture into `dst`, after copying the whole
+    /// source across first when `fill` - when `dst` is new or holds other
+    /// settings' work, and not all of it is about to be sharpened.
+    #[allow(clippy::too_many_arguments)]
+    fn encode(
+        &self,
+        queue: &wgpu::Queue,
+        job: &Job,
+        plan: &Plan,
+        dst: &wgpu::TextureView,
+        local: &Local,
+        areas: &[[u32; 4]],
+        fill: bool,
+    ) {
+        let (masks, local_count, local_amount) = local;
+        let (local_count, local_amount) = (*local_count, *local_amount);
         let mut entries = vec![
             wgpu::BindGroupEntry {
                 binding: 0,
@@ -689,9 +779,7 @@ impl Engine {
             ..Default::default()
         };
 
-        let [ax0, ay0, ax1, ay1] = plan.area;
-        let whole = plan.area == [0, 0, job.width, job.height];
-        if !whole {
+        if fill {
             // Only part of the picture is sharpened: the rest has to be there,
             // unchanged, for their passes to read.
             queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&base));
@@ -712,32 +800,110 @@ impl Engine {
             }
         }
 
-        let mut ty = ay0;
-        while ty < ay1 {
-            let th = TILE.min(ay1 - ty);
-            let mut tx = ax0;
-            while tx < ax1 {
-                let tw = TILE.min(ax1 - tx);
-                let ex0 = tx.saturating_sub(BORDER);
-                let ey0 = ty.saturating_sub(BORDER);
-                let ex1 = (tx + tw + BORDER).min(job.width);
-                let ey1 = (ty + th + BORDER).min(job.height);
-                let uniform = Uniform {
-                    origin_x: ex0 as i32,
-                    origin_y: ey0 as i32,
-                    ext_w: ex1 - ex0,
-                    ext_h: ey1 - ey0,
-                    inner_x0: tx - ex0,
-                    inner_y0: ty - ey0,
-                    inner_w: tw,
-                    inner_h: th,
-                    ..base
-                };
-                self.tile(queue, &bind_group, &uniform, plan);
-                tx += TILE;
+        for &[ax0, ay0, ax1, ay1] in areas {
+            let mut ty = ay0;
+            while ty < ay1 {
+                let th = TILE.min(ay1 - ty);
+                let mut tx = ax0;
+                while tx < ax1 {
+                    let tw = TILE.min(ax1 - tx);
+                    let ex0 = tx.saturating_sub(BORDER);
+                    let ey0 = ty.saturating_sub(BORDER);
+                    let ex1 = (tx + tw + BORDER).min(job.width);
+                    let ey1 = (ty + th + BORDER).min(job.height);
+                    let uniform = Uniform {
+                        origin_x: ex0 as i32,
+                        origin_y: ey0 as i32,
+                        ext_w: ex1 - ex0,
+                        ext_h: ey1 - ey0,
+                        inner_x0: tx - ex0,
+                        inner_y0: ty - ey0,
+                        inner_w: tw,
+                        inner_h: th,
+                        ..base
+                    };
+                    self.tile(queue, &bind_group, &uniform, plan);
+                    tx += TILE;
+                }
+                ty += TILE;
             }
-            ty += TILE;
         }
+    }
+
+    /// `Target::Kept`: hand back a kept result, take in what panning brought
+    /// into view, or make a new one.
+    ///
+    /// A kept texture is never being read while this writes it: the caller
+    /// holds RapidRAW's processor lock for the whole render.
+    fn keep(&mut self, queue: &wgpu::Queue, job: &Job, plan: Plan) -> wgpu::TextureView {
+        // A mask on show is kept beside the sharpened result rather than in
+        // its place, so turning the eye off hands that back instead of
+        // redoing every iteration; the mask itself is a few passes, and goes
+        // as soon as it is off. Another photo's results go now, not when they
+        // would be evicted: each is a full-size texture.
+        let showing = |plan: &Plan| plan.flags & FLAG_MASK_VIEW != 0;
+        let on_show = showing(&plan);
+        self.kept
+            .retain(|k| k.family == job.family && (on_show || !showing(&k.plan)));
+        let size = (job.width, job.height);
+        let whole = plan.area == [0, 0, job.width, job.height];
+        let same_role = |k: &Kept| k.size == size && showing(&k.plan) == on_show;
+
+        let found = self.kept.iter().position(|k| {
+            job.source != 0 && k.source == job.source && k.is_raw == job.is_raw && same_role(k)
+        });
+        if let Some(i) = found {
+            let mut kept = self.kept.remove(i);
+            if kept.plan.same_work(&plan) {
+                let (todo, done) = missing(kept.done, plan.area);
+                if !todo.is_empty() {
+                    self.encode(queue, job, &plan, &kept.view, &kept.local, &todo, false);
+                }
+                kept.done = done;
+            } else {
+                kept.local = self.local_masks(queue, job, &plan);
+                self.encode(
+                    queue,
+                    job,
+                    &plan,
+                    &kept.view,
+                    &kept.local,
+                    &[plan.area],
+                    !whole,
+                );
+                kept.done = plan.area;
+            }
+            kept.plan = plan;
+            let view = kept.view.clone();
+            self.kept.push(kept);
+            return view;
+        }
+
+        // A picture not kept: it takes the place of an older version of
+        // itself - the same size and role - or of the oldest.
+        let reuse = match self.kept.iter().position(same_role) {
+            Some(i) => Some(self.kept.remove(i).view),
+            None => {
+                if self.kept.len() >= KEEP {
+                    self.kept.remove(0);
+                }
+                None
+            }
+        };
+        let view = reuse.unwrap_or_else(|| self.output(job.width, job.height).1);
+        let local = self.local_masks(queue, job, &plan);
+        self.encode(queue, job, &plan, &view, &local, &[plan.area], !whole);
+        self.kept.push(Kept {
+            family: job.family,
+            source: job.source,
+            size,
+            is_raw: job.is_raw,
+            plan,
+            done: plan.area,
+            local,
+            view: view.clone(),
+        });
+        view
     }
 
     fn tile(&self, queue: &wgpu::Queue, bind_group: &wgpu::BindGroup, u: &Uniform, plan: &Plan) {
@@ -858,9 +1024,9 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
     let mut slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
 
     let Some(plan) = plan(job) else {
-        // Nothing to sharpen: let go of the last result, a full-size texture.
+        // Nothing to sharpen: let go of what was kept, full-size textures.
         if let Some(engine) = slot.as_mut() {
-            engine.kept = None;
+            engine.kept.clear();
         }
         return None;
     };
@@ -874,35 +1040,25 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
     }
     let engine = slot.as_mut()?;
 
-    if matches!(target, Target::Kept)
-        && job.source != 0
-        && let Some(kept) = &engine.kept
-        && kept.source == job.source
-        && kept.size == (job.width, job.height)
-        && kept.is_raw == job.is_raw
-        && kept.plan == plan
-    {
-        return Some(kept.view.clone());
-    }
-
-    let (_texture, view) = match target {
-        // Reuse the kept texture when the size still fits; it is never being
-        // read while this runs, because the caller holds the processor lock.
-        Target::Kept => match engine.kept.take() {
-            Some(kept) if kept.size == (job.width, job.height) => (None, kept.view),
-            _ => {
-                let (t, v) = engine.output(job.width, job.height);
-                (Some(t), v)
-            }
-        },
+    let started = Instant::now();
+    let view = match target {
+        Target::Kept => engine.keep(&context.queue, job, plan),
         Target::Fresh => {
-            let (t, v) = engine.output(job.width, job.height);
-            (Some(t), v)
+            let (_texture, view) = engine.output(job.width, job.height);
+            let local = engine.local_masks(&context.queue, job, &plan);
+            let whole = plan.area == [0, 0, job.width, job.height];
+            engine.encode(
+                &context.queue,
+                job,
+                &plan,
+                &view,
+                &local,
+                &[plan.area],
+                !whole,
+            );
+            view
         }
     };
-
-    let started = std::time::Instant::now();
-    engine.encode(&context.queue, job, &plan, &view);
     log::debug!(
         "sharpen: {}x{} area {:?} flags {:#x} iterations {} encoded in {:?}",
         job.width,
@@ -912,16 +1068,6 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
         plan.iterations,
         started.elapsed()
     );
-
-    if matches!(target, Target::Kept) {
-        engine.kept = Some(Kept {
-            source: job.source,
-            size: (job.width, job.height),
-            is_raw: job.is_raw,
-            plan,
-            view: view.clone(),
-        });
-    }
     Some(view)
 }
 
@@ -996,6 +1142,27 @@ mod tests {
     #[test]
     fn nothing_on_means_no_work() {
         assert!(plan_at(&Params::default(), 1.0, MaskView::Off).is_none());
+    }
+
+    #[test]
+    fn panning_asks_only_for_what_came_into_view() {
+        let done = [0, 0, 100, 100];
+        assert_eq!(missing(done, [10, 10, 90, 90]), (vec![], done));
+        assert_eq!(
+            missing(done, [30, 0, 130, 100]),
+            (vec![[100, 0, 130, 100]], [0, 0, 130, 100])
+        );
+        // Diagonally: the strip below, then the one to the right.
+        assert_eq!(
+            missing(done, [30, 30, 130, 130]),
+            (
+                vec![[0, 100, 130, 130], [100, 0, 130, 100]],
+                [0, 0, 130, 130]
+            )
+        );
+        // Far away: filling the gap would cost more than the view itself.
+        let far = [500, 500, 600, 600];
+        assert_eq!(missing(done, far), (vec![far], far));
     }
 
     #[test]
@@ -1231,6 +1398,7 @@ mod tests {
         Job {
             src,
             source: 0,
+            family: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1305,6 +1473,7 @@ mod tests {
         let job = Job {
             src: &src,
             source: 0,
+            family: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1581,6 +1750,7 @@ mod tests {
                         &Job {
                             src: &input,
                             source: 0,
+                            family: 0,
                             width: w,
                             height: h,
                             is_raw: true,
@@ -1628,32 +1798,158 @@ mod tests {
         }
     }
 
-    /// How long capture sharpening takes on AK's photos at 100%, per backend.
+    /// Where an editor render's time goes: their render alone, the auto
+    /// contrast measurement, and sharpening the first time and once kept -
+    /// each waited for on the GPU, which their log line is not.
     #[test]
     #[ignore = "timing; run by hand"]
-    fn timing_at_100_percent() {
+    fn where_the_time_goes() {
+        let gpu_ms = |ctx: &GpuContext, started: Instant| {
+            let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
+            started.elapsed().as_secs_f32() * 1000.0
+        };
         for (name, backends) in [
-            ("Vulkan", wgpu::Backends::VULKAN),
+            ("DirectX 12", wgpu::Backends::DX12),
             ("OpenGL", wgpu::Backends::GL),
+            ("Vulkan", wgpu::Backends::VULKAN),
         ] {
             let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
             desc.backends = backends;
             let Some(ctx) = device_on(wgpu::Instance::new(desc), false) else {
                 continue;
             };
-            let (w, h) = (6960u32, 4640u32);
-            let px = edge(w, h, 1.0);
-            let src = upload(&ctx, w, h, &px);
-            let mut job = capture_job(&src, w, h, 0.1);
-            job.params.capture_radius = 0.7;
-            for round in 0..2 {
+            for (w, h) in [(3328u32, 2219u32), (6960, 4640)] {
+                // Texture everywhere, so the iteration check stops nothing early.
+                let base =
+                    image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_fn(w, h, |x, y| {
+                        let v = 0.2
+                            + 0.1 * ((x as f32 * 0.7).sin() * (y as f32 * 0.4).cos())
+                            + 0.05 * (((x * 7919 + y * 104729) % 97) as f32 / 97.0);
+                        image::Rgb([v, v * 0.9, v * 1.1])
+                    }));
+                let processor = crate::gpu_processing::GpuProcessor::new(
+                    ctx.clone(),
+                    (w + 255) & !255,
+                    (h + 255) & !255,
+                )
+                .expect("processor");
+                let texels = crate::gpu_processing::to_rgba_f16(&base);
+                use wgpu::util::DeviceExt;
+                let input = ctx
+                    .device
+                    .create_texture_with_data(
+                        &ctx.queue,
+                        &wgpu::TextureDescriptor {
+                            label: Some("Input Texture"),
+                            size: wgpu::Extent3d {
+                                width: w,
+                                height: h,
+                                depth_or_array_layers: 1,
+                            },
+                            mip_level_count: 1,
+                            sample_count: 1,
+                            dimension: wgpu::TextureDimension::D2,
+                            format: wgpu::TextureFormat::Rgba16Float,
+                            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                | wgpu::TextureUsages::COPY_DST,
+                            view_formats: &[],
+                        },
+                        wgpu::util::TextureDataOrder::MipMajor,
+                        bytemuck::cast_slice(&texels),
+                    )
+                    .create_view(&Default::default());
+                let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+                let adjustments = || {
+                    crate::image_processing::get_all_adjustments_from_json(
+                        &serde_json::json!({ "agSharpen": { "amount": 50 } }),
+                        true,
+                        crate::white_balance::WhiteBalance::reference(),
+                        None,
+                        None,
+                    )
+                };
+                let theirs = |staged: Option<&wgpu::TextureView>| {
+                    processor
+                        .run(
+                            staged.unwrap_or(&input),
+                            &gf,
+                            &dehaze,
+                            w,
+                            h,
+                            crate::gpu_processing::RenderRequest {
+                                adjustments: adjustments(),
+                                mask_bitmaps: &[],
+                                lut: None,
+                                roi: None,
+                            },
+                            // The editor's path: no readback.
+                            true,
+                        )
+                        .expect("renders");
+                };
+                let _ = gpu_ms(&ctx, Instant::now());
+                theirs(None);
                 let started = Instant::now();
-                let out = run(&ctx, &job, Target::Fresh).unwrap();
-                let _ = read(&ctx, &out, 16, 16);
+                theirs(None);
+                let alone = gpu_ms(&ctx, started);
+
+                let params = adjustments().global.ag_sharpen;
+                let started = Instant::now();
+                let t = super::super::sharpen::thresholds(&params, &base, 1, true);
+                let measure_cold = started.elapsed().as_secs_f32() * 1000.0;
+                let started = Instant::now();
+                let _ = super::super::sharpen::thresholds(&params, &base, 1, true);
+                let measure_warm = started.elapsed().as_secs_f32() * 1000.0;
+
+                let job = Job {
+                    src: &input,
+                    source: 7,
+                    family: 0,
+                    width: w,
+                    height: h,
+                    is_raw: true,
+                    params,
+                    contrast: t.capture,
+                    usm_contrast: t.usm,
+                    px_scale: 1.0,
+                    mask_view: MaskView::Off,
+                    masks: &[],
+                    region: None,
+                };
+                let mut sharpened = Vec::new();
+                for _ in 0..2 {
+                    let started = Instant::now();
+                    let staged = run(&ctx, &job, Target::Kept);
+                    theirs(staged.as_ref());
+                    sharpened.push(gpu_ms(&ctx, started));
+                }
+                let times = |job: &Job| {
+                    let started = Instant::now();
+                    let staged = run(&ctx, job, Target::Kept);
+                    theirs(staged.as_ref());
+                    gpu_ms(&ctx, started)
+                };
+                let mask_on = times(&Job {
+                    mask_view: MaskView::Capture,
+                    ..job
+                });
+                let mask_off = times(&job);
+                let view = |x| Job {
+                    region: Some([x, h / 4, w / 3, h / 3]),
+                    ..job
+                };
+                let _ = times(&view(w / 4));
+                let pan_step = times(&view(w / 4 + 40));
                 eprintln!(
-                    "{name}: 6960x4640, 20 iterations, round {round}: {:?}",
-                    started.elapsed()
+                    "{name} {w}x{h}: mask on {mask_on:.0} ms, off again {mask_off:.0} ms, a pan step {pan_step:.0} ms"
                 );
+                let plan = plan(&job).unwrap();
+                eprintln!(
+                    "{name} {w}x{h}: theirs {alone:.0} ms | measure {measure_cold:.0} then {measure_warm:.1} ms | \
+                     with sharpening {:.0} ms first, {:.0} ms kept (flags {:#x}, {} iterations)",
+                    sharpened[0], sharpened[1], plan.flags, plan.iterations
+                );
+                reset();
             }
         }
     }
@@ -1670,6 +1966,7 @@ mod tests {
         let job = Job {
             src: &src,
             source: 0,
+            family: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1765,6 +2062,7 @@ mod tests {
         let job = Job {
             src: &src,
             source: 0,
+            family: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1865,6 +2163,7 @@ mod tests {
         let job = Job {
             src: &src,
             source: 0,
+            family: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1909,6 +2208,7 @@ mod tests {
             let job = Job {
                 src: &src,
                 source: 0,
+                family: 0,
                 width: w,
                 height: h,
                 is_raw: true,
@@ -1952,6 +2252,97 @@ mod tests {
             steepest(&row(&softer, 8)) < original * 0.9,
             "a negative amount softens"
         );
+    }
+
+    fn textured(w: u32, h: u32) -> Vec<[f32; 4]> {
+        (0..h)
+            .flat_map(|y| {
+                (0..w).map(move |x| {
+                    let v = 0.3
+                        + 0.2 * ((x as f32 * 0.31).sin() * (y as f32 * 0.17).cos())
+                        + 0.1 * f32::from(u8::from((x / 37 + y / 23) % 2 == 0));
+                    [v, v, v, 1.0]
+                })
+            })
+            .collect()
+    }
+
+    /// Panning sharpens only the strips that come into view, and the result
+    /// is the one sharpening the whole picture gives.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored --test-threads=1"]
+    fn panning_matches_sharpening_it_all_at_once() {
+        let ctx = device(false).expect("no wgpu adapter");
+        let (w, h) = (2400u32, 1600u32);
+        let px = textured(w, h);
+        let src = upload(&ctx, w, h, &px);
+        let mut job = capture_job(&src, w, h, 0.0);
+        job.source = 5;
+        job.family = 5;
+        let mut last = None;
+        for x in [200, 260, 330, 900] {
+            job.region = Some([x, 300, 800, 600]);
+            last = run(&ctx, &job, Target::Kept);
+        }
+        {
+            let slot = ENGINE.lock().unwrap();
+            let kept = &slot.as_ref().unwrap().kept;
+            assert_eq!(kept.len(), 1);
+            // Margins of 160 around each view, all four taken in.
+            assert_eq!(kept[0].done, [40, 140, 1860, 1060]);
+        }
+        let panned = read(&ctx, &last.unwrap(), w, h);
+        job.region = None;
+        let whole = read(&ctx, &run(&ctx, &job, Target::Fresh).unwrap(), w, h);
+        let mut worst = 0.0f32;
+        for y in 300..900 {
+            for x in 200..1700 {
+                let i = (y * w + x) as usize;
+                worst = worst.max((panned[i][1] - whole[i][1]).abs());
+            }
+        }
+        eprintln!("largest difference from a whole render: {worst}");
+        assert!(worst < 2.0e-3, "panned result differs by {worst}");
+        reset();
+    }
+
+    /// Turning the mask view off hands back the sharpened result kept under
+    /// it, and the drag preview and the still one do not evict each other.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored --test-threads=1"]
+    fn the_mask_view_and_the_drag_preview_keep_the_result() {
+        let ctx = device(false).expect("no wgpu adapter");
+        let (w, h) = (512u32, 256u32);
+        let src = upload(&ctx, w, h, &textured(w, h));
+        let mut still = capture_job(&src, w, h, 0.1);
+        still.source = 7;
+        still.family = 7;
+        let sharpened = run(&ctx, &still, Target::Kept).unwrap();
+
+        let mut mask = capture_job(&src, w, h, 0.1);
+        mask.source = 7;
+        mask.family = 7;
+        mask.mask_view = MaskView::Capture;
+        let shown = run(&ctx, &mask, Target::Kept).unwrap();
+        assert!(shown != sharpened, "the mask got a texture of its own");
+        assert!(run(&ctx, &still, Target::Kept).unwrap() == sharpened);
+        assert_eq!(ENGINE.lock().unwrap().as_ref().unwrap().kept.len(), 1);
+
+        let (sw, sh) = (366u32, 183u32);
+        let small_src = upload(&ctx, sw, sh, &textured(sw, sh));
+        let mut drag = capture_job(&small_src, sw, sh, 0.1);
+        drag.source = 8;
+        drag.family = 7;
+        let dragged = run(&ctx, &drag, Target::Kept).unwrap();
+        assert!(run(&ctx, &still, Target::Kept).unwrap() == sharpened);
+        assert!(run(&ctx, &drag, Target::Kept).unwrap() == dragged);
+
+        // Another photo: everything of this one goes.
+        still.source = 9;
+        still.family = 9;
+        let _ = run(&ctx, &still, Target::Kept);
+        assert_eq!(ENGINE.lock().unwrap().as_ref().unwrap().kept.len(), 1);
+        reset();
     }
 
     #[test]
