@@ -101,6 +101,14 @@ const MILESTONES: Milestone[] = [
   },
   {
     stage: 'planned',
+    what: 'Auto picks the fastest graphics mode',
+    why:
+      'Auto takes Vulkan on Windows without measuring, and on some laptops that is '
+      + 'several times slower than OpenGL or DirectX. Time each one on this computer, '
+      + 'once, and use the fastest.',
+  },
+  {
+    stage: 'planned',
     what: 'Group by date, camera or lens',
     why:
       'The library is one flat list. You can sort it, filter it, and fold a RAW and '
