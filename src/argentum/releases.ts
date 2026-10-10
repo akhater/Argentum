@@ -32,16 +32,28 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.11',
+    date: '2026-10-10',
+    notes: [
+      'New sharpening, in Details: capture sharpening for RAW photos from RawTherapee, which ' +
+        'undoes the slight blur of the lens and sensor, and a manual Sharpen from darktable.',
+      'An eye next to each one shows what it sharpens: white where it works, black where it leaves ' +
+        'the photo alone. One switch turns all of it off, to compare before and after.',
+      'Masks have their own Sharpen slider, which softens when you drag it below zero.',
+      'Judge sharpening at 100%: at fit-to-screen, capture sharpening is too fine to show.',
+      'RapidRAW\x27s Base Pre-Sharpening is set to 0 once, since capture sharpening replaces it.',
+    ],
+  },
+  {
     version: '26.41.10',
     date: '2026-10-10',
     notes: [
-      'Uses far less memory with AI masks and the AI eraser: about 3-4 GB while the AI models are '
-      + 'loaded, where it used to sit at 8-12 GB, and they unload by themselves when you stop using '
-      + 'them - a minute for the eraser, five for masks.',
-      'The first AI mask after a five-minute break takes a few seconds longer while its models load '
-      + 'again.',
-      'An enlarged raw photo opens looking like the raw: the same white balance and tone. It used to '
-      + 'come out bluer, with heavier greens.',
+      'Uses far less memory with AI masks and the AI eraser: about 3-4 GB while the AI models are ' +
+        'loaded, where it used to sit at 8-12 GB, and they unload by themselves when you stop using ' +
+        'them - a minute for the eraser, five for masks.',
+      'The first AI mask after a five-minute break takes a few seconds longer while its models load ' + 'again.',
+      'An enlarged raw photo opens looking like the raw: the same white balance and tone. It used to ' +
+        'come out bluer, with heavier greens.',
       'Enlarging keeps your inpainting and your masks, moved onto the enlarged photo.',
     ],
   },
@@ -49,52 +61,51 @@ export const RELEASES: Release[] = [
     version: '26.41.9',
     date: '2026-10-09',
     notes: [
-      'Camera profile, RAW rendering and highlight recovery are together in one RAW section at the '
-      + 'top of the Color panel, which folds like the others.',
-      'Profile is a dropdown even before you have one: Built-in, your profiles, and Find one…, '
-      + 'which selects what it finds and goes back to Built-in when nothing is published.',
-      'The linear mask is two lines, marked 100% and 0%: drag from where the effect should be full '
-      + 'to where it should be gone. Drag a line to make the edge harder or softer.',
-      'The radial mask shows a second ellipse where its full effect ends, and it follows the '
-      + 'Feather slider.',
-      'Linear and radial masks fade out smoothly instead of stopping at a visible edge. Masks you '
-      + 'have already drawn look slightly softer.',
+      'Camera profile, RAW rendering and highlight recovery are together in one RAW section at the ' +
+        'top of the Color panel, which folds like the others.',
+      'Profile is a dropdown even before you have one: Built-in, your profiles, and Find one…, ' +
+        'which selects what it finds and goes back to Built-in when nothing is published.',
+      'The linear mask is two lines, marked 100% and 0%: drag from where the effect should be full ' +
+        'to where it should be gone. Drag a line to make the edge harder or softer.',
+      'The radial mask shows a second ellipse where its full effect ends, and it follows the ' + 'Feather slider.',
+      'Linear and radial masks fade out smoothly instead of stopping at a visible edge. Masks you ' +
+        'have already drawn look slightly softer.',
     ],
   },
   {
     version: '26.41.8',
     date: '2026-10-09',
     notes: [
-      'White balance presets, as in Lightroom: As Shot, Auto, Daylight, Cloudy, Shade, Tungsten, '
-      + 'Fluorescent and Flash, from the new Preset row at the top of White Balance. Auto lives '
-      + 'there now instead of the wand, and moving a slider shows Custom.',
+      'White balance presets, as in Lightroom: As Shot, Auto, Daylight, Cloudy, Shade, Tungsten, ' +
+        'Fluorescent and Flash, from the new Preset row at the top of White Balance. Auto lives ' +
+        'there now instead of the wand, and moving a slider shows Custom.',
     ],
   },
   {
     version: '26.41.7',
     date: '2026-10-09',
     notes: [
-      'Compact panels, in Settings > General: sliders on one line with a thin bar, and a '
-      + 'smaller tone curve, as Lightroom lays them out, so nearly three times as much of a '
-      + 'panel fits on screen. Row spacing sets how much room each slider gets.',
-      'The Subject mask is now called Object, Lightroom\'s name for it: you still draw a box '
-      + 'round the thing you want. Masks you already made are unchanged.',
+      'Compact panels, in Settings > General: sliders on one line with a thin bar, and a ' +
+        'smaller tone curve, as Lightroom lays them out, so nearly three times as much of a ' +
+        'panel fits on screen. Row spacing sets how much room each slider gets.',
+      "The Subject mask is now called Object, Lightroom's name for it: you still draw a box " +
+        'round the thing you want. Masks you already made are unchanged.',
     ],
   },
   {
     version: '26.41.6',
     date: '2026-10-07',
     notes: [
-      'Now built on RapidRAW 1.6.5: white balance in Kelvin, pick and reject flags, '
-      + 'borders and padding on export, panels you can reorder and fold, finer curves, '
-      + 'AI-Free mode, and Czech and Dutch.',
-      'White balance is RapidRAW\'s own now, and the Auto button still works on top of it. '
-      + 'Photos you already balanced keep their colour, and get back highlights the old '
-      + 'white balance was cutting off.',
-      'Shadows, Highlights, Whites, Clarity and Dehaze were rebuilt in RapidRAW, so photos '
-      + 'that use them can look a little different.',
-      'No RapidRAW Cloud: Argentum no longer contacts RapidRAW\'s sign-in service when it '
-      + 'starts, and the Cloud option is gone.',
+      'Now built on RapidRAW 1.6.5: white balance in Kelvin, pick and reject flags, ' +
+        'borders and padding on export, panels you can reorder and fold, finer curves, ' +
+        'AI-Free mode, and Czech and Dutch.',
+      "White balance is RapidRAW's own now, and the Auto button still works on top of it. " +
+        'Photos you already balanced keep their colour, and get back highlights the old ' +
+        'white balance was cutting off.',
+      'Shadows, Highlights, Whites, Clarity and Dehaze were rebuilt in RapidRAW, so photos ' +
+        'that use them can look a little different.',
+      "No RapidRAW Cloud: Argentum no longer contacts RapidRAW's sign-in service when it " +
+        'starts, and the Cloud option is gone.',
       'AI models moved to Settings > General, under Generative AI.',
     ],
   },
@@ -102,10 +113,9 @@ export const RELEASES: Release[] = [
     version: '26.41.5',
     date: '2026-10-07',
     notes: [
-      'The Object mask is gone: the Subject mask, where you draw a box round the thing, '
-      + 'selects it better. Masks you already made with it keep working.',
-      'Its edge model (about 100 MB) is deleted from your computer the next time '
-      + 'Argentum starts.',
+      'The Object mask is gone: the Subject mask, where you draw a box round the thing, ' +
+        'selects it better. Masks you already made with it keep working.',
+      'Its edge model (about 100 MB) is deleted from your computer the next time ' + 'Argentum starts.',
       'AI models moved to Settings > Processing, as a tab beside Processing Engine.',
     ],
   },
@@ -113,20 +123,20 @@ export const RELEASES: Release[] = [
     version: '26.41.4',
     date: '2026-10-06',
     notes: [
-      'New Object mask: paint roughly over something and the mask snaps to its '
-      + 'edges. Paint more to add to it, or hold Alt to leave part out.',
-      'Settings > About > AI models shows which AI models are on this computer, '
-      + 'how much space each takes, and lets you delete them.',
+      'New Object mask: paint roughly over something and the mask snaps to its ' +
+        'edges. Paint more to add to it, or hold Alt to leave part out.',
+      'Settings > About > AI models shows which AI models are on this computer, ' +
+        'how much space each takes, and lets you delete them.',
     ],
   },
   {
     version: '26.41.3',
     date: '2026-10-06',
     notes: [
-      'Enlarging a photo uses the graphics card on Windows: about 18 times faster '
-      + 'at 2x and 13 times at 4x. The first time, a small download (18 MB) is needed.',
-      'Enlarging works on the photo as you framed it, cropped and straightened, '
-      + 'not the whole frame, so a tight crop finishes in a fraction of the time.',
+      'Enlarging a photo uses the graphics card on Windows: about 18 times faster ' +
+        'at 2x and 13 times at 4x. The first time, a small download (18 MB) is needed.',
+      'Enlarging works on the photo as you framed it, cropped and straightened, ' +
+        'not the whole frame, so a tight crop finishes in a fraction of the time.',
       'Every enlargement also does about a fifth less work, with no visible difference.',
       'The Super Resolution window shows its before and after comparison.',
     ],
@@ -135,177 +145,170 @@ export const RELEASES: Release[] = [
     version: '26.41.2',
     date: '2026-10-05',
     notes: [
-      'Flipping Highlight Recovery now updates the photo you are looking at, '
-      + 'keeping your edits.',
-      'With Highlight Recovery on, a bright window no longer turns lavender when '
-      + 'you darken the photo.',
+      'Flipping Highlight Recovery now updates the photo you are looking at, ' + 'keeping your edits.',
+      'With Highlight Recovery on, a bright window no longer turns lavender when ' + 'you darken the photo.',
     ],
   },
   {
     version: '26.41.1',
     date: '2026-10-05',
     notes: [
-      'Overexposed areas such as a bright window are white again instead of '
-      + 'pink, with Highlight Recovery on or off. Thumbnails refresh once.',
-      'With Highlight Recovery on, blown areas no longer get a pink or cyan '
-      + 'outline where they meet the rest of the photo.',
+      'Overexposed areas such as a bright window are white again instead of ' +
+        'pink, with Highlight Recovery on or off. Thumbnails refresh once.',
+      'With Highlight Recovery on, blown areas no longer get a pink or cyan ' +
+        'outline where they meet the rest of the photo.',
     ],
   },
   {
     version: '26.39.2',
     date: '2026-09-23',
     notes: [
-      'Enlarge photos 2x or 4x with local AI super-resolution. The model '
-      + 'downloads the first time you use it.',
-      'Choose how RAW files are rendered: Default, Base Curve or Auto-Matched, '
-      + 'per photo, under the Tone Mapper in Basic.',
-      'Import remembers its options, can apply automatic edits, presets and lens '
-      + 'correction, and reads ratings, labels and keywords from XMP.',
-      'Brought up to date with RapidRAW 1.6.4: Vibrance, RGB curves, a neutral '
-      + 'grey canvas and a Quick Filter that stays where you left it.',
+      'Enlarge photos 2x or 4x with local AI super-resolution. The model ' + 'downloads the first time you use it.',
+      'Choose how RAW files are rendered: Default, Base Curve or Auto-Matched, ' +
+        'per photo, under the Tone Mapper in Basic.',
+      'Import remembers its options, can apply automatic edits, presets and lens ' +
+        'correction, and reads ratings, labels and keywords from XMP.',
+      'Brought up to date with RapidRAW 1.6.4: Vibrance, RGB curves, a neutral ' +
+        'grey canvas and a Quick Filter that stays where you left it.',
     ],
   },
   {
     version: '26.39.1',
     date: '2026-09-22',
     notes: [
-      'Custom LUTs can now be organized into named libraries. Create groups, '
-      + 'import into one, collapse them, and move, rename or delete them without '
-      + 'moving the LUT files your edits use.',
-      'Bright RAW detail is preserved further through editing instead of being '
-      + 'cut down early while noise reduction and sharpening run.',
+      'Custom LUTs can now be organized into named libraries. Create groups, ' +
+        'import into one, collapse them, and move, rename or delete them without ' +
+        'moving the LUT files your edits use.',
+      'Bright RAW detail is preserved further through editing instead of being ' +
+        'cut down early while noise reduction and sharpening run.',
     ],
   },
   {
     version: '26.38.3',
     date: '2026-09-17',
     notes: [
-      'Canon EOS C50 .CR3 photos now open properly. This fixes the unknown-camera '
-      + 'error reported in RapidRAW issue #1735: '
-      + 'https://github.com/CyberTimon/RapidRAW/issues/1735.',
-      'Canon 1D and 1Ds raw files stored as .TIF are now recognised as raw '
-      + 'photographs instead of opening the small preview buried in the file. '
-      + 'Ordinary TIFFs continue to open as ordinary TIFFs.',
+      'Canon EOS C50 .CR3 photos now open properly. This fixes the unknown-camera ' +
+        'error reported in RapidRAW issue #1735: ' +
+        'https://github.com/CyberTimon/RapidRAW/issues/1735.',
+      'Canon 1D and 1Ds raw files stored as .TIF are now recognised as raw ' +
+        'photographs instead of opening the small preview buried in the file. ' +
+        'Ordinary TIFFs continue to open as ordinary TIFFs.',
     ],
   },
   {
     version: '26.38.2',
     date: '2026-09-15',
     notes: [
-      'Photos from the original Canon EOS-1D and 1Ds open properly. They came out '
-      + 'heavily green, and no amount of white balance would pull them back, because '
-      + 'the camera\'s own white balance was never being read at all — those bodies '
-      + 'are from 2002 and keep it somewhere newer Canons do not.',
-      'Those cameras also named their raw files .TIF, years before .CR2 existed, and '
-      + 'Argentum was treating them as ordinary pictures. What you got was the small '
-      + 'preview buried in the file — a few hundred pixels across, opened as though it '
-      + 'were the photograph. A .TIF that is really a raw is now recognised as one.',
+      'Photos from the original Canon EOS-1D and 1Ds open properly. They came out ' +
+        'heavily green, and no amount of white balance would pull them back, because ' +
+        "the camera's own white balance was never being read at all — those bodies " +
+        'are from 2002 and keep it somewhere newer Canons do not.',
+      'Those cameras also named their raw files .TIF, years before .CR2 existed, and ' +
+        'Argentum was treating them as ordinary pictures. What you got was the small ' +
+        'preview buried in the file — a few hundred pixels across, opened as though it ' +
+        'were the photograph. A .TIF that is really a raw is now recognised as one.',
     ],
   },
   {
     version: '26.38.1',
     date: '2026-09-14',
     notes: [
-      'An exported TIFF now keeps the camera details: camera, lens, exposure, date '
-      + 'and copyright — and your location only if you leave that switch on. The '
-      + 'Keep metadata switch was ticked by default, not shown for TIFF, and did '
-      + 'nothing for it, so exactly the format you would hand to another editor was '
-      + 'the one that arrived with nothing attached.',
-      'You can now choose 8 or 16 bits when exporting a TIFF. Every TIFF was 16-bit '
-      + 'before, whether that was wanted or not. A file going to a client is a '
-      + 'delivery rather than a master, and 8 bits is the right size for it.',
-      'Hold Ctrl and drag on the photo to move its crop, or Ctrl and scroll to '
-      + 'resize it; Ctrl-double-click puts crop and rotation back. These work '
-      + 'outside crop mode too.',
+      'An exported TIFF now keeps the camera details: camera, lens, exposure, date ' +
+        'and copyright — and your location only if you leave that switch on. The ' +
+        'Keep metadata switch was ticked by default, not shown for TIFF, and did ' +
+        'nothing for it, so exactly the format you would hand to another editor was ' +
+        'the one that arrived with nothing attached.',
+      'You can now choose 8 or 16 bits when exporting a TIFF. Every TIFF was 16-bit ' +
+        'before, whether that was wanted or not. A file going to a client is a ' +
+        'delivery rather than a master, and 8 bits is the right size for it.',
+      'Hold Ctrl and drag on the photo to move its crop, or Ctrl and scroll to ' +
+        'resize it; Ctrl-double-click puts crop and rotation back. These work ' +
+        'outside crop mode too.',
     ],
   },
   {
     version: '26.37.20',
     date: '2026-09-13',
     notes: [
-      'Exporting a 16-bit TIFF now puts real high-precision data inside it. The file '
-      + 'said 16-bit before and the picture in it was 8-bit, which showed up the moment '
-      + 'you took it somewhere else and pushed it — skies and skin banding under a '
-      + 'curve that should have had room to move.',
-      'The rest of the export got the same treatment: a watermark no longer coarsens '
-      + 'the photograph underneath it, and the per-mask images saved alongside a TIFF '
-      + 'carry the same precision as the main file.',
+      'Exporting a 16-bit TIFF now puts real high-precision data inside it. The file ' +
+        'said 16-bit before and the picture in it was 8-bit, which showed up the moment ' +
+        'you took it somewhere else and pushed it — skies and skin banding under a ' +
+        'curve that should have had room to move.',
+      'The rest of the export got the same treatment: a watermark no longer coarsens ' +
+        'the photograph underneath it, and the per-mask images saved alongside a TIFF ' +
+        'carry the same precision as the main file.',
     ],
   },
   {
     version: '26.37.18',
     date: '2026-09-12',
     notes: [
-      'Fixed a case where the preview stopped converting colour for your screen and '
-      + 'stayed that way until the app was restarted — if the screen’s profile could '
-      + 'not be read for a moment, that answer was kept for good. It is retried now.',
-      'The screen conversion is Windows-only, and needs a monitor profile built from '
-      + 'primaries rather than a lookup table. That was always true and is now written '
-      + 'down under Known issues.',
+      'Fixed a case where the preview stopped converting colour for your screen and ' +
+        'stayed that way until the app was restarted — if the screen’s profile could ' +
+        'not be read for a moment, that answer was kept for good. It is retried now.',
+      'The screen conversion is Windows-only, and needs a monitor profile built from ' +
+        'primaries rather than a lookup table. That was always true and is now written ' +
+        'down under Known issues.',
     ],
   },
   {
     version: '26.37.17',
     date: '2026-09-11',
     notes: [
-      'Fixed the preview showing photos more saturated than they are. Argentum now '
-      + 'converts colour for the screen it is on, read from that display’s own '
-      + 'profile — so what you see matches what you export. On a normal sRGB screen '
-      + 'nothing changes; on a wide-gamut one, quite a lot does.',
-      'Added highlight recovery: when a bright area blows out in one colour channel, '
-      + 'it is rebuilt from the two that survived. On by default, under Color.',
-      'The clipping warning now steps through channels — off, L, R, G, B — and '
-      + 'holding Ctrl while dragging Whites or Blacks shows only what is about to clip.',
+      'Fixed the preview showing photos more saturated than they are. Argentum now ' +
+        'converts colour for the screen it is on, read from that display’s own ' +
+        'profile — so what you see matches what you export. On a normal sRGB screen ' +
+        'nothing changes; on a wide-gamut one, quite a lot does.',
+      'Added highlight recovery: when a bright area blows out in one colour channel, ' +
+        'it is rebuilt from the two that survived. On by default, under Color.',
+      'The clipping warning now steps through channels — off, L, R, G, B — and ' +
+        'holding Ctrl while dragging Whites or Blacks shows only what is about to clip.',
     ],
   },
   {
     version: '26.37.16',
     date: '2026-09-10',
     notes: [
-      'The clipping warning now steps through the channels — off, L, R, G, B. '
-      + 'Red is a blown highlight and blue is a crushed shadow in every mode; '
-      + 'only the channel being watched changes. If a highlight blows in one '
-      + 'channel it can usually be saved, and if it blows in all three it cannot.',
+      'The clipping warning now steps through the channels — off, L, R, G, B. ' +
+        'Red is a blown highlight and blue is a crushed shadow in every mode; ' +
+        'only the channel being watched changes. If a highlight blows in one ' +
+        'channel it can usually be saved, and if it blows in all three it cannot.',
     ],
   },
   {
     version: '26.37.13',
     date: '2026-09-10',
     notes: [
-      'Hover any name the layout has cut short — a file on a library card, a '
-      + 'folder, a preset — and the full text now appears.',
-      'Fixed "Find one" failing to reach RawTherapee on some networks, and it no '
-      + 'longer offers to fetch a profile you already have.',
-      'The roadmap now shows finished work last, with the release each one '
-      + 'shipped in.',
+      'Hover any name the layout has cut short — a file on a library card, a ' +
+        'folder, a preset — and the full text now appears.',
+      'Fixed "Find one" failing to reach RawTherapee on some networks, and it no ' +
+        'longer offers to fetch a profile you already have.',
+      'The roadmap now shows finished work last, with the release each one ' + 'shipped in.',
     ],
   },
   {
     version: '26.37.12',
     date: '2026-09-10',
     notes: [
-      'Added camera profiles. A profile describes how your particular camera '
-      + 'renders colour; pick one per photo under Color, or leave it on Built-in. '
-      + 'Argentum can fetch one for your camera, or you can import your own.',
-      'Added My Gear in Settings: the cameras you shoot with and the profiles you '
-      + 'keep for each. Both fill themselves in as you work.',
+      'Added camera profiles. A profile describes how your particular camera ' +
+        'renders colour; pick one per photo under Color, or leave it on Built-in. ' +
+        'Argentum can fetch one for your camera, or you can import your own.',
+      'Added My Gear in Settings: the cameras you shoot with and the profiles you ' +
+        'keep for each. Both fill themselves in as you work.',
     ],
   },
   {
     version: '26.37.11',
     date: '2026-09-10',
-    notes: [
-      'Added this About section — credits, the roadmap, what is currently broken, '
-      + 'and these notes.',
-    ],
+    notes: ['Added this About section — credits, the roadmap, what is currently broken, ' + 'and these notes.'],
   },
   {
     version: '26.37.10',
     date: '2026-09-09',
     notes: [
-      'Fixed a green cast and heavy shadows on Canon sRAW and mRAW photos. These '
-      + 'formats were being decoded wrongly, which darkened the picture and pushed '
-      + 'colour towards green. Brightness and colour now match darktable closely.',
+      'Fixed a green cast and heavy shadows on Canon sRAW and mRAW photos. These ' +
+        'formats were being decoded wrongly, which darkened the picture and pushed ' +
+        'colour towards green. Brightness and colour now match darktable closely.',
       'Shadow detail near black is no longer thrown away before editing starts.',
     ],
   },
@@ -313,35 +316,32 @@ export const RELEASES: Release[] = [
     version: '26.37.6',
     date: '2026-09-09',
     notes: [
-      'Lenses are now detected automatically on Canon bodies, so lens corrections '
-      + 'apply without picking the lens by hand.',
+      'Lenses are now detected automatically on Canon bodies, so lens corrections ' +
+        'apply without picking the lens by hand.',
       'Added a refresh button in the metadata panel for photos read before the fix.',
     ],
   },
   {
     version: '26.37.5',
     date: '2026-09-09',
-    notes: [
-      'Added an RGB readout, so a colour under the cursor can be checked rather '
-      + 'than guessed at.',
-    ],
+    notes: ['Added an RGB readout, so a colour under the cursor can be checked rather ' + 'than guessed at.'],
   },
   {
     version: '26.37.2',
     date: '2026-09-08',
     notes: [
-      'White balance rebuilt on real colour science, in Kelvin, replacing three '
-      + 'fixed multipliers. Neutral surfaces now come out neutral.',
-      'Added automatic white balance, and a picker that settles on one answer '
-      + 'however many times the same spot is clicked.',
+      'White balance rebuilt on real colour science, in Kelvin, replacing three ' +
+        'fixed multipliers. Neutral surfaces now come out neutral.',
+      'Added automatic white balance, and a picker that settles on one answer ' +
+        'however many times the same spot is clicked.',
     ],
   },
   {
     version: '26.37.1',
     date: '2026-09-08',
     notes: [
-      'First build. A fork of RapidRAW that renders identically to it — the '
-      + 'starting point everything since is measured against.',
+      'First build. A fork of RapidRAW that renders identically to it — the ' +
+        'starting point everything since is measured against.',
     ],
   },
 ];

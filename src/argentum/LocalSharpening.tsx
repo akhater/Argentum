@@ -40,7 +40,9 @@ export default function LocalSharpening() {
   const update = (patch: Record<string, unknown>) =>
     setAdjustments((prev: any) => ({
       ...prev,
-      masks: prev.masks.map((m: any) => (m.id === activeId ? { ...m, adjustments: { ...m.adjustments, ...patch } } : m)),
+      masks: prev.masks.map((m: any) =>
+        m.id === activeId ? { ...m, adjustments: { ...m.adjustments, ...patch } } : m,
+      ),
     }));
 
   return (

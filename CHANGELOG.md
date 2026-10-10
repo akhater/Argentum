@@ -4,6 +4,70 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
+## 26.41.11 — 2026-10-10
+
+### Added
+
+- **Sharpening, replacing RapidRAW's.** Theirs is a single unsharp mask with
+  nothing to show or decide where it works. One card at
+  the top of Details takes the place of their Sharpening section (one tag in
+  `Details.tsx`; `src/argentum/sharpening.css` hides what follows it), with a
+  switch for the whole thing, to compare before and after. Two stages:
+  - *Capture sharpening*, RAW only: RawTherapee
+    `rtengine/capturesharpening.cc` @ `c6d04960e14fed89e531cbbdf680021d131b4685`.
+    Richardson-Lucy deconvolution with a gaussian PSF, a corner boost and the
+    iteration check. **Auto radius** is RawTherapee's `calcRadiusBayer` /
+    `calcRadiusXtrans`, read from the RAW's own photosites at decode - on the
+    picture area only: the masked sensor border first gave 0.33 on every
+    photo.
+  - *Sharpen*: darktable `src/iop/sharpen.c` @ `39df8424e67b99c870fc346ea8f5f241a4620575`
+    and `data/kernels/sharpen.cl` @ `d94025f78bea50d3499e5032aa6ea6576160b842`.
+    An unsharp mask on L with a threshold, off until its Amount is raised; on
+    a JPEG it is the only stage.
+  - *Where it sharpens*: RawTherapee's contrast mask, `rtengine/rt_algo.cc` @
+    `1c2b3f33772eaf491b7bd4d66323ac36d13aa344` (`buildBlendMask`,
+    `calcContrastThreshold`), with its automatic threshold measured on the
+    photo's flattest tile. Sharpen can use capture's mask or its own.
+  - **An eye on each stage shows its mask**, white where it sharpens - the
+    question "what is this actually sharpening". It closes when its stage or
+    sharpening is switched off.
+  - **A mask's own Sharpen**, -100 to 100, on the same engine
+    (`src/argentum/LocalSharpening.tsx`), negative to soften.
+
+  Radii are in full-resolution pixels, so 100% shows what the export gets;
+  capture is skipped below a 0.25 px sigma, which is fit-to-screen on most
+  photos. It runs on the GPU before their shader, through one new anchor in
+  `gpu_processing.rs` (`mods/input_stage.rs`, `mods/sharpen_gpu.rs`,
+  `shaders/sharpen.wgsl`; settings in `mods/sharpen.rs`), in 1024 px tiles.
+  Exports are sharpened at full resolution; thumbnails and the LUT export
+  are not.
+
+  **What it costs**, measured on an Intel Arc 140T (`where_the_time_goes`):
+  0.6-0.9 s on a 32 MP photo at 100% when a sharpening setting changes, and
+  nothing otherwise - the result is kept per photo. Panning sharpens only the
+  strip that comes into view, and the mask eye, their thumbnails and the
+  smaller preview they draw while something moves no longer make it start
+  again. It holds about 0.3 GB of graphics memory for a 32 MP photo, more
+  while zoomed in or showing a mask; on a laptop without its own graphics
+  memory that is RAM.
+
+  It works on every backend RapidRAW offers - Vulkan, DirectX 12, its
+  software adapter and OpenGL - and the GPU tests run on each. OpenGL needed
+  two things: a texture array of at least two layers, and the work submitted
+  in pieces, because wgpu panics in any thread that waits a second for the
+  GL context, and the first version took the preview worker down with it. A
+  failure in this stage now skips sharpening for that frame and says why in
+  the log, rather than stopping the preview until a restart.
+
+### Changed
+
+- **RapidRAW's Base Pre-Sharpening goes to 0, once.** It sharpened every RAW
+  as it loaded, at 0.35, and capture sharpening would stack on top of it. Set
+  on the first start of this version (`retire_presharpening_once`, AK's
+  decision); turn it back up and it stays.
+- A photo edited with their old sharpening keeps it, and the card says so,
+  with a button to remove it.
+
 ## 26.41.10 — 2026-10-10
 
 ### Fixed

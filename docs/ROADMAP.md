@@ -179,6 +179,7 @@ explicit or safe conversion keeps that distinction manageable.
 
 | | What | Effort |
 |---|---|---|
+| ✅ | **Sharpening** - done in `26.41.11`, replacing RapidRAW's. RawTherapee's capture sharpening (Richardson-Lucy, auto radius from the RAW), darktable's sharpen, RawTherapee's contrast mask with an eye that shows it, and a Sharpen per mask, on the GPU through `mods/input_stage.rs` - the anchor the next whole-image tool here (denoise, diffuse) goes through rather than another line of theirs. Output sharpening after a resize is its own row, under Export | 2 days |
 | ⬜ | Diffuse effect for the editor | ~1 week |
 | ⬜ | Profiled denoise | ~1 week |
 | ⬜ | Local laplacian contrast | ~1 week |
