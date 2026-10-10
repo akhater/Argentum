@@ -118,6 +118,7 @@ fn stage(
         px_scale,
         full.as_deref().unwrap_or(base_image),
         transform_hash,
+        source_key(base_image, transform_hash),
         Target::Kept,
     );
     // The transform cache matched, so this is the editor's render of the open
@@ -155,6 +156,7 @@ pub fn run_for_export(
             1.0,
             base_image,
             0,
+            0,
             Target::Fresh,
         )
         .0
@@ -171,6 +173,7 @@ fn sharpening(
     px_scale: f32,
     measure_on: &DynamicImage,
     measure_key: u64,
+    source: u64,
     target: Target,
 ) -> (Option<wgpu::TextureView>, Option<f32>) {
     let global = &request.adjustments.global;
@@ -190,6 +193,7 @@ fn sharpening(
             context,
             &Job {
                 src: input,
+                source: 0,
                 width,
                 height,
                 is_raw,
@@ -212,6 +216,7 @@ fn sharpening(
         context,
         &Job {
             src: input,
+            source,
             width,
             height,
             is_raw,
@@ -226,6 +231,31 @@ fn sharpening(
         target,
     );
     (view, thresholds.measured)
+}
+
+/// Which picture a render is of, whichever texture of theirs holds it.
+///
+/// Their cache rebuilds the texture from the same image after every
+/// thumbnail render; the image is the same `Arc` throughout, at the same
+/// address. The address alone could be reused by a later image once this one
+/// is freed, so the transform, the size and a sample of the bytes go in too.
+fn source_key(image: &DynamicImage, transform_hash: u64) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let bytes = image.as_bytes();
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    transform_hash.hash(&mut h);
+    (
+        image.width(),
+        image.height(),
+        bytes.len(),
+        bytes.as_ptr() as usize,
+    )
+        .hash(&mut h);
+    let step = (bytes.len() / 4096).max(1);
+    for b in bytes.iter().step_by(step) {
+        b.hash(&mut h);
+    }
+    h.finish().max(1)
 }
 
 /// How many render pixels there are per full-resolution pixel, and the

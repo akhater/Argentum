@@ -47,7 +47,6 @@
 //! (the 16-bit export) asks for `Target::Fresh`, and gets a texture of its own
 //! that dies with the render.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -124,6 +123,10 @@ pub type MaskBitmap = image::ImageBuffer<image::Luma<u8>, Vec<u8>>;
 /// One request to sharpen a texture.
 pub struct Job<'a> {
     pub src: &'a wgpu::TextureView,
+    /// What the pixels in `src` are, as the caller knows them: the same
+    /// number means the same picture whichever texture holds it. 0 is
+    /// unknown, and is never reused.
+    pub source: u64,
     pub width: u32,
     pub height: u32,
     pub is_raw: bool,
@@ -373,8 +376,14 @@ struct Engine {
 }
 
 /// The last result, and what it was made from.
+///
+/// Keyed by the picture rather than by their texture. Their thumbnail
+/// renders replace the texture with one of their own and the preview builds
+/// it again from the same pixels, after every edit - and keying on the
+/// texture made each of those redo a whole photo's deconvolution, seconds at
+/// 100%. Holding no reference to their texture also lets it go when they do.
 struct Kept {
-    src: wgpu::TextureView,
+    source: u64,
     size: (u32, u32),
     is_raw: bool,
     plan: Plan,
@@ -697,9 +706,9 @@ impl Engine {
                     1,
                 );
             }
-            queue.submit(Some(encoder.finish()));
+            let index = queue.submit(Some(encoder.finish()));
             if self.gl {
-                wait_politely(&self.device, queue);
+                wait_briefly(&self.device, index);
             }
         }
 
@@ -775,8 +784,13 @@ impl Engine {
         }
         steps.push(vec![(&p.compose, whole)]);
 
+        // On GL a few steps at a time: twelve iterations of a tile is tens of
+        // milliseconds, well inside the second GL allows another thread.
         let chunks: Vec<Vec<_>> = if self.gl {
             steps
+                .chunks(12)
+                .map(|group| group.iter().flatten().copied().collect())
+                .collect()
         } else {
             vec![steps.into_iter().flatten().collect()]
         };
@@ -801,30 +815,34 @@ impl Engine {
                     pass.dispatch_workgroups(groups.0, groups.1, 1);
                 }
             }
-            queue.submit(Some(encoder.finish()));
+            let index = queue.submit(Some(encoder.finish()));
             if self.gl {
-                wait_politely(&self.device, queue);
+                wait_briefly(&self.device, index);
             }
         }
     }
 }
 
-/// Wait for everything submitted so far, without holding OpenGL's context.
+/// Wait for one submission on OpenGL without holding its context long.
 ///
-/// A blocking poll on GL keeps the one context lock for as long as the GPU
-/// takes, and every other thread that wants it panics after a second. Asking
-/// for a callback and polling without blocking takes the lock only for a
-/// moment at a time. Gives up after thirty seconds rather than hang a render;
-/// the work is still queued, and their own wait picks it up.
-fn wait_politely(device: &wgpu::Device, queue: &wgpu::Queue) {
-    let done = Arc::new(AtomicBool::new(false));
-    let flag = Arc::clone(&done);
-    queue.on_submitted_work_done(move || flag.store(true, Ordering::Release));
+/// A blocking poll on GL keeps the one context lock until the GPU is done,
+/// and every other thread that wants it panics after a second. So the wait
+/// is a series of short ones - a fifth of a second at most, after which the
+/// lock is let go and anyone waiting gets it - for a submission small enough
+/// that the first usually finishes it.
+///
+/// The first version polled without blocking and slept half a millisecond
+/// between polls. On Windows a sleep that short lasts up to a timer tick,
+/// 15 ms, and a 32 MP photo is hundreds of steps: seconds per render at 100%.
+fn wait_briefly(device: &wgpu::Device, index: wgpu::SubmissionIndex) {
     let started = Instant::now();
-    while !done.load(Ordering::Acquire) && started.elapsed() < Duration::from_secs(30) {
-        let _ = device.poll(wgpu::PollType::Poll);
-        if !done.load(Ordering::Acquire) {
-            std::thread::sleep(Duration::from_micros(500));
+    while started.elapsed() < Duration::from_secs(30) {
+        match device.poll(wgpu::PollType::Wait {
+            submission_index: Some(index.clone()),
+            timeout: Some(Duration::from_millis(200)),
+        }) {
+            Err(wgpu::PollError::Timeout) => continue,
+            _ => return,
         }
     }
 }
@@ -840,8 +858,7 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
     let mut slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
 
     let Some(plan) = plan(job) else {
-        // Nothing to sharpen: let go of the last result, which is a
-        // full-size texture, and of the input it was holding on to.
+        // Nothing to sharpen: let go of the last result, a full-size texture.
         if let Some(engine) = slot.as_mut() {
             engine.kept = None;
         }
@@ -858,8 +875,9 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
     let engine = slot.as_mut()?;
 
     if matches!(target, Target::Kept)
+        && job.source != 0
         && let Some(kept) = &engine.kept
-        && kept.src == *job.src
+        && kept.source == job.source
         && kept.size == (job.width, job.height)
         && kept.is_raw == job.is_raw
         && kept.plan == plan
@@ -897,7 +915,7 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
 
     if matches!(target, Target::Kept) {
         engine.kept = Some(Kept {
-            src: job.src.clone(),
+            source: job.source,
             size: (job.width, job.height),
             is_raw: job.is_raw,
             plan,
@@ -910,6 +928,7 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     fn defaults() -> Params {
         super::super::sharpen::from_json(&serde_json::json!({}), true, None)
@@ -1211,6 +1230,7 @@ mod tests {
         params.flags &= !FLAG_ITER_CHECK;
         Job {
             src,
+            source: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1284,6 +1304,7 @@ mod tests {
         };
         let job = Job {
             src: &src,
+            source: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1481,6 +1502,162 @@ mod tests {
         assert!(!ran.is_empty());
     }
 
+    /// AK's 100% view of an R6 Mark III photo with three masks, through their
+    /// own processor the way their preview builds it, with and without
+    /// sharpening: every GPU error, and how much is allocated.
+    #[test]
+    #[ignore = "needs a GPU and ~3 GB; run with --ignored"]
+    fn a_full_size_preview_with_masks() {
+        for (name, backends) in [
+            ("Vulkan", wgpu::Backends::VULKAN),
+            ("DirectX 12", wgpu::Backends::DX12),
+        ] {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+            desc.backends = backends;
+            let Some(ctx) = device_on(wgpu::Instance::new(desc), false) else {
+                continue;
+            };
+            let errors = Arc::new(Mutex::new(Vec::<String>::new()));
+            {
+                let errors = Arc::clone(&errors);
+                ctx.device
+                    .on_uncaptured_error(Arc::new(move |e: wgpu::Error| {
+                        errors.lock().unwrap().push(e.to_string());
+                    }));
+            }
+            let (w, h) = (4640u32, 6960u32);
+            let base =
+                image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_fn(w, h, |x, _| {
+                    let v = if x < w / 2 { 0.05 } else { 0.4 };
+                    image::Rgb([v, v, v])
+                }));
+            let masks: Vec<MaskBitmap> = (0..3)
+                .map(|i| MaskBitmap::from_pixel(w, h, image::Luma([60 * (i + 1)])))
+                .collect();
+
+            for sharpen in [false, true] {
+                let processor = crate::gpu_processing::GpuProcessor::new(
+                    ctx.clone(),
+                    (w + 255) & !255,
+                    (h + 255) & !255,
+                )
+                .expect("processor");
+                let texels = crate::gpu_processing::to_rgba_f16(&base);
+                use wgpu::util::DeviceExt;
+                let input = ctx
+                    .device
+                    .create_texture_with_data(
+                        &ctx.queue,
+                        &wgpu::TextureDescriptor {
+                            label: Some("Input Texture"),
+                            size: wgpu::Extent3d {
+                                width: w,
+                                height: h,
+                                depth_or_array_layers: 1,
+                            },
+                            mip_level_count: 1,
+                            sample_count: 1,
+                            dimension: wgpu::TextureDimension::D2,
+                            format: wgpu::TextureFormat::Rgba16Float,
+                            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                | wgpu::TextureUsages::COPY_DST,
+                            view_formats: &[],
+                        },
+                        wgpu::util::TextureDataOrder::MipMajor,
+                        bytemuck::cast_slice(&texels),
+                    )
+                    .create_view(&Default::default());
+                let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+                let adjustments = crate::image_processing::get_all_adjustments_from_json(
+                    &serde_json::json!({}),
+                    true,
+                    crate::white_balance::WhiteBalance::reference(),
+                    None,
+                    None,
+                );
+                let staged = sharpen.then(|| {
+                    run(
+                        &ctx,
+                        &Job {
+                            src: &input,
+                            source: 0,
+                            width: w,
+                            height: h,
+                            is_raw: true,
+                            params: adjustments.global.ag_sharpen,
+                            contrast: 0.1,
+                            usm_contrast: 0.1,
+                            px_scale: 1.0,
+                            mask_view: MaskView::Off,
+                            masks: &masks,
+                            region: None,
+                        },
+                        Target::Kept,
+                    )
+                    .expect("capture runs at 1:1")
+                });
+                let request = crate::gpu_processing::RenderRequest {
+                    adjustments,
+                    mask_bitmaps: &masks,
+                    lut: None,
+                    roi: None,
+                };
+                let out = processor.run(
+                    staged.as_ref().unwrap_or(&input),
+                    &gf,
+                    &dehaze,
+                    w,
+                    h,
+                    request,
+                    false,
+                );
+                let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
+                let report = ctx.device.generate_allocator_report();
+                eprintln!(
+                    "{name}, sharpening {}: {} - GPU allocated {:?} MB, errors: {:?}",
+                    if sharpen { "on" } else { "off" },
+                    if out.is_ok() { "rendered" } else { "FAILED" },
+                    report.map(|r| r.total_allocated_bytes / 1_000_000),
+                    errors.lock().unwrap()
+                );
+                assert!(out.is_ok());
+                assert!(errors.lock().unwrap().is_empty(), "{name}: GPU errors");
+                drop(staged);
+                reset();
+            }
+        }
+    }
+
+    /// How long capture sharpening takes on AK's photos at 100%, per backend.
+    #[test]
+    #[ignore = "timing; run by hand"]
+    fn timing_at_100_percent() {
+        for (name, backends) in [
+            ("Vulkan", wgpu::Backends::VULKAN),
+            ("OpenGL", wgpu::Backends::GL),
+        ] {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+            desc.backends = backends;
+            let Some(ctx) = device_on(wgpu::Instance::new(desc), false) else {
+                continue;
+            };
+            let (w, h) = (6960u32, 4640u32);
+            let px = edge(w, h, 1.0);
+            let src = upload(&ctx, w, h, &px);
+            let mut job = capture_job(&src, w, h, 0.1);
+            job.params.capture_radius = 0.7;
+            for round in 0..2 {
+                let started = Instant::now();
+                let out = run(&ctx, &job, Target::Fresh).unwrap();
+                let _ = read(&ctx, &out, 16, 16);
+                eprintln!(
+                    "{name}: 6960x4640, 20 iterations, round {round}: {:?}",
+                    started.elapsed()
+                );
+            }
+        }
+    }
+
     fn all_checks(ctx: &GpuContext) {
         deconvolution_steepens_the_edge(ctx);
 
@@ -1492,6 +1669,7 @@ mod tests {
         local[0] = 0.8;
         let job = Job {
             src: &src,
+            source: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1586,6 +1764,7 @@ mod tests {
         local[0] = 0.8;
         let job = Job {
             src: &src,
+            source: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1685,6 +1864,7 @@ mod tests {
         };
         let job = Job {
             src: &src,
+            source: 0,
             width: w,
             height: h,
             is_raw: true,
@@ -1728,6 +1908,7 @@ mod tests {
             };
             let job = Job {
                 src: &src,
+                source: 0,
                 width: w,
                 height: h,
                 is_raw: true,
