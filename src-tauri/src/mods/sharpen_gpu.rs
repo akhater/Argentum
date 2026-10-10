@@ -1446,6 +1446,129 @@ mod tests {
         );
     }
 
+    /// Every backend RapidRAW's Settings offers that this machine has -
+    /// Vulkan, DirectX 12 (hardware, and WARP, which is what DirectX gives a
+    /// machine with no graphics card) and OpenGL - through the same checks:
+    /// deconvolution, a single mask's own Sharpen, the mask view through the
+    /// whole render, and a second thread on the GPU meanwhile. Metal is the
+    /// fifth option and exists only on a Mac.
+    #[test]
+    #[ignore = "needs GPUs; run with --ignored"]
+    fn every_backend_we_offer() {
+        let on = |backends: wgpu::Backends, fallback: bool| {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+            desc.backends = backends;
+            device_on(wgpu::Instance::new(desc), fallback)
+        };
+        let candidates = [
+            ("Vulkan", on(wgpu::Backends::VULKAN, false)),
+            ("DirectX 12", on(wgpu::Backends::DX12, false)),
+            ("DirectX 12 WARP", on(wgpu::Backends::DX12, true)),
+            ("OpenGL", on(wgpu::Backends::GL, false)),
+        ];
+        let mut ran = Vec::new();
+        for (name, ctx) in candidates {
+            let Some(ctx) = ctx else {
+                eprintln!("{name}: not on this machine");
+                continue;
+            };
+            let info = ctx.device.adapter_info();
+            eprintln!("{name}: {} ({:?})", info.name, info.backend);
+            all_checks(&ctx);
+            ran.push(name);
+        }
+        eprintln!("passed on: {}", ran.join(", "));
+        assert!(!ran.is_empty());
+    }
+
+    fn all_checks(ctx: &GpuContext) {
+        deconvolution_steepens_the_edge(ctx);
+
+        let (w, h) = (128u32, 32u32);
+        let px = edge(w, h, 1.5);
+        let src = upload(ctx, w, h, &px);
+        let mask = MaskBitmap::from_pixel(w, h, image::Luma([255]));
+        let mut local = [0.0; super::super::sharpen::MAX_LOCAL];
+        local[0] = 0.8;
+        let job = Job {
+            src: &src,
+            width: w,
+            height: h,
+            is_raw: true,
+            params: Params {
+                usm_radius: 2.0,
+                usm_threshold: 0.5,
+                local,
+                ..Params::default()
+            },
+            contrast: 0.0,
+            usm_contrast: 0.0,
+            px_scale: 1.0,
+            mask_view: MaskView::Off,
+            masks: std::slice::from_ref(&mask),
+            region: None,
+        };
+        let got = read(ctx, &run(ctx, &job, Target::Fresh).unwrap(), w, h);
+        let mid = (h / 2 * w) as usize;
+        assert!(
+            steepest(&got[mid..mid + w as usize]) > steepest(&px[mid..mid + w as usize]) * 1.1,
+            "a mask's own Sharpen"
+        );
+
+        let off = render(
+            ctx,
+            serde_json::json!({ "agSharpen": { "capture": false } }),
+            0,
+        );
+        let on = render(
+            ctx,
+            serde_json::json!({ "agSharpen": { "autoRadius": false, "radius": 1.2, "autoContrast": false, "contrast": 0 } }),
+            0,
+        );
+        let steep = |row: &[f32]| {
+            row.windows(2)
+                .map(|p| (p[1] - p[0]).abs())
+                .fold(0.0, f32::max)
+        };
+        assert!(
+            steep(&on) > steep(&off) * 1.15,
+            "the whole render comes out sharper"
+        );
+        let row = render(
+            ctx,
+            serde_json::json!({ "agSharpen": { "autoContrast": false, "contrast": 10 } }),
+            crate::mods::clipping::SHARPEN_MASK,
+        );
+        assert!(
+            row[20] < 0.02 && row[128] > 0.9,
+            "the mask view through the whole render"
+        );
+
+        // Another thread on the GPU while a photo-sized job runs.
+        let (w, h) = (3000u32, 2000u32);
+        let px = edge(w, h, 1.2);
+        let src = upload(ctx, w, h, &px);
+        let stop = Arc::new(AtomicBool::new(false));
+        let other = {
+            let ctx = ctx.clone();
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Acquire) {
+                    ctx.queue.submit(None);
+                    let _ = ctx.device.poll(wgpu::PollType::Wait {
+                        submission_index: None,
+                        timeout: Some(Duration::from_secs(60)),
+                    });
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            })
+        };
+        let job = capture_job(&src, w, h, 0.0);
+        let _ = read(ctx, &run(ctx, &job, Target::Fresh).unwrap(), 16, 16);
+        stop.store(true, Ordering::Release);
+        other.join().expect("the other thread must not panic");
+    }
+
     /// Everything the engine does, on OpenGL: deconvolution, a mask's own
     /// Sharpen with a single mask (one layer, which GL cannot view as an
     /// array unless padded), the mask view, and the whole render.
