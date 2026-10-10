@@ -68,6 +68,9 @@ const MAX_AUTO_RADIUS: f32 = 2.0;
 
 pub const FLAG_AUTO_CONTRAST: u32 = 1;
 pub const FLAG_ITER_CHECK: u32 = 2;
+/// The manual sharpen has a mask of its own rather than capture's.
+pub const FLAG_USM_OWN_MASK: u32 = 4;
+pub const FLAG_USM_AUTO_CONTRAST: u32 = 8;
 
 /// What one photo asks for, resolved, in the layout the GPU struct carries.
 ///
@@ -98,7 +101,9 @@ pub struct Params {
     /// RawTherapee's contrast threshold, 0..200. 0 sharpens everywhere.
     pub contrast: f32,
     pub flags: u32,
-    pub _pad: [u32; 3],
+    /// The same, for the manual sharpen's own mask when it has one.
+    pub usm_contrast: f32,
+    pub _pad: [u32; 2],
 }
 
 impl Params {
@@ -112,6 +117,14 @@ impl Params {
 
     pub fn auto_contrast(&self) -> bool {
         self.flags & FLAG_AUTO_CONTRAST != 0
+    }
+
+    pub fn usm_own_mask(&self) -> bool {
+        self.flags & FLAG_USM_OWN_MASK != 0
+    }
+
+    pub fn usm_auto_contrast(&self) -> bool {
+        self.flags & FLAG_USM_AUTO_CONTRAST != 0
     }
 }
 
@@ -135,19 +148,19 @@ fn flag(section: &Value, key: &str, default: bool) -> bool {
 /// cache hash, so writing defaults into every photo would rebuild the library
 /// for nothing. Absent means the defaults below, which the frontend shows.
 ///
-/// Turning off RapidRAW's Details section (their eye on the panel) turns this
-/// off, as it does their own sharpening.
+/// The card's own switch turns all of it off, and so does turning off
+/// RapidRAW's Details section (their eye on the panel), as it does their own
+/// sharpening.
 pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
     let details_visible = js
         .get("sectionVisibility")
         .and_then(|v| v.get("details"))
         .and_then(Value::as_bool)
         .unwrap_or(true);
-    if !details_visible {
+    let s = js.get("agSharpen").cloned().unwrap_or(Value::Null);
+    if !details_visible || !flag(&s, "enabled", true) {
         return Params::default();
     }
-
-    let s = js.get("agSharpen").cloned().unwrap_or(Value::Null);
 
     // RAW only, as in RawTherapee: a JPEG has already been sharpened by the
     // camera, and there is no RAW to read the radius from.
@@ -165,6 +178,14 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
     if flag(&s, "iterCheck", true) {
         flags |= FLAG_ITER_CHECK;
     }
+    // The manual sharpen follows capture's mask unless it was given its own.
+    // A JPEG has no capture sharpening, so its mask is always its own.
+    if !is_raw || flag(&s, "usmOwnMask", false) {
+        flags |= FLAG_USM_OWN_MASK;
+        if flag(&s, "usmAutoContrast", true) {
+            flags |= FLAG_USM_AUTO_CONTRAST;
+        }
+    }
 
     Params {
         capture_amount: if capture {
@@ -181,7 +202,8 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
         usm_threshold: number(&s, "threshold", DEFAULT_USM_THRESHOLD).clamp(0.0, 100.0),
         contrast: number(&s, "contrast", DEFAULT_CONTRAST).clamp(0.0, 200.0),
         flags,
-        _pad: [0; 3],
+        usm_contrast: number(&s, "usmContrast", DEFAULT_CONTRAST).clamp(0.0, 200.0),
+        _pad: [0; 2],
     }
 }
 
@@ -239,22 +261,13 @@ fn measure_radius(raw: &RawImage) -> Option<f32> {
     if white <= black {
         return None;
     }
-    // RawTherapee's rawData at this point is scaled so green's white is 65535,
-    // and its limits - 1000 below, clipVal above - are in those units.
-    let scale = 65535.0 / (white - black);
-    let (w, h) = (raw.width, raw.height);
-    let data: Vec<f32> = match &raw.data {
-        RawImageData::Integer(px) => px
-            .iter()
-            .map(|&v| (v as f32 - black).max(0.0) * scale)
-            .collect(),
-        RawImageData::Float(px) => px.iter().map(|&v| (v - black).max(0.0) * scale).collect(),
-    };
-    if data.len() < w * h {
-        return None;
-    }
+    let area = picture_area(raw)?;
+    let data = scaled_area(raw, &area, black, white)?;
+    let (w, h) = (area.w, area.h);
     let cfa = &raw.camera.cfa;
-    let color = |row: usize, col: usize| cfa.color_at(row, col);
+    // The pattern as seen from the corner of the picture area, which is
+    // where RawTherapee's rawData starts.
+    let color = |row: usize, col: usize| cfa.color_at(row + area.y, col + area.x);
     let upper = 65535.0;
 
     let radius = if cfa.width == 6 && cfa.height == 6 {
@@ -273,6 +286,65 @@ fn measure_radius(raw: &RawImage) -> Option<f32> {
     Some(radius.min(MAX_AUTO_RADIUS))
 }
 
+/// The part of the sensor that holds the picture.
+///
+/// The decoded mosaic is the whole sensor, including the masked strips round
+/// the edge that read black. RawTherapee's rawData is the picture alone, and
+/// it matters: the step from a masked row to the first lit one is the
+/// steepest "edge" on the sensor, a ratio in the thousands, and measuring
+/// across it gave every R6 Mark III photo a radius of 0.35 px. The crop
+/// rawler recommends if it has one, else the unmasked area.
+#[derive(Clone, Copy, Debug)]
+struct Area {
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+}
+
+fn picture_area(raw: &RawImage) -> Option<Area> {
+    let full = Area {
+        x: 0,
+        y: 0,
+        w: raw.width,
+        h: raw.height,
+    };
+    let area = raw
+        .crop_area
+        .or(raw.active_area)
+        .map(|r| Area {
+            x: r.p.x,
+            y: r.p.y,
+            w: r.d.w,
+            h: r.d.h,
+        })
+        .unwrap_or(full);
+    let fits = area.x + area.w <= raw.width && area.y + area.h <= raw.height;
+    (fits && area.w >= 16 && area.h >= 16).then_some(area)
+}
+
+/// The picture area, black subtracted and scaled as RawTherapee's rawData is
+/// at this point: green's white at 65535, which is what its limits - 1000
+/// below, clipVal above - are in.
+fn scaled_area(raw: &RawImage, area: &Area, black: f32, white: f32) -> Option<Vec<f32>> {
+    let scale = 65535.0 / (white - black);
+    let stride = raw.width;
+    let sample = |i: usize| -> Option<f32> {
+        let v = match &raw.data {
+            RawImageData::Integer(px) => *px.get(i)? as f32,
+            RawImageData::Float(px) => *px.get(i)?,
+        };
+        Some((v - black).max(0.0) * scale)
+    };
+    let mut out = Vec::with_capacity(area.w * area.h);
+    for row in area.y..area.y + area.h {
+        for col in area.x..area.x + area.w {
+            out.push(sample(row * stride + col)?);
+        }
+    }
+    Some(out)
+}
+
 /// rt_ calcRadiusBayer, RawTherapee capturesharpening.cc
 /// @ c6d04960e14fed89e531cbbdf680021d131b4685.
 ///
@@ -287,11 +359,35 @@ fn calc_radius_bayer(
     upper: f32,
     fc: [usize; 2],
 ) -> f32 {
+    (1.0 / bayer_peak(data, w, h, lower, upper, fc).ratio.ln()).sqrt()
+}
+
+/// The pair calcRadiusBayer settles on, and where it is - kept so a radius
+/// that looks wrong can be traced to the two photosites that produced it.
+// Where and which values are read by the diagnostic test only.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug)]
+struct Peak {
+    ratio: f32,
+    row: usize,
+    col: usize,
+    high: f32,
+    low: f32,
+}
+
+fn bayer_peak(data: &[f32], w: usize, h: usize, lower: f32, upper: f32, fc: [usize; 2]) -> Peak {
     let at = |r: usize, c: usize| data[r * w + c];
-    let max_ratio = (4..h.saturating_sub(4))
+    let none = Peak {
+        ratio: 1.0,
+        row: 0,
+        col: 0,
+        high: 0.0,
+        low: 0.0,
+    };
+    (4..h.saturating_sub(4))
         .into_par_iter()
         .map(|row| {
-            let mut max_ratio = 1.0f32;
+            let mut peak = none;
             // RawTherapee: col = 5 + (fc[row & 1] & 1), stepping by two, which
             // lands on green on every row - its FC codes green as 1 or 3.
             let green_first = fc[row & 1] == 1 || fc[row & 1] == 3;
@@ -304,7 +400,7 @@ fn calc_radius_bayer(
                     let max_val0 = val00.max(val1m1);
                     if val1m1 > 0.0 && max_val0 > lower {
                         let min_val = val00.min(val1m1);
-                        if max_val0 > max_ratio * min_val {
+                        if max_val0 > peak.ratio * min_val {
                             let clipped = if max_val0 == val00 {
                                 at(row - 1, col - 1).max(at(row - 1, col + 1)).max(val1p1) >= upper
                             } else {
@@ -315,14 +411,20 @@ fn calc_radius_bayer(
                                     >= upper
                             };
                             if !clipped {
-                                max_ratio = max_val0 / min_val;
+                                peak = Peak {
+                                    ratio: max_val0 / min_val,
+                                    row,
+                                    col,
+                                    high: max_val0,
+                                    low: min_val,
+                                };
                             }
                         }
                     }
                     let max_val1 = val00.max(val1p1);
                     if val1p1 > 0.0 && max_val1 > lower {
                         let min_val = val00.min(val1p1);
-                        if max_val1 > max_ratio * min_val {
+                        if max_val1 > peak.ratio * min_val {
                             let clipped = if max_val1 == val00 {
                                 at(row - 1, col - 1).max(at(row - 1, col + 1)).max(val1p1) >= upper
                             } else {
@@ -333,17 +435,22 @@ fn calc_radius_bayer(
                                     >= upper
                             };
                             if !clipped {
-                                max_ratio = max_val1 / min_val;
+                                peak = Peak {
+                                    ratio: max_val1 / min_val,
+                                    row,
+                                    col,
+                                    high: max_val1,
+                                    low: min_val,
+                                };
                             }
                         }
                     }
                 }
                 col += 2;
             }
-            max_ratio
+            peak
         })
-        .reduce(|| 1.0, f32::max);
-    (1.0 / max_ratio.ln()).sqrt()
+        .reduce(|| none, |a, b| if b.ratio > a.ratio { b } else { a })
 }
 
 /// Where RawTherapee starts its X-Trans scan.
@@ -648,19 +755,48 @@ fn auto_contrast_threshold(l: &[f32], w: usize, h: usize) -> f32 {
 type ContrastKey = (u64, u32, u32, usize);
 static AUTO_CONTRAST: Mutex<Vec<(ContrastKey, f32)>> = Mutex::new(Vec::new());
 
-/// The contrast threshold (0..1) for a render, measured on `image` when the
-/// photo asked for auto. `image` should be the full-resolution picture when
-/// there is one: RawTherapee measures on the full RAW, and the flattest tile
-/// of a downscaled preview is smoother than the real one.
-pub fn contrast_threshold(
+/// The two masks' thresholds (0..1) for a render, and the measured one when
+/// either asked for auto.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Thresholds {
+    pub capture: f32,
+    pub usm: f32,
+    pub measured: Option<f32>,
+}
+
+/// Resolve both masks' thresholds, measuring on `image` only if one of them
+/// is on auto. `image` should be the full-resolution picture when there is
+/// one: RawTherapee measures on the full RAW, and the flattest tile of a
+/// downscaled preview is smoother than the real one.
+pub fn thresholds(
     params: &Params,
     image: &DynamicImage,
     transform_hash: u64,
     is_raw: bool,
-) -> f32 {
-    if !params.auto_contrast() {
-        return params.contrast / 100.0;
+) -> Thresholds {
+    let wants_auto =
+        params.auto_contrast() || (params.usm_own_mask() && params.usm_auto_contrast());
+    let measured = wants_auto.then(|| measured_threshold(image, transform_hash, is_raw));
+    let capture = match measured {
+        Some(m) if params.auto_contrast() => m,
+        _ => params.contrast / 100.0,
+    };
+    let usm = if !params.usm_own_mask() {
+        capture
+    } else {
+        match measured {
+            Some(m) if params.usm_auto_contrast() => m,
+            _ => params.usm_contrast / 100.0,
+        }
+    };
+    Thresholds {
+        capture,
+        usm,
+        measured,
     }
+}
+
+fn measured_threshold(image: &DynamicImage, transform_hash: u64, is_raw: bool) -> f32 {
     let key = (
         transform_hash,
         image.width(),
@@ -781,6 +917,31 @@ mod tests {
     }
 
     #[test]
+    fn the_switch_turns_everything_off() {
+        let p = from_json(
+            &json!({ "agSharpen": { "enabled": false, "amount": 80 } }),
+            true,
+            None,
+        );
+        assert_eq!(p, Params::default());
+    }
+
+    #[test]
+    fn the_manual_sharpen_follows_captures_mask_until_given_its_own() {
+        let linked = from_json(&json!({}), true, None);
+        assert!(!linked.usm_own_mask());
+        let own = from_json(
+            &json!({ "agSharpen": { "usmOwnMask": true, "usmAutoContrast": false, "usmContrast": 40 } }),
+            true,
+            None,
+        );
+        assert!(own.usm_own_mask() && !own.usm_auto_contrast());
+        assert_eq!(own.usm_contrast, 40.0);
+        // A JPEG has no capture mask to follow.
+        assert!(from_json(&json!({}), false, None).usm_own_mask());
+    }
+
+    #[test]
     fn manual_values_are_read_and_clamped() {
         let p = from_json(
             &json!({ "agSharpen": {
@@ -862,6 +1023,67 @@ mod tests {
         let data = vec![65535.0f32; 64 * 64];
         let r = calc_radius_bayer(&data, 64, 64, 1000.0, 65535.0, [0, 1]);
         assert!(r.is_infinite());
+    }
+
+    /// What auto radius a real RAW gives, and which two photosites decided it.
+    /// `AG_SHARPEN_RAWS` holds paths separated by `;`.
+    #[test]
+    #[ignore = "reads AK's photos; run by hand"]
+    fn auto_radius_on_real_raws() {
+        let paths = std::env::var("AG_SHARPEN_RAWS").expect("set AG_SHARPEN_RAWS");
+        for path in paths.split(';').filter(|p| !p.is_empty()) {
+            let bytes = std::fs::read(path).expect("read");
+            let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
+            let decoder = rawler::get_decoder(&source).expect("decoder");
+            let raw = decoder
+                .raw_image(
+                    &source,
+                    &rawler::decoders::RawDecodeParams::default(),
+                    false,
+                )
+                .expect("raw");
+            let black = raw
+                .blacklevel
+                .levels
+                .first()
+                .map(|r| r.as_f32())
+                .unwrap_or(0.0);
+            let white = *raw.whitelevel.0.first().unwrap() as f32;
+            let area = picture_area(&raw).expect("a picture area");
+            let data = scaled_area(&raw, &area, black, white).expect("its pixels");
+            let cfa = &raw.camera.cfa;
+            let fc = [
+                cfa.color_at(area.y, area.x),
+                cfa.color_at(area.y + 1, area.x),
+            ];
+            let peak = bayer_peak(&data, area.w, area.h, 1000.0, 65535.0, fc);
+            let at = |r: usize, c: usize| data[r * area.w + c];
+            let around: Vec<String> = (peak.row.saturating_sub(2)..=(peak.row + 3).min(area.h - 1))
+                .map(|r| {
+                    (peak.col.saturating_sub(3)..=(peak.col + 3).min(area.w - 1))
+                        .map(|c| format!("{:6.0}", at(r, c)))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
+                .collect();
+            eprintln!("{path}");
+            eprintln!(
+                "  {}x{}, picture {area:?}, black {black} white {white}, {}",
+                raw.width, raw.height, cfa.name
+            );
+            eprintln!(
+                "  measure_radius: {:?}; peak ratio {:.1}: {:.0} vs {:.1} at row {} col {}",
+                measure_radius(&raw),
+                peak.ratio,
+                peak.high,
+                peak.low,
+                peak.row,
+                peak.col
+            );
+            for line in around {
+                eprintln!("    {line}");
+            }
+        }
     }
 
     #[test]

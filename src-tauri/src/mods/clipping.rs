@@ -60,8 +60,10 @@ pub const BLACK_POINT: u32 = 6;
 /// mask leaves the picture alone - RawTherapee's "show contrast mask". Held
 /// from the Sharpening card, never saved; see `mods/sharpen.rs`.
 pub const SHARPEN_MASK: u32 = 7;
+/// The same for the manual sharpen's mask, when it has its own.
+pub const SHARPEN_MASK_USM: u32 = 8;
 /// Every mode, including the held ones.
-pub const LAST: u32 = 7;
+pub const LAST: u32 = 8;
 
 /// Read the mode out of the adjustments the frontend sent.
 ///
@@ -114,6 +116,7 @@ mod tests {
         assert_eq!(mode(&json!({ "showClipping": 5 })), WHITE_POINT);
         assert_eq!(mode(&json!({ "showClipping": 6 })), BLACK_POINT);
         assert_eq!(mode(&json!({ "showClipping": 7 })), SHARPEN_MASK);
+        assert_eq!(mode(&json!({ "showClipping": 8 })), SHARPEN_MASK_USM);
         assert_eq!(mode(&json!({ "showClipping": 99 })), OFF);
         assert_eq!(mode(&json!({ "showClipping": "yes" })), OFF);
     }

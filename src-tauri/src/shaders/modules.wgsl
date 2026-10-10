@@ -89,7 +89,7 @@ struct AgSharpen {
     usm_threshold: f32,
     contrast: f32,
     flags: u32,
-    _pad0: u32,
+    usm_contrast: f32,
     _pad1: u32,
     _pad2: u32,
 }
@@ -220,13 +220,14 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
 /// `mode` is their `show_clipping` uniform, which was already a `u32` holding
 /// nothing but 0 and 1 — see mods/clipping.rs.
 ///
-/// Mode 7 is the sharpening mask. The input stage has already written the
+/// Modes 7 and 8 are the sharpening masks, capture's and the manual
+/// sharpen's. The input stage has already written the
 /// mask into this render's input in place of the photo, so it is read back
 /// here, at this pixel, exactly as written: every adjustment in between has
 /// been run on it and is thrown away, because a mask that went through the
 /// tone curve would no longer say how strongly each pixel is sharpened.
 fn ag_stage_display(color: vec3<f32>, mode: u32, coord: vec2<u32>) -> vec3<f32> {
-    if (mode == 7u) {
+    if (mode == 7u || mode == 8u) {
         return textureLoad(input_texture, coord, 0).rgb;
     }
     return ag_clipping_view(color, mode);

@@ -62,6 +62,8 @@ const FLAG_USM: u32 = 2;
 const FLAG_MASK_VIEW: u32 = 4;
 const FLAG_ITER: u32 = 8;
 const FLAG_MASK: u32 = 16;
+const FLAG_USM_MASK: u32 = 32;
+const FLAG_CLIP: u32 = 64;
 
 /// `Params` in sharpen.wgsl, field for field.
 #[repr(C)]
@@ -90,7 +92,7 @@ struct Uniform {
     centre_x: f32,
     centre_y: f32,
     clip: f32,
-    _pad: f32,
+    usm_contrast: f32,
 }
 
 /// One request to sharpen a texture.
@@ -100,13 +102,15 @@ pub struct Job<'a> {
     pub height: u32,
     pub is_raw: bool,
     pub params: Params,
-    /// Contrast threshold, 0..1, already resolved from auto. 0 sharpens
-    /// everywhere.
+    /// Capture's contrast threshold, 0..1, already resolved from auto. 0
+    /// sharpens everywhere.
     pub contrast: f32,
+    /// The manual sharpen's: the same number unless it has its own mask.
+    pub usm_contrast: f32,
     /// Render pixels per full-resolution pixel.
     pub px_scale: f32,
-    /// Show the mask instead of sharpening.
-    pub mask_view: bool,
+    /// Show a mask instead of sharpening.
+    pub mask_view: MaskView,
     /// Their region of interest, in render pixels: x, y, width, height.
     pub region: Option<[u32; 4]>,
 }
@@ -116,12 +120,23 @@ pub enum Target {
     Fresh,
 }
 
+/// Which mask the eye is showing.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MaskView {
+    Off,
+    Capture,
+    Sharpen,
+}
+
 /// What is going to run, worked out before anything touches the GPU.
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Plan {
     flags: u32,
     iterations: u32,
+    /// The first mask's threshold: capture's, or the manual sharpen's when
+    /// capture is not running.
     contrast: f32,
+    usm_contrast: f32,
     mask_sigma: f32,
     cap_sigma: f32,
     cap_slope: f32,
@@ -140,9 +155,9 @@ pub fn needs_work(
     width: u32,
     height: u32,
     px_scale: f32,
-    mask_view: bool,
+    mask_view: MaskView,
 ) -> bool {
-    plan_for(params, width, height, px_scale, mask_view, 0.0, None).is_some()
+    plan_for(params, width, height, px_scale, mask_view, 0.0, 0.0, None).is_some()
 }
 
 fn plan(job: &Job) -> Option<Plan> {
@@ -153,19 +168,23 @@ fn plan(job: &Job) -> Option<Plan> {
         job.px_scale,
         job.mask_view,
         job.contrast,
+        job.usm_contrast,
         job.region,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn plan_for(
     p: &Params,
     width: u32,
     height: u32,
     px_scale: f32,
-    mask_view: bool,
+    mask_view: MaskView,
     contrast: f32,
+    usm_contrast: f32,
     region: Option<[u32; 4]>,
 ) -> Option<Plan> {
+    let showing = mask_view != MaskView::Off;
     let s = px_scale.clamp(1.0e-3, 1.0);
     let (w, h) = (width as f32, height as f32);
 
@@ -175,14 +194,23 @@ fn plan_for(
     let corner_sigma = (p.capture_radius + p.capture_corner).min(2.0) * s;
     let corner_distance = ((w * 0.5).powi(2) + (h * 0.5).powi(2)).sqrt().max(1.0);
     let cap_slope = (corner_sigma - cap_sigma) / corner_distance;
-    let capture = !mask_view && p.capture_on() && cap_sigma.max(corner_sigma) >= MIN_SIGMA;
+    let capture = !showing && p.capture_on() && cap_sigma.max(corner_sigma) >= MIN_SIGMA;
 
     let usm_sigma = p.usm_radius * s;
-    let usm = !mask_view && p.usm_on() && usm_sigma >= MIN_SIGMA;
+    let usm = !showing && p.usm_on() && usm_sigma >= MIN_SIGMA;
 
-    if !capture && !usm && !mask_view {
+    if !capture && !usm && !showing {
         return None;
     }
+
+    // The mask the first passes build: capture's, with its clip guard, unless
+    // the manual sharpen is all that runs or its mask is the one on show.
+    let (first, clip) = match mask_view {
+        MaskView::Capture => (contrast, true),
+        MaskView::Sharpen => (usm_contrast, false),
+        MaskView::Off if capture => (contrast, true),
+        MaskView::Off => (usm_contrast, false),
+    };
 
     let mut flags = 0;
     if capture {
@@ -194,11 +222,19 @@ fn plan_for(
     if usm {
         flags |= FLAG_USM;
     }
-    if mask_view {
+    if showing {
         flags |= FLAG_MASK_VIEW;
     }
-    if contrast > 0.0 {
+    if first > 0.0 {
         flags |= FLAG_MASK;
+        if clip {
+            flags |= FLAG_CLIP;
+        }
+    }
+    // Both run and the manual sharpen has a different mask: build it once
+    // capture is done with capture's.
+    if capture && usm && usm_contrast != contrast {
+        flags |= FLAG_USM_MASK;
     }
 
     let area = match region {
@@ -221,7 +257,8 @@ fn plan_for(
         } else {
             0
         },
-        contrast,
+        contrast: first,
+        usm_contrast,
         // RawTherapee blurs its mask with sigma 2, at full resolution.
         mask_sigma: (2.0 * s).max(0.3),
         cap_sigma,
@@ -236,6 +273,7 @@ fn plan_for(
 
 struct Pipelines {
     prep: wgpu::ComputePipeline,
+    usm_mask_prep: wgpu::ComputePipeline,
     mask_h: wgpu::ComputePipeline,
     mask_v: wgpu::ComputePipeline,
     tick: wgpu::ComputePipeline,
@@ -354,6 +392,7 @@ impl Engine {
         };
         let pipelines = Pipelines {
             prep: pipeline("prep"),
+            usm_mask_prep: pipeline("usm_mask_prep"),
             mask_h: pipeline("mask_h"),
             mask_v: pipeline("mask_v"),
             tick: pipeline("tick"),
@@ -466,6 +505,7 @@ impl Engine {
             flags: plan.flags,
             is_raw: u32::from(job.is_raw),
             contrast: plan.contrast,
+            usm_contrast: plan.usm_contrast,
             mask_sigma: plan.mask_sigma,
             cap_sigma: plan.cap_sigma,
             cap_slope: plan.cap_slope,
@@ -569,6 +609,15 @@ impl Engine {
                 pass.set_pipeline(&p.capture_mix);
                 pass.dispatch_workgroups(groups.0, groups.1, 1);
             }
+            if plan.flags & FLAG_USM_MASK != 0 {
+                // Capture is done with its mask; the manual sharpen's replaces it.
+                pass.set_pipeline(&p.usm_mask_prep);
+                pass.dispatch_workgroups(groups.0, groups.1, 1);
+                pass.set_pipeline(&p.mask_h);
+                pass.dispatch_workgroups(groups.0, groups.1, 1);
+                pass.set_pipeline(&p.mask_v);
+                pass.dispatch_workgroups(groups.0, groups.1, 1);
+            }
             if plan.flags & FLAG_USM != 0 {
                 pass.set_pipeline(&p.usm_prep);
                 pass.dispatch_workgroups(groups.0, groups.1, 1);
@@ -664,8 +713,8 @@ mod tests {
         super::super::sharpen::from_json(&serde_json::json!({}), true, None)
     }
 
-    fn plan_at(params: &Params, scale: f32, mask_view: bool) -> Option<Plan> {
-        plan_for(params, 6000, 4000, scale, mask_view, 0.1, None)
+    fn plan_at(params: &Params, scale: f32, mask_view: MaskView) -> Option<Plan> {
+        plan_for(params, 6000, 4000, scale, mask_view, 0.1, 0.1, None)
     }
 
     #[test]
@@ -679,8 +728,8 @@ mod tests {
         let p = defaults();
         // 1920 px of a 6000 px photo: 0.75 * 0.32 = 0.24 px of blur, below
         // anything a screen pixel can show.
-        assert!(plan_at(&p, 0.32, false).is_none());
-        let full = plan_at(&p, 1.0, false).expect("runs at 1:1");
+        assert!(plan_at(&p, 0.32, MaskView::Off).is_none());
+        let full = plan_at(&p, 1.0, MaskView::Off).expect("runs at 1:1");
         assert_eq!(full.flags & FLAG_CAPTURE, FLAG_CAPTURE);
         assert_eq!(
             full.flags & FLAG_ITER,
@@ -696,7 +745,7 @@ mod tests {
         let mut p = defaults();
         p.usm_amount = 0.5;
         p.usm_radius = 2.0;
-        let plan = plan_at(&p, 0.5, false).expect("unsharp mask at half size");
+        let plan = plan_at(&p, 0.5, MaskView::Off).expect("unsharp mask at half size");
         assert_eq!(plan.usm_sigma, 1.0);
         assert_eq!(plan.mask_sigma, 1.0, "RawTherapee's mask blur of 2, halved");
     }
@@ -705,34 +754,72 @@ mod tests {
     fn corner_boost_reaches_its_radius_at_the_corner() {
         let mut p = defaults();
         p.capture_corner = 0.4;
-        let plan = plan_at(&p, 1.0, false).unwrap();
+        let plan = plan_at(&p, 1.0, MaskView::Off).unwrap();
         let corner = (3000.0f32.powi(2) + 2000.0f32.powi(2)).sqrt();
         assert!((plan.cap_sigma + plan.cap_slope * corner - 1.15).abs() < 1e-4);
         // And never past RawTherapee's ceiling of 2.
         p.capture_radius = 1.9;
         p.capture_corner = 0.5;
-        let plan = plan_at(&p, 1.0, false).unwrap();
+        let plan = plan_at(&p, 1.0, MaskView::Off).unwrap();
         assert!((plan.cap_sigma + plan.cap_slope * corner - 2.0).abs() < 1e-4);
     }
 
     #[test]
     fn the_mask_view_always_runs_and_sharpens_nothing() {
         let p = defaults();
-        let plan = plan_at(&p, 0.32, true).expect("the mask is shown at any zoom");
+        let plan = plan_at(&p, 0.32, MaskView::Capture).expect("the mask is shown at any zoom");
         assert_eq!(plan.flags & FLAG_MASK_VIEW, FLAG_MASK_VIEW);
         assert_eq!(plan.flags & (FLAG_CAPTURE | FLAG_USM), 0);
     }
 
     #[test]
     fn nothing_on_means_no_work() {
-        assert!(plan_at(&Params::default(), 1.0, false).is_none());
+        assert!(plan_at(&Params::default(), 1.0, MaskView::Off).is_none());
     }
 
     #[test]
     fn a_region_is_widened_past_their_overlap_and_clamped() {
         let p = defaults();
-        let plan = plan_for(&p, 6000, 4000, 1.0, false, 0.1, Some([100, 3900, 500, 100])).unwrap();
+        let plan = plan_for(
+            &p,
+            6000,
+            4000,
+            1.0,
+            MaskView::Off,
+            0.1,
+            0.1,
+            Some([100, 3900, 500, 100]),
+        )
+        .unwrap();
         assert_eq!(plan.area, [0, 3740, 760, 4000]);
+    }
+
+    #[test]
+    fn the_manual_sharpen_gets_its_own_mask_only_when_it_differs() {
+        let mut p = defaults();
+        p.usm_amount = 0.5;
+        let same = plan_for(&p, 6000, 4000, 1.0, MaskView::Off, 0.1, 0.1, None).unwrap();
+        assert_eq!(same.flags & FLAG_USM_MASK, 0);
+        let own = plan_for(&p, 6000, 4000, 1.0, MaskView::Off, 0.1, 0.4, None).unwrap();
+        assert_eq!(own.flags & FLAG_USM_MASK, FLAG_USM_MASK);
+        assert_eq!((own.contrast, own.usm_contrast), (0.1, 0.4));
+        // Capture off: the manual sharpen's mask is the only one, built first,
+        // and without capture's clip guard.
+        p.capture_amount = 0.0;
+        let alone = plan_for(&p, 6000, 4000, 1.0, MaskView::Off, 0.1, 0.4, None).unwrap();
+        assert_eq!(alone.contrast, 0.4);
+        assert_eq!(alone.flags & (FLAG_USM_MASK | FLAG_CLIP), 0);
+    }
+
+    #[test]
+    fn each_eye_shows_its_own_mask() {
+        let p = defaults();
+        let capture = plan_for(&p, 6000, 4000, 0.3, MaskView::Capture, 0.1, 0.4, None).unwrap();
+        assert_eq!(capture.contrast, 0.1);
+        assert_eq!(capture.flags & FLAG_CLIP, FLAG_CLIP);
+        let sharpen = plan_for(&p, 6000, 4000, 0.3, MaskView::Sharpen, 0.1, 0.4, None).unwrap();
+        assert_eq!(sharpen.contrast, 0.4);
+        assert_eq!(sharpen.flags & FLAG_CLIP, 0);
     }
 
     #[test]
@@ -905,8 +992,9 @@ mod tests {
             is_raw: true,
             params,
             contrast,
+            usm_contrast: contrast,
             px_scale: 1.0,
-            mask_view: false,
+            mask_view: MaskView::Off,
             region: None,
         }
     }
@@ -976,8 +1064,9 @@ mod tests {
             is_raw: true,
             params,
             contrast: 0.0,
+            usm_contrast: 0.0,
             px_scale: 1.0,
-            mask_view: false,
+            mask_view: MaskView::Off,
             region: None,
         };
         let got = read(&ctx, &run(&ctx, &job, Target::Fresh).unwrap(), w, h);
@@ -1037,7 +1126,7 @@ mod tests {
         let px = edge(w, h, 1.0);
         let src = upload(&ctx, w, h, &px);
         let mut job = capture_job(&src, w, h, 0.1);
-        job.mask_view = true;
+        job.mask_view = MaskView::Capture;
         job.px_scale = 0.3; // at any zoom
         let got = read(&ctx, &run(&ctx, &job, Target::Fresh).unwrap(), w, h);
         let mid = (h / 2 * w) as usize;

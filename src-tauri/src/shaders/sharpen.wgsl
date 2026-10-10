@@ -51,7 +51,7 @@ struct Params {
     centre_x: f32,
     centre_y: f32,
     clip: f32,
-    _pad: f32,
+    usm_contrast: f32,
 }
 
 const FLAG_CAPTURE: u32 = 1u;
@@ -59,6 +59,10 @@ const FLAG_USM: u32 = 2u;
 const FLAG_MASK_VIEW: u32 = 4u;
 const FLAG_ITER_CHECK: u32 = 8u;
 const FLAG_MASK: u32 = 16u;
+// The manual sharpen has its own mask: build it after capture is done.
+const FLAG_USM_MASK: u32 = 32u;
+// The first mask is capture's, which keeps off near-clipped highlights.
+const FLAG_CLIP: u32 = 64u;
 
 @group(0) @binding(0) var<uniform> p: Params;
 @group(0) @binding(1) var src: texture_2d<f32>;
@@ -199,6 +203,16 @@ fn l_at(gx: i32, gy: i32) -> f32 {
     return lstar(luma(src_lin(gx, gy).rgb));
 }
 
+/// RawTherapee measures contrast on L scaled to 0..32768 and multiplies by
+/// 0.0625 / 327.68; on plain L* that is 0.0625.
+fn rt_local_contrast(g: vec2<i32>) -> f32 {
+    let dh1 = l_at(g.x + 1, g.y) - l_at(g.x - 1, g.y);
+    let dv1 = l_at(g.x, g.y + 1) - l_at(g.x, g.y - 1);
+    let dh2 = l_at(g.x + 2, g.y) - l_at(g.x - 2, g.y);
+    let dv2 = l_at(g.x, g.y + 2) - l_at(g.x, g.y - 2);
+    return sqrt(dh1 * dh1 + dv1 * dv1 + dh2 * dh2 + dv2 * dv2) * 0.0625;
+}
+
 // ---------------------------------------------------------------------------
 // Passes
 // ---------------------------------------------------------------------------
@@ -221,19 +235,26 @@ fn prep(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
 
-    // RawTherapee measures contrast on L scaled to 0..32768 and multiplies
-    // by 0.0625 / 327.68; on plain L* that is 0.0625.
-    let dh1 = l_at(g.x + 1, g.y) - l_at(g.x - 1, g.y);
-    let dv1 = l_at(g.x, g.y + 1) - l_at(g.x, g.y - 1);
-    let dh2 = l_at(g.x + 2, g.y) - l_at(g.x - 2, g.y);
-    let dv2 = l_at(g.x, g.y + 2) - l_at(g.x, g.y - 2);
-    let contrast = sqrt(dh1 * dh1 + dv1 * dv1 + dh2 * dh2 + dv2 * dv2) * 0.0625;
-
-    var b = rt_blend_factor(contrast, p.contrast);
-    if (rt_near_clip(g.x, g.y)) {
+    var b = rt_blend_factor(rt_local_contrast(g), p.contrast);
+    // Capture's mask keeps off near-clipped highlights; RawTherapee's own
+    // unsharp mask has no clip mask, so the manual sharpen's does not either.
+    if ((p.flags & FLAG_CLIP) != 0u && rt_near_clip(g.x, g.y)) {
         b = 0.0;
     }
     aux[i] = b;
+}
+
+/// The manual sharpen's own mask, unblurred, built once capture no longer
+/// needs capture's. Blurred by mask_h and mask_v into `blend` as before.
+@compute @workgroup_size(16, 16, 1)
+fn usm_mask_prep(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (!in_ext(id)) { return; }
+    let i = idx(id.x, id.y);
+    if (p.usm_contrast <= 0.0) {
+        aux[i] = 1.0;
+        return;
+    }
+    aux[i] = rt_blend_factor(rt_local_contrast(global_of(id.x, id.y)), p.usm_contrast);
 }
 
 /// The mask is blurred to smooth its transitions: RawTherapee uses sigma 2.

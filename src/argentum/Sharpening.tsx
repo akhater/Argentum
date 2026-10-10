@@ -8,14 +8,25 @@
  * only in the global panel: the marker in a mask's Details is skipped, and a
  * mask keeps their local Sharpness slider.
  *
- * What it drives is `mods/sharpen.rs`: RawTherapee's capture sharpening, then
- * darktable's sharpen, with RawTherapee's contrast mask deciding where either
- * lands. Every value is in full-resolution pixels and means the same at any
- * zoom, which is why the card says to judge it at 100%.
+ * Three things on screen, the rest folded away, because AK's first look at
+ * every knob at once was "confusing AF":
+ *
+ *   the switch   all of it on or off - the before and after
+ *   Capture      RawTherapee's, RAW only, automatic: undoes the softness
+ *                every RAW has off the sensor
+ *   Sharpen      darktable's, by hand: extra crunch, off until raised
+ *
+ * Each has a Mask (RawTherapee's contrast mask: what is protected) and an
+ * eye that shows it - white is sharpened, black is left alone. Sharpen's
+ * mask is capture's until it is given its own.
+ *
+ * What it drives is `mods/sharpen.rs`. Every value is in full-resolution
+ * pixels and means the same at any zoom, which is why it says to judge it at
+ * 100%.
  */
 
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../components/ui/Slider';
 import Switch from '../components/ui/Switch';
@@ -25,7 +36,15 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
-import { AgSharpen, readSharpen, SHARPEN_DEFAULTS, useSharpenMask } from './sharpenSettings';
+import {
+  AgSharpen,
+  CAPTURE_MASK,
+  MaskMode,
+  readSharpen,
+  SHARPEN_DEFAULTS,
+  SHARPEN_MASK,
+  useSharpenMask,
+} from './sharpenSettings';
 import './sharpening.css';
 
 interface AutoValues {
@@ -54,12 +73,12 @@ function useAutoValues(path: string | undefined, adjustments: any): AutoValues {
   return values;
 }
 
-function AutoChip({ on, label, title, onClick }: { on: boolean; label: string; title: string; onClick(): void }) {
+function Chip({ on, label, title, onClick }: { on: boolean; label: string; title?: string; onClick(): void }) {
   return (
     <button
       type="button"
       className={clsx(
-        'px-1.5 py-0.5 rounded text-[11px] leading-none transition-colors',
+        'shrink-0 px-1.5 py-0.5 rounded text-[11px] leading-none transition-colors',
         on ? 'bg-accent text-button-text' : 'text-text-secondary hover:bg-bg-primary',
       )}
       data-tooltip={title}
@@ -70,16 +89,52 @@ function AutoChip({ on, label, title, onClick }: { on: boolean; label: string; t
   );
 }
 
-function Group({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+function EyeButton({ on, title, onClick }: { on: boolean; title: string; onClick(): void }) {
+  return (
+    <button
+      type="button"
+      className={clsx(
+        'shrink-0 p-1 rounded transition-colors',
+        on ? 'bg-accent text-button-text' : 'text-text-secondary hover:bg-bg-primary',
+      )}
+      data-tooltip={title}
+      aria-label={title}
+      aria-pressed={on}
+      onClick={onClick}
+    >
+      {on ? <Eye size={14} /> : <EyeOff size={14} />}
+    </button>
+  );
+}
+
+function Group({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex items-center justify-between gap-2 pt-1">
         <Text variant={TextVariants.small} className="uppercase tracking-wide text-text-secondary">
           {title}
         </Text>
-        {right}
+        <div className="flex items-center gap-1">{right}</div>
       </div>
       {children}
+    </div>
+  );
+}
+
+function More({ children }: { children: React.ReactNode }) {
+  const t = useAgTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        className="flex items-center gap-1 self-start text-[11px] text-text-secondary hover:text-text-primary"
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronDown size={12} className={clsx('transition-transform', open && 'rotate-180')} />
+        {t(open ? 'sharpenLess' : 'sharpenMore')}
+      </button>
+      {open && children}
     </div>
   );
 }
@@ -99,186 +154,236 @@ export default function Sharpening() {
   const set = (patch: Partial<AgSharpen>) =>
     setAdjustments((prev: any) => ({ ...prev, agSharpen: { ...(prev?.agSharpen ?? {}), ...patch } }));
   const num = (e: any) => parseFloat(String(e.target.value));
-  const onDrag = (dragging: boolean) => {
-    setEditor({ isSliderDragging: dragging });
-    mask.onDragStateChange(dragging);
+  const onDrag = (mode: MaskMode) => {
+    const held = mask.dragOf(mode);
+    return (dragging: boolean) => {
+      setEditor({ isSliderDragging: dragging });
+      held(dragging);
+    };
   };
 
-  const legacy = Number(adjustments?.sharpness) || 0;
+  // On a JPEG the manual sharpen is all there is, and its mask is its own.
+  const usmOwn = !isRaw || s.usmOwnMask;
   const radiusShown = s.autoRadius ? (auto.radius ?? SHARPEN_DEFAULTS.radius) : s.radius;
   const contrastShown = s.autoContrast ? (auto.contrast ?? s.contrast) : s.contrast;
-  const fmt = (v: number) => (Math.round(v * 100) / 100).toString();
+  const usmContrastShown = s.usmAutoContrast ? (auto.contrast ?? s.usmContrast) : s.usmContrast;
+  const legacy = Number(adjustments?.sharpness) || 0;
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
+      <Switch
+        checked={s.enabled}
+        label={t('sharpenEnabled')}
+        tooltip={t('sharpenEnabledHelp')}
+        onChange={(on: boolean) => set({ enabled: on })}
+      />
+
+      <div className={clsx('flex flex-col gap-2', !s.enabled && 'opacity-40 pointer-events-none')}>
+        {isRaw && (
+          <Group
+            title={t('sharpenCapture')}
+            right={
+              <>
+                <EyeButton
+                  on={mask.pinned === CAPTURE_MASK}
+                  title={t('sharpenShowMaskHelp')}
+                  onClick={() => mask.toggle(CAPTURE_MASK)}
+                />
+                <Switch
+                  checked={s.capture}
+                  label=""
+                  tooltip={t('sharpenCaptureHelp')}
+                  onChange={(on: boolean) => set({ capture: on })}
+                />
+              </>
+            }
+          >
+            {s.capture && (
+              <>
+                <Slider
+                  label={t('sharpenAmount')}
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={s.captureAmount}
+                  defaultValue={SHARPEN_DEFAULTS.captureAmount}
+                  fillOrigin="min"
+                  suffix="%"
+                  onChange={(e) => set({ captureAmount: num(e) })}
+                  onDragStateChange={onDrag(CAPTURE_MASK)}
+                />
+                <div className="flex items-end gap-1">
+                  <div className="grow">
+                    <Slider
+                      label={t('sharpenMask')}
+                      min={0}
+                      max={200}
+                      step={1}
+                      value={Math.round(contrastShown)}
+                      defaultValue={SHARPEN_DEFAULTS.contrast}
+                      fillOrigin="min"
+                      onChange={(e) => set({ autoContrast: false, contrast: num(e) })}
+                      onDragStateChange={onDrag(CAPTURE_MASK)}
+                    />
+                  </div>
+                  <Chip
+                    on={s.autoContrast}
+                    label={t('sharpenAuto')}
+                    title={t('sharpenAutoContrastHelp')}
+                    onClick={() => set({ autoContrast: !s.autoContrast, contrast: Math.round(contrastShown) })}
+                  />
+                </div>
+                <More>
+                  <div className="flex items-end gap-1">
+                    <div className="grow">
+                      <Slider
+                        label={t('sharpenRadius')}
+                        min={0.4}
+                        max={2}
+                        step={0.01}
+                        value={radiusShown}
+                        defaultValue={SHARPEN_DEFAULTS.radius}
+                        fillOrigin="min"
+                        onChange={(e) => set({ autoRadius: false, radius: num(e) })}
+                        onDragStateChange={onDrag(CAPTURE_MASK)}
+                      />
+                    </div>
+                    <Chip
+                      on={s.autoRadius}
+                      label={t('sharpenAuto')}
+                      title={t('sharpenAutoRadiusHelp')}
+                      onClick={() => set({ autoRadius: !s.autoRadius, radius: radiusShown })}
+                    />
+                  </div>
+                  <Slider
+                    label={t('sharpenCorner')}
+                    min={-0.5}
+                    max={0.5}
+                    step={0.01}
+                    value={s.cornerBoost}
+                    defaultValue={SHARPEN_DEFAULTS.cornerBoost}
+                    onChange={(e) => set({ cornerBoost: num(e) })}
+                    onDragStateChange={onDrag(CAPTURE_MASK)}
+                  />
+                  <Slider
+                    label={t('sharpenIterations')}
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={s.iterations}
+                    defaultValue={SHARPEN_DEFAULTS.iterations}
+                    fillOrigin="min"
+                    onChange={(e) => set({ iterations: Math.round(num(e)) })}
+                    onDragStateChange={onDrag(CAPTURE_MASK)}
+                  />
+                </More>
+              </>
+            )}
+          </Group>
+        )}
+
+        <Group
+          title={t('sharpenUsm')}
+          right={
+            <EyeButton
+              on={mask.pinned === SHARPEN_MASK}
+              title={t('sharpenShowMaskHelp')}
+              onClick={() => mask.toggle(SHARPEN_MASK)}
+            />
+          }
+        >
+          <Slider
+            label={t('sharpenAmount')}
+            min={0}
+            max={200}
+            step={1}
+            value={s.amount}
+            defaultValue={SHARPEN_DEFAULTS.amount}
+            fillOrigin="min"
+            suffix="%"
+            onChange={(e) => set({ amount: num(e) })}
+            onDragStateChange={onDrag(SHARPEN_MASK)}
+          />
+          {s.amount > 0 && (
+            <>
+              {isRaw && (
+                <div className="flex items-center justify-between">
+                  <Text variant={TextVariants.small} className="text-text-secondary">
+                    {t('sharpenMask')}
+                  </Text>
+                  <div className="flex gap-1">
+                    <Chip
+                      on={!s.usmOwnMask}
+                      label={t('sharpenMaskSame')}
+                      title={t('sharpenMaskSameHelp')}
+                      onClick={() => set({ usmOwnMask: false })}
+                    />
+                    <Chip
+                      on={s.usmOwnMask}
+                      label={t('sharpenMaskOwn')}
+                      title={t('sharpenMaskOwnHelp')}
+                      onClick={() => set({ usmOwnMask: true })}
+                    />
+                  </div>
+                </div>
+              )}
+              {usmOwn && (
+                <div className="flex items-end gap-1">
+                  <div className="grow">
+                    <Slider
+                      label={t('sharpenMask')}
+                      min={0}
+                      max={200}
+                      step={1}
+                      value={Math.round(usmContrastShown)}
+                      defaultValue={SHARPEN_DEFAULTS.usmContrast}
+                      fillOrigin="min"
+                      onChange={(e) => set({ usmAutoContrast: false, usmContrast: num(e) })}
+                      onDragStateChange={onDrag(SHARPEN_MASK)}
+                    />
+                  </div>
+                  <Chip
+                    on={s.usmAutoContrast}
+                    label={t('sharpenAuto')}
+                    title={t('sharpenAutoContrastHelp')}
+                    onClick={() =>
+                      set({ usmAutoContrast: !s.usmAutoContrast, usmContrast: Math.round(usmContrastShown) })
+                    }
+                  />
+                </div>
+              )}
+              <More>
+                <Slider
+                  label={t('sharpenRadius')}
+                  min={0.1}
+                  max={8}
+                  step={0.05}
+                  value={s.usmRadius}
+                  defaultValue={SHARPEN_DEFAULTS.usmRadius}
+                  fillOrigin="min"
+                  onChange={(e) => set({ usmRadius: num(e) })}
+                  onDragStateChange={onDrag(SHARPEN_MASK)}
+                />
+                <Slider
+                  label={t('sharpenThreshold')}
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={s.threshold}
+                  defaultValue={SHARPEN_DEFAULTS.threshold}
+                  fillOrigin="min"
+                  onChange={(e) => set({ threshold: num(e) })}
+                  onDragStateChange={onDrag(SHARPEN_MASK)}
+                />
+              </More>
+            </>
+          )}
+        </Group>
+
         <Text variant={TextVariants.small} className="text-text-secondary">
           {t('sharpenZoomHint')}
         </Text>
-        <button
-          type="button"
-          className={clsx(
-            'shrink-0 ml-2 p-1 rounded transition-colors',
-            mask.pinned ? 'bg-accent text-button-text' : 'text-text-secondary hover:bg-bg-primary',
-          )}
-          data-tooltip={t('sharpenShowMaskHelp')}
-          aria-label={t('sharpenShowMask')}
-          aria-pressed={mask.pinned}
-          onClick={() => mask.setPinned(!mask.pinned)}
-        >
-          {mask.pinned ? <Eye size={14} /> : <EyeOff size={14} />}
-        </button>
       </div>
-
-      <Group
-        title={t('sharpenCapture')}
-        right={
-          isRaw ? (
-            <Switch
-              checked={s.capture}
-              label=""
-              tooltip={t('sharpenCaptureHelp')}
-              onChange={(on: boolean) => set({ capture: on })}
-            />
-          ) : null
-        }
-      >
-        {!isRaw ? (
-          <Text variant={TextVariants.small} className="text-text-secondary">
-            {t('sharpenCaptureRawOnly')}
-          </Text>
-        ) : (
-          s.capture && (
-            <>
-              <Slider
-                label={t('sharpenAmount')}
-                min={0}
-                max={100}
-                step={1}
-                value={s.captureAmount}
-                defaultValue={SHARPEN_DEFAULTS.captureAmount}
-                fillOrigin="min"
-                suffix="%"
-                onChange={(e) => set({ captureAmount: num(e) })}
-                onDragStateChange={onDrag}
-              />
-              <div className="flex items-end gap-1">
-                <div className="grow">
-                  <Slider
-                    label={t('sharpenRadius')}
-                    min={0.4}
-                    max={2}
-                    step={0.01}
-                    value={radiusShown}
-                    defaultValue={SHARPEN_DEFAULTS.radius}
-                    fillOrigin="min"
-                    onChange={(e) => set({ autoRadius: false, radius: num(e) })}
-                    onDragStateChange={onDrag}
-                  />
-                </div>
-                <AutoChip
-                  on={s.autoRadius}
-                  label={t('sharpenAuto')}
-                  title={t('sharpenAutoRadiusHelp')}
-                  onClick={() => set({ autoRadius: !s.autoRadius, radius: radiusShown })}
-                />
-              </div>
-              <Slider
-                label={t('sharpenCorner')}
-                min={-0.5}
-                max={0.5}
-                step={0.01}
-                value={s.cornerBoost}
-                defaultValue={SHARPEN_DEFAULTS.cornerBoost}
-                onChange={(e) => set({ cornerBoost: num(e) })}
-                onDragStateChange={onDrag}
-              />
-              <Slider
-                label={t('sharpenIterations')}
-                min={1}
-                max={100}
-                step={1}
-                value={s.iterations}
-                defaultValue={SHARPEN_DEFAULTS.iterations}
-                fillOrigin="min"
-                onChange={(e) => set({ iterations: Math.round(num(e)) })}
-                onDragStateChange={onDrag}
-              />
-            </>
-          )
-        )}
-      </Group>
-
-      <Group title={t('sharpenUsm')}>
-        <Slider
-          label={t('sharpenAmount')}
-          min={0}
-          max={200}
-          step={1}
-          value={s.amount}
-          defaultValue={SHARPEN_DEFAULTS.amount}
-          fillOrigin="min"
-          suffix="%"
-          onChange={(e) => set({ amount: num(e) })}
-          onDragStateChange={onDrag}
-        />
-        {s.amount > 0 && (
-          <>
-            <Slider
-              label={t('sharpenRadius')}
-              min={0.1}
-              max={8}
-              step={0.05}
-              value={s.usmRadius}
-              defaultValue={SHARPEN_DEFAULTS.usmRadius}
-              fillOrigin="min"
-              onChange={(e) => set({ usmRadius: num(e) })}
-              onDragStateChange={onDrag}
-            />
-            <Slider
-              label={t('sharpenThreshold')}
-              min={0}
-              max={10}
-              step={0.1}
-              value={s.threshold}
-              defaultValue={SHARPEN_DEFAULTS.threshold}
-              fillOrigin="min"
-              onChange={(e) => set({ threshold: num(e) })}
-              onDragStateChange={onDrag}
-            />
-          </>
-        )}
-      </Group>
-
-      <Group title={t('sharpenMasking')}>
-        <div className="flex items-end gap-1">
-          <div className="grow">
-            <Slider
-              label={t('sharpenContrast')}
-              min={0}
-              max={200}
-              step={1}
-              value={Math.round(contrastShown)}
-              defaultValue={SHARPEN_DEFAULTS.contrast}
-              fillOrigin="min"
-              onChange={(e) => set({ autoContrast: false, contrast: num(e) })}
-              onDragStateChange={onDrag}
-            />
-          </div>
-          <AutoChip
-            on={s.autoContrast}
-            label={t('sharpenAuto')}
-            title={t('sharpenAutoContrastHelp')}
-            onClick={() => set({ autoContrast: !s.autoContrast, contrast: Math.round(contrastShown) })}
-          />
-        </div>
-      </Group>
-
-      {s.autoRadius && auto.radius !== null && isRaw && s.capture && (
-        <Text variant={TextVariants.small} className="text-text-secondary">
-          {t('sharpenAutoRadiusRead').replace('{r}', fmt(auto.radius))}
-        </Text>
-      )}
 
       {legacy !== 0 && (
         <div className="flex items-center justify-between gap-2 rounded bg-bg-primary px-2 py-1">

@@ -21,7 +21,7 @@ use image::DynamicImage;
 
 use super::clipping;
 use super::sharpen;
-use super::sharpen_gpu::{self, Job, Target};
+use super::sharpen_gpu::{self, Job, MaskView, Target};
 use crate::app_state::AppState;
 use crate::gpu_processing::RenderRequest;
 use crate::image_processing::GpuContext;
@@ -77,7 +77,6 @@ pub fn run(
     // worth any risk of waiting on another.
     if let Some(threshold) = contrast
         && full.is_some()
-        && request.adjustments.global.ag_sharpen.auto_contrast()
         && let Ok(open) = state.original_image.try_lock()
         && let Some(open) = open.as_ref()
     {
@@ -125,7 +124,11 @@ fn sharpening(
 ) -> (Option<wgpu::TextureView>, Option<f32>) {
     let global = &request.adjustments.global;
     let params = global.ag_sharpen;
-    let mask_view = global.show_clipping == clipping::SHARPEN_MASK;
+    let mask_view = match global.show_clipping {
+        clipping::SHARPEN_MASK => MaskView::Capture,
+        clipping::SHARPEN_MASK_USM => MaskView::Sharpen,
+        _ => MaskView::Off,
+    };
     let is_raw = global.is_raw_image == 1;
     if !sharpen_gpu::needs_work(&params, width, height, px_scale, mask_view) {
         // Nothing to measure, nothing to run - and let the engine drop what it
@@ -141,8 +144,9 @@ fn sharpening(
                 is_raw,
                 params,
                 contrast: 0.0,
+                usm_contrast: 0.0,
                 px_scale,
-                mask_view: false,
+                mask_view: MaskView::Off,
                 region: None,
             },
             target,
@@ -150,7 +154,7 @@ fn sharpening(
         return (none, None);
     }
 
-    let contrast = sharpen::contrast_threshold(&params, measure_on, measure_key, is_raw);
+    let thresholds = sharpen::thresholds(&params, measure_on, measure_key, is_raw);
     let region = request.roi.as_ref().map(|r| [r.x, r.y, r.width, r.height]);
     let view = sharpen_gpu::run(
         context,
@@ -160,14 +164,15 @@ fn sharpening(
             height,
             is_raw,
             params,
-            contrast,
+            contrast: thresholds.capture,
+            usm_contrast: thresholds.usm,
             px_scale,
             mask_view,
             region,
         },
         target,
     );
-    (view, Some(contrast))
+    (view, thresholds.measured)
 }
 
 /// How many render pixels there are per full-resolution pixel, and the
