@@ -32,6 +32,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.11',
+    date: '2026-10-10',
+    notes: [
+      'Lens correction finds your lens on CR3 files and every other format, not only CR2, and adds '
+      + 'it to My Lenses. Photos that said "Lens profile not found" pick it up when you open them.',
+    ],
+  },
+  {
     version: '26.41.10',
     date: '2026-10-10',
     notes: [

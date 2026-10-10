@@ -661,7 +661,7 @@ const UNREACHED_165 = [
   ['9ba20c02', 'src-tauri/src/lib.rs', 'mod tagging_utils;, crate, process_preview_job, generate_uncropped_preview and 4 more', ['display-transform#ag_display_matrix', 'cache-keys#cache_version', 'ai-gpu-runtime#ORT_DYLIB_PATH']],
   ['9ba20c02', 'src-tauri/src/multi_exposure.rs', null, ['highlight-recovery#neutralize_wb_if_multiexposure']],
   ['9ba20c02', 'src-tauri/src/export_processing.rs', 'crate, process_image_for_export_pipeline, export_masks_for_image, export_adjustments_as_lut and 1 more', ['high-precision-export#process_image_for_export', 'high-precision-export#apply_watermark', 'high-precision-export#encode_image_to_bytes', 'tiff-export-metadata#save_image_with_metadata']],
-  ['9ba20c02', 'src-tauri/src/file_management.rs', 'generate_thumbnail_data', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
+  ['9ba20c02', 'src-tauri/src/file_management.rs', 'generate_thumbnail_data', ['my-gear#update_exif_fields', 'import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
   ['9ba20c02', 'src-tauri/src/app_settings.rs', 'all_available_adjustments, AppSettings, Default', ['import-dialogue-1714#last_import_settings']],
   ['9ba20c02', 'src/components/ui/AppProperties.tsx', 'import { ToolType } from \'../p, Invokes, AppSettings, SelectedImage', ['import-dialogue-1714#ImportSettings']],
   ['13611ab8', 'src/utils/adjustments.ts', null, ['wb-legacy:whiteBalance']],
@@ -674,24 +674,24 @@ const UNREACHED_165 = [
   ['c4ba9ac9', 'src-tauri/src/image_processing.rs', 'std, ImageMetadata, Default', ['camera-profile#GlobalAdjustments', 'clipping-view#show_clipping', 'preview-encode#apply_cpu_default_raw_processing', 'adjustments-path-argument#get_all_adjustments_from_json', 'import-dialogue-1714#calculate_auto_adjustments', 'wb-legacy#get_all_adjustments_from_json', 'raw-tone#GlobalAdjustments']],
   ['c4ba9ac9', 'src-tauri/src/formats.rs', null, ['tif-raw-sniffing#is_raw_file']],
   ['c4ba9ac9', 'src-tauri/src/lib.rs', 'run', ['display-transform#ag_display_matrix', 'cache-keys#cache_version', 'ai-gpu-runtime#ORT_DYLIB_PATH']],
-  ['c4ba9ac9', 'src-tauri/src/file_management.rs', 'crate, ImageFileMetadata, resolve_image_metadata, emit_image_metadata_loaded and 12 more', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
+  ['c4ba9ac9', 'src-tauri/src/file_management.rs', 'crate, ImageFileMetadata, resolve_image_metadata, emit_image_metadata_loaded and 12 more', ['my-gear#update_exif_fields', 'import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
   ['c4ba9ac9', 'src-tauri/src/app_settings.rs', 'FilterCriteria, Default', ['import-dialogue-1714#last_import_settings']],
   ['c4ba9ac9', 'src/components/modals/AppModals.tsx', 'import CollageModal from \'./Co, AppModalsProps, AppModals', ['import-dialogue-1714#ImportSettingsModal']],
   ['c4ba9ac9', 'src/components/ui/AppProperties.tsx', 'Invokes, EditedStatus, FilterCriteria, ImageFile', ['import-dialogue-1714#ImportSettings']],
   ['c4ba9ac9', 'src/hooks/useFileOperations.ts', 'import { toast } from \'react-t, import { useSettingsStore } fr, useFileOperations', ['import-dialogue-1714#handleStartImport']],
   ['cf6813f1', 'src-tauri/src/export_processing.rs', 'export_images_impl', ['adjustments-path-argument#get_all_adjustments_from_json', 'high-precision-export#process_image_for_export', 'high-precision-export#export_masks_for_image', 'high-precision-export#apply_watermark', 'high-precision-export#encode_image_to_bytes', 'export-precision-selector#estimate_export_sizes', 'tiff-export-metadata#save_image_with_metadata']],
   ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', ['camera-profile#GlobalAdjustments', 'camera-profile#ag_stage_scene_linear', 'clipping-view#ag_stage_display', 'highlight-recovery#ag_stage_scene_linear', 'high-precision-export#output_texture', 'raw-tone#GlobalAdjustments']],
-  ['c11c7a5c', 'src-tauri/src/exif_processing.rs', 'rawler, format_min_max, format_lens_specification, read_raw_metadata and 1 more', ['my-gear#fill_lens_model', 'tiff-export-metadata#write_image_with_metadata']],
+  ['c11c7a5c', 'src-tauri/src/exif_processing.rs', 'rawler, format_min_max, format_lens_specification, read_raw_metadata and 1 more', ['my-gear#read_exif_data', 'tiff-export-metadata#write_image_with_metadata']],
   ['43248097', 'src-tauri/src/image_loader.rs', 'largest_tiff_jpeg_preview, embedded_preview_fallback', ['raw-decode#load_base_image_from_bytes', 'highlight-recovery#load_image', 'highlight-recovery#load_base_image_from_bytes']],
-  ['43248097', 'src-tauri/src/file_management.rs', 'try_load_embedded_raw_preview', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
+  ['43248097', 'src-tauri/src/file_management.rs', 'try_load_embedded_raw_preview', ['my-gear#update_exif_fields', 'import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
   ['4e45e620', 'src-tauri/src/raw_processing.rs', 'rawler, develop_raw_image, develop_internal', ['raw-decode#on_raw_decoded', 'canon-old-wb#on_raw_decoded', 'canon-old-wb#read_as_shot_white_balance']],
-  ['4e45e620', 'src-tauri/src/file_management.rs', 'apply_exif_orientation, try_load_embedded_raw_preview', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
+  ['4e45e620', 'src-tauri/src/file_management.rs', 'apply_exif_orientation, try_load_embedded_raw_preview', ['my-gear#update_exif_fields', 'import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
   ['9671795e', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['clipping-view:showClipping', 'mask-guides#createMaskLogic']],
   ['078c90a8', 'src-tauri/src/image_processing.rs', 'get_all_adjustments_from_json', ['camera-profile#GlobalAdjustments', 'clipping-view#show_clipping', 'preview-encode#apply_cpu_default_raw_processing', 'import-dialogue-1714#calculate_auto_adjustments', 'raw-tone#GlobalAdjustments']],
   ['078c90a8', 'src-tauri/src/lib.rs', 'crate, get_cached_full_warped_image, process_preview_job, generate_uncropped_preview and 2 more', ['display-transform#ag_display_matrix', 'cache-keys#cache_version', 'ai-gpu-runtime#ORT_DYLIB_PATH']],
   ['078c90a8', 'src-tauri/src/export_processing.rs', 'crate, process_image_for_export_pipeline, export_masks_for_image, export_images_impl and 1 more', ['adjustments-path-argument#get_all_adjustments_from_json', 'high-precision-export#process_image_for_export', 'high-precision-export#apply_watermark', 'high-precision-export#encode_image_to_bytes', 'tiff-export-metadata#save_image_with_metadata']],
   ['078c90a8', 'src-tauri/src/lut_processing.rs', null, ['adjustments-path-argument#get_all_adjustments_from_json']],
-  ['078c90a8', 'src-tauri/src/file_management.rs', 'generate_thumbnail_data', ['import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
+  ['078c90a8', 'src-tauri/src/file_management.rs', 'generate_thumbnail_data', ['my-gear#update_exif_fields', 'import-dialogue-1714#ImportSettings', 'wb-legacy#load_metadata']],
   ['e99082ad', 'src-tauri/src/raw_processing.rs', 'recover_clipped_pixel', ['raw-decode#on_raw_decoded', 'canon-old-wb#on_raw_decoded', 'canon-old-wb#read_as_shot_white_balance', 'highlight-recovery#develop_internal', 'raw-tone#develop_raw_image']],
   ['e3022f65', 'src-tauri/src/export_processing.rs', 'image, encode_grayscale_to_png, encode_image_to_bytes', ['adjustments-path-argument#get_all_adjustments_from_json', 'high-precision-export#process_image_for_export', 'high-precision-export#export_masks_for_image', 'high-precision-export#apply_watermark', 'export-precision-selector#estimate_export_sizes', 'tiff-export-metadata#save_image_with_metadata']],
   ['b64adfc6', 'src-tauri/src/lib.rs', 'GLOBAL, setup_logging, run', ['display-transform#ag_display_matrix', 'cache-keys#cache_version']],
@@ -978,6 +978,7 @@ const MERGES_165 = [
     'tiff-export-metadata:src-tauri/src/export_processing.rs#save_image_with_metadata',
   ]],
   ['b191ae05', 'Merge of #1815 (43248097, 4e45e620)', [
+    'my-gear:src-tauri/src/file_management.rs#update_exif_fields',
     'raw-decode:src-tauri/src/raw_processing.rs#on_raw_decoded',
     'canon-old-wb:src-tauri/src/raw_processing.rs#on_raw_decoded',
     'canon-old-wb:src-tauri/src/raw_processing.rs#read_as_shot_white_balance',
@@ -1196,9 +1197,10 @@ export const REVIEW_165_DECISIONS = [
 // 10 for mask-falloff and 26 for mask-guides (26.41.9), 16 for mask-guides
 // reaching the AI panel and their radial Transformer, 33 for memory-release and
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
-// ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10).
-if (REVIEW_165_DECISIONS.length !== 1026) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1026 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
+// and 6 for my-gear writing a recovered lens through update_exif_fields (26.41.11).
+if (REVIEW_165_DECISIONS.length !== 1032) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1032 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

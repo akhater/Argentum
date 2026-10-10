@@ -682,7 +682,6 @@ pub fn extract_metadata(file_bytes: &[u8]) -> Option<HashMap<String, String>> {
         }
     }
 
-    crate::mods::makernote_lens::fill_lens_model(&mut map, file_bytes);
     if !map.is_empty() {
         if !map.contains_key("LensModel")
             && let Some(lens) = read_raw_metadata(file_bytes).and_then(|meta| meta.lens)
@@ -1651,7 +1650,7 @@ pub fn read_exif_data(path: &str, file_bytes: &[u8]) -> HashMap<String, String> 
         return cached_exif;
     }
 
-    let exif_map = read_exif_data_from_bytes(path, file_bytes);
+    let exif_map = crate::mods::lens_name::with_lens(read_exif_data_from_bytes(path, file_bytes), file_bytes);
     if !exif_map.is_empty() {
         let primary = get_primary_sidecar_path(source_path);
         if primary.exists() {

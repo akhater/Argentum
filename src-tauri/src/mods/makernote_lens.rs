@@ -28,6 +28,11 @@
 //! Canon only, for now. Nikon, Sony and Fuji each use a different MakerNote
 //! layout and would need their own reader — the entry point is shaped so one can
 //! be added without disturbing this.
+//!
+//! This is the last resort, not the reader. `lens_name` reads every format and
+//! comes here only when a body never wrote the standard `LensModel` tag. This
+//! file used to be the whole fix, which is how CR3 went unread: it was tested on
+//! a folder of CR2s and nothing else.
 
 /// Canon MakerNote tag 0x0095 — the lens name as ASCII.
 ///
@@ -53,12 +58,21 @@ const MAX_NAME_LEN: usize = 256;
 /// Returns `None` for anything not understood — a different maker, an older
 /// body, a file that does not parse. Detection then carries on exactly as it did
 /// before, so a failure here can never be worse than the current behaviour.
+///
+/// The app reaches this through `lens_name`, which hands `from_exif` EXIF it
+/// has already found. This whole-file form is kept for the tests.
+#[cfg(test)]
 pub fn read_lens_model(file_bytes: &[u8]) -> Option<String> {
     // Standard EXIF locates the MakerNote for us: it gives the offset and length
     // of the blob without having to walk the file structure by hand.
     let mut cursor = std::io::Cursor::new(file_bytes);
     let exif = exif::Reader::new().read_from_container(&mut cursor).ok()?;
+    from_exif(&exif)
+}
 
+/// The same, from EXIF already parsed — by `lens_name`, which also finds EXIF
+/// in formats `read_from_container` cannot open.
+pub fn from_exif(exif: &exif::Exif) -> Option<String> {
     // Only Canon is understood so far. Reading another maker's block with
     // Canon's tag numbers would return confident nonsense.
     let make = exif
@@ -75,9 +89,11 @@ pub fn read_lens_model(file_bytes: &[u8]) -> Option<String> {
     };
 
     // Canon's MakerNote is a bare IFD — no header of its own — and the offsets
-    // inside it are relative to the start of the TIFF file, not to the blob. So
-    // the blob supplies the structure and the whole file supplies the values.
-    parse_canon_ifd(blob, file_bytes)
+    // inside it are relative to the start of the TIFF data, not to the blob. So
+    // the blob supplies the structure and the TIFF data supplies the values. In
+    // a CR2 that data is the whole file; in a JPEG it is the EXIF block, which
+    // is why this takes `buf()` rather than the file.
+    parse_canon_ifd(blob, exif.buf())
 }
 
 /// Walk the IFD entries looking for the lens name.
@@ -227,36 +243,6 @@ mod tests {
     }
 }
 
-/// Fill in `LensModel` from the MakerNote when the standard EXIF pass did not
-/// produce a usable one.
-///
-/// Called from `extract_metadata` immediately before it returns, which is the
-/// only place that works: that function builds a map from standard EXIF and
-/// returns the moment it is non-empty. Everything below that early return —
-/// including their own lens handling and, at first, this fix — is dead code for
-/// any file that carries ordinary EXIF, which is every file. The fix sat there
-/// doing nothing until the early return was found.
-///
-/// An existing value always wins. A blank or whitespace-only one does not: a
-/// present-but-empty field quietly beating a good name is the same class of
-/// failure as the early return, and would be just as invisible.
-pub fn fill_lens_model(map: &mut std::collections::HashMap<String, String>, file_bytes: &[u8]) {
-    let already_good = map
-        .get("LensModel")
-        .map(|v| !v.trim().is_empty())
-        .unwrap_or(false);
-
-    if already_good {
-        return;
-    }
-
-    if let Some(raw) = read_lens_model(file_bytes) {
-        let name = normalise_lens_name(&raw);
-        log::info!("[lens] MakerNote supplied LensModel = {raw:?} -> {name:?}");
-        map.insert("LensModel".to_string(), name);
-    }
-}
-
 #[cfg(test)]
 mod folder_scan {
     use super::*;
@@ -320,7 +306,7 @@ mod folder_scan {
 /// Only the separator is touched. Nothing is added, removed or reordered — a
 /// guess that rewrites the name into something the camera did not say would be
 /// worse than the ambiguity it replaces.
-fn normalise_lens_name(name: &str) -> String {
+pub fn normalise_lens_name(name: &str) -> String {
     // Longest first, so EF-S is not matched as EF.
     const MOUNTS: [&str; 6] = ["EF-S", "EF-M", "TS-E", "MP-E", "RF", "EF"];
 
