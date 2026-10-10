@@ -13,7 +13,7 @@ Everything Argentum adds lives in its own files, so RapidRAW's updates keep
 merging cleanly. That constraint is enforced by a script, not by good intentions
 — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-![Argentum editing a Canon CR2 file](docs/screenshot.jpg)
+![Argentum editing a photo from a Canon EOS R6 Mark III](docs/screenshot.jpg)
 
 > **Early preview.** Argentum is developed and used on Windows, and runs on
 > macOS (Apple Silicon); Linux is not yet proven. Editing is non-destructive —

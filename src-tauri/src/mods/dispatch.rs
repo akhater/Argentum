@@ -167,6 +167,11 @@ pub async fn ag(
             let r = commands::refresh_image_metadata(a.path, app_handle)?;
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
+        "recover_lens_name" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let r = crate::mods::lens_name::recover_lens_name(a.path).await?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
+        }
         "raw_tone_curve" => {
             let a: RawToneArgs = args_for(&name, args)?;
             serde_json::to_value(commands::raw_tone_curve(a.path, a.mode, app_handle)?)

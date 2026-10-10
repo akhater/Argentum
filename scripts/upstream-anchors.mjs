@@ -283,8 +283,8 @@ export const ANCHORS = [
   {
     file: 'src-tauri/src/exif_processing.rs',
     hooks: 1,
-    what: 'reading the lens name out of the maker note',
-    instead: 'change mods/makernote_lens.rs',
+    what: 'the lens name, read from any file format when their read leaves it blank',
+    instead: 'change mods/lens_name.rs',
   },
   {
     file: 'src-tauri/src/lens_correction.rs',

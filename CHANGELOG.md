@@ -67,6 +67,36 @@ Newest first.
   decision); turn it back up and it stays.
 - A photo edited with their old sharpening keeps it, and the card says so,
   with a button to remove it.
+### Fixed
+
+- **Lens auto-detection reads the lens from every kind of file**, not only CR2.
+  An EF 100-400mm f/4.5-5.6L IS USM on an EOS R body said *Lens profile not
+  found*, and the lens never reached My Lenses. The 26.37.6 fix read Canon's
+  MakerNote through `kamadak-exif`, was tested on a folder of CR2s, and never
+  ran on a CR3: kamadak cannot open ISO-BMFF. A CR3's lens came only from
+  rawler's table of lens ids, which knows this lens under another id than the
+  `183:0` the camera reports - *No lens definition found in database* - and
+  dropped the name the camera had written in plain text beside it.
+  - `mods/lens_name.rs` reads the standard EXIF `LensModel` wherever the
+    format keeps its EXIF: a container kamadak opens (TIFF-based RAW, DNG,
+    TIFF, JPEG, HEIF), a TIFF under a private magic number (ORF, RW2), or a
+    TIFF block inside anything else (CR3, RAF). Canon's MakerNote stays as the
+    last resort, now with offsets taken from the EXIF block, so it works in a
+    JPEG too. It only ever fills a blank `LensModel`.
+  - Their `exif_processing.rs` keeps one call into ours, moved from inside
+    `extract_metadata` - which only RAWs kamadak opens reached - to around
+    `read_exif_data_from_bytes` in `read_exif_data`, the point every format
+    passes on a fresh read, before the result is cached.
+  - EXIF cached before this fix is keyed on the photo, not the app, so it kept
+    its empty lens - and their `resolve_lens_params_in_adjustments` detects the
+    lens again from that cache on every save and deletes it from the edit when
+    none is there (*Mount fallback ... giving up* in the log). When an opened
+    photo's EXIF has no lens, `useAutoDetectOnLoad` calls `recover_lens_name`,
+    which reads it from the file and writes it into the cache through their
+    `update_exif_fields`, the path the metadata panel's edits take. Every other
+    field, including any the user edited, is left as it was.
+  - Verified on six EOS R6 Mark III CR3s through the whole chain to the lensfun
+    match: `AG_LENS_DIR=... cargo test --lib mods::lens_name -- --ignored`.
 
 ## 26.41.10 — 2026-10-10
 
