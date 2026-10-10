@@ -28,6 +28,7 @@ pub mod export_precision;
 pub mod gpu_runtime;
 pub mod highlights;
 pub mod lens_crop;
+pub mod lens_name;
 pub mod makernote_lens;
 pub mod mask_falloff;
 pub mod memory;

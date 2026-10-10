@@ -302,17 +302,30 @@ export const REGISTRY = [
       'src/argentum/MyGear.tsx',
       'src/argentum/MyCameras.tsx',
       'src-tauri/src/mods/lens_crop.rs',
+      'src-tauri/src/mods/lens_name.rs',
       'src-tauri/src/mods/makernote_lens.rs',
     ],
     dependsOn: [
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'replaces',
         note: '207 lines of their lens UI removed rather than hidden. This is the uncomfortable one: upstream edits this file often and any change inside the block we deleted is a conflict resolved by hand.' },
       { file: 'src-tauri/src/lens_correction.rs', symbol: 'match_for_camera', how: 'calls' },
-      { file: 'src-tauri/src/exif_processing.rs', symbol: 'fill_lens_model', how: 'calls' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'read_exif_data', how: 'calls',
+        note: 'One call, with_lens around their read_exif_data_from_bytes: the point every format '
+          + 'passes on a fresh read, before the result is cached. It used to sit inside '
+          + 'extract_metadata, which only RAWs kamadak opens ever reached, so CR3 went unread. If '
+          + 'upstream starts reading LensModel from CR3, RAF, ORF or RW2 itself, ours goes quiet: '
+          + 'it only fills a blank one. EXIF cached before the fix is read by useAutoDetectOnLoad.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'update_exif_fields', how: 'calls',
+        note: 'recover_lens_name writes a recovered lens into EXIF cached before the fix, through '
+          + 'the command their metadata edits use. Needed because their resolve_lens_params_in_adjustments '
+          + 're-detects the lens from cached EXIF on every save and deletes it when none is there. If '
+          + 'update_exif_fields stops writing the sidecar, a CR3 opened before the fix loses its lens '
+          + 'again on its first save.' },
       { file: 'src/components/panel/right/MetadataPanel.tsx', how: 'calls',
         note: 'data-argentum="camera-details" mount point.' },
     ],
     tests: [
+      'src-tauri/src/mods/lens_name.rs #[cfg(test)] - and every_file_in_a_folder (ignored) runs real files through to the lensfun match',
       'src-tauri/src/mods/makernote_lens.rs #[cfg(test)]',
       'NONE for mods/lens_crop.rs — the crop-factor match is unproven by anything but use',
     ],

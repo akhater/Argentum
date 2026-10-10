@@ -28,10 +28,36 @@
  * Only lenses that were *detected* are added. A lens picked by hand is already
  * a deliberate choice and the user can add it themselves; recording those too
  * would fill the list with anything ever tried.
+ *
+ * WHY IT ASKS THE FILE FOR THE LENS
+ *
+ * EXIF is cached beside the photo, keyed on the photo rather than the app. A
+ * CR3 opened while CR3 lenses went unread has an empty lens saved there, and
+ * the backend fix never sees it again. So when the EXIF arrives with no lens,
+ * this has the backend read it from the file and write it into that cache
+ * (`recover_lens_name` in `mods/lens_name.rs`), puts it into the EXIF the
+ * panel and detection read, and only then detects.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ag } from './ag';
+import { useEditorStore } from '../store/useEditorStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+
+/** Read the lens from the file, and put it into the EXIF if one is there. */
+async function readLensFromFile(path: string) {
+  const lens = await ag<string | null>('recover_lens_name', { path }).catch(() => null);
+  if (!lens) {
+    return;
+  }
+  useEditorStore.setState((state) => {
+    const selected = state.selectedImage;
+    if (selected?.path !== path) {
+      return {};
+    }
+    return { selectedImage: { ...selected, exif: { ...selected.exif, LensModel: lens } } };
+  });
+}
 
 /** Add a lens to My Lenses if it is not already there. */
 function rememberLens(maker?: string | null, model?: string | null) {
@@ -63,6 +89,9 @@ export function useAutoDetectOnLoad(selectedImage: any, adjustments: any, detect
   // The image detection last ran for, so a lens that appears afterwards is
   // known to have been found rather than chosen by hand.
   const detectedFor = useRef<string | null>(null);
+  // The photo whose lens was asked of the file, and the one the answer is in for.
+  const lensAskedFor = useRef<string | null>(null);
+  const [lensReadFor, setLensReadFor] = useState<string | null>(null);
 
   useEffect(() => {
     const path = selectedImage?.path ?? null;
@@ -89,6 +118,15 @@ export function useAutoDetectOnLoad(selectedImage: any, adjustments: any, detect
       return;
     }
 
+    // No lens in the EXIF: ask the file once, and come back when it answers.
+    if (!selectedImage.exif.LensModel?.trim() && lensReadFor !== path) {
+      if (lensAskedFor.current !== path) {
+        lensAskedFor.current = path;
+        readLensFromFile(path).finally(() => setLensReadFor(path));
+      }
+      return;
+    }
+
     attempted.current = path;
     detectedFor.current = path;
     detect();
@@ -97,6 +135,7 @@ export function useAutoDetectOnLoad(selectedImage: any, adjustments: any, detect
     selectedImage?.exif,
     adjustments?.lensCorrectionMode,
     adjustments?.lensModel,
+    lensReadFor,
     detect,
   ]);
 
