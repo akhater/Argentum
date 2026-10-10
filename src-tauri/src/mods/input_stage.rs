@@ -59,6 +59,55 @@ pub fn run(
     if NOT_SHARPENED.contains(&caller_id) {
         return None;
     }
+    guarded(|| {
+        stage(
+            context,
+            state,
+            base_image,
+            transform_hash,
+            input,
+            width,
+            height,
+            request,
+        )
+    })
+}
+
+/// Never take their render down with ours.
+///
+/// This runs inside their preview worker, holding their processor lock. A
+/// panic here poisons that lock and ends the worker thread, after which no
+/// preview is drawn until the app restarts - which is what a bug in this
+/// stage did on 2026-10-10. So a failure skips sharpening for that frame,
+/// says why in the log, and lets the engine start clean next time; their
+/// render goes ahead on their own texture.
+fn guarded(stage: impl FnOnce() -> Option<wgpu::TextureView>) -> Option<wgpu::TextureView> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(stage)) {
+        Ok(view) => view,
+        Err(payload) => {
+            let why = payload
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "no message".into());
+            log::error!("[sharpen] skipped this frame, the input stage panicked: {why}");
+            sharpen_gpu::reset();
+            None
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stage(
+    context: &GpuContext,
+    state: &tauri::State<AppState>,
+    base_image: &DynamicImage,
+    transform_hash: u64,
+    input: &wgpu::TextureView,
+    width: u32,
+    height: u32,
+    request: &RenderRequest,
+) -> Option<wgpu::TextureView> {
     let (px_scale, full) = render_scale(state, transform_hash, width);
     let (view, contrast) = sharpening(
         context,
@@ -96,18 +145,20 @@ pub fn run_for_export(
     let (width, height) = (base_image.width(), base_image.height());
     // Any hash will do for the measurement cache as long as it is this
     // image's; the buffer address in the key tells renders apart.
-    sharpening(
-        context,
-        input,
-        width,
-        height,
-        request,
-        1.0,
-        base_image,
-        0,
-        Target::Fresh,
-    )
-    .0
+    guarded(|| {
+        sharpening(
+            context,
+            input,
+            width,
+            height,
+            request,
+            1.0,
+            base_image,
+            0,
+            Target::Fresh,
+        )
+        .0
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

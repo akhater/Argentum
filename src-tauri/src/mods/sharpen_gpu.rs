@@ -768,6 +768,12 @@ impl Engine {
     }
 }
 
+/// Forget everything kept, so the next run builds the engine afresh - after a
+/// failure that may have left it half way through a job.
+pub fn reset() {
+    *ENGINE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
 /// Sharpen `job.src`, or say there is nothing to do.
 pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::TextureView> {
     let mut slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
