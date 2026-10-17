@@ -32,6 +32,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.13',
+    date: '2026-10-17',
+    notes: [
+      'RAW photos now open looking like Lightroom\x27s default: brighter, with fuller contrast, '
+      + 'and with the sharpening Lightroom applies by default. Under RAW > Rendering it is called '
+      + 'DNG Standard; Default brings back the earlier look.',
+      'Each camera\x27s own brightness offset is applied, as Camera Raw does, for 230 camera models.',
+      'Edits saved before 22 September open in the new look; edits saved since keep the look they '
+      + 'were made with.',
+    ],
+  },
+  {
     version: '26.41.12',
     date: '2026-10-11',
     notes: [

@@ -53,17 +53,18 @@
 //
 // STAGES
 //
-// Two of them, because tools genuinely belong at different points and pretending
+// Three of them, because tools genuinely belong at different points and pretending
 // otherwise would be worse than the line it saves:
 //
 //   ag_stage_scene_linear  before the tone curve, on linear data. Colour work
 //                          lives here: white balance, calibration, anything
 //                          involving a matrix.
+//   ag_stage_tone          right after their tone mapper, which it can replace
+//                          for a RAW: the RAW tone renderings (see below).
 //   ag_stage_display       after tone mapping, on display-referred data.
 //
-// Only the first is wired today. The second exists so that adding the first
-// display-referred tool does not have to touch their file to do it, which is the
-// whole point.
+// A tool joins the stage it belongs to here, so adding it never touches their
+// file, which is the whole point.
 //
 // ORDER IS THE CONTRACT
 //
@@ -130,6 +131,104 @@ fn ag_stage_scene_linear(
     var c = color;
     c = ag_camera_profile(c, profile_r0, profile_r1, profile_r2);
     return c;
+}
+
+
+// ============================================================================
+// THE TONE ANCHOR
+//
+// Their tone mapper runs first, untouched, then this. For a RAW with a RAW tone
+// rendering chosen (mods/raw_tone.rs) ours replaces its result; for anything
+// else theirs passes straight through.
+//
+// The third call into shader.wgsl, taken 2026-10-17 by a recorded decision
+// (DEC-27).
+// Until then the RAW tone rendering lived as two blocks inside their main(),
+// a condition on their tone-mapper chain and a per-channel curve after it, and
+// DNG Standard needs more than a per-channel curve can give. The blocks came
+// out; their chain is theirs again, line for line.
+//
+//   mode 1 Base Curve, 2 Auto-Matched   sRGB, then the curve on each channel
+//   mode 3 DNG Standard                 the curve applied as Adobe applies it
+//
+// Their struct carries the mode and the photo's 16 points; this reads them
+// from `adjustments` directly, so the call line in their file never has to
+// change when a mode is added.
+// ============================================================================
+
+fn ag_stage_tone(theirs: vec3<f32>, linear: vec3<f32>) -> vec3<f32> {
+    let mode = adjustments.global.raw_tone_mode;
+    let count = adjustments.global.raw_tone_curve_count;
+    if (adjustments.global.is_raw_image != 1u || mode == 0u || count < 2u) {
+        return theirs;
+    }
+    let points = adjustments.global.raw_tone_curve;
+    if (mode == 3u) {
+        return ag_dng_standard(linear, points, count);
+    }
+    let encoded = linear_to_srgb(linear);
+    return vec3<f32>(
+        apply_curve(encoded.r, points, count),
+        apply_curve(encoded.g, points, count),
+        apply_curve(encoded.b, points, count),
+    );
+}
+
+// Linear sRGB (D65) and linear ProPhoto RGB (ROMM, D50), Bradford-adapted:
+// sRGB -> XYZ -> D65 to D50 -> ProPhoto, with Lindbloom's matrices. Each row
+// sums to one, so white stays white. Built column by column, as WGSL does.
+const AG_SRGB_TO_PROPHOTO = mat3x3<f32>(
+    vec3<f32>(0.5293458, 0.0983744, 0.0168832),
+    vec3<f32>(0.3300728, 0.8734610, 0.1176725),
+    vec3<f32>(0.1405813, 0.0281647, 0.8654443),
+);
+const AG_PROPHOTO_TO_SRGB = mat3x3<f32>(
+    vec3<f32>(2.0340764, -0.2288134, -0.0085698),
+    vec3<f32>(-0.7273343, 1.2317302, -0.1532866),
+    vec3<f32>(-0.3067417, -0.0029169, 1.1618564),
+);
+
+fn ag_srgb_encode(v: f32) -> f32 {
+    let c = clamp(v, 0.0, 1.0);
+    return select(1.055 * pow(c, 1.0 / 2.4) - 0.055, c * 12.92, c <= 0.0031308);
+}
+
+fn ag_srgb_decode(e: f32) -> f32 {
+    return select(pow((e + 0.055) / 1.055, 2.4), e / 12.92, e <= 0.04045);
+}
+
+/// One channel through the photo's curve, linear light in and out. The points
+/// are on sRGB-encoded values, as every RAW tone curve is stored.
+fn ag_dng_tone(v: f32, points: array<Point, 16>, count: u32) -> f32 {
+    return ag_srgb_decode(apply_curve(ag_srgb_encode(v), points, count));
+}
+
+// from RawTherapee rtengine/curves.h @ 46b92d8e, AdobeToneCurve::Apply and
+// AdobeToneCurve::RGBTone - their port of the DNG SDK's RefBaselineRGBTone.
+//
+// The largest and smallest channel go through the curve; the middle one keeps
+// its place between them. RawTherapee writes out the six orderings; one line
+// does all of them, because c - lo, scaled by how much the span grew, sends the
+// largest to its toned value, the smallest to its own, and the middle where
+// RGBTone puts it. Equal channels are a grey and take the curve directly.
+fn rt_rgb_tone(c: vec3<f32>, points: array<Point, 16>, count: u32) -> vec3<f32> {
+    let hi = max(c.r, max(c.g, c.b));
+    let lo = min(c.r, min(c.g, c.b));
+    let hi_toned = ag_dng_tone(hi, points, count);
+    if (hi - lo <= 1.0e-6) {
+        return vec3<f32>(hi_toned);
+    }
+    let lo_toned = ag_dng_tone(lo, points, count);
+    return vec3<f32>(lo_toned) + (c - vec3<f32>(lo)) * ((hi_toned - lo_toned) / (hi - lo));
+}
+
+/// DNG Standard (mods/dng_standard.rs): the curve applied in linear ProPhoto,
+/// as Adobe and RawTherapee apply a profile's tone curve, then back to sRGB.
+/// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
+fn ag_dng_standard(linear: vec3<f32>, points: array<Point, 16>, count: u32) -> vec3<f32> {
+    let prophoto = clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
+    let toned = rt_rgb_tone(prophoto, points, count);
+    return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
 }
 
 /// The clipping view, in whichever mode the button has been cycled to.

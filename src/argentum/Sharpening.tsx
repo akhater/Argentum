@@ -41,6 +41,7 @@ import {
   CAPTURE_MASK,
   MaskMode,
   readSharpen,
+  sharpenDefaults,
   SHARPEN_DEFAULTS,
   SHARPEN_MASK,
   useSharpenMask,
@@ -152,7 +153,8 @@ export default function Sharpening() {
   const restoredRadius: number | undefined =
     typeof adjustments?.agRestore?.captureRadius === 'number' ? adjustments.agRestore.captureRadius : undefined;
   const isRaw = selectedImage?.isRaw === true || restoredRadius !== undefined;
-  const s = readSharpen(adjustments);
+  const defaults = sharpenDefaults(adjustments, selectedImage?.isRaw === true);
+  const s = readSharpen(adjustments, selectedImage?.isRaw === true);
   const auto = useAutoValues(path, adjustments);
   const mask = useSharpenMask();
 
@@ -312,7 +314,7 @@ export default function Sharpening() {
             max={200}
             step={1}
             value={s.amount}
-            defaultValue={SHARPEN_DEFAULTS.amount}
+            defaultValue={defaults.amount}
             fillOrigin="min"
             suffix="%"
             onChange={(e) => set({ amount: num(e) })}
@@ -373,7 +375,7 @@ export default function Sharpening() {
                   max={8}
                   step={0.05}
                   value={s.usmRadius}
-                  defaultValue={SHARPEN_DEFAULTS.usmRadius}
+                  defaultValue={defaults.usmRadius}
                   fillOrigin="min"
                   onChange={(e) => set({ usmRadius: num(e) })}
                   onDragStateChange={onDrag(SHARPEN_MASK)}

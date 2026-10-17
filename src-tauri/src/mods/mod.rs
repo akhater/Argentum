@@ -24,6 +24,7 @@ pub mod decode;
 pub mod dispatch;
 pub mod display_monitor;
 pub mod display_profile;
+pub mod dng_standard;
 pub mod export_metadata;
 pub mod export_precision;
 pub mod gpu_runtime;

@@ -102,8 +102,26 @@ function maskOverride(state: any, mode: MaskMode) {
   };
 }
 
-export function readSharpen(adjustments: any): AgSharpen {
-  return { ...SHARPEN_DEFAULTS, ...(adjustments?.agSharpen ?? {}) };
+/**
+ * DNG Standard brings Camera Raw's default sharpening with it: Sharpen 25 at
+ * radius 1 measured the same as RAWmakase's render of Camera Raw's defaults
+ * (Amount 40, Radius 1.0) on 200% crops. Only until someone sets their own.
+ * mods/sharpen.rs applies the same numbers (DNG_STANDARD_AMOUNT).
+ */
+export const DNG_STANDARD_SHARPEN: Pick<AgSharpen, 'amount' | 'usmRadius'> = { amount: 25, usmRadius: 1 };
+
+/** The card's defaults for this photo: DNG Standard's for a RAW in it. */
+export function sharpenDefaults(
+  adjustments: { rawToneRendering?: string } | null | undefined,
+  isRaw: boolean,
+): AgSharpen {
+  return isRaw && adjustments?.rawToneRendering === 'dngStandard'
+    ? { ...SHARPEN_DEFAULTS, ...DNG_STANDARD_SHARPEN }
+    : SHARPEN_DEFAULTS;
+}
+
+export function readSharpen(adjustments: any, isRaw = false): AgSharpen {
+  return { ...sharpenDefaults(adjustments, isRaw), ...(adjustments?.agSharpen ?? {}) };
 }
 
 /**

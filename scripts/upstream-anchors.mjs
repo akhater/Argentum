@@ -44,9 +44,15 @@ export const ANCHORS = [
   },
   {
     file: 'src-tauri/src/shaders/shader.wgsl',
-    hooks: 2,
-    what: 'one call to ag_stage_scene_linear, one to ag_stage_display',
-    instead: 'add your tool inside one of those two stages in shaders/modules.wgsl',
+    // Three since 2026-10-17, by a recorded decision (DEC-27): the tone
+    // stage, one call right after their tone-mapper chain. Until then the RAW
+    // tone rendering was two blocks of logic inside their main() - a condition
+    // on their chain and a per-channel curve after it - which mentioned nothing
+    // of ours and so counted against no anchor. DNG Standard needed more than a
+    // per-channel curve; the blocks came out and their chain is theirs again.
+    hooks: 3,
+    what: 'one call to ag_stage_scene_linear, one to ag_stage_tone, one to ag_stage_display',
+    instead: 'add your tool inside one of those three stages in shaders/modules.wgsl',
   },
   {
     file: 'src-tauri/src/raw_processing.rs',

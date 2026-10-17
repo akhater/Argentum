@@ -1165,8 +1165,9 @@ export const REGISTRY = [
       { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
         note: 'raw_tone_mode, the curve and its count, filled from rawToneRendering/rawToneCurve.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
-        note: 'The same fields on the GPU side, and two blocks in main() that replace their tone '
-          + 'mapper for a RAW when a curve is set. Their struct and ours must stay in step.' },
+        note: 'The same fields on the GPU side, read by ag_stage_tone (modules.wgsl), which replaces '
+          + 'their tone mapper’s result for a RAW when a curve is set. Until 2026-10-17 that was two '
+          + 'blocks inside their main(). Their struct and ours must stay in step.' },
       { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
         note: 'rawToneRendering and rawToneCurve in their adjustments type, defaults and loader.' },
       { file: 'src-tauri/src/image_loader.rs', symbol: 'embedded_preview_fallback', how: 'calls',
@@ -1179,6 +1180,78 @@ export const REGISTRY = [
     ],
     tests: ['src-tauri/src/mods/raw_tone.rs #[cfg(test)]'],
     keywords: /tone.?(curve|map)|base.?curve|embedded.?(jpe?g|preview)|agx|filmic/i,
+  },
+  {
+    id: 'dng-standard',
+    kind: 'feature',
+    what:
+      'DNG Standard, a fourth RAW tone rendering, opt-in: the camera’s exposure offset '
+      + '(BaselineExposure, from a DNG or a per-body table taken from RAWmakase) and Adobe’s default '
+      + 'tone curve, applied in linear ProPhoto to each pixel’s largest and smallest channel as '
+      + 'Adobe’s RGBTone does, so hues hold.',
+    ours: [
+      'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/dng_baseline.tsv',
+      'src-tauri/src/shaders/modules.wgsl', 'src/argentum/RawToneRendering.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'default_tonemapped', how: 'extends',
+        note: 'One call, ag_stage_tone, right after their tone-mapper chain, which fills default_tonemapped. It is handed their result '
+          + 'and the scene-linear colour, and returns theirs unless a RAW tone rendering is set. If '
+          + 'upstream moves their tone mapping, the call has to move with it, or ours runs on the '
+          + 'wrong colour.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_curve', how: 'calls',
+        note: 'The 16 points are read with their monotone spline. mods/dng_standard.rs tests the '
+          + 'points against a copy of it, so a change to their spline must be copied there too.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'linear_to_srgb', how: 'calls',
+        note: 'The final encode, which is also the per-channel clip of colours beyond sRGB.' },
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'dngStandard in their type and in the loader’s list of values it keeps.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/dng_standard.rs #[cfg(test)]',
+      'src-tauri/src/mods/shader_check.rs #[cfg(test)]',
+    ],
+    keywords: /baseline.?exposure|dng.?(render|sdk|standard)|acr3|camera.?raw|prophoto|rgb.?tone/i,
+  },
+  {
+    id: 'raw-starting-look',
+    kind: 'behaviour-change',
+    what:
+      'A RAW whose edit names no rendering - one nobody has edited, one reset, settings pasted '
+      + 'onto an unedited photo - starts in DNG Standard, which brings Sharpen 25 at radius 1 until '
+      + 'someone sets their own. Edits that name RapidRAW’s rendering keep it; edits saved '
+      + 'before 2026-09-22 name none and now open in DNG Standard. Read the same everywhere: '
+      + 'raw_tone::mode_of and sharpen::from_json for the renderers, INITIAL_ADJUSTMENTS and their '
+      + 'loader for the editor.',
+    ours: [
+      'src-tauri/src/mods/raw_tone.rs', 'src-tauri/src/mods/sharpen.rs',
+      'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/super_resolution.rs',
+      'src-tauri/src/mods/cache_version.rs', 'src/argentum/sharpenSettings.ts',
+      'src/argentum/Sharpening.tsx', 'src/argentum/RawToneRendering.tsx',
+    ],
+    dependsOn: [
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'INITIAL_ADJUSTMENTS starts it at dngStandard, and their loader fills a saved edit '
+          + 'without it from INITIAL_ADJUSTMENTS, as mode_of does.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'raw_tone_mode', how: 'calls',
+        note: 'Their get_global_adjustments_from_json asks raw_tone::mode_of for the mode and '
+          + 'raw_tone::fill_missing for the photo’s points.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'is_image_edited', how: 'calls',
+        note: 'Compares an edit against json!({}), which now reads as DNG Standard: a photo nobody '
+          + 'edited still counts as unedited; an edit naming RapidRAW’s rendering now counts as edited.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'reset_adjustments_for_paths', how: 'calls',
+        note: 'Their reset writes an empty edit, which now renders as the new start, as the '
+          + 'editor’s reset to INITIAL_ADJUSTMENTS does.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'load_sidecar', how: 'calls',
+        note: 'A photo without a sidecar has no adjustments, which every renderer reads as the new '
+          + 'start. If upstream ever fills in a rendering here, unedited RAWs lose it.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/raw_tone.rs #[cfg(test)]',
+      'src-tauri/src/mods/sharpen.rs #[cfg(test)]',
+      'src-tauri/src/mods/super_resolution.rs #[cfg(test)]',
+    ],
+    keywords: /default.?(look|render|sharpen|preset)|initial.?adjust|unedited|reset/i,
   },
   {
     id: 'object-label',

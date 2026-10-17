@@ -1221,8 +1221,14 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    /// A RAW edit in RapidRAW's rendering: capture sharpening only. (A RAW
+    /// nobody has edited starts in DNG Standard, which adds its Sharpen.)
     fn defaults() -> Params {
-        super::super::sharpen::from_json(&serde_json::json!({}), true, None)
+        super::super::sharpen::from_json(
+            &serde_json::json!({ "rawToneRendering": "default" }),
+            true,
+            None,
+        )
     }
 
     fn plan_at(params: &Params, scale: f32, mask_view: MaskView) -> Option<Plan> {
