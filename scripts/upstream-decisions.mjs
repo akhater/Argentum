@@ -34,9 +34,10 @@
 //     it ended, and `to` is what `release` names;
 //   * every commit in the newest range is in some feature's `commits`, so a
 //     release cannot be half read;
-//   * a commit that touches the render path (RENDER_PATH in
-//     scripts/upstream-registry.mjs) is in at least one feature that is not
-//     `take`: their render-path changes are read and copied, never merged;
+//   * a commit that touches the render path or today's interface (RENDER_PATH
+//     and INTERFACE in scripts/upstream-registry.mjs) is in at least one
+//     feature that is not `take`: their changes there are read and copied,
+//     never merged;
 //   * `sameAsOurs` is `found` exactly when some feature is `decide`;
 //   * `stillLive` never grows from one release review to the next;
 //   * upstream is merged in exactly up to the newest `to`, and CHANGELOG.md

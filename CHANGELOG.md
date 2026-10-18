@@ -161,8 +161,12 @@ against the 1.6.5 review.
     list of their files still used when previewing, exporting or masking
     (`stillLive`) may not grow. The per-commit decisions recorded up to 1.6.5
     stay as history.
-  - The render path - `gpu_processing.rs`, `lib.rs`, `image_processing.rs` - is
-    ours to change: no line budget, no anchor count.
+  - The render path - `gpu_processing.rs`, `lib.rs`, `image_processing.rs` - and
+    today's interface - `App.tsx`, the editor and its panels, the adjustment
+    sections and the views - are ours to change in place: no line budget, no
+    anchor count. Their upstream changes there are read at the release review
+    and copied by hand, never merged. A pull request touching any file from
+    RapidRAW owes a registry entry, and no per-commit decisions.
   - A ratchet replaces the line budgets: our lines in each other file of
     theirs are recorded in `scripts/upstream-ratchet.json` and may only go
     down.

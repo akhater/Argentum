@@ -8,9 +8,9 @@
 // remember it. It runs in CI as a required check (.github/workflows/upstream.yml)
 // and with `npm run check:merge`, and it fails the build when:
 //
-//   * a file of theirs outside the render path holds more of our lines than
-//     scripts/upstream-ratchet.json allows (the ratchet; it only goes down);
-//   * a file of theirs we changed is claimed by no registry entry (coverage);
+//   * a file of theirs holds more of our lines than scripts/upstream-ratchet.json
+//     allows (the ratchet; it only goes down);
+//   * a file from RapidRAW we changed is claimed by no registry entry (coverage);
 //   * the registry and the tree disagree, an entry was deleted, or a retirement
 //     does not hold up (integrity);
 //   * a file of theirs calls into our code more often than its anchor allows,
@@ -19,8 +19,14 @@
 //     newest release review breaks a rule (scripts/upstream-decisions.mjs);
 //   * something of theirs we step around is gone from the release we merged.
 //
-// The render path (RENDER_PATH in scripts/upstream-registry.mjs) is exempt from
-// the ratchet, the anchor counts and the coverage rule: it is ours to change.
+// The render path and today's interface (RENDER_PATH and INTERFACE in
+// scripts/upstream-registry.mjs) came from RapidRAW and are ours to change in
+// place: no ratchet, no anchor count, no shadow check. Coverage still applies,
+// and their upstream changes are read at each release review, never merged.
+//
+// Nothing here asks a pull request for paperwork about upstream commits: a
+// change to a file from RapidRAW needs a registry entry, and overlaps with
+// upstream are handled once, at the release review.
 //
 // Every question is asked of git once, by a streamed command
 // (scripts/upstream-git.mjs). The run used to start about 390 git processes and
@@ -40,7 +46,7 @@ import { commitsIn, gitIn, readBlobs, tags } from './upstream-git.mjs';
 import { BASELINE, compareRatchet, formatBaseline, parseBaseline } from './upstream-ratchet.mjs';
 import {
   IDENTITY, OURS, REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, isOurs,
-  isRenderPath, shadowsOf, validateRetirements,
+  isOursToChange, shadowsOf, validateRetirements,
 } from './upstream-registry.mjs';
 import { validateReviews } from './upstream-releases.mjs';
 
@@ -145,20 +151,24 @@ for (const [file, st] of stats) {
   // Borrowed lines are upstream's own fix carried early. They are not our
   // divergence: when upstream merges the pull request they become identical to
   // their copy, so they count for nothing.
-  touched.push({ file, ...st, added: st.added - st.borrowed, render: isRenderPath(file) });
+  touched.push({ file, ...st, added: st.added - st.borrowed, adopted: isOursToChange(file) });
 }
-const theirs = touched.filter((t) => !t.render);
-const renderPath = touched.filter((t) => t.render);
+// Theirs: merged once per release, under the ratchet. Adopted: the render path
+// and today's interface, ours to change.
+const theirs = touched.filter((t) => !t.adopted);
+const adopted = touched.filter((t) => t.adopted);
 
-// --- Gate: every file of theirs we touch must be claimed ---------------------
+// --- Gate: every file from RapidRAW we touch must be claimed -----------------
 //
 // Line counts do not prove behaviour was preserved. `get_all_adjustments_from_json`
 // gained a fifth parameter and five call sites across four of their files were
 // rewritten one line for one: nothing added, nothing removed, and the whole
 // export path depending on a signature upstream owns. So if we changed a file
-// of theirs, some entry in scripts/upstream-registry.mjs must name it.
+// that came from them, render path and interface included, some entry in
+// scripts/upstream-registry.mjs must name it: that is what the release review
+// reads their changes against.
 const index = dependencyIndex(REGISTRY);
-for (const t of theirs) {
+for (const t of touched) {
   if (t.added === 0 && t.deleted === 0 && t.borrowed === 0) continue;
   if (index.claims(t.file)) continue;
   errors.push({
@@ -370,7 +380,7 @@ if (isRelease(newest)) {
     commits: rangeCommits,
     exists: (path) => existsSync(join(root, path)),
     isOurs,
-    isRenderPath,
+    isOursToChange,
   });
   for (const p of found.errors) errors.push({ file: 'scripts/upstream-decisions.mjs', ...p });
   for (const w of found.warnings) warnings.push(`scripts/upstream-decisions.mjs: ${w.detail}`);
@@ -417,9 +427,10 @@ if (reviewed !== base) {
 // A shadow is their code left in place while ours runs instead. If the release
 // we merged no longer has the symbol, our hook may be bypassing nothing. Their
 // main is looked at too, as an early warning for the next release. The render
-// path is ours, so nothing of theirs is shadowed in it.
+// path and today's interface are ours, and their changes there are never
+// merged, so nothing of theirs is shadowed in them.
 {
-  const shadows = shadowsOf(REGISTRY).filter((s) => !isRenderPath(s.file));
+  const shadows = shadowsOf(REGISTRY).filter((s) => !isOursToChange(s.file));
   const specs = [...new Set(shadows.flatMap((s) => [`${base}:${s.file}`, `upstream/main:${s.file}`]))];
   const blobs = readBlobs(git, specs);
   for (const { entry, file, symbol } of shadows) {
@@ -493,9 +504,8 @@ const sum = (list, key) => list.reduce((n, t) => n + t[key], 0);
 const used = theirs.filter((t) => t.added > 0 || t.deleted > 0 || t.borrowed > 0);
 const hooked = theirs.filter((t) => t.hooks.length > 0);
 console.log(`  upstream: merged and reviewed up to ${reviewedName ?? short(reviewed)} (${short(reviewed)})`);
-console.log(`  their files: ${used.length} touched outside the render path, ${sum(used, 'added')} of our lines, `
-  + 'none above the ratchet');
-console.log(`  render path: ${sum(renderPath, 'added')} of our lines in ${renderPath.length} files - ours to change, not counted`);
+console.log(`  their files: ${used.length} touched, ${sum(used, 'added')} of our lines, none above the ratchet`);
+console.log(`  render path and interface: ${sum(adopted, 'added')} of our lines in ${adopted.length} files - ours to change, not counted`);
 console.log(`  anchors: ${hooked.reduce((n, t) => n + t.hooks.length, 0)} calls into our code across ${hooked.length} of their files`);
 console.log(`  their lines: ${sum(used, 'removed')} removed unreplaced, ${sum(used, 'replaced')} replaced in place - counts, not evidence`
   + (verbose ? '' : ' (--verbose lists them)'));

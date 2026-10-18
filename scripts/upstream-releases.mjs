@@ -81,7 +81,7 @@ export function featureGroups(commits, to) {
  *   commits       the commits of the newest release range, or null if it was not read
  *   exists(path)  is this file in the working tree
  *   isOurs(path)  is this path one of ours
- *   isRenderPath(path)
+ *   isOursToChange(path)   the render path or today's interface
  *
  * Every entry is checked for shape. Only the newest release entry is checked
  * against git and the tree: older ones are records of what was true then, and a
@@ -178,9 +178,9 @@ export function validateReviews(reviews, facts) {
           'copiedInto: the file of ours it was copied into.');
       }
       for (const target of targets) {
-        if (typeof target !== 'string' || !(facts.isOurs(target) || facts.isRenderPath(target))) {
+        if (typeof target !== 'string' || !(facts.isOurs(target) || facts.isOursToChange(target))) {
           fail(`${label} is copied into ${target}, which is not a file of ours`,
-            'A copy goes into our code: the engine, mods/, src/argentum/ or the render path.');
+            'A copy goes into our code: the engine, mods/, src/argentum/, the render path or today\'s interface.');
         } else if (newest && !facts.exists(target)) {
           fail(`${label} is copied into ${target}, which does not exist`, 'Name the file it is in.');
         }
@@ -252,11 +252,11 @@ export function validateReviews(reviews, facts) {
           'Every commit of the release is read. Put it in the feature it belongs to, or give it its own line.');
         continue;
       }
-      const render = c.files.filter(facts.isRenderPath);
-      if (render.length > 0 && fs.every((f) => f.verdict === 'take')) {
-        fail(`${name}: ${short(c.sha)} changes ${render.join(', ')}, and every feature it is in is take`,
-          'The render path is ours: their changes to it are copied by hand or skipped, never merged. '
-            + 'Give its render-path part a line of its own with copy, skip or decide.');
+      const adopted = c.files.filter(facts.isOursToChange);
+      if (adopted.length > 0 && fs.every((f) => f.verdict === 'take')) {
+        fail(`${name}: ${short(c.sha)} changes ${adopted.join(', ')}, and every feature it is in is take`,
+          'The render path and today\'s interface are ours: their changes there are copied by hand '
+            + 'or skipped, never merged. Give that part a line of its own with copy, skip or decide.');
       }
     }
   });

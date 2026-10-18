@@ -27,7 +27,7 @@ in today's pipeline adds nothing to a file of theirs:
 | The math | `src-tauri/src/shaders/modules.wgsl` (ours), called from one of the existing stages: `ag_stage_scene_linear`, `ag_stage_tone` or `ag_stage_display` |
 | A whole-image GPU pass on the input | inside `src-tauri/src/mods/input_stage.rs` |
 | A setting the render needs | the render path (`image_processing.rs`) is ours to change. The matching WGSL struct is in their `shader.wgsl`, so a new field there is a line of ours in their file and has to be paid for by removing one; a tool that needs new settings belongs in the engine |
-| The control | a component in `src/argentum/`, mounted through an existing `data-argentum` marker; strings in `src/argentum/locales/` |
+| The control | today's panels (`src/components/panel/`, `src/components/adjustments/`) are ours to change in place; a component in `src/argentum/` mounted through an existing `data-argentum` marker works too. Strings go in `src/argentum/locales/` |
 
 If a tool cannot be built that way, that is the signal to build it in the
 engine.
@@ -91,11 +91,13 @@ file, so a tool with settings of its own is usually an engine tool.
 When a field is added, the Rust struct in `image_processing.rs` and the WGSL
 struct must match exactly — same fields, same order — or the GPU reads garbage.
 
-## 4. The control → `src/argentum/` (ours)
+## 4. The control → today's panels, or `src/argentum/` (both ours)
 
-A component of ours, placed through an existing `data-argentum` marker in their
-panel (see `src/argentum/Argentum.tsx`), never a new line in their component.
-Strings go in `src/argentum/locales/en.json`.
+Today's interface is ours to change in place, and its panels are being swapped
+one at a time for ones built from the engine's tool registry. A control can go
+straight into the panel it belongs in, or be a component of ours placed through
+an existing `data-argentum` marker (see `src/argentum/Argentum.tsx`). Strings go
+in `src/argentum/locales/en.json`, not in their locale files.
 
 ---
 

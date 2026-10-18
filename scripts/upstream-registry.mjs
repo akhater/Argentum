@@ -119,6 +119,29 @@ export const RENDER_PATH = [
 
 export const isRenderPath = (file) => RENDER_PATH.includes(file);
 
+/**
+ * Today's interface: the app shell, the editor and its panels, also Argentum's
+ * own to change in place since 2026-10-18 - for a layout switch built from
+ * today's panels, and for swapping panels one at a time for ones built from the
+ * engine's tool registry. Treated like the render path: no ratchet, no anchor
+ * count, no shadow check, and upstream's changes read and copied at each release
+ * review, never merged blind. A path ending in / is a folder.
+ */
+export const INTERFACE = [
+  'src/App.tsx',
+  // Editor.tsx and every panel: right, library, editor.
+  'src/components/panel/',
+  // The adjustment sections, the panels the registry-driven ones replace.
+  'src/components/adjustments/',
+  // The editor and library layouts.
+  'src/components/views/',
+];
+
+export const isInterface = (file) => INTERFACE.some((p) => (p.endsWith('/') ? file.startsWith(p) : file === p));
+
+/** A file that came from RapidRAW and is ours to change: the render path or today's interface. */
+export const isOursToChange = (file) => isRenderPath(file) || isInterface(file);
+
 export const REGISTRY = [
   {
     id: 'mask-stage-size-guard',

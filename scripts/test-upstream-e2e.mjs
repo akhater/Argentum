@@ -84,13 +84,15 @@ const entryText = {
     retired: { recordedIn: '${retired}',
       why: 'Upstream merged the fix and our marked block is identical to theirs.' },` : ''}
   },`,
-  thing: ({ shadows = false } = {}) => `  {
+  thing: ({ shadows = false, claimsOursToChange = true } = {}) => `  {
     id: 'thing-feature',
     kind: 'feature',
     what: 'our line in their Thing',
     ours: [],
     dependsOn: [
-      { file: 'src/components/Thing.tsx', how: 'extends' },${shadows ? `
+      { file: 'src/components/Thing.tsx', how: 'extends' },${claimsOursToChange ? `
+      { file: 'src-tauri/src/lib.rs', how: 'calls' },
+      { file: 'src/components/panel/Panel.tsx', how: 'calls' },` : ''}${shadows ? `
       { file: 'src/components/Thing.tsx', symbol: 'other', how: 'shadows' },` : ''}
       { file: 'src-tauri/src/cache_utils.rs', how: 'extends' },
     ],
@@ -174,6 +176,7 @@ function upstreamAndFork() {
   write('src-tauri/src/lib.rs', ['fn run() {}']);
   write('src/components/Thing.tsx', THING);
   write('src/components/Spare.tsx', ['export const spare = 1;']);
+  write('src/components/panel/Panel.tsx', ['export const Panel = () => null;']);
   const s = { base: commit('upstream base') };
   git(['tag', 'v1.0.0']);
   git(['checkout', '-q', '-b', 'upstream/main']);
@@ -360,6 +363,17 @@ const hooks = (n) => Array.from({ length: n }, (_, i) => `    mods::tool_${i}::r
 
 test('e2e: render path - lib.rs takes any number of our lines and calls into our code', () => {
   passes(scenario({ edits: { 'src-tauri/src/lib.rs': ['fn run() {', ...hooks(20), '}'] } }));
+});
+
+test('e2e: interface - a panel takes any number of our lines and calls into our code', () => {
+  passes(scenario({ edits: { 'src/components/panel/Panel.tsx': ['export const Panel = () => null;', ...hooks(20)] } }));
+});
+
+test('e2e: render path - coverage still applies: a change no registry entry claims fails', () => {
+  fails(scenario({
+    entries: () => [entryText.borrow(), entryText.thing({ claimsOursToChange: false })],
+    edits: { 'src-tauri/src/lib.rs': ['fn run() {', ...hooks(2), '}'] },
+  }), /src-tauri\/src\/lib\.rs\s+we changed this file of theirs and no registry entry claims it/);
 });
 
 test('e2e: render path - the same lines in a file of theirs outside it fail the anchor and the ratchet', () => {

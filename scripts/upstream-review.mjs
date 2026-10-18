@@ -10,7 +10,8 @@
 // commits were unrelated. A release is read once now, one line per feature:
 //
 //   1. their shader changes first: the most valuable, and the easiest to copy;
-//   2. their render-path changes, to read and copy by hand, never to merge;
+//   2. their changes to the render path and today's interface, to read and copy
+//      by hand, never to merge;
 //   3. which of their changes land on files our registry entries depend on;
 //   4. every feature of the release, with a verdict.
 //
@@ -20,7 +21,8 @@
 //
 // Run:  git fetch upstream && npm run review:upstream [-- <tag>] [-- --full]
 //
-// --full also prints the render-path diff; the shader diff is always printed.
+// --full also prints the diff of the render path and the interface; the shader
+// diff is always printed.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +32,7 @@ import { borrowMarkers, borrowStatus } from './upstream-borrows.mjs';
 import { REVIEWS, isRelease, reviewedTo } from './upstream-decisions.mjs';
 import { commitsIn, gitIn, tags } from './upstream-git.mjs';
 import {
-  REGISTRY, RENDER_PATH, activeFor, dependencyIndex, isOurs, isRenderPath,
+  INTERFACE, REGISTRY, RENDER_PATH, activeFor, dependencyIndex, isOurs, isOursToChange, isRenderPath,
 } from './upstream-registry.mjs';
 import { featureGroups } from './upstream-releases.mjs';
 
@@ -109,25 +111,27 @@ if (shaderFiles.length === 0) {
 }
 console.log('');
 
-// --- 2. The render path -------------------------------------------------------------
-const renderCommits = work.filter((c) => touches(c, isRenderPath));
-console.log('  2. THEIR RENDER-PATH CHANGES - ours to change: read, copy by hand what is wanted, never merge');
+// --- 2. The render path and today's interface ----------------------------------------
+const OURS_TO_CHANGE = [...RENDER_PATH, ...INTERFACE];
+const adoptedCommits = work.filter((c) => touches(c, isOursToChange));
+console.log('  2. THEIR CHANGES TO THE RENDER PATH AND TODAY\'S INTERFACE - ours to change: read, copy by hand');
+console.log('     what is wanted, never merge');
 console.log('');
-if (renderCommits.length === 0) {
+if (adoptedCommits.length === 0) {
   console.log('     none in this release');
 } else {
-  for (const c of renderCommits) {
-    const files = c.files.filter(isRenderPath).map((f) => f.split('/').pop()).join(', ');
+  for (const c of adoptedCommits) {
+    const files = c.files.filter(isOursToChange).map((f) => f.split('/').pop()).join(', ');
     console.log(`     ${short(c.sha)}  ${c.subject}  [${files}]`);
   }
   console.log('');
-  const stat = git(['diff', '--stat', from, to, '--', ...RENDER_PATH]);
+  const stat = git(['diff', '--stat', from, to, '--', ...OURS_TO_CHANGE]);
   for (const line of stat.trimEnd().split('\n')) console.log(`     ${line}`);
   console.log('');
   if (full) {
-    for (const line of git(['diff', from, to, '--', ...RENDER_PATH]).split('\n')) console.log(`     ${line}`);
+    for (const line of git(['diff', from, to, '--', ...OURS_TO_CHANGE]).split('\n')) console.log(`     ${line}`);
   } else {
-    console.log(`     git diff ${short(from)} ${short(to)} -- ${RENDER_PATH.join(' ')}`);
+    console.log(`     git diff ${short(from)} ${short(to)} -- ${OURS_TO_CHANGE.join(' ')}`);
     console.log('     (or npm run review:upstream -- --full)');
   }
 }
@@ -137,7 +141,7 @@ console.log('');
 const entries = activeFor(REGISTRY, REVIEWS, null);
 const index = dependencyIndex(entries);
 const changed = [...new Set(work.flatMap((c) => c.files))].sort();
-const claimed = changed.filter((f) => !isRenderPath(f) && index.claims(f));
+const claimed = changed.filter((f) => !isOursToChange(f) && index.claims(f));
 console.log('  3. THEIR CHANGES TO FILES OUR REGISTRY ENTRIES DEPEND ON - each entry says what it relies on');
 console.log('');
 if (claimed.length === 0) console.log('     none');
@@ -156,7 +160,7 @@ console.log('');
 // --- 4. The features -------------------------------------------------------------------
 const groups = featureGroups(commits, to);
 const filesOf = (g) => [...new Set(g.commits.flatMap((c) => c.files))];
-const rank = (g) => (filesOf(g).some(isShader) ? 0 : filesOf(g).some(isRenderPath) ? 1 : 2);
+const rank = (g) => (filesOf(g).some(isShader) ? 0 : filesOf(g).some(isOursToChange) ? 1 : 2);
 const ordered = groups.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g) - rank(b.g) || a.i - b.i).map(({ g }) => g);
 const readsLike = (g) => entries
   .filter((e) => e.keywords && g.commits.some((c) => e.keywords.test(c.subject)))
@@ -165,7 +169,7 @@ const hint = (g) => {
   const files = filesOf(g);
   const parts = [];
   if (files.some(isShader)) parts.push('shader');
-  const lands = files.filter((f) => !isRenderPath(f) && index.claims(f)).map((f) => f.split('/').pop());
+  const lands = files.filter((f) => !isOursToChange(f) && index.claims(f)).map((f) => f.split('/').pop());
   if (lands.length > 0) parts.push(`lands on registered: ${lands.join(', ')}`);
   const like = readsLike(g);
   if (like.length > 0) parts.push(`reads like: ${like.join(', ')}`);
@@ -205,7 +209,7 @@ console.log('      features: [');
 let section = -1;
 const headings = [
   '// Their shaders',
-  '// Touching the render path: each "in the render path" line is copy, skip or decide, never take',
+  '// Touching files ours to change: each "in files ours to change" line is copy, skip or decide, never take',
   '// Everything else',
 ];
 for (const g of ordered) {
@@ -214,16 +218,16 @@ for (const g of ordered) {
     console.log(`        ${headings[r]}`);
     section = r;
   }
-  const render = g.commits.filter((c) => touches(c, isRenderPath));
-  const rest = g.commits.filter((c) => c.files.some((f) => !isRenderPath(f)));
+  const adoptedPart = g.commits.filter((c) => touches(c, isOursToChange));
+  const rest = g.commits.filter((c) => c.files.some((f) => !isOursToChange(f)));
   if (rest.length > 0) {
     console.log(`        { what: ${q(g.what)}, commits: ${list(rest.map((c) => c.sha))}, `
       + `verdict: 'take | copy | skip | decide', why: '' },${hint(g)}`);
   }
-  if (render.length > 0) {
-    const files = [...new Set(render.flatMap((c) => c.files.filter(isRenderPath)))].map((f) => f.split('/').pop());
-    console.log(`        { what: ${q(`${g.what}, in the render path (${files.join(', ')})`)}, `
-      + `commits: ${list(render.map((c) => c.sha))}, verdict: 'copy | skip | decide', why: '' },`);
+  if (adoptedPart.length > 0) {
+    const files = [...new Set(adoptedPart.flatMap((c) => c.files.filter(isOursToChange)))].map((f) => f.split('/').pop());
+    console.log(`        { what: ${q(`${g.what}, in files ours to change (${files.join(', ')})`)}, `
+      + `commits: ${list(adoptedPart.map((c) => c.sha))}, verdict: 'copy | skip | decide', why: '' },`);
   }
 }
 console.log('      ],');
@@ -257,11 +261,12 @@ if (previousRelease) {
 }
 console.log('    },');
 console.log('');
-console.log('  Merging the release, with the render path kept as ours:');
+console.log('  Merging the release, with the render path and today\'s interface kept as ours:');
 console.log('');
 console.log(`    git merge --no-commit ${target}`);
-console.log(`    git checkout HEAD -- ${RENDER_PATH.join(' ')}`);
-console.log('    (copy in by hand what the review marked copy, then resolve, test and commit)');
+console.log(`    git checkout HEAD -- ${OURS_TO_CHANGE.join(' ')}`);
+console.log('    (files they added in those folders are not removed by that: keep or delete each;');
+console.log('    copy in by hand what the review marked copy, then resolve, test and commit)');
 console.log('');
 console.log(`  and make CHANGELOG.md say: **Based on RapidRAW \`${target.replace(/^v/, '')}\` @ \`${short(to)}\`**`);
 console.log('');

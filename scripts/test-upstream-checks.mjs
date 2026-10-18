@@ -38,8 +38,8 @@ import { accountDiff } from './upstream-diff.mjs';
 import { commitsIn, gitIn, readBlobs, tags } from './upstream-git.mjs';
 import { BASELINE, compareRatchet, formatBaseline, parseBaseline } from './upstream-ratchet.mjs';
 import {
-  REGISTRY, RENDER_PATH, activeFor, borrowsOf, dependencyIndex, historicalIds, isOurs,
-  isRenderPath, validateRetirements,
+  REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, isInterface, isOurs,
+  isOursToChange, validateRetirements,
 } from './upstream-registry.mjs';
 import { featureGroups, validateReviews } from './upstream-releases.mjs';
 
@@ -449,7 +449,7 @@ const factsFor = ({ commits = COMMITS, tagged = { 'v1.1.0': sha('2'), 'v1.2.0': 
   commits,
   exists: (p) => files.includes(p),
   isOurs,
-  isRenderPath,
+  isOursToChange,
 });
 const check = (reviews, facts = factsFor()) => {
   // The rules read PER_COMMIT_ENDS from the register; these reviews start from it.
@@ -466,6 +466,7 @@ for (const [name, reviews, pattern, facts] of [
   ['a commit in no feature', [SEED, goodRelease({ features: [goodRelease().features[1]] })], /11111111 "sparkle" is in no feature/],
   ['a commit outside the range', [SEED, goodRelease({ features: [...goodRelease().features, { what: 'stray', commits: ['99999999'], verdict: 'skip', why: 'Not wanted in Argentum at all.' }] })], /names 99999999, which is not a commit in/],
   ['a render-path change only ever taken', [SEED, goodRelease({ features: [goodRelease().features[0]] })], /22222222 changes src-tauri\/src\/lib\.rs, and every feature it is in is take/],
+  ['an interface change only ever taken', [SEED, goodRelease({ features: [{ what: 'a new panel', commits: ['44444444'], verdict: 'take', why: 'Their panel is better than ours; take it.' }], stillLive: [] })], /44444444 changes src\/components\/panel\/right\/NewPanel\.tsx, and every feature it is in is take/, factsFor({ commits: [{ sha: sha('4'), parents: [sha('0')], subject: 'a new panel', body: '', files: ['src/components/panel/right/NewPanel.tsx'] }] })],
   ['a verdict outside the four', [SEED, goodRelease({ features: [{ ...goodRelease().features[0], verdict: 'adopt' }, goodRelease().features[1]] })], /has verdict "adopt"/],
   ['a verdict with no reason', [SEED, goodRelease({ features: [{ ...goodRelease().features[0], why: 'ok' }, goodRelease().features[1]] })], /has no reasoning/],
   ['a copy that says not where', [SEED, goodRelease({ features: [goodRelease().features[0], { ...goodRelease().features[1], copiedInto: undefined }] })], /is copied, and copiedInto does not say where/],
@@ -500,7 +501,7 @@ test('release rules: the real register passes them', () => {
   try {
     if (isRelease(newest)) commits = commitsIn(git, newest.from, newest.to);
     const { errors } = validateReviews(REVIEWS, {
-      tags: tags(git), commits, exists: (p) => existsSync(join(root, p)), isOurs, isRenderPath,
+      tags: tags(git), commits, exists: (p) => existsSync(join(root, p)), isOurs, isOursToChange,
     });
     assert.deepEqual(errors, []);
   } catch (error) {
@@ -539,7 +540,7 @@ test('ratchet: the committed baseline holds positive whole numbers for their fil
   for (const [file, n] of baseline) {
     assert.ok(Number.isInteger(n) && n > 0, `${file}: ${n}`);
     assert.ok(!isOurs(file), `${file} is ours and has no number`);
-    assert.ok(!isRenderPath(file), `${file} is on the render path and has no number`);
+    assert.ok(!isOursToChange(file), `${file} is on the render path or the interface and has no number`);
   }
 });
 
@@ -566,11 +567,23 @@ const lineThatCarries = (text, pattern) => {
   );
 };
 
-test('every anchor names a file that exists, and the render path has no hook count', () => {
+test('the interface is today\'s app shell, editor and panels, and nothing beside them', () => {
+  for (const f of ['src/App.tsx', 'src/components/panel/Editor.tsx', 'src/components/panel/right/ExportPanel.tsx',
+    'src/components/adjustments/Color.tsx', 'src/components/views/EditorView.tsx']) {
+    assert.equal(isInterface(f), true, f);
+  }
+  for (const f of ['src/AppX.tsx', 'src/components/ui/Slider.tsx', 'src/components/modals/ImportSettingsModal.tsx',
+    'src/hooks/useExportSettings.ts', 'src/components/panelish/X.tsx']) {
+    assert.equal(isInterface(f), false, f);
+  }
+  assert.equal(isOursToChange('src-tauri/src/lib.rs'), true);
+});
+
+test('every anchor names a file that exists, and the files ours to change have no hook count', () => {
   for (const anchor of ANCHORS) {
     assert.ok(existsSync(join(root, anchor.file)), `${anchor.file} does not exist: a typo guards nothing`);
-    if (RENDER_PATH.includes(anchor.file)) {
-      assert.equal(anchor.hooks, undefined, `${anchor.file} is on the render path, which has no anchor count`);
+    if (isOursToChange(anchor.file)) {
+      assert.equal(anchor.hooks, undefined, `${anchor.file} is ours to change, which has no anchor count`);
     } else {
       assert.ok(Number.isInteger(anchor.hooks) && anchor.what && anchor.instead,
         `${anchor.file} needs hooks, what and instead`);

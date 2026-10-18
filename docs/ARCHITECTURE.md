@@ -30,6 +30,7 @@ So the line moved:
 | `src-tauri/engine/` | New tools: one file in `tools/`, one line in `registry.rs` (see its README) |
 | `src-tauri/src/mods/`, `shaders/modules.wgsl`, `src/argentum/` | Ours, as before, until moved into the engine |
 | The render path: `gpu_processing.rs`, `lib.rs`, `image_processing.rs` | Ours to change. RapidRAW's changes here are read at each release and copied in by hand when wanted, never merged |
+| Today's interface: `App.tsx`, `components/panel/` (`Editor.tsx` and the panels), `components/adjustments/`, `components/views/` | Ours to change in place: for a layout switch built from today's panels, and for swapping panels one at a time for ones built from the engine's tool registry. RapidRAW's changes here are read at each release and copied when wanted, never merged blind |
 | Their other files | Still merged, once per release. Our lines in them may only go down |
 
 Nothing of theirs is deleted while something still uses it. Once nothing does,
@@ -95,14 +96,19 @@ src-tauri/
     *.rs                 THEIRS  — merged once per release
 
 src/
+  App.tsx                INTERFACE — came from RapidRAW, ours to change in place
   argentum/              OURS
-  components/            THEIRS  — markers and mount points for our panels
+  components/
+    panel/               INTERFACE — Editor.tsx and every panel
+    adjustments/         INTERFACE — the adjustment sections
+    views/               INTERFACE — the editor and library layouts
+    ui/, modals/, ...    THEIRS  — merged once per release
 ```
 
-**Rule of thumb:** a file of ours takes anything. A file on the render path is
-ours to change, a piece at a time. A file of theirs takes no new lines: what a
-feature needs goes into a file of ours, and the line count in theirs only goes
-down.
+**Rule of thumb:** a file of ours takes anything. A file on the render path or
+in today's interface is ours to change, a piece at a time. A file of theirs
+takes no new lines: what a feature needs goes into a file of ours, and the line
+count in theirs only goes down.
 
 ---
 
@@ -173,8 +179,6 @@ feature must not need it to.
 |---|---|---|
 | `shader.wgsl` | one call each to `ag_stage_scene_linear`, `ag_stage_tone` and `ag_stage_display` | add your tool inside one of those functions in `modules.wgsl` |
 | `raw_processing.rs` | one call to `mods::decode::on_raw_decoded` | add a step in `mods/decode.rs` |
-| `App.tsx` | one `<Argentum />` | add a portal in `argentum/Argentum.tsx` |
-| `Color.tsx`, `MetadataPanel.tsx`, `Details.tsx` | `data-argentum` markers | portal into the existing marker |
 | 13 locale files | nothing | add a string to `argentum/locales/en.json` |
 
 `scripts/check-mergeability.mjs` enforces this. It knows the difference between
@@ -183,17 +187,19 @@ rebrand (`.agdata`, "Argentum" inside a sentence they already had). The rebrand
 happened once and does not grow, so it is not counted.
 
 Add a hook to one of their files and the build fails, naming the anchor and what
-to do instead. The render path (`gpu_processing.rs`, `lib.rs`,
-`image_processing.rs`) has no anchors: it is ours to change. New tools need no
-anchor at all, because they go into the engine.
+to do instead. The render path and today's interface have no anchor counts:
+they are ours to change. The `data-argentum` markers in the panels and the
+single `<Argentum />` in `App.tsx` stay as the way our components mount, and
+the wiring checks on them stay. New tools need no anchor at all, because they
+go into the engine.
 
 ### The one category that is not free
 
 Portals add UI. They cannot change what happens when the user clicks something
-of *theirs*. Three anchors exist for that: the white balance picker
-(`ImageCanvas.tsx`), lens auto-detection on load (`CropPanel.tsx`), and reading
-the lens from the maker note (`exif_processing.rs`), plus the lens profile match
-in `lens_correction.rs`.
+of *theirs*. Two anchors in their Rust files exist for that: reading the lens
+from the maker note (`exif_processing.rs`) and the lens profile match in
+`lens_correction.rs`. (Lens auto-detection on load, in `CropPanel.tsx`, is in
+today's interface now, which is ours to change.)
 
 Each replaces the body of an existing handler, so each was a one-time
 replacement rather than something a later feature adds to. **If one of these
@@ -300,9 +306,9 @@ release tag, in the order it is read:
 
 1. **Their shader changes first**, as a diff: the most valuable changes and the
    easiest to copy.
-2. **Their render-path changes**, to read. What is wanted is copied into our
-   render path by hand, with the source commit in a comment; nothing there is
-   merged.
+2. **Their changes to the render path and today's interface**, to read. What
+   is wanted is copied in by hand, with the source commit in a comment; nothing
+   there is merged.
 3. **Their changes to files our registry entries depend on**
    (`scripts/upstream-registry.mjs`), with the entries that rely on each one.
 4. **One line per feature**, grouped from their pull requests, with a verdict
@@ -319,25 +325,28 @@ to take under a day, and the entry records how long it took.
 It runs in CI as a required check, and on demand. It takes about a second:
 each question is asked of git once, by one streamed command.
 
-- **The ratchet.** For every file of theirs outside the render path, the number
-  of lines we have added to it is recorded in `scripts/upstream-ratchet.json`.
+- **The ratchet.** For every file of theirs outside the render path and today's
+  interface, the number of lines we have added to it is recorded in
+  `scripts/upstream-ratchet.json`.
   A file above its number fails the build. A file below it lowers the number:
   the check writes it locally, and CI fails until it is committed. The file is
   also compared with the one on `main`, so a number raised by hand fails too.
-- **Coverage.** A file of theirs that we changed must be claimed by a registry
-  entry saying what depends on it and what proves it works.
+- **Coverage.** A file from RapidRAW that we changed, render path and interface
+  included, must be claimed by a registry entry saying what depends on it and
+  what proves it works. That is all a pull request owes for touching one:
+  overlaps with upstream are handled once, at the release review.
 - **Integrity.** Registry entries are retired, never deleted, and a retirement
   names the release review that decided it. Borrowed upstream fixes carry
   `// upstream #NNNN` markers that the registry must agree with.
 - **Anchors.** Calls from their files into ours stay at a fixed count, and the
   wiring an anchor exists for is still there.
-- **Shadows.** Code of theirs we leave in place and step around must still
-  exist in the release we merged. Its disappearance from their main is a
-  warning for the next review.
+- **Shadows.** Code of theirs we leave in place and step around, outside the
+  render path and the interface, must still exist in the release we merged.
+  Its disappearance from their main is a warning for the next review.
 - **The release reviews.** One unbroken chain of reviews; upstream merged in
   exactly up to the newest one; every commit of that release in some feature;
-  every change of theirs to the render path marked copy, skip or decide, never
-  take; `sameAsOurs` saying whether they built something we have; and
+  every change of theirs to the render path or the interface marked copy, skip
+  or decide, never take; `sameAsOurs` saying whether they built something we have; and
   `stillLive`, the list of their files still used when previewing, exporting
   or masking, never longer than at the review before.
 

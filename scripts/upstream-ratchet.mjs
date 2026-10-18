@@ -7,9 +7,9 @@
 // and every one of them is a place an upstream release can collide with us.
 // Argentum is moving its code out of their files and into its own (the engine,
 // mods/, src/argentum/). The ratchet holds that direction: for every file of
-// theirs outside the render path, the number of lines we have added to it is
-// recorded in scripts/upstream-ratchet.json, and the build fails when a file's
-// number goes above it.
+// theirs outside the render path and today's interface, the number of lines we
+// have added to it is recorded in scripts/upstream-ratchet.json, and the build
+// fails when a file's number goes above it.
 //
 // Lowering is the only edit. A local `npm run check:merge` that finds a file
 // below its number, with nothing else wrong, writes the lower number back; CI
@@ -23,7 +23,7 @@
 export const BASELINE = 'scripts/upstream-ratchet.json';
 
 const ABOUT =
-  'Our lines in each RapidRAW file outside the render path, measured against the '
+  'Our lines in each RapidRAW file outside the render path and today\'s interface, measured against the '
   + 'upstream release we are merged up to. A number may only go down: npm run check:merge '
   + 'fails when a file rises above it, and writes the lower number here when it falls.';
 
