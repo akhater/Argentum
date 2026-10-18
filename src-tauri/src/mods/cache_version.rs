@@ -53,7 +53,9 @@ use std::path::{Path, PathBuf};
 ///    `mods/wb_legacy.rs`.
 /// 5. Linear and radial masks fade with an S-curve instead of a straight ramp
 ///    (`mods/mask_falloff.rs`).
-pub const PIPELINE: u32 = 6;
+/// 6. A RAW nobody has edited starts in DNG Standard, with its Sharpen
+///    (`mods/dng_standard.rs`, `raw_tone::mode_of`).
+pub const PIPELINE: u32 = 7;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

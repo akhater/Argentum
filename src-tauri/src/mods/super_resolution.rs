@@ -1130,6 +1130,7 @@ fn write_super_resolution_sidecar(
             white_balance::as_shot_white_balance(&source_path.to_string_lossy()),
             crate::image_processing::resolve_tonemapper_override(&settings, true),
             crate::image_processing::resolve_tonemapper_override(&settings, false),
+            Some(&source_path.to_string_lossy()),
         );
     }
     let frame = Frame::of(&metadata.adjustments, enlarged);
@@ -1177,12 +1178,13 @@ fn carry_raw_look(
     as_shot: WhiteBalance,
     raw_override: Option<u32>,
     non_raw_override: Option<u32>,
+    photo: Option<&str>,
 ) {
     if !adjustments.is_object() {
         *adjustments = json!({});
     }
     carry_white_balance(adjustments, as_shot);
-    carry_view_transform(adjustments, raw_override, non_raw_override);
+    carry_view_transform(adjustments, raw_override, non_raw_override, photo);
 }
 
 /// The editor balances a photo by adapting it from its as-shot white to the
@@ -1231,22 +1233,28 @@ enum RawViewCurve {
     Nothing,
     /// The basic tone mapper's raw branch.
     Basic,
-    /// Raw tone rendering: the camera base curve, or the auto-matched one.
+    /// Raw tone rendering: the camera base curve, the auto-matched one, or DNG
+    /// Standard's. DNG Standard's is applied to the largest and smallest
+    /// channel in ProPhoto (ag_dng_standard); carried in the luma curve it runs
+    /// on each channel instead, so saturated colours land a little stronger.
     Points(Vec<(f32, f32)>),
 }
 
-fn raw_view_curve(adjustments: &Value, raw_override: Option<u32>) -> RawViewCurve {
-    let mode = adjustments["rawToneRendering"]
-        .as_str()
-        .unwrap_or("default");
-    if mode == "baseCurve" || mode == "autoMatched" {
-        let mut points = curve_points(&adjustments["rawToneCurve"]);
-        if mode == "baseCurve" && points.len() < 2 {
-            points = crate::mods::raw_tone::base_curve()
-                .into_iter()
-                .map(|point| (point.x, point.y))
-                .collect();
-        }
+fn raw_view_curve(
+    adjustments: &Value,
+    raw_override: Option<u32>,
+    photo: Option<&str>,
+) -> RawViewCurve {
+    // The renderer's own reading of the edit (image_processing.rs), so a photo
+    // nobody edited is enlarged in DNG Standard, as it opens.
+    let mode = crate::mods::raw_tone::mode_of(adjustments);
+    if mode != 0 {
+        let mut stored = adjustments["rawToneCurve"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        crate::mods::raw_tone::fill_missing(mode, &mut stored, photo);
+        let mut points = curve_points(&Value::Array(stored));
         if points.len() >= 2 {
             points.truncate(16);
             return RawViewCurve::Points(points);
@@ -1271,8 +1279,9 @@ fn carry_view_transform(
     adjustments: &mut Value,
     raw_override: Option<u32>,
     non_raw_override: Option<u32>,
+    photo: Option<&str>,
 ) {
-    let view = raw_view_curve(adjustments, raw_override);
+    let view = raw_view_curve(adjustments, raw_override, photo);
     let agx = matches!(view, RawViewCurve::Nothing);
     adjustments["toneMapper"] = json!(if agx { "agx" } else { "basic" });
     adjustments["rawToneRendering"] = json!("default");
@@ -2102,8 +2111,8 @@ mod tests {
 
     #[test]
     fn the_raw_basic_tone_curve_rides_in_the_luma_curve() {
-        let mut adjustments = json!({ "toneMapper": "basic" });
-        carry_view_transform(&mut adjustments, None, None);
+        let mut adjustments = json!({ "rawToneRendering": "default", "toneMapper": "basic" });
+        carry_view_transform(&mut adjustments, None, None, None);
         assert_eq!(adjustments["toneMapper"], "basic");
         assert_eq!(adjustments["curveMode"], "point");
         assert_eq!(adjustments["pointCurves"], adjustments["curves"]);
@@ -2116,12 +2125,13 @@ mod tests {
         let own = vec![(0.0, 12.0), (128.0, 140.0), (255.0, 250.0)];
         let red = json!([{ "x": 0, "y": 0 }, { "x": 128, "y": 120 }, { "x": 255, "y": 255 }]);
         let mut adjustments = json!({
+            "rawToneRendering": "default",
             "curves": {
                 "luma": own.iter().map(|(x, y)| json!({ "x": x, "y": y })).collect::<Vec<_>>(),
                 "red": red,
             },
         });
-        carry_view_transform(&mut adjustments, None, None);
+        carry_view_transform(&mut adjustments, None, None, None);
         let worst = worst_levels(&adjustments["curves"]["luma"], |s| {
             apply_curve(raw_basic_curve(s), &own)
         });
@@ -2132,7 +2142,7 @@ mod tests {
     #[test]
     fn the_camera_base_curve_rides_in_the_luma_curve() {
         let mut adjustments = json!({ "rawToneRendering": "baseCurve", "toneMapper": "agx" });
-        carry_view_transform(&mut adjustments, None, None);
+        carry_view_transform(&mut adjustments, None, None, None);
         assert_eq!(adjustments["toneMapper"], "basic");
         assert_eq!(adjustments["rawToneRendering"], "default");
         let base: Vec<(f32, f32)> = crate::mods::raw_tone::base_curve()
@@ -2146,20 +2156,20 @@ mod tests {
     #[test]
     fn agx_is_the_same_for_both_and_needs_no_curve() {
         let luma = json!([{ "x": 0, "y": 10 }, { "x": 255, "y": 250 }]);
-        let mut adjustments = json!({ "toneMapper": "agx", "curves": { "luma": luma } });
-        carry_view_transform(&mut adjustments, None, None);
+        let mut adjustments = json!({ "rawToneRendering": "default", "toneMapper": "agx", "curves": { "luma": luma } });
+        carry_view_transform(&mut adjustments, None, None, None);
         assert_eq!(adjustments["toneMapper"], "agx");
         assert_eq!(adjustments["curves"]["luma"], luma);
 
         // The Settings override is what the raw rendered with, not the sidecar.
-        let mut overridden = json!({ "toneMapper": "basic", "curves": { "luma": luma } });
-        carry_view_transform(&mut overridden, Some(1), None);
+        let mut overridden = json!({ "rawToneRendering": "default", "toneMapper": "basic", "curves": { "luma": luma } });
+        carry_view_transform(&mut overridden, Some(1), None, None);
         assert_eq!(overridden["toneMapper"], "agx");
         assert_eq!(overridden["curves"]["luma"], luma);
     }
 
     #[test]
-    fn an_unedited_raw_gets_a_raws_default_look() {
+    fn an_unedited_raw_is_enlarged_in_dng_standard_as_it_opens() {
         let mut adjustments = Value::Null;
         carry_raw_look(
             &mut adjustments,
@@ -2169,9 +2179,22 @@ mod tests {
             },
             None,
             None,
+            None,
         );
         assert_eq!(adjustments["toneMapper"], "basic");
         assert!(adjustments["whiteBalance"].is_null());
+        let points: Vec<(f32, f32)> = crate::mods::dng_standard::curve_for_photo(None)
+            .into_iter()
+            .map(|p| (p.x, p.y))
+            .collect();
+        let worst = worst_levels(&adjustments["curves"]["luma"], |s| apply_curve(s, &points));
+        assert!(worst < 1.0, "off by {worst} levels");
+    }
+
+    #[test]
+    fn an_edit_in_rapidraws_rendering_keeps_its_look() {
+        let mut adjustments = json!({ "rawToneRendering": "default" });
+        carry_view_transform(&mut adjustments, None, None, None);
         let worst = worst_levels(&adjustments["curves"]["luma"], raw_basic_curve);
         assert!(worst < 1.0, "off by {worst} levels");
     }

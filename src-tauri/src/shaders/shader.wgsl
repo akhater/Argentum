@@ -121,7 +121,7 @@ struct GlobalAdjustments {
     ag_profile_row1: vec4<f32>,
     ag_profile_row2: vec4<f32>,
 
-    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched
+    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard
     raw_tone_curve_count: u32,
     _pad_raw_tone1: u32,
     _pad_raw_tone2: u32,
@@ -1932,10 +1932,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 
     var default_tonemapped: vec3<f32>;
-    if (is_raw == 1u && adjustments.global.raw_tone_mode != 0u
-        && adjustments.global.raw_tone_curve_count >= 2u) {
-        default_tonemapped = linear_to_srgb(composite_rgb_linear);
-    } else if (adjustments.global.tonemapper_mode == 1u) {
+    if (adjustments.global.tonemapper_mode == 1u) {
         default_tonemapped = agx_full_transform(composite_rgb_linear);
     } else if (is_raw == 1u) {
         var srgb_emulated = linear_to_srgb(composite_rgb_linear);
@@ -1947,15 +1944,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     } else {
         default_tonemapped = linear_to_srgb(composite_rgb_linear);
     }
-
-    if (is_raw == 1u && adjustments.global.raw_tone_mode != 0u
-        && adjustments.global.raw_tone_curve_count >= 2u) {
-        default_tonemapped = vec3<f32>(
-            apply_curve(default_tonemapped.r, adjustments.global.raw_tone_curve, adjustments.global.raw_tone_curve_count),
-            apply_curve(default_tonemapped.g, adjustments.global.raw_tone_curve, adjustments.global.raw_tone_curve_count),
-            apply_curve(default_tonemapped.b, adjustments.global.raw_tone_curve, adjustments.global.raw_tone_curve_count)
-        );
-    }
+    default_tonemapped = ag_stage_tone(default_tonemapped, composite_rgb_linear);  // Argentum: the tone anchor, see modules.wgsl
     var base_srgb: vec3<f32>;
     let is_scene_lut = (adjustments.global.has_lut == 1u && adjustments.global.lut_is_scene_referred == 1u);
 

@@ -3,13 +3,17 @@
 //! Default leaves RapidRAW/Argentum's existing RAW view transform alone.
 //! Camera Base Curve is a small camera-style view curve. Auto-Matched fits a
 //! monotonic tone curve from the scene-linear RAW and the camera JPEG embedded
-//! in the same file. The curve is applied on the GPU; this module only builds
-//! the small per-photo data that crosses into the renderer.
+//! in the same file. DNG Standard is a DNG renderer's default: the camera's
+//! exposure offset and Adobe's default tone curve, applied as Adobe applies it
+//! (see dng_standard.rs). The curve is applied on the GPU, in `ag_stage_tone`
+//! (modules.wgsl); this module only builds the small per-photo data that
+//! crosses into the renderer.
 
 use crate::app_settings::AppSettings;
 use crate::image_processing::downscale_f32_image;
 use image::{DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct ToneCurvePoint {
@@ -37,6 +41,50 @@ pub fn base_curve() -> Vec<ToneCurvePoint> {
     ]
 }
 
+/// The number the shader switches on, `raw_tone_mode` in their
+/// `GlobalAdjustments`. 0 is RapidRAW's own rendering.
+pub fn mode_index(mode: &str) -> u32 {
+    match mode {
+        "baseCurve" => 1,
+        "autoMatched" => 2,
+        crate::mods::dng_standard::MODE => 3,
+        _ => 0,
+    }
+}
+
+/// Which rendering an edit asks for, as `mode_index` numbers it.
+///
+/// An edit that does not say starts in DNG Standard, as the editor starts one
+/// (`INITIAL_ADJUSTMENTS` in adjustments.ts). That covers a photo nobody has
+/// edited - no adjustments at all - so its thumbnail and an export of it match
+/// what opening it shows, and an edit built from nothing by their library, such
+/// as settings pasted onto an unedited photo, which holds only what was pasted.
+/// Every edit saved since the choice existed (2026-09-22) names its rendering,
+/// so RapidRAW's stays wherever it was chosen.
+pub fn mode_of(js: &Value) -> u32 {
+    js.get("rawToneRendering")
+        .and_then(Value::as_str)
+        .map_or_else(|| mode_index(crate::mods::dng_standard::MODE), mode_index)
+}
+
+/// The points a mode needs when the edit carries none: Base Curve's fixed
+/// curve, or DNG Standard's for this photo's camera. Auto-Matched has no stand-in
+/// and renders RapidRAW's until it has been fitted.
+pub fn fill_missing(mode: u32, points: &mut Vec<Value>, photo: Option<&str>) {
+    if points.len() >= 2 {
+        return;
+    }
+    let curve = match mode {
+        1 => base_curve(),
+        3 => crate::mods::dng_standard::curve_for_photo(photo),
+        _ => return,
+    };
+    *points = curve
+        .into_iter()
+        .map(|p| json!({ "x": p.x, "y": p.y }))
+        .collect();
+}
+
 pub fn curve_for(
     bytes: &[u8],
     path: &str,
@@ -46,6 +94,7 @@ pub fn curve_for(
     match mode {
         "baseCurve" => Ok(base_curve()),
         "autoMatched" => auto_matched_curve(bytes, path, settings),
+        crate::mods::dng_standard::MODE => crate::mods::dng_standard::curve(bytes),
         _ => Err(format!("unknown RAW tone rendering mode: {mode}")),
     }
 }
@@ -154,6 +203,34 @@ fn quantile(values: &[f32], q: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_edit_that_does_not_name_a_rendering_starts_in_dng_standard() {
+        assert_eq!(mode_of(&Value::Null), 3);
+        assert_eq!(mode_of(&json!({})), 3);
+        // Settings pasted onto a photo nobody had edited.
+        assert_eq!(mode_of(&json!({ "exposure": 0.3 })), 3);
+        // RapidRAW's stays wherever it was chosen.
+        assert_eq!(mode_of(&json!({ "rawToneRendering": "default" })), 0);
+        assert_eq!(mode_of(&json!({ "rawToneRendering": "baseCurve" })), 1);
+        assert_eq!(mode_of(&json!({ "rawToneRendering": "dngStandard" })), 3);
+    }
+
+    #[test]
+    fn missing_points_are_filled_only_for_modes_that_have_them() {
+        let mut points = Vec::new();
+        fill_missing(3, &mut points, None);
+        assert_eq!(points.len(), 16);
+        let mut points = Vec::new();
+        fill_missing(1, &mut points, None);
+        assert_eq!(points.len(), base_curve().len());
+        let mut points = Vec::new();
+        fill_missing(2, &mut points, None);
+        assert!(points.is_empty(), "Auto-Matched has nothing to stand in");
+        let mut kept = vec![json!({ "x": 0, "y": 0 }), json!({ "x": 255, "y": 200 })];
+        fill_missing(3, &mut kept, None);
+        assert_eq!(kept[1]["y"], 200, "a stored curve is never replaced");
+    }
 
     #[test]
     fn base_curve_is_monotonic_and_bounded() {
