@@ -1,18 +1,15 @@
-//! Exposure, in stops. Ours.
+//! Exposure, in stops.
 //!
-//! Every channel of every pixel is multiplied by 2 to the power of the
-//! exposure, worked out once in f32, so each pixel takes exactly one
-//! multiplication and the result can be checked exactly. The app's
-//! `apply_linear_exposure` in `shader.wgsl` is the same multiplication; its
-//! slider is in steps of 1.25 stops (`SCALES.exposure`), this one in stops.
+//! Every channel times 2 to the power of the exposure: RapidRAW's
+//! `apply_linear_exposure`, run in the pixel pass. The app's slider moves in
+//! steps of 1.25 stops (`SCALES.exposure`); this one is in stops.
 //!
 //! It runs on linear RGB after the develop and capture sharpening, before
 //! white balance, where the app runs it.
 
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{Context, Error, Field, Image, Result, Section, Stage, Tool};
+use crate::{Context, Field, Pixel, Section, Stage, Tool};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -35,11 +32,6 @@ impl crate::Settings for Settings {
         .unit("EV")];
 }
 
-/// What every channel is multiplied by.
-pub fn gain(settings: &Settings) -> f32 {
-    2.0f32.powf(settings.exposure_ev)
-}
-
 #[derive(Default)]
 pub struct AgExposure;
 
@@ -47,22 +39,29 @@ impl Tool for AgExposure {
     const ID: &'static str = "ag_exposure";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Basic;
+    const PIXEL: Option<Pixel> = Some(Pixel {
+        wgsl: WGSL,
+        params: 1,
+        detail: false,
+    });
     type Settings = Settings;
 
-    fn process(&self, settings: &Settings, input: &Image, _cx: &Context) -> Result<Option<Image>> {
-        let rgb = input.as_rgb().ok_or_else(|| Error::Tool {
-            tool: Self::ID,
-            message: format!("was handed {}", input.describe()),
-        })?;
-        let g = gain(settings);
-        if g == 1.0 {
-            return Ok(None);
-        }
-        let pixels = rgb
-            .pixels
-            .par_iter()
-            .map(|p| [p[0] * g, p[1] * g, p[2] * g])
-            .collect();
-        Ok(Some(Image::Rgb(rgb.with_pixels(pixels))))
+    fn pixel_params(&self, settings: &Settings, _cx: &Context) -> Option<Vec<[f32; 4]>> {
+        (settings.exposure_ev != 0.0).then(|| vec![[settings.exposure_ev, 0.0, 0.0, 0.0]])
     }
 }
+
+const WGSL: &str = r#"
+// apply_linear_exposure, src-tauri/src/shaders/shader.wgsl @ c786c146
+// (RapidRAW), as written there.
+fn apply_linear_exposure(color_in: vec3<f32>, exposure_adj: f32) -> vec3<f32> {
+    if (exposure_adj == 0.0) {
+        return color_in;
+    }
+    return color_in * pow(2.0, exposure_adj);
+}
+
+fn ag_exposure(c: vec3<f32>, px: Px) -> vec3<f32> {
+    return apply_linear_exposure(c, ag_params[px.p].x);
+}
+"#;

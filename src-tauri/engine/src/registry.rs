@@ -183,6 +183,12 @@ impl Registry {
                     tool.id, tool.stage, before.id, before.stage
                 )));
             }
+            if tool.pixel.is_some() && tool.stage != crate::contract::Stage::SceneLinear {
+                return Err(Error::Registry(format!(
+                    "{} is a per-pixel tool at {:?}: the pixel pass runs on linear RGB",
+                    tool.id, tool.stage
+                )));
+            }
             if let Err(e) = &self.descriptors[i] {
                 return Err(Error::Registry(e.clone()));
             }

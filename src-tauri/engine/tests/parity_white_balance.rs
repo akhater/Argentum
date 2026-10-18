@@ -6,17 +6,16 @@
 //!
 //! - The as-shot light, read from the same RAW: identical, every bit.
 //! - Kelvin and tint to cone gains, and the RGB-to-LMS matrix: identical.
-//! - The pixels: the engine folds the shader's three steps into one matrix,
-//!   built in f64. Stated tolerance: 2 parts in 10^6 of the pixel's largest
-//!   channel, in or out, or 10^-7 absolute - a few f32 steps of what the
-//!   matrix sums, nothing that reaches 8 bits. Relative to the channel itself
-//!   would be wrong where a matrix row nearly cancels out.
+//! - The pixels, the engine's through its pixel pass and the app's shader as
+//!   it is, on the same GPU and the same half-float input. Stated tolerance:
+//!   2 parts in 10^6 of the pixel's largest channel, in or out, or 10^-7
+//!   absolute - a few f32 steps of what the matrices sum. Relative to the
+//!   channel itself would be wrong where a matrix row nearly cancels out.
 
 mod common;
 
-use argentum_engine::Source;
-use argentum_engine::colour;
 use argentum_engine::tools::rr_white_balance::{self, RrWhiteBalance, WhiteBalance};
+use argentum_engine::{Context, GpuSlot, Source, Tool};
 use argentum_engine_reference::raw_processing as app_raw;
 use argentum_engine_reference::white_balance as app;
 use common::app_shader::{AppShader, Job, mat3_bytes};
@@ -115,7 +114,7 @@ fn the_pixels_are_the_apps_shader() {
         return;
     };
     let shader = AppShader::new(
-        gpu,
+        gpu.clone(),
         "return vec4<f32>(apply_white_balance(v.xyz, ag_test_params[0].xyz), 0.0);",
     );
     let to_lms = app::rgb_to_lms();
@@ -131,11 +130,10 @@ fn the_pixels_are_the_apps_shader() {
         ),
     ];
     let rgb = common::colours();
-    let inputs: Vec<[f32; 4]> = rgb.pixels.iter().map(|p| [p[0], p[1], p[2], 0.0]).collect();
-    let shot = WhiteBalance {
-        temperature: 5200.0,
-        tint: 6.0,
-    };
+    let inputs = common::elements(&rgb);
+    // A sensor with no colour matrix: the light it was shot in reads as D65.
+    let source = Source::new(0, common::bayer(16, 16, |_, _| 0));
+    let shot = WhiteBalance::reference();
     let mut worst = 0.0f32;
     for (t, tint) in [
         (2400.0, 0.0),
@@ -155,10 +153,14 @@ fn the_pixels_are_the_apps_shader() {
             adjustments: &matrices,
             ..Default::default()
         });
-        let m = rr_white_balance::adaptation_matrix(gains);
-        for (p, b) in rgb.pixels.iter().zip(&app_out) {
-            let a = colour::mul(&m, *p);
-            let largest = p.iter().chain(&a).fold(0.0f32, |m, v| m.max(v.abs()));
+        let ours = common::only::<RrWhiteBalance>(
+            gpu.clone(),
+            serde_json::json!({ "temperature_k": t, "tint": tint }),
+        )
+        .run_pixel_tools(&source, &rgb)
+        .unwrap();
+        for ((p, a), b) in rgb.pixels.iter().zip(&ours.pixels).zip(&app_out) {
+            let largest = p.iter().chain(a.iter()).fold(0.0f32, |m, v| m.max(v.abs()));
             for c in 0..3 {
                 let miss = (a[c] - b[c]).abs();
                 let allowed = largest * 2e-6 + 1e-7;
@@ -180,10 +182,8 @@ fn the_cameras_own_light_changes_nothing() {
     };
     let source = common::open(&path);
     let wb = RrWhiteBalance::default();
-    use argentum_engine::Tool;
     let settings = wb.defaults_for(&source);
-    let slot = argentum_engine::GpuSlot::new();
-    let cx = argentum_engine::Context::new::<RrWhiteBalance>(&source, 0, &slot);
-    let picture = argentum_engine::Image::Rgb(common::colours());
-    assert!(wb.process(&settings, &picture, &cx).unwrap().is_none());
+    let slot = GpuSlot::new();
+    let cx = Context::new::<RrWhiteBalance>(&source, 0, &slot);
+    assert!(wb.pixel_params(&settings, &cx).is_none());
 }

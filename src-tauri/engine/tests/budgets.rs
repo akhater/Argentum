@@ -22,9 +22,9 @@ use argentum_engine::contract::{EditPatch, Event, PhotoId, RenderTicket, View};
 /// on and the exposure slider moving: the worst case, since every tool after
 /// exposure runs again.
 ///
-/// It does not hold yet. With the basic tools on the CPU the same tick took
-/// a median of 392 ms (2026-10-18, other builds running), most of it the
-/// tone sliders: see "Not here yet" in the README. The budget stays.
+/// Measured with every tool on since the pixel pass (2026-10-18): medians of
+/// 8.8, 10.4 and 9.4 ms over three runs; 8.9 to 9.8 ms with DNG Standard alone
+/// on, as a photo opens. On the CPU the same tick had been 392 ms.
 const SLIDER_TICK: Duration = Duration::from_millis(25);
 
 fn wait(rx: &Receiver<Event>, ticket: RenderTicket) {

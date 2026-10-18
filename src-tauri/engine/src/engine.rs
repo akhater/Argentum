@@ -281,12 +281,7 @@ fn render(
 ) -> Result<(Frame, Vec<u32>)> {
     pipeline.set_edit(&job.edit)?;
     let layout = frame::layout(&job.view, job.size_px);
-    let image = pipeline.render_unless(&job.source, layout.size, overtaken)?;
-    let rgb = image.as_rgb().ok_or_else(|| Error::Tool {
-        tool: "engine",
-        message: format!("the pipeline ended with {}", image.describe()),
-    })?;
-    let frame = frame::cut(rgb, &layout, job.ticket);
+    let frame = pipeline.render_frame(&job.source, &layout, job.ticket, overtaken)?;
     let bins = frame::histogram(&frame);
     Ok((frame, bins))
 }

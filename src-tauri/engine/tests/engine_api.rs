@@ -55,6 +55,10 @@ fn no_sharpening() -> EditPatch {
 
 #[test]
 fn open_apply_view_and_what_comes_back() {
+    // Frames are cut and encoded by the pixel pass, on the GPU.
+    if common::gpu("open_apply_view_and_what_comes_back").is_none() {
+        return;
+    }
     let (engine, rx) = engine();
     let opened = engine.insert(common::source(512, 384));
     assert_eq!((opened.width, opened.height), (512, 384));
@@ -224,6 +228,10 @@ slow_tool!(AgSlowB, "ag_slow_b", RUNS_B);
 
 #[test]
 fn renders_are_latest_wins() {
+    // Frames are cut and encoded by the pixel pass, on the GPU.
+    if common::gpu("renders_are_latest_wins").is_none() {
+        return;
+    }
     let (engine, rx) = engine_with(|| standard().with::<AgSlowA>().with::<AgSlowB>());
     let id = engine.insert(common::source(256, 192)).photo_id;
 
@@ -296,6 +304,10 @@ impl Tool for AgFails {
 
 #[test]
 fn a_failed_render_says_so() {
+    // Frames are cut and encoded by the pixel pass, on the GPU.
+    if common::gpu("a_failed_render_says_so").is_none() {
+        return;
+    }
     let (engine, rx) = engine_with(|| standard().with::<AgFails>());
     let id = engine.insert(common::source(128, 96)).photo_id;
     let t = engine
@@ -339,11 +351,11 @@ fn the_size_open_reports_is_the_developed_size() {
         sources.push((name, common::open(&path)));
     }
     let mut p = Pipeline::standard().unwrap();
-    p.set_json(
-        "rt_capture_sharpen",
-        1,
-        serde_json::json!({ "capture": false }),
-    )
+    // Nothing that needs a GPU: the develop decides the size.
+    p.apply(&patch(serde_json::json!({
+        "rt_capture_sharpen": { "capture": false },
+        "ag_dng_standard": { "enabled": false },
+    })))
     .unwrap();
     for (name, source) in sources {
         let image = p.render(&source, Size::Full).unwrap();

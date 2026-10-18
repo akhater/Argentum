@@ -17,7 +17,9 @@
 //!   engine already holds rather than the file again.
 //! - sRGB's primaries and white: `src-tauri/src/image_processing.rs`.
 //! - The per-pixel step: `apply_white_balance` in
-//!   `src-tauri/src/shaders/shader.wgsl`, as one matrix worked out once.
+//!   `src-tauri/src/shaders/shader.wgsl`, run in the pixel pass, its two
+//!   matrices handed in as parameters rather than read from RapidRAW's
+//!   uniform.
 //!
 //! Left out: the relative sliders (`shifted`), the picker and the
 //! multi-exposure exception (`neutralize_wb_if_multiexposure`), which the
@@ -28,11 +30,9 @@ use std::sync::Mutex;
 use glam::{DMat3, DVec3, Mat3, Vec2, Vec3};
 use rawler::imgop::xyz::Illuminant;
 use rawler::rawimage::{RawImage, RawPhotometricInterpretation};
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::colour::{self, LUMA};
-use crate::{Context, Error, Field, Image, Result, Section, Source, Stage, Tool};
+use crate::{Context, Field, Pixel, Section, Source, Stage, Tool};
 
 pub const MIN_TEMPERATURE_K: f64 = 2000.0;
 pub const MAX_TEMPERATURE_K: f64 = 50000.0;
@@ -87,29 +87,37 @@ impl Tool for RrWhiteBalance {
     const ID: &'static str = "rr_white_balance";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Basic;
+    const PIXEL: Option<Pixel> = Some(Pixel {
+        wgsl: WGSL,
+        params: 7,
+        detail: false,
+    });
     type Settings = Settings;
 
     fn defaults_for(&self, source: &Source) -> Settings {
         self.as_shot(source).into()
     }
 
-    fn process(&self, settings: &Settings, input: &Image, cx: &Context) -> Result<Option<Image>> {
-        let rgb = input.as_rgb().ok_or_else(|| Error::Tool {
-            tool: Self::ID,
-            message: format!("was handed {}", input.describe()),
-        })?;
+    /// RGB to LMS and back, column by column, as the app hands them to its
+    /// shader, then the cone gains from the light the camera measured to the
+    /// one set.
+    fn pixel_params(&self, settings: &Settings, cx: &Context) -> Option<Vec<[f32; 4]>> {
         let target = WhiteBalance {
             temperature: settings.temperature_k,
             tint: settings.tint,
         };
-        let log_gains = adaptation_log_gains(self.as_shot(cx.source), target);
+        let [l, m, s] = adaptation_log_gains(self.as_shot(cx.source), target);
         // As the shader: no gains, no change.
-        if log_gains == [0.0; 3] {
-            return Ok(None);
+        if [l, m, s] == [0.0; 3] {
+            return None;
         }
-        let m = adaptation_matrix(log_gains);
-        let pixels = rgb.pixels.par_iter().map(|&p| colour::mul(&m, p)).collect();
-        Ok(Some(Image::Rgb(rgb.with_pixels(pixels))))
+        let to_lms = rgb_to_lms();
+        let from_lms = to_lms.inverse();
+        let columns = |m: Mat3| [0, 1, 2].map(|i| m.col(i).extend(0.0).to_array());
+        let mut params = columns(to_lms).to_vec();
+        params.extend(columns(from_lms));
+        params.push([l, m, s, 0.0]);
+        Some(params)
     }
 }
 
@@ -125,22 +133,6 @@ impl RrWhiteBalance {
         *memo = Some((source.key, wb));
         wb
     }
-}
-
-/// `apply_white_balance` (shader.wgsl) as one matrix: to LMS, the cone gains,
-/// back to RGB, divided by the luminance white comes out at. Built in f64
-/// from the f32 matrices the app hands its shader.
-pub fn adaptation_matrix(log_gains: [f32; 3]) -> colour::Mat3 {
-    let to_lms = rgb_to_lms();
-    let from_lms = to_lms.inverse().as_dmat3();
-    let to_lms = to_lms.as_dmat3();
-    let gains = DVec3::from_array(log_gains.map(|g| g.exp() as f64));
-    let adapt = from_lms * DMat3::from_diagonal(gains) * to_lms;
-    let white = adapt * DVec3::ONE;
-    let luma = DVec3::from_array(LUMA.map(f64::from)).dot(white);
-    let m = adapt * (1.0 / luma);
-    // glam is column-major; rows here.
-    [0, 1, 2].map(|r| [0, 1, 2].map(|c| m.col(c)[r] as f32))
 }
 
 /// The light the camera measured, from the decoded image: its as-shot
@@ -408,6 +400,32 @@ fn primaries_to_xyz_matrix(primaries: &[Vec2; 3], white_point: Vec2) -> Mat3 {
     Mat3::from_cols(r_xyz * s.x, g_xyz * s.y, b_xyz * s.z)
 }
 
+const WGSL: &str = r#"
+// apply_white_balance, src-tauri/src/shaders/shader.wgsl @ c786c146
+// (RapidRAW 1.6.5), with its two matrices handed in rather than read from
+// RapidRAW's uniform.
+fn apply_white_balance(
+    color: vec3<f32>,
+    log_gains: vec3<f32>,
+    rgb_to_lms: mat3x3<f32>,
+    lms_to_rgb: mat3x3<f32>,
+) -> vec3<f32> {
+    if (all(log_gains == vec3<f32>(0.0))) {
+        return color;
+    }
+    let gains = exp(log_gains);
+    let white = lms_to_rgb * (gains * (rgb_to_lms * vec3<f32>(1.0)));
+    return lms_to_rgb * (gains * (rgb_to_lms * color)) / get_luma(white);
+}
+
+fn rr_white_balance(c: vec3<f32>, px: Px) -> vec3<f32> {
+    let p = px.p;
+    let rgb_to_lms = mat3x3<f32>(ag_params[p].xyz, ag_params[p + 1u].xyz, ag_params[p + 2u].xyz);
+    let lms_to_rgb = mat3x3<f32>(ag_params[p + 3u].xyz, ag_params[p + 4u].xyz, ag_params[p + 5u].xyz);
+    return apply_white_balance(c, ag_params[p + 6u].xyz, rgb_to_lms, lms_to_rgb);
+}
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,20 +437,6 @@ mod tests {
             tint: 7.0,
         };
         assert_eq!(adaptation_log_gains(wb, wb), [0.0; 3]);
-    }
-
-    #[test]
-    fn white_keeps_its_luminance_and_a_warmer_setting_warms() {
-        let shot = WhiteBalance::reference();
-        let warmer = WhiteBalance {
-            temperature: 8000.0,
-            ..shot
-        };
-        let m = adaptation_matrix(adaptation_log_gains(shot, warmer));
-        let white = colour::mul(&m, [1.0; 3]);
-        assert!((colour::luma(white) - 1.0).abs() < 1e-5, "{white:?}");
-        // Telling it the light was bluer than shot makes the picture warmer.
-        assert!(white[0] > white[2], "{white:?}");
     }
 
     #[test]

@@ -99,35 +99,48 @@ against the 1.6.5 review.
   the app @ `c786c146`, whose RapidRAW files are RapidRAW 1.6.5 @ `79c2a46b`,
   and each is held to the app's own code by a parity test on the same input.
   In the app's order: exposure, white balance, tone, presence, DNG Standard.
+  All five run on the GPU in one pass, as the app's do.
   - `rr_white_balance`: temperature in kelvin and tint, starting at the
     camera's as-shot light. RapidRAW 1.6.5's Kelvin engine: `white_balance.rs`,
     `read_as_shot_white_balance` in `raw_processing.rs` and
     `apply_white_balance` in `shaders/shader.wgsl`. The as-shot light and the
-    cone gains are identical to the app's on every RAW tested; the pixels
-    agree within 2 parts in 10^6.
+    cone gains are identical to the app's on every RAW tested.
   - `ag_dng_standard`: Argentum's default RAW look, from `mods/dng_standard.rs`
     and `rt_rgb_tone` / `ag_dng_standard` in `shaders/modules.wgsl`: the
     body's exposure offset (`mods/dng_baseline.tsv`, from RAWmakase
     `data/cameras.toml` @ `7c3c81ab`, read in place) and the DNG SDK's ACR3
     curve (RawTherapee `rtengine/dcp.cc` @ `ca9234b1`, Adobe DNG SDK
     licence) applied with RGBTone (RawTherapee `rtengine/curves.h`
-    @ `46b92d8e`). The engine reads the exact curve; the app's shader draws a
-    16-point spline of it. Not read yet: a DNG's own BaselineExposure and
-    the stop below a body's lowest native ISO.
+    @ `46b92d8e`). The engine's pass reads the exact curve; the app's shader
+    draws a 16-point spline of it. Not read yet: a DNG's own
+    BaselineExposure and the stop below a body's lowest native ISO.
   - `rr_basic_tone`: contrast, highlights, shadows, whites and blacks.
     RapidRAW's `apply_tonal_adjustments` and `apply_highlights_adjustment`
     in `shaders/shader.wgsl`, with the log-space guided filter that gives
-    them each pixel's detail from `shaders/guided.wgsl` and
-    `build_guided_coeffs` in `gpu_processing.rs` (RapidRAW `66fa1600`), on
-    the CPU.
+    them each pixel's detail: the app's `shaders/guided.wgsl`, used in place,
+    run as `build_guided_coeffs` in `gpu_processing.rs` runs it (RapidRAW
+    `66fa1600`), on the pass's input, before exposure and white balance, as
+    the app measures it.
   - `rr_presence`: vibrance and saturation, RapidRAW's `apply_creative_color`.
   - `ag_exposure_wb` is now `ag_exposure`, exposure in stops; its red, green
     and blue multipliers are gone, white balance being `rr_white_balance`.
+  - **The pixel pass.** A per-pixel tool declares its WGSL function
+    (`Tool::PIXEL`) and packs its settings (`pixel_params`); each run of
+    them is one GPU dispatch whose `main` the engine writes from the
+    registry, calling them in registry order, so a new one is still one file
+    and one registry line (`tests/pixel_tool.rs`). The input goes up once as
+    half floats and stays, with its guided filter, as `gpu_processing.rs`
+    keeps its input texture; a slider tick writes the parameters, dispatches,
+    and reads back the view's frame, cut, zoomed and encoded in the same
+    pass. The structure is the app's uber-shader; the calls are the
+    registry's rather than a hand-written list. The engine's CPU frame cut
+    and encode are gone.
   - A tool can start a photo at the photo's own settings
     (`Tool::defaults_for`, after darktable's `reload_defaults`), and `null`
     in a patch puts a setting back to them.
-  - The parity tests run the app's shader functions as they are, on the GPU
-    (`tests/common/app_shader.rs`), and each tool has golden renders on local
+  - The parity tests run the engine's pass and the app's shader functions as
+    they are on the same GPU (`tests/common/app_shader.rs`); tone end to end,
+    the app's guided filter included. Each tool has golden renders on local
     RAWs (`tests/golden.rs`). The engine's reference build compiles again:
     since DNG Standard, `mods/sharpen.rs` reads `mods/raw_tone.rs`.
 - **Dev and test builds wait less.** Measured on Windows x64 after a one-line

@@ -10,20 +10,28 @@
 //! and, for a preview, a resize straight after the develop. So a preview and
 //! a full-size render share everything up to the develop, and a preview's
 //! tools run on the small picture.
+//!
+//! Each run of consecutive per-pixel tools (`Tool::PIXEL`) is one step, the
+//! pixel pass (`src/pixels/`): one GPU dispatch for all of them. A view's
+//! frame comes straight out of the last run, cut and encoded on the GPU, so a
+//! slider tick runs that dispatch and reads back what is shown, nothing more.
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::ops::Range;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
 use crate::cache::Cache;
-use crate::contract::{EditDocument, EditPatch, Stage};
+use crate::contract::{EditDocument, EditPatch, RenderTicket, Stage};
 use crate::develop::{self, DEVELOP_VERSION};
+use crate::frame::{Frame, Layout};
+use crate::pixels::{Params, Pixels};
 use crate::registry::Registry;
 use crate::tool::{self, AnySettings, Context, Tool};
-use crate::{Error, GpuSlot, Image, Result, Source};
+use crate::{Error, GpuSlot, Image, Result, Rgb, Source};
 
 /// How big a render is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -37,7 +45,7 @@ pub enum Size {
 /// One step of the last render.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Step {
-    /// The tool's id, or `develop` / `resize`.
+    /// The tool's id, or `develop`, `resize`, `pixels`.
     pub name: &'static str,
     /// Whether it ran. A step that did not run was served from the cache, or
     /// was not needed because a later step was.
@@ -51,6 +59,8 @@ enum Op {
     Tool(usize),
     Develop,
     Resize(u32, u32),
+    /// The per-pixel tools from the first to before the second, in one pass.
+    Pixels(usize, usize),
 }
 
 /// The default memory the cache may hold. A full-size render of a 32 MP
@@ -66,6 +76,7 @@ pub struct Pipeline {
     gpu: GpuSlot,
     last: Vec<Step>,
     runs: HashMap<&'static str, u32>,
+    pixels: Pixels,
 }
 
 impl Pipeline {
@@ -93,6 +104,7 @@ impl Pipeline {
             gpu,
             last: Vec::new(),
             runs: HashMap::new(),
+            pixels: Pixels::default(),
         })
     }
 
@@ -199,10 +211,99 @@ impl Pipeline {
         cancelled: &dyn Fn() -> bool,
     ) -> Result<Arc<Image>> {
         let ops = self.ops(size);
+        Ok(self.run_ops(source, &ops, cancelled)?.0)
+    }
+
+    /// `layout`'s frame of a view: every step but the last run of per-pixel
+    /// tools as `render_unless` runs them, then that run straight to the
+    /// frame, on the GPU. A pipeline whose last tool works on whole pictures
+    /// still has its frame cut and encoded there, by a run of no tools.
+    pub(crate) fn render_frame(
+        &mut self,
+        source: &Source,
+        layout: &Layout,
+        ticket: RenderTicket,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Frame> {
+        let mut ops = self.ops(layout.size);
+        let tools = match ops.last() {
+            Some(&(Op::Pixels(first, end), _)) => {
+                ops.pop();
+                first..end
+            }
+            _ => {
+                let n = self.registry.infos().len();
+                n..n
+            }
+        };
+        let (image, input_key) = self.run_ops(source, &ops, cancelled)?;
+        let rgb = as_rgb("pixels", &image)?;
+        let params = self.pixel_params(tools.clone(), source, input_key)?;
+        let gpu = self.gpu.get()?;
+        let started = Instant::now();
+        let frame = self.pixels.frame(
+            &gpu,
+            &self.registry,
+            tools,
+            &params,
+            rgb,
+            input_key,
+            layout,
+            ticket,
+        )?;
+        *self.runs.entry("pixels").or_default() += 1;
+        self.last.push(Step {
+            name: "pixels",
+            ran: true,
+            time: started.elapsed(),
+        });
+        Ok(frame)
+    }
+
+    /// Every per-pixel tool at its settings, on `rgb`, as the pixel pass
+    /// runs them: for trying them on a picture of one's own. `source` is the
+    /// photo they take it to be.
+    pub fn run_pixel_tools(&mut self, source: &Source, rgb: &Rgb) -> Result<Rgb> {
+        let key = mix(&(
+            "pixels",
+            rgb.width,
+            bytemuck::cast_slice::<[f32; 3], u8>(&rgb.pixels),
+        ));
+        let runs: Vec<Range<usize>> = self
+            .ops(Size::Full)
+            .iter()
+            .filter_map(|&(op, _)| match op {
+                Op::Pixels(first, end) => Some(first..end),
+                _ => None,
+            })
+            .collect();
+        let gpu = self.gpu.get()?;
+        let mut out = rgb.clone();
+        for tools in runs {
+            let input_key = mix(&(key, tools.start));
+            let params = self.pixel_params(tools.clone(), source, input_key)?;
+            if let Some(next) =
+                self.pixels
+                    .linear(&gpu, &self.registry, tools, &params, &out, input_key)?
+            {
+                out = next;
+            }
+        }
+        Ok(out)
+    }
+
+    /// The steps `ops`, from the last one with a result kept: the picture,
+    /// and its key.
+    fn run_ops(
+        &mut self,
+        source: &Source,
+        ops: &[(Op, &'static str)],
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(Arc<Image>, u64)> {
         let start = mix(&("source", source.key));
         let mut keys = Vec::with_capacity(ops.len());
         let mut key = start;
-        for &(op, _) in &ops {
+        for &(op, _) in ops {
             key = mix(&(key, self.op_key(op)));
             keys.push(key);
         }
@@ -254,7 +355,7 @@ impl Pipeline {
                 time,
             });
         }
-        Ok(image)
+        Ok((image, input_key))
     }
 
     /// The steps for a render at `size`.
@@ -266,8 +367,33 @@ impl Pipeline {
         if let Size::Fit(w, h) = size {
             ops.push((Op::Resize(w, h), "resize"));
         }
-        ops.extend((raw..tools.len()).map(|i| (Op::Tool(i), tools[i].id)));
+        // Each run of per-pixel tools is one step.
+        let mut i = raw;
+        while i < tools.len() {
+            if tools[i].pixel.is_some() {
+                let first = i;
+                while i < tools.len() && tools[i].pixel.is_some() {
+                    i += 1;
+                }
+                ops.push((Op::Pixels(first, i), "pixels"));
+            } else {
+                ops.push((Op::Tool(i), tools[i].id));
+                i += 1;
+            }
+        }
         ops
+    }
+
+    /// The per-pixel tools `tools`' parameters for a pass on the input keyed
+    /// `input_key`.
+    fn pixel_params(&self, tools: Range<usize>, source: &Source, input_key: u64) -> Result<Params> {
+        tools
+            .map(|i| {
+                let info = &self.registry.infos()[i];
+                let cx = Context::for_tool(info.id, info.gpu, source, input_key, &self.gpu);
+                self.registry.tools[i].pixel_params(self.settings[i].as_ref(), &cx)
+            })
+            .collect()
     }
 
     /// What, besides its input, decides a step's result.
@@ -276,10 +402,17 @@ impl Pipeline {
             Op::Tool(i) => self.hashes[i],
             Op::Develop => mix(&("develop", DEVELOP_VERSION)),
             Op::Resize(w, h) => mix(&("resize", w, h)),
+            Op::Pixels(first, end) => mix(&("pixels", &self.hashes[first..end])),
         }
     }
 
-    fn run(&self, op: Op, input: &Image, source: &Source, input_key: u64) -> Result<Option<Image>> {
+    fn run(
+        &mut self,
+        op: Op,
+        input: &Image,
+        source: &Source,
+        input_key: u64,
+    ) -> Result<Option<Image>> {
         match op {
             Op::Develop => {
                 let raw = input.as_raw().ok_or_else(|| Error::Tool {
@@ -289,11 +422,26 @@ impl Pipeline {
                 develop::develop(raw).map(|rgb| Some(Image::Rgb(rgb)))
             }
             Op::Resize(w, h) => {
-                let rgb = input.as_rgb().ok_or_else(|| Error::Tool {
-                    tool: "resize",
-                    message: format!("was handed {}", input.describe()),
-                })?;
+                let rgb = as_rgb("resize", input)?;
                 Ok(develop::resize(rgb, w, h).map(Image::Rgb))
+            }
+            Op::Pixels(first, end) => {
+                let rgb = as_rgb("pixels", input)?;
+                let params = self.pixel_params(first..end, source, input_key)?;
+                // Nothing to do needs no GPU.
+                if params.iter().all(Option::is_none) {
+                    return Ok(None);
+                }
+                let gpu = self.gpu.get()?;
+                let made = self.pixels.linear(
+                    &gpu,
+                    &self.registry,
+                    first..end,
+                    &params,
+                    rgb,
+                    input_key,
+                )?;
+                Ok(made.map(Image::Rgb))
             }
             Op::Tool(i) => {
                 let info = &self.registry.infos()[i];
@@ -316,6 +464,14 @@ impl Pipeline {
             }
         }
     }
+}
+
+/// `image` as RGB, or what a step was handed instead.
+fn as_rgb<'a>(step: &'static str, image: &'a Image) -> Result<&'a Rgb> {
+    image.as_rgb().ok_or_else(|| Error::Tool {
+        tool: step,
+        message: format!("was handed {}", image.describe()),
+    })
 }
 
 fn mix(value: &impl Hash) -> u64 {

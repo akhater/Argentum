@@ -268,7 +268,10 @@ fn against_golden(path: &Path, shot: &Shot) -> Option<u8> {
 #[test]
 fn every_tool_renders_as_it_did_and_moves_the_picture_its_way() {
     let raws = common::raws("every_tool_renders_as_it_did_and_moves_the_picture_its_way");
-    if raws.is_empty() {
+    // The per-pixel tools run on the GPU.
+    if raws.is_empty()
+        || common::gpu("every_tool_renders_as_it_did_and_moves_the_picture_its_way").is_none()
+    {
         return;
     }
     let dir = golden_dir();

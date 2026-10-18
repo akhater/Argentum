@@ -13,7 +13,7 @@
 //! - `ag_test_params`, a list of `vec4<f32>`;
 //! - their `adjustments` uniform, zeroed but for the fields a test sets;
 //! - their `input_texture`, of which their functions read only the size;
-//! - `ag_test_tex`, an rgba32float texture of the test's own.
+//! - `ag_test_tex` and `ag_test_tex2`, rgba32float textures of the test's own.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -42,6 +42,8 @@ pub struct Job<'a> {
     pub input_size: (u32, u32),
     /// `ag_test_tex`: width, height, texels.
     pub texture: Option<(u32, u32, &'a [[f32; 4]])>,
+    /// `ag_test_tex2`, the same.
+    pub texture2: Option<(u32, u32, &'a [[f32; 4]])>,
 }
 
 pub struct AppShader {
@@ -56,6 +58,7 @@ const ENTRY: &str = r#"
 @group(0) @binding(21) var<storage, read> ag_test_params: array<vec4<f32>>;
 @group(0) @binding(22) var<storage, read_write> ag_test_out: array<vec4<f32>>;
 @group(0) @binding(23) var ag_test_tex: texture_2d<f32>;
+@group(0) @binding(24) var ag_test_tex2: texture_2d<f32>;
 
 fn ag_test_call(v: vec4<f32>, i: u32) -> vec4<f32> {
     BODY
@@ -123,6 +126,7 @@ impl AppShader {
                 storage(21, true),
                 storage(22, false),
                 texture(23),
+                texture(24),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -252,6 +256,10 @@ impl AppShader {
             Some((w, h, texels)) => texture((w, h), texels),
             None => texture((1, 1), &[]),
         };
+        let test_texture2 = match job.texture2 {
+            Some((w, h, texels)) => texture((w, h), texels),
+            None => texture((1, 1), &[]),
+        };
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &self.layout,
@@ -279,6 +287,10 @@ impl AppShader {
                 wgpu::BindGroupEntry {
                     binding: 23,
                     resource: wgpu::BindingResource::TextureView(&test_texture),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 24,
+                    resource: wgpu::BindingResource::TextureView(&test_texture2),
                 },
             ],
         });

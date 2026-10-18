@@ -1,6 +1,7 @@
 //! Pass test 2: changing one tool's settings re-runs that tool and the ones
 //! after it, and nothing before it - counted on a synthetic RAW, and counted
-//! and timed on a real one.
+//! and timed on a real one. The per-pixel tools from exposure on are one
+//! step, the pixel pass; it needs a GPU, so without one these skip.
 
 mod common;
 
@@ -8,20 +9,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use argentum_engine::tools::{ag_dng_standard, ag_exposure, dt_highlights, rt_capture_sharpen};
-use argentum_engine::{Gpu, GpuSlot, Pipeline, Size, standard};
+use argentum_engine::{GpuSlot, Pipeline, Size, standard};
 
-/// The tools from exposure on, in the order they run.
-const EDITS: [&str; 5] = [
-    "ag_exposure",
-    "rr_white_balance",
-    "rr_basic_tone",
-    "rr_presence",
-    "ag_dng_standard",
-];
+/// The per-pixel tools from exposure on: one step.
+const PIXELS: &str = "pixels";
 
-/// `first`, then every tool from exposure on.
+/// `first`, then the pixel pass.
 fn then(first: &[&'static str]) -> Vec<&'static str> {
-    first.iter().chain(&EDITS).copied().collect()
+    first.iter().copied().chain([PIXELS]).collect()
 }
 
 fn ran(p: &Pipeline) -> Vec<&'static str> {
@@ -32,21 +27,10 @@ fn ran(p: &Pipeline) -> Vec<&'static str> {
         .collect()
 }
 
-/// With a GPU, capture sharpening runs for real; without one it is switched
-/// off, and still counted as a step.
-fn pipeline(gpu: Option<Arc<Gpu>>) -> Pipeline {
-    match gpu {
-        Some(gpu) => Pipeline::with_gpu(Arc::new(standard()), GpuSlot::with(gpu)).unwrap(),
-        None => {
-            let mut p = Pipeline::standard().unwrap();
-            p.set::<rt_capture_sharpen::RtCaptureSharpen>(rt_capture_sharpen::Settings {
-                capture: false,
-                ..Default::default()
-            })
-            .unwrap();
-            p
-        }
-    }
+/// The standard pipeline on the GPU, or `None`, said, without one.
+fn pipeline(test: &str) -> Option<Pipeline> {
+    let gpu = common::gpu(test)?;
+    Some(Pipeline::with_gpu(Arc::new(standard()), GpuSlot::with(gpu)).unwrap())
 }
 
 fn exposure(ev: f32) -> ag_exposure::Settings {
@@ -62,7 +46,9 @@ fn amount(pct: f32) -> rt_capture_sharpen::Settings {
 
 #[test]
 fn changing_one_tool_reruns_it_and_what_follows() {
-    let mut p = pipeline(common::gpu("changing_one_tool_reruns_it_and_what_follows"));
+    let Some(mut p) = pipeline("changing_one_tool_reruns_it_and_what_follows") else {
+        return;
+    };
     let source = common::source(512, 384);
     let all = then(&["dt_highlights", "develop", "rt_capture_sharpen"]);
 
@@ -72,19 +58,19 @@ fn changing_one_tool_reruns_it_and_what_follows() {
     assert!(ran(&p).is_empty(), "nothing changed: {:?}", ran(&p));
     assert!(Arc::ptr_eq(&first, &again), "the same picture, not a copy");
 
-    // The last tool: only it.
+    // The last tool: the pixel pass alone.
     p.set::<ag_dng_standard::AgDngStandard>(ag_dng_standard::Settings {
         baseline_exposure_ev: 0.6,
         ..Default::default()
     })
     .unwrap();
     p.render(&source, Size::Full).unwrap();
-    assert_eq!(ran(&p), ["ag_dng_standard"]);
+    assert_eq!(ran(&p), [PIXELS]);
 
-    // Exposure: it and every tool after it.
+    // Exposure, in the same pass: the pass alone again.
     p.set::<ag_exposure::AgExposure>(exposure(1.0)).unwrap();
     p.render(&source, Size::Full).unwrap();
-    assert_eq!(ran(&p), EDITS);
+    assert_eq!(ran(&p), [PIXELS]);
 
     // One further up: it and the ones after it.
     if p.get::<rt_capture_sharpen::RtCaptureSharpen>()
@@ -122,7 +108,7 @@ fn changing_one_tool_reruns_it_and_what_follows() {
     assert_eq!(ran(&p), then(&["resize", "rt_capture_sharpen"]));
     p.set::<ag_exposure::AgExposure>(exposure(-1.0)).unwrap();
     p.render(&source, Size::Fit(128, 128)).unwrap();
-    assert_eq!(ran(&p), EDITS);
+    assert_eq!(ran(&p), [PIXELS]);
 
     assert_eq!(p.runs("dt_highlights"), 2);
     assert_eq!(p.runs("develop"), 2);
@@ -130,7 +116,9 @@ fn changing_one_tool_reruns_it_and_what_follows() {
 
 #[test]
 fn a_preview_is_the_size_asked_for_and_says_its_scale() {
-    let mut p = pipeline(None);
+    let Some(mut p) = pipeline("a_preview_is_the_size_asked_for_and_says_its_scale") else {
+        return;
+    };
     let source = common::source(512, 384);
     let preview = p.render(&source, Size::Fit(128, 128)).unwrap();
     let rgb = preview.as_rgb().unwrap();
@@ -146,7 +134,9 @@ fn a_preview_is_the_size_asked_for_and_says_its_scale() {
 /// what is kept stays within the budget.
 #[test]
 fn the_cache_stays_within_its_budget() {
-    let mut p = pipeline(None);
+    let Some(mut p) = pipeline("the_cache_stays_within_its_budget") else {
+        return;
+    };
     let source = common::source(512, 384);
     // A developed 512 x 384 picture is 2.4 MB; keep room for one and a bit.
     let budget = 3 << 20;
@@ -169,7 +159,9 @@ fn reruns_timed_on_a_real_raw() {
     let Some(path) = common::raw("reruns_timed_on_a_real_raw") else {
         return;
     };
-    let mut p = pipeline(common::gpu("reruns_timed_on_a_real_raw"));
+    let Some(mut p) = pipeline("reruns_timed_on_a_real_raw") else {
+        return;
+    };
     // A full-size render of a large photo and a preview of it, kept whole.
     p.set_cache_budget_bytes(6 << 30);
 
@@ -242,11 +234,11 @@ fn reruns_timed_on_a_real_raw() {
     let expect = [
         then(&["dt_highlights", "develop", "rt_capture_sharpen"]),
         vec![],
-        EDITS.to_vec(),
+        vec![PIXELS],
         then(&["rt_capture_sharpen"]),
         then(&["dt_highlights", "develop", "rt_capture_sharpen"]),
         then(&["resize", "rt_capture_sharpen"]),
-        EDITS.to_vec(),
+        vec![PIXELS],
     ];
     for ((label, ran, _), expect) in table.iter().zip(expect) {
         assert_eq!(ran, &expect, "{label}");

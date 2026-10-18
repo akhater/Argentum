@@ -20,6 +20,9 @@ wgpu = "29.0"
 pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 rayon = "1.12.0"
+# Half floats: the pixel pass keeps its input on the GPU as the app keeps
+# its own, rgba16float. The app's version (src-tauri/Cargo.toml).
+half = { version = "2.7.1", features = ["bytemuck"] }
 # The app's own (src-tauri/Cargo.toml): white balance's maths is copied as
 # written, in glam's matrix types.
 glam = "0.33.5"
@@ -36,7 +39,6 @@ ts = ["dep:ts-rs"]
 # The crate itself with the TypeScript derive on, for tests/contract.rs.
 argentum-engine = { path = ".", features = ["ts"] }
 argentum-engine-reference = { path = "reference" }
-half = { version = "2.7.1", features = ["bytemuck"] }
 image = { version = "0.25.10", default-features = false }
 # The parity tests read the app's shader struct layouts off its WGSL, through
 # the WGSL front end wgpu already builds (the same naga, the same feature).

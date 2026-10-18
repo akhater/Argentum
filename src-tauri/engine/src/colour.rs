@@ -1,35 +1,22 @@
-//! Colour maths more than one tool needs, defined once.
+//! Colour maths on the CPU, defined once: the frame histogram's luminance,
+//! and the sRGB curve the tests judge pictures by. On the GPU the same
+//! formulas are `src/pixels/common.wgsl`.
 //!
-//! The formulas are RapidRAW's, from `src-tauri/src/shaders/shader.wgsl`
-//! @ c786c146 (`LUMA_COEFF`, `get_luma`, `linear_to_srgb`,
-//! `linear_to_srgb_extended`, `srgb_to_linear`), written for one value at a
-//! time.
+//! RapidRAW's, from `src-tauri/src/shaders/shader.wgsl` @ c786c146
+//! (`LUMA_COEFF`, `get_luma`, `linear_to_srgb`, `srgb_to_linear`), written
+//! for one value at a time.
 
 /// Rec. 709 luminance weights for linear sRGB: `LUMA_COEFF`.
 pub const LUMA: [f32; 3] = [0.2126, 0.7152, 0.0722];
 
-/// A row-major 3x3 matrix.
-pub type Mat3 = [[f32; 3]; 3];
-
-/// Linear luminance: `get_luma`.
+/// Luminance: `get_luma`.
 pub fn luma(c: [f32; 3]) -> f32 {
     c[0] * LUMA[0] + c[1] * LUMA[1] + c[2] * LUMA[2]
 }
 
-/// `m` times the column `c`.
-pub fn mul(m: &Mat3, c: [f32; 3]) -> [f32; 3] {
-    m.map(|row| row[0] * c[0] + row[1] * c[1] + row[2] * c[2])
-}
-
 /// Linear light to the sRGB curve, clipped to 0..1 first: `linear_to_srgb`.
 pub fn srgb_encode(v: f32) -> f32 {
-    srgb_encode_extended(v.clamp(0.0, 1.0))
-}
-
-/// The sRGB curve with no ceiling, so values above white stay above it:
-/// `linear_to_srgb_extended`.
-pub fn srgb_encode_extended(v: f32) -> f32 {
-    let v = v.max(0.0);
+    let v = v.clamp(0.0, 1.0);
     if v <= 0.003_130_8 {
         v * 12.92
     } else {
@@ -57,8 +44,7 @@ mod tests {
             assert!((srgb_decode(srgb_encode(v)) - v).abs() < 2e-6, "{v}");
         }
         assert_eq!(srgb_encode(2.0), srgb_encode(1.0), "clipped at white");
-        assert!(srgb_encode_extended(2.0) > 1.0);
-        assert_eq!(srgb_encode_extended(-1.0), 0.0);
+        assert_eq!(srgb_encode(-1.0), 0.0);
     }
 
     #[test]

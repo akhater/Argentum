@@ -1,109 +1,118 @@
-//! `rr_basic_tone` against the app's tone sliders.
+//! `rr_basic_tone` against the app's tone sliders, end to end, on a picture.
 //!
-//! The app's side is its own shaders, run on the GPU: `apply_tonal_adjustments`
-//! and `apply_highlights_adjustment` in `shaders/shader.wgsl`, and the guided
-//! filter's passes in `shaders/guided.wgsl`, in the order and at the sizes
-//! `build_guided_coeffs` (`gpu_processing.rs`) runs them, restated below.
+//! The engine's side is its pixel pass. The app's side is its own shaders,
+//! on the same GPU: the guided filter's passes in `shaders/guided.wgsl`, in
+//! the order and at the sizes `build_guided_coeffs` (`gpu_processing.rs`)
+//! runs them, restated below; the detail at each pixel as the shader's
+//! `main` measures it with `sample_gf_tex`, restated in the call below; and
+//! `apply_tonal_adjustments` and `apply_highlights_adjustment` as they are.
+//! Both read the same picture, in values a half float holds.
 //!
-//! - The sliders, given the same pixel and the same detail: every channel
-//!   within 2 parts in 10^5 of the app's, or 10^-6 absolute near zero. Both
-//!   chain several `pow`s; the GPU's differ from Rust's in the last bits.
-//! - The guided filter's coefficients: within 5 x 10^-4 of the app's. Both
-//!   sides take the variance as E[l^2] - E[l]^2 in f32, which cancels where
-//!   the light is even, and sum in different orders.
-//! - What the tone sliders read from them, the detail at each pixel, as the
-//!   shader's `main` reads it with `sample_gf_tex`: within 10^-4 stops.
-//!   Measured, 6 x 10^-6: the two coefficients' differences cancel along the
-//!   fitted line.
+//! Stated tolerance: 2 parts in 10^5 of the pixel's largest channel, in or
+//! out, or 10^-6 absolute. Both sides run the same WGSL in different
+//! shaders, which the GPU's compiler may arrange differently.
 
 mod common;
 
 use std::sync::Arc;
 
-use argentum_engine::Gpu;
-use argentum_engine::Rgb;
-use argentum_engine::tools::rr_basic_tone::{self, Amounts, Coefficients, log_luma};
+use argentum_engine::tools::rr_basic_tone::RrBasicTone;
+use argentum_engine::{Gpu, Rgb, Source};
 use common::app_shader::{AppShader, Job};
 use wgpu::util::DeviceExt;
 
-const SLIDERS: [(f32, f32, f32, f32, f32); 9] = [
-    // contrast, highlights, shadows, whites, blacks, as the app's sliders
-    (40.0, 0.0, 0.0, 0.0, 0.0),
-    (-60.0, 0.0, 0.0, 0.0, 0.0),
-    (0.0, -80.0, 0.0, 0.0, 0.0),
-    (0.0, 70.0, 0.0, 0.0, 0.0),
-    (0.0, 0.0, 90.0, 0.0, 0.0),
-    (0.0, 0.0, -50.0, 0.0, 0.0),
-    (0.0, 0.0, 0.0, 60.0, -40.0),
-    (0.0, 0.0, 0.0, -70.0, 55.0),
-    (25.0, -45.0, 35.0, 20.0, -15.0),
+/// Contrast, highlights, shadows, whites, blacks, as the app's sliders.
+const SLIDERS: [[f32; 5]; 9] = [
+    [40.0, 0.0, 0.0, 0.0, 0.0],
+    [-60.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, -80.0, 0.0, 0.0, 0.0],
+    [0.0, 70.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 90.0, 0.0, 0.0],
+    [0.0, 0.0, -50.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 60.0, -40.0],
+    [0.0, 0.0, 0.0, -70.0, 55.0],
+    [25.0, -45.0, 35.0, 20.0, -15.0],
 ];
 
-fn amounts((contrast, highlights, shadows, whites, blacks): (f32, f32, f32, f32, f32)) -> Amounts {
-    Amounts::from(&rr_basic_tone::Settings {
-        contrast,
-        highlights,
-        shadows,
-        whites,
-        blacks,
-    })
-}
+/// The app's `SCALES` for the same sliders, the shader's units.
+const SCALES: [f32; 5] = [100.0, 120.0, 120.0, 40.0, 40.0];
+
+/// Their main's detail and their two functions, for the pixel at element
+/// `i` of a picture `ag_test_params[1].y` wide. The detail lines restate
+/// `main` in shader.wgsl @ c786c146, with no clarity or structure.
+const APP_TONE: &str = r#"
+    let s = ag_test_params[0];
+    let highlights = ag_test_params[1].x;
+    let width = u32(ag_test_params[1].y);
+    let coord = vec2<u32>(i % width, i / width);
+    var tonal_log_detail = 0.0;
+    var tonal_mid_detail = 0.0;
+    if (s.y != 0.0 || s.w != 0.0 || highlights != 0.0 || s.z != 0.0) {
+        let gf_i = log2(max(get_luma(max(v.xyz, vec3<f32>(0.0))), GF_LUMA_FLOOR));
+        let gf = sample_gf_tex(ag_test_tex, coord);
+        tonal_log_detail = gf_i - (gf.x * gf_i + gf.y);
+        let gf_broad = sample_gf_tex(ag_test_tex2, coord).xy;
+        tonal_mid_detail = (gf.x * gf_i + gf.y) - (gf_broad.x * gf_i + gf_broad.y);
+    }
+    let toned = apply_tonal_adjustments(v.xyz, tonal_log_detail, tonal_mid_detail, 1u, s.x, s.y, s.z, s.w);
+    return vec4<f32>(apply_highlights_adjustment(toned, tonal_log_detail, tonal_mid_detail, 1u, highlights), 0.0);
+"#;
 
 #[test]
-fn the_sliders_are_the_apps_shader() {
-    let Some(gpu) = common::gpu("the_sliders_are_the_apps_shader") else {
+fn the_sliders_are_the_apps_on_a_picture() {
+    let Some(gpu) = common::gpu("the_sliders_are_the_apps_on_a_picture") else {
         return;
     };
-    let shader = AppShader::new(
-        gpu,
-        r#"
-        let s = ag_test_params[0];
-        let d = ag_test_params[2u + i];
-        let toned = apply_tonal_adjustments(v.xyz, d.x, d.y, 1u, s.x, s.y, s.z, s.w);
-        return vec4<f32>(apply_highlights_adjustment(toned, d.x, d.y, 1u, ag_test_params[1].x), 0.0);
-        "#,
-    );
-    let rgb = common::colours();
-    let inputs: Vec<[f32; 4]> = rgb.pixels.iter().map(|p| [p[0], p[1], p[2], 0.0]).collect();
-    // Detail from flat to a stop and a half either way, local and mid-scale.
-    let details: Vec<[f32; 2]> = (0..rgb.pixels.len())
-        .map(|i| {
-            let t = (i * 7919 % 1000) as f32 / 1000.0;
-            let u = (i * 104_729 % 997) as f32 / 997.0;
-            if i % 5 == 0 {
-                [0.0, 0.0]
-            } else {
-                [3.0 * t - 1.5, 2.0 * u - 1.0]
-            }
-        })
-        .collect();
-    let mut worst = 0.0f32;
-    for sliders in SLIDERS {
-        let a = amounts(sliders);
-        let mut params = vec![
-            [a.contrast, a.shadows, a.whites, a.blacks],
-            [a.highlights, 0.0, 0.0, 0.0],
-        ];
-        params.extend(details.iter().map(|d| [d[0], d[1], 0.0, 0.0]));
-        let theirs = shader.run(&Job {
-            inputs: &inputs,
-            params: &params,
-            ..Default::default()
-        });
-        for ((p, d), b) in rgb.pixels.iter().zip(&details).zip(&theirs) {
-            let ours = rr_basic_tone::basic_tone(*p, d[0], d[1], &a);
-            for c in 0..3 {
-                let miss = (ours[c] - b[c]).abs();
-                let allowed = b[c].abs() * 2e-5 + 1e-6;
-                worst = worst.max(miss / allowed);
-                assert!(
-                    miss <= allowed,
-                    "{sliders:?}, {p:?}, detail {d:?}: ours {ours:?}, the app's {b:?}"
-                );
+    let shader = AppShader::new(gpu.clone(), APP_TONE);
+    let source = Source::new(0, common::bayer(16, 16, |_, _| 0));
+    eprintln!();
+    // Below 1080 on the short side, and above it, where the filter works on a
+    // smaller copy.
+    for (w, h) in [(640, 400), (1500, 1200)] {
+        let rgb = scene(w, h);
+        let (tonal, coarse) = AppGuided::new(gpu.clone()).run(&rgb);
+        let texels =
+            |p: &Plane| -> Vec<[f32; 4]> { p.2.iter().map(|t| [t[0], t[1], 0.0, 0.0]).collect() };
+        let (tonal_texels, coarse_texels) = (texels(&tonal), texels(&coarse));
+        let inputs = common::elements(&rgb);
+        let mut worst = 0.0f32;
+        for sliders in SLIDERS {
+            let [c, hl, sh, wh, bl] = [0, 1, 2, 3, 4].map(|k| sliders[k] / SCALES[k]);
+            let theirs = shader.run(&Job {
+                inputs: &inputs,
+                params: &[[c, sh, wh, bl], [hl, w as f32, 0.0, 0.0]],
+                input_size: (w as u32, h as u32),
+                texture: Some((tonal.0 as u32, tonal.1 as u32, &tonal_texels)),
+                texture2: Some((coarse.0 as u32, coarse.1 as u32, &coarse_texels)),
+                ..Default::default()
+            });
+            let ours = common::only::<RrBasicTone>(
+                gpu.clone(),
+                serde_json::json!({
+                    "contrast": sliders[0],
+                    "highlights": sliders[1],
+                    "shadows": sliders[2],
+                    "whites": sliders[3],
+                    "blacks": sliders[4],
+                }),
+            )
+            .run_pixel_tools(&source, &rgb)
+            .unwrap();
+            for ((p, a), b) in rgb.pixels.iter().zip(&ours.pixels).zip(&theirs) {
+                let largest = p.iter().chain(a.iter()).fold(0.0f32, |m, v| m.max(v.abs()));
+                for k in 0..3 {
+                    let miss = (a[k] - b[k]).abs();
+                    let allowed = largest * 2e-5 + 1e-6;
+                    worst = worst.max(miss / allowed);
+                    assert!(
+                        miss <= allowed,
+                        "{w}x{h}, {sliders:?}, {p:?}: ours {a:?}, the app's {b:?}"
+                    );
+                }
             }
         }
+        eprintln!("  {w}x{h}: worst miss {worst:.2} of the tolerance");
     }
-    eprintln!("\n  worst miss: {worst:.2} of the tolerance");
 }
 
 /// A picture with light, shade, edges and texture, its values ones a half
@@ -122,75 +131,6 @@ fn scene(w: usize, h: usize) -> Rgb {
         })
         .collect();
     Rgb::new(w, h, pixels)
-}
-
-#[test]
-fn the_guided_filter_is_the_apps_shader() {
-    let Some(gpu) = common::gpu("the_guided_filter_is_the_apps_shader") else {
-        return;
-    };
-    eprintln!();
-    // Below 1080 on the short side, and above it, where the filter works on a
-    // smaller copy.
-    for (w, h) in [(640, 400), (1500, 1200)] {
-        let rgb = scene(w, h);
-        let ours = Coefficients::of(&rgb);
-        let theirs = AppGuided::new(gpu.clone()).run(&rgb);
-        for (name, a, b) in [
-            ("tonal", &ours.tonal, &theirs.0),
-            ("coarse", &ours.coarse, &theirs.1),
-        ] {
-            assert_eq!((a.width, a.height), (b.0, b.1), "{name} size");
-            let worst = |k: usize| {
-                a.texels
-                    .iter()
-                    .zip(&b.2)
-                    .map(|(x, y)| (x[k] - y[k]).abs())
-                    .fold(0.0f32, f32::max)
-            };
-            eprintln!(
-                "  {w}x{h} {name} {}x{}: worst slope {:.2e}, offset {:.2e}",
-                a.width,
-                a.height,
-                worst(0),
-                worst(1)
-            );
-            assert!(worst(0) <= 5e-4 && worst(1) <= 5e-4, "{w}x{h} {name}");
-        }
-
-        // Read back at full size as the shader's main does.
-        let shader = AppShader::new(
-            gpu.clone(),
-            "return sample_gf_tex(ag_test_tex, vec2<u32>(u32(v.x), u32(v.y)));",
-        );
-        let probes: Vec<[f32; 4]> = (0..997)
-            .map(|k| [((k * 389) % w) as f32, ((k * 211) % h) as f32, 0.0, 0.0])
-            .collect();
-        let sampled = |plane: &(usize, usize, Vec<[f32; 2]>)| {
-            let texels: Vec<[f32; 4]> = plane.2.iter().map(|t| [t[0], t[1], 0.0, 0.0]).collect();
-            shader.run(&Job {
-                inputs: &probes,
-                input_size: (w as u32, h as u32),
-                texture: Some((plane.0 as u32, plane.1 as u32, &texels)),
-                ..Default::default()
-            })
-        };
-        let (tonal, coarse) = (sampled(&theirs.0), sampled(&theirs.1));
-        let mut worst_detail = 0.0f32;
-        for (k, probe) in probes.iter().enumerate() {
-            let (x, y) = (probe[0] as usize, probe[1] as usize);
-            let gf_i = log_luma(rgb.pixels[y * w + x]);
-            // `tonal_log_detail` and `tonal_mid_detail` in their main().
-            let smooth = tonal[k][0] * gf_i + tonal[k][1];
-            let app = (gf_i - smooth, smooth - (coarse[k][0] * gf_i + coarse[k][1]));
-            let ours = ours.detail(x, y, gf_i);
-            worst_detail = worst_detail
-                .max((ours.0 - app.0).abs())
-                .max((ours.1 - app.1).abs());
-        }
-        eprintln!("  {w}x{h} detail: worst {worst_detail:.2e} stops");
-        assert!(worst_detail <= 1e-4, "{w}x{h}: detail {worst_detail}");
-    }
 }
 
 /// The app's guided filter passes, `guided.wgsl` as it is, run in the order

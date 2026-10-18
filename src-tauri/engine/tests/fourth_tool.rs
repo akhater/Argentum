@@ -13,7 +13,7 @@ mod common;
 
 use ag_dummy::AgDummy;
 use argentum_engine::contract::{EditPatch, SettingKind, ToolEdit};
-use argentum_engine::tools::rt_capture_sharpen;
+use argentum_engine::tools::{ag_dng_standard, rt_capture_sharpen};
 use argentum_engine::{Engine, Origin, Pipeline, Registry, Section, Size, Stage, standard};
 
 fn registry() -> Registry {
@@ -34,9 +34,15 @@ fn patch(json: serde_json::Value) -> EditPatch {
 
 fn pipeline() -> Pipeline {
     let mut p = Pipeline::new(registry()).expect("a valid registry");
-    // No GPU needed for this test.
+    // No GPU needed for this test: nothing that runs on one has anything to
+    // do. The per-pixel tools are `tests/pixel_tool.rs`'s.
     p.set::<rt_capture_sharpen::RtCaptureSharpen>(rt_capture_sharpen::Settings {
         capture: false,
+        ..Default::default()
+    })
+    .unwrap();
+    p.set::<ag_dng_standard::AgDngStandard>(ag_dng_standard::Settings {
+        enabled: false,
         ..Default::default()
     })
     .unwrap();
@@ -98,11 +104,7 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
             "dt_highlights",
             "develop",
             "rt_capture_sharpen",
-            "ag_exposure",
-            "rr_white_balance",
-            "rr_basic_tone",
-            "rr_presence",
-            "ag_dng_standard",
+            "pixels",
             "ag_dummy"
         ]
     );
@@ -134,7 +136,7 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
     ))
     .unwrap();
     p.render(&source, Size::Full).unwrap();
-    assert_eq!(ran(&p), ["ag_dng_standard", "ag_dummy"]);
+    assert_eq!(ran(&p), ["pixels", "ag_dummy"]);
     assert_eq!(p.runs("ag_dummy"), 3);
 }
 

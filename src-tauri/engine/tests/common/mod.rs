@@ -147,7 +147,9 @@ pub fn source(width: usize, height: usize) -> Source {
 
 /// Colours for the parity tests: greys, primaries, skin and sky, values from
 /// black to far above white, a few below zero as a colour matrix can leave
-/// them, and pseudo-random ones in between. One row.
+/// them, and pseudo-random ones in between. One row, every value one a half
+/// float holds exactly: the pixel pass's input is half floats, as the app's
+/// is, so both sides see the same numbers.
 pub fn colours() -> argentum_engine::Rgb {
     let mut seed = 0x2545_f491u32;
     let mut next = move || {
@@ -184,7 +186,36 @@ pub fn colours() -> argentum_engine::Rgb {
         pixels.push([v, v * (0.9 + 0.2 * next()), v * (0.9 + 0.2 * next())]);
     }
     let n = pixels.len();
-    argentum_engine::Rgb::new(n, 1, pixels)
+    argentum_engine::Rgb::new(n, 1, pixels.into_iter().map(half_exact).collect())
+}
+
+/// `c` as a half float holds it.
+pub fn half_exact(c: [f32; 3]) -> [f32; 3] {
+    c.map(|v| half::f16::from_f32(v).to_f32())
+}
+
+/// `rgb` as the pixel shader's test entry takes it, one pixel per element.
+pub fn elements(rgb: &argentum_engine::Rgb) -> Vec<[f32; 4]> {
+    rgb.pixels.iter().map(|p| [p[0], p[1], p[2], 0.0]).collect()
+}
+
+/// A pipeline running only `T`, on this GPU, with `patch` applied: the
+/// engine's side of a parity test, through the pixel pass.
+pub fn only<T: argentum_engine::Tool>(
+    gpu: Arc<Gpu>,
+    patch: serde_json::Value,
+) -> argentum_engine::Pipeline {
+    let registry = argentum_engine::Registry::new().with::<T>();
+    let mut p = argentum_engine::Pipeline::with_gpu(
+        Arc::new(registry),
+        argentum_engine::GpuSlot::with(gpu),
+    )
+    .unwrap();
+    let mut edit = serde_json::Map::new();
+    edit.insert(T::ID.to_string(), patch);
+    p.apply(&serde_json::from_value(serde_json::Value::Object(edit)).unwrap())
+        .unwrap();
+    p
 }
 
 /// How far apart two pictures are once on screen: the largest difference of

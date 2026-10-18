@@ -28,14 +28,15 @@
 //! - RGBTone and the ProPhoto matrices: `rt_rgb_tone` (RawTherapee
 //!   `rtengine/curves.h` @ 46b92d8e, their port of the DNG SDK's
 //!   `RefBaselineRGBTone`) and `ag_dng_standard` in
-//!   `src-tauri/src/shaders/modules.wgsl`.
+//!   `src-tauri/src/shaders/modules.wgsl`, run in the pixel pass.
 //!
 //! WHAT CHANGED IN THE COPY
 //!
-//! - The exact curve, read from its 1025 samples. The app hands its shader
-//!   16 points of it instead, the most its uniform holds, and a spline
-//!   between them stays within half an 8-bit level of the exact curve (its
-//!   own test).
+//! - The exact curve on the GPU: the offset's tone written in WGSL and the
+//!   1025 samples handed in as parameters. The app hands its shader 16
+//!   points of it instead, the most its uniform holds, and a spline between
+//!   them stays within half an 8-bit level of the exact curve (its own
+//!   test).
 //! - The offset is a setting, the photo's own by default (`defaults_for`),
 //!   so an edit keeps it when the table changes, as the app keeps its curve
 //!   in the edit.
@@ -46,11 +47,9 @@
 
 use std::sync::OnceLock;
 
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::colour::{self, Mat3};
-use crate::{Context, Error, Field, Image, Result, Section, Source, Stage, Tool};
+use crate::{Context, Field, Pixel, Section, Source, Stage, Tool};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -91,6 +90,11 @@ impl Tool for AgDngStandard {
     const ID: &'static str = "ag_dng_standard";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Tone;
+    const PIXEL: Option<Pixel> = Some(Pixel {
+        wgsl: WGSL,
+        params: 1 + CURVE_PARAMS,
+        detail: false,
+    });
     type Settings = Settings;
 
     fn defaults_for(&self, source: &Source) -> Settings {
@@ -100,123 +104,25 @@ impl Tool for AgDngStandard {
         }
     }
 
-    fn process(&self, settings: &Settings, input: &Image, _cx: &Context) -> Result<Option<Image>> {
-        let rgb = input.as_rgb().ok_or_else(|| Error::Tool {
-            tool: Self::ID,
-            message: format!("was handed {}", input.describe()),
-        })?;
+    /// The offset in stops, 2 to that, the look on; then the curve's
+    /// samples, four to a parameter.
+    fn pixel_params(&self, settings: &Settings, _cx: &Context) -> Option<Vec<[f32; 4]>> {
         if !settings.enabled {
-            return Ok(None);
+            return None;
         }
-        let tone = Tone::new(settings.baseline_exposure_ev);
-        let pixels = rgb
-            .pixels
-            .par_iter()
-            .map(|&p| dng_standard(p, |v| tone.apply(v)))
-            .collect();
-        Ok(Some(Image::Rgb(rgb.with_pixels(pixels))))
+        let ev = settings.baseline_exposure_ev;
+        let mut params = vec![[ev, ev.exp2(), 1.0, 0.0]];
+        params.extend(ADOBE_CAMERA_RAW_DEFAULT_CURVE.chunks(4).map(|four| {
+            let mut v = [0.0; 4];
+            v[..four.len()].copy_from_slice(four);
+            v
+        }));
+        Some(params)
     }
 }
 
-// ---------------------------------------------------------------------------
-// The picture: from src-tauri/src/shaders/modules.wgsl @ c786c146.
-// ---------------------------------------------------------------------------
-
-/// Linear sRGB (D65) to linear ProPhoto RGB (ROMM, D50), Bradford-adapted,
-/// with Lindbloom's matrices: `AG_SRGB_TO_PROPHOTO`, as rows.
-const SRGB_TO_PROPHOTO: Mat3 = [
-    [0.5293458, 0.3300728, 0.1405813],
-    [0.0983744, 0.873_461, 0.0281647],
-    [0.0168832, 0.1176725, 0.8654443],
-];
-/// `AG_PROPHOTO_TO_SRGB`, as rows.
-const PROPHOTO_TO_SRGB: Mat3 = [
-    [2.0340764, -0.7273343, -0.3067417],
-    [-0.2288134, 1.2317302, -0.0029169],
-    [-0.0085698, -0.1532866, 1.1618564],
-];
-
-/// `ag_dng_standard`, before its sRGB encode: `tone` applied in linear
-/// ProPhoto, then back to linear sRGB. `tone` is the photo's `Tone`; the
-/// parity tests hand it others.
-pub fn dng_standard(linear: [f32; 3], tone: impl Fn(f32) -> f32) -> [f32; 3] {
-    let prophoto = colour::mul(&SRGB_TO_PROPHOTO, linear).map(|v| v.clamp(0.0, 1.0));
-    colour::mul(&PROPHOTO_TO_SRGB, rgb_tone(prophoto, tone))
-}
-
-/// `rt_rgb_tone`: the largest and smallest channel go through the curve and
-/// the middle one keeps its place between them. Equal channels are a grey
-/// and take the curve directly.
-fn rgb_tone(c: [f32; 3], tone: impl Fn(f32) -> f32) -> [f32; 3] {
-    let hi = c[0].max(c[1]).max(c[2]);
-    let lo = c[0].min(c[1]).min(c[2]);
-    let hi_toned = tone(hi);
-    if hi - lo <= 1.0e-6 {
-        return [hi_toned; 3];
-    }
-    let lo_toned = tone(lo);
-    let scale = (hi_toned - lo_toned) / (hi - lo);
-    c.map(|v| lo_toned + (v - lo) * scale)
-}
-
-// ---------------------------------------------------------------------------
-// The curve: from src-tauri/src/mods/dng_standard.rs @ c786c146.
-// ---------------------------------------------------------------------------
-
-/// The offset's tone and the curve for one photo: `tone(v, ev)`, with the
-/// gain worked out once rather than per pixel.
-pub struct Tone {
-    ev: f32,
-    gain: f32,
-}
-
-impl Tone {
-    pub fn new(ev: f32) -> Tone {
-        Tone {
-            ev,
-            gain: ev.exp2(),
-        }
-    }
-
-    /// Linear light, before the offset, to linear light out.
-    pub fn apply(&self, v: f32) -> f32 {
-        let v = v.clamp(0.0, 1.0);
-        let gain = self.gain;
-        let exposed = if self.ev >= 0.0 {
-            shoulder(v * gain, gain)
-        } else {
-            // A darker body: the mid-tones come down by the offset and white
-            // stays white, as the DNG SDK's exposure tone does for a negative
-            // exposure.
-            gain * v + (1.0 - gain) * v.powi(3)
-        };
-        acr3(exposed)
-    }
-}
-
-/// Where a brighter body's highlights start to roll off rather than clip.
-const SHOULDER_KNEE: f32 = 0.5;
-
-/// Untouched up to the knee, then compressed so that `white` lands on 1. Slope
-/// one at the knee, so the join does not show.
-fn shoulder(x: f32, white: f32) -> f32 {
-    if white <= 1.0 || x <= SHOULDER_KNEE {
-        return x.min(1.0);
-    }
-    let room_in = white - SHOULDER_KNEE;
-    let room_out = 1.0 - SHOULDER_KNEE;
-    let squeeze = (room_in - room_out) / (room_in * room_out);
-    let above = x - SHOULDER_KNEE;
-    (SHOULDER_KNEE + above / (1.0 + above * squeeze)).min(1.0)
-}
-
-fn acr3(v: f32) -> f32 {
-    let table = &ADOBE_CAMERA_RAW_DEFAULT_CURVE;
-    let x = v.clamp(0.0, 1.0) * (table.len() - 1) as f32;
-    let i = (x as usize).min(table.len() - 2);
-    let f = x - i as f32;
-    table[i] + (table[i + 1] - table[i]) * f
-}
+/// How many parameters the curve's samples take, four to one.
+const CURVE_PARAMS: usize = ADOBE_CAMERA_RAW_DEFAULT_CURVE.len().div_ceil(4);
 
 /// Adobe's default tone curve: 1025 samples of linear light in [0, 1], linear
 /// light out, read by straight-line interpolation as the DNG SDK reads it.
@@ -469,32 +375,101 @@ fn normalise(model: &str) -> String {
         .collect()
 }
 
+const WGSL: &str = r#"
+// The offset's tone and Adobe's curve, linear light in and out: `tone`,
+// `shoulder` and `acr3` of src-tauri/src/mods/dng_standard.rs @ c786c146,
+// written in WGSL. `ag_params[p]` holds the offset in stops (x), 2 to that
+// (y) and whether the look is on (z); the curve's 1025 samples follow, four
+// to a parameter.
+const AG_DNG_KNEE: f32 = 0.5;
+
+fn ag_dng_shoulder(x: f32, white: f32) -> f32 {
+    if (white <= 1.0 || x <= AG_DNG_KNEE) {
+        return min(x, 1.0);
+    }
+    let room_in = white - AG_DNG_KNEE;
+    let room_out = 1.0 - AG_DNG_KNEE;
+    let squeeze = (room_in - room_out) / (room_in * room_out);
+    let above = x - AG_DNG_KNEE;
+    return min(AG_DNG_KNEE + above / (1.0 + above * squeeze), 1.0);
+}
+
+fn ag_dng_acr3(v: f32, p: u32) -> f32 {
+    let x = clamp(v, 0.0, 1.0) * 1024.0;
+    let i = min(u32(x), 1023u);
+    let f = x - f32(i);
+    let j = i + 1u;
+    let a = ag_params[p + 1u + i / 4u][i % 4u];
+    let b = ag_params[p + 1u + j / 4u][j % 4u];
+    return a + (b - a) * f;
+}
+
+fn ag_dng_tone(v: f32, p: u32) -> f32 {
+    let x = clamp(v, 0.0, 1.0);
+    let ev = ag_params[p].x;
+    let gain = ag_params[p].y;
+    var exposed: f32;
+    if (ev >= 0.0) {
+        exposed = ag_dng_shoulder(x * gain, gain);
+    } else {
+        // A darker body: the mid-tones come down by the offset and white
+        // stays white, as the DNG SDK's exposure tone does.
+        exposed = gain * x + (1.0 - gain) * x * x * x;
+    }
+    return ag_dng_acr3(exposed, p);
+}
+
+// rt_rgb_tone and the ProPhoto matrices, src-tauri/src/shaders/modules.wgsl
+// @ c786c146 (from RawTherapee rtengine/curves.h @ 46b92d8e, AdobeToneCurve::
+// RGBTone), reading the curve from the tool's parameters rather than 16
+// points.
+fn rt_rgb_tone(c: vec3<f32>, p: u32) -> vec3<f32> {
+    let hi = max(c.r, max(c.g, c.b));
+    let lo = min(c.r, min(c.g, c.b));
+    let hi_toned = ag_dng_tone(hi, p);
+    if (hi - lo <= 1.0e-6) {
+        return vec3<f32>(hi_toned);
+    }
+    let lo_toned = ag_dng_tone(lo, p);
+    return vec3<f32>(lo_toned) + (c - vec3<f32>(lo)) * ((hi_toned - lo_toned) / (hi - lo));
+}
+
+const AG_SRGB_TO_PROPHOTO = mat3x3<f32>(
+    vec3<f32>(0.5293458, 0.0983744, 0.0168832),
+    vec3<f32>(0.3300728, 0.8734610, 0.1176725),
+    vec3<f32>(0.1405813, 0.0281647, 0.8654443),
+);
+const AG_PROPHOTO_TO_SRGB = mat3x3<f32>(
+    vec3<f32>(2.0340764, -0.2288134, -0.0085698),
+    vec3<f32>(-0.7273343, 1.2317302, -0.1532866),
+    vec3<f32>(-0.3067417, -0.0029169, 1.1618564),
+);
+
+// `ag_dng_standard` of modules.wgsl, less its sRGB encode, which the pixel
+// pass does at the end.
+fn ag_dng_standard(c: vec3<f32>, px: Px) -> vec3<f32> {
+    if (ag_params[px.p].z == 0.0) {
+        return c;
+    }
+    let prophoto = clamp(AG_SRGB_TO_PROPHOTO * c, vec3<f32>(0.0), vec3<f32>(1.0));
+    return AG_PROPHOTO_TO_SRGB * rt_rgb_tone(prophoto, px.p);
+}
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn middle_grey_lands_where_adobe_puts_it() {
-        assert!((acr3(0.18) - 0.388).abs() < 0.001, "{}", acr3(0.18));
-        // An offset is an exposure: +1 EV at middle grey reads the curve at 0.36.
-        assert!((Tone::new(1.0).apply(0.18) - acr3(0.36)).abs() < 1e-6);
-    }
-
-    #[test]
-    fn black_and_white_stay_put_whatever_the_offset() {
-        for ev in [-0.5, 0.0, 0.35, 0.85] {
-            assert_eq!(Tone::new(ev).apply(0.0), 0.0);
-            assert!((Tone::new(ev).apply(1.0) - 1.0).abs() < 1e-5, "{ev:+} EV white");
-        }
-    }
-
-    #[test]
-    fn a_grey_stays_grey_and_a_colour_keeps_its_order() {
-        let tone = Tone::new(0.3);
-        let grey = dng_standard([0.18; 3], |v| tone.apply(v));
-        assert!((grey[0] - grey[1]).abs() < 1e-4 && (grey[1] - grey[2]).abs() < 1e-4);
-        let orange = dng_standard([0.6, 0.3, 0.05], |v| tone.apply(v));
-        assert!(orange[0] > orange[1] && orange[1] > orange[2], "{orange:?}");
+    fn the_curve_is_adobes() {
+        let table = &ADOBE_CAMERA_RAW_DEFAULT_CURVE;
+        assert_eq!((table[0], table[1024]), (0.0, 1.0));
+        // Middle grey comes out about a stop brighter.
+        let at = 0.18 * 1024.0;
+        let (i, f) = (at as usize, at - (at as usize) as f32);
+        let grey = table[i] + (table[i + 1] - table[i]) * f;
+        assert!((grey - 0.388).abs() < 0.001, "{grey}");
+        assert!(table.windows(2).all(|w| w[0] <= w[1]), "only rises");
     }
 
     #[test]
