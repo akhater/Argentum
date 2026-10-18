@@ -96,6 +96,7 @@ Cap the depth, store deltas, or both.
 
 | | What | Effort |
 |---|---|---|
+| ✅ | **DNG Standard** - done in `26.41.13`. The default picture of a DNG renderer - each camera's exposure offset (RAWmakase's table, 230 bodies) and Adobe's default tone curve, applied so hues hold - with Lightroom's default sharpening. Every RAW now starts in it; RapidRAW's rendering stays under RAW > Rendering > Default. | done |
 | ⬜ | Filmic / Sigmoid tone curve | 2 days |
 | ⬜ | Color balance rgb | 2 days |
 | ⬜ | Color equalizer | 2 days |

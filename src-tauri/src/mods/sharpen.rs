@@ -62,6 +62,13 @@ pub const DEFAULT_ITERATIONS: u32 = 20;
 /// one that is on for every RAW.
 pub const DEFAULT_USM_RADIUS: f32 = 2.0;
 pub const DEFAULT_USM_THRESHOLD: f32 = 0.5;
+/// DNG Standard's Sharpen, until someone sets their own. Camera Raw sharpens
+/// every RAW by default (Amount 40, Radius 1.0); with capture sharpening
+/// already on, Sharpen 25 at radius 1 measured the same as RAWmakase's render of
+/// those defaults on 200% crops of an R6 Mark III, and added no more grain at
+/// ISO 12800 and 32000. `sharpenSettings.ts` shows the same numbers.
+pub const DNG_STANDARD_AMOUNT: f32 = 25.0;
+pub const DNG_STANDARD_USM_RADIUS: f32 = 1.0;
 
 /// The adjustments key a restored RAW's file carries: `{ "captureRadius": r }`.
 pub const RESTORED_KEY: &str = "agRestore";
@@ -227,6 +234,15 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
         }
     }
 
+    // DNG Standard brings its sharpening with it: a RAW in it, including one
+    // whose edit names no rendering, which starts in it (raw_tone::mode_of).
+    let dng_standard = is_raw && crate::mods::raw_tone::mode_of(js) == 3;
+    let (usm_default, usm_radius_default) = if dng_standard {
+        (DNG_STANDARD_AMOUNT, DNG_STANDARD_USM_RADIUS)
+    } else {
+        (0.0, DEFAULT_USM_RADIUS)
+    };
+
     Params {
         capture_amount: if capture {
             (number(&s, "captureAmount", 100.0) / 100.0).clamp(0.0, 1.0)
@@ -237,8 +253,8 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
         capture_corner: number(&s, "cornerBoost", 0.0).clamp(-0.5, 0.5),
         capture_iterations: number(&s, "iterations", DEFAULT_ITERATIONS as f32).clamp(1.0, 100.0)
             as u32,
-        usm_amount: (number(&s, "amount", 0.0) / 100.0).clamp(0.0, 2.0),
-        usm_radius: number(&s, "usmRadius", DEFAULT_USM_RADIUS).clamp(0.1, 8.0),
+        usm_amount: (number(&s, "amount", usm_default) / 100.0).clamp(0.0, 2.0),
+        usm_radius: number(&s, "usmRadius", usm_radius_default).clamp(0.1, 8.0),
         usm_threshold: number(&s, "threshold", DEFAULT_USM_THRESHOLD).clamp(0.0, 100.0),
         contrast: number(&s, "contrast", DEFAULT_CONTRAST).clamp(0.0, 200.0),
         flags,
@@ -987,13 +1003,37 @@ mod tests {
 
     #[test]
     fn a_raw_with_no_settings_gets_capture_sharpening_only() {
-        let p = from_json(&json!({}), true, None);
+        // An edit in RapidRAW's rendering, as every edit saved before DNG
+        // Standard is.
+        let p = from_json(&json!({ "rawToneRendering": "default" }), true, None);
         assert!(p.capture_on());
         assert!(!p.usm_on());
         assert_eq!(p.capture_radius, DEFAULT_RADIUS);
         assert_eq!(p.capture_iterations, DEFAULT_ITERATIONS);
         assert!(p.auto_contrast());
         assert_eq!(p.flags & FLAG_ITER_CHECK, FLAG_ITER_CHECK);
+    }
+
+    #[test]
+    fn dng_standard_brings_its_sharpening_until_someone_sets_their_own() {
+        for unedited in [Value::Null, json!({})] {
+            let p = from_json(&unedited, true, None);
+            assert!(
+                p.capture_on() && p.usm_on(),
+                "a RAW nobody edited starts in DNG Standard"
+            );
+            assert_eq!(p.usm_amount, DNG_STANDARD_AMOUNT / 100.0);
+            assert_eq!(p.usm_radius, DNG_STANDARD_USM_RADIUS);
+        }
+        let chosen = from_json(&json!({ "rawToneRendering": "dngStandard" }), true, None);
+        assert_eq!(chosen.usm_amount, DNG_STANDARD_AMOUNT / 100.0);
+        let own = json!({ "rawToneRendering": "dngStandard", "agSharpen": { "amount": 0 } });
+        assert!(
+            !from_json(&own, true, None).usm_on(),
+            "their own amount wins"
+        );
+        // A JPEG nobody edited is not a RAW in DNG Standard.
+        assert!(!from_json(&Value::Null, false, None).usm_on());
     }
 
     #[test]

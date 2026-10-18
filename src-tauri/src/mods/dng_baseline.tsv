@@ -1,0 +1,255 @@
+# Camera Raw's default exposure offset per camera body, for DNG Standard
+# (mods/dng_standard.rs). One body per line, tab-separated:
+#
+#   make <TAB> model|alias|alias <TAB> offset in EV <TAB> lowest native ISO (or empty)
+#
+# From RAWmakase data/cameras.toml @ 7c3c81ab (2026-10-17): make, model, aliases,
+# baseline_exposure and lowest_iso of every row; 230 bodies across 10 makes.
+# Names are LibRaw's, matched to rawler's in letters and digits only.
+#
+# Each value is the BaselineExposure Camera Raw gives an unedited photo with
+# Adobe Standard, adjusted by RAWmakase for the difference between Adobe's and
+# LibRaw's white level. Argentum decodes with rawler, whose white level for a
+# body may differ from LibRaw's; that has not been measured here.
+#
+# Copyright (c) 2026 RAWmakase contributors. MIT licence, in full in
+# docs/licenses/RAWmakase-MIT.txt:
+#
+#   Permission is hereby granted, free of charge, to any person obtaining a copy
+#   of this software and associated documentation files (the "Software"), to deal
+#   in the Software without restriction, including without limitation the rights
+#   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#   copies of the Software, and to permit persons to whom the Software is
+#   furnished to do so, subject to the following conditions: the above copyright
+#   notice and this permission notice shall be included in all copies or
+#   substantial portions of the Software.
+Canon	EOS 100D	0.1	
+Canon	EOS 1100D|EOS REBEL T3	-0.15	
+Canon	EOS 1200D|EOS REBEL T5	-0.1	
+Canon	EOS 1300D|EOS Rebel T6|EOS Kiss X80	0.05	
+Canon	EOS 1500D|EOS 2000D|EOS Rebel T7|EOS Kiss X90	0.35	
+Canon	EOS 200D	0.5	
+Canon	EOS 250D	0.4	
+Canon	EOS 3000D|EOS 4000D|EOS Rebel T100	0.3	
+Canon	EOS 30D	0.25	
+Canon	EOS 450D	-0.15	
+Canon	EOS 500D	0.15	
+Canon	EOS 550D	0.1	
+Canon	EOS 5D	0.25	
+Canon	EOS 5D Mark II	0.4	
+Canon	EOS 5D Mark III	0.3	
+Canon	EOS 5D Mark IV	0.35	
+Canon	EOS 5DS R	0.3	
+Canon	EOS 600D	-0.15	
+Canon	EOS 60D	-0.35	
+Canon	EOS 650D	0.1	
+Canon	EOS 6D	0.3	
+Canon	EOS 6D Mark II	0.25	
+Canon	EOS 700D|EOS REBEL T5i	0.3	
+Canon	EOS 70D	0.3	
+Canon	EOS 750D|EOS Rebel T6i	0.3	
+Canon	EOS 77D	0.55	
+Canon	EOS 7D	-0.2	
+Canon	EOS 7D Mark II	-0.05	
+Canon	EOS 800D|EOS Rebel T7i	0.5	
+Canon	EOS 80D	0.5	
+Canon	EOS 850D	0.05	
+Canon	EOS 90D	0.5	
+Canon	EOS M100	0.3	
+Canon	EOS M200	0.4	
+Canon	EOS M5	0.3	
+Canon	EOS M50	0.5	
+Canon	EOS M50 Mark II	0.4	
+Canon	EOS M6 Mark II	0.5	
+Canon	EOS R	0.6	
+Canon	EOS R10	0.4	
+Canon	EOS R100	0.35	
+Canon	EOS R3	0.3	
+Canon	EOS R5	0.5	
+Canon	EOS R5 Mark II	0.5	
+Canon	EOS R50	0.3	
+Canon	EOS R50 V	0.4	
+Canon	EOS R6	0.35	
+Canon	EOS R6 Mark II	0.5	
+Canon	EOS R6 Mark III	0.5	
+Canon	EOS R7	0.4	
+Canon	EOS R8	0.25	
+Canon	EOS RP	0.5	
+Canon	EOS-1D Mark II N	0.25	
+Canon	EOS-1D X Mark II	0.5	
+Canon	EOS-1D X Mark III	0.45	
+Canon	PowerShot G1 X Mark III	0.3	
+Canon	PowerShot G5 X Mark II	0.25	
+Canon	PowerShot G7 X Mark II	0.35	
+Canon	PowerShot G7 X Mark III	0.35	
+Canon	PowerShot G9 X Mark II	0.3	
+Canon	PowerShot V1	0.5	
+Fujifilm	GFX 100	-0.05	
+Fujifilm	GFX 50R	-0.05	
+Fujifilm	GFX 50S	-0.05	
+Fujifilm	GFX100 II	-0.05	
+Fujifilm	GFX100RF	-0.05	
+Fujifilm	GFX100S	-0.05	
+Fujifilm	GFX100S II	-0.05	
+Fujifilm	GFX50S II	-0.05	
+Fujifilm	X-A10	-0.1	
+Fujifilm	X-A3	-0.1	
+Fujifilm	X-A5	-0.25	
+Fujifilm	X-A7	-0.15	
+Fujifilm	X-E3	0.15	
+Fujifilm	X-E4	0.05	
+Fujifilm	X-E5	0	
+Fujifilm	X-H1	0.2	
+Fujifilm	X-H2	-0.35	
+Fujifilm	X-H2S	-0.05	
+Fujifilm	X-M5	0.05	
+Fujifilm	X-Pro2	0.15	
+Fujifilm	X-Pro3	0.05	
+Fujifilm	X-S10	-0.1	
+Fujifilm	X-S20	-0.05	
+Fujifilm	X-T100	-0.25	
+Fujifilm	X-T2	0.15	
+Fujifilm	X-T20	0.15	
+Fujifilm	X-T200	-0.15	
+Fujifilm	X-T3	0.05	
+Fujifilm	X-T30	0.1	
+Fujifilm	X-T30 II	-0.2	
+Fujifilm	X-T30 III	0.05	
+Fujifilm	X-T4	0.05	
+Fujifilm	X-T5	-0.1	
+Fujifilm	X-T50	0	
+Fujifilm	X100F	0.15	
+Fujifilm	X100V	0.05	
+Fujifilm	X100VI	-0.15	
+Fujifilm	X70	-0.05	
+Fujifilm	XF10	-0.3	
+Hasselblad	CFV-100c|CFV 100C	-0.25	
+Hasselblad	X2D 100C-100c|X2D 100C	-0.2	
+Leica	D-Lux 7	0.25	
+Leica	V-Lux 5	0	
+Nikon	COOLPIX A1000	-0.1	
+Nikon	COOLPIX P1100	-0.3	
+Nikon	COOLPIX P950	-0.3	
+Nikon	D3400	0.45	
+Nikon	D3500	0.25	
+Nikon	D5	0.45	
+Nikon	D500	0.3	
+Nikon	D5600	0.15	
+Nikon	D6	0.35	
+Nikon	D610	0.45	
+Nikon	D7200	0.4	
+Nikon	D750	0.2	
+Nikon	D7500	0.45	
+Nikon	D780	0.3	
+Nikon	D850	0.3	
+Nikon	Df	0.35	
+Nikon	Z 30	0.35	
+Nikon	Z 5	0.3	
+Nikon	Z 50	0.45	
+Nikon	Z 6	0.3	
+Nikon	Z 6_2	0.3	
+Nikon	Z 7	0.35	
+Nikon	Z 7_2	0.25	
+Nikon	Z 8	0.25	
+Nikon	Z 9	0.25	
+Nikon	Z f	0.25	
+Nikon	Z fc	0.3	
+Nikon	Z50_2	0.3	
+Nikon	Z5_2	0.25	
+Nikon	Z6_3	0.3	
+Olympus	E-M10 Mark III	0.55	
+Olympus	E-M10MarkIIIS|E-M10 Mark IIIs	0.55	
+Olympus	E-M10MarkIV|E-M10 Mark IV	0.55	
+Olympus	E-M1MarkII|E-M1 Mark II	0.85	
+Olympus	E-M1MarkIII|E-M1 Mark III	0.35	
+Olympus	E-M1X	0.35	
+Olympus	E-M5MarkIII|E-M5 Mark III	0.35	
+Olympus	E-P7	0.35	
+Olympus	E-PL10	0.55	
+Olympus	E-PL8	0.55	
+Olympus	E-PL9	0.55	
+Olympus	PEN-F	0.6	
+OM Digital	OM-1	0.4	
+OM Digital	OM-1MarkII|OM-1 Mark II	0.35	
+OM Digital	OM-3	0.35	
+OM Digital	OM-5	0.35	
+OM Digital	OM-5MarkII|OM-5 Mark II	0.3	
+OM Digital	TG-7	-0.2	
+Panasonic	DC-G100	0.25	
+Panasonic	DC-G9	0.65	
+Panasonic	DC-G90	0.25	
+Panasonic	DC-G95	0.25	
+Panasonic	DC-G9M2	0	
+Panasonic	DC-GH5	0.3	
+Panasonic	DC-GH5M2	0.75	
+Panasonic	DC-GH5S	0.35	
+Panasonic	DC-GH6	0	
+Panasonic	DC-GH7	0.5	
+Panasonic	DC-GX9	0.25	
+Panasonic	DC-LX100M2	0.25	
+Panasonic	DC-S1	-0.15	
+Panasonic	DC-S1H	0.1	
+Panasonic	DC-S1M2	-0.15	
+Panasonic	DC-S1R	0.2	
+Panasonic	DC-S1RM2	0.15	
+Panasonic	DC-S5	0	
+Panasonic	DC-S5M2	-0.05	
+Panasonic	DC-S5M2X	-0.05	
+Panasonic	DC-S9	-0.05	
+Panasonic	DC-TZ202|DC-TZ200|DC-ZS200	0.1	
+Pentax	645Z	-0.5	
+Pentax	K-1 Mark II	0.5	
+Pentax	K-3 Mark III	0.7	
+Pentax	K-70	0.35	
+Pentax	KF	0.5	
+Pentax	KP	0.5	
+Sony	DSC-HX99	-0.4	
+Sony	DSC-RX100M5A	-0.25	
+Sony	DSC-RX100M6	-0.25	
+Sony	DSC-RX100M7	-0.4	
+Sony	DSC-RX10M4	-0.25	
+Sony	DSC-RX1RM2	0.35	
+Sony	DSC-RX1RM3	0.35	
+Sony	DSLR-A290	0	
+Sony	ILCA-99M2	0.35	
+Sony	ILCE-1|A1	0.15	
+Sony	ILCE-1M2	0.15	
+Sony	ILCE-3000	0.35	
+Sony	ILCE-5000	0.35	
+Sony	ILCE-6000|A6000	0.35	
+Sony	ILCE-6100|A6100	0.35	
+Sony	ILCE-6300|A6300	0.35	
+Sony	ILCE-6400|A6400	0.35	
+Sony	ILCE-6500|A6500	0.35	
+Sony	ILCE-6600|A6600	0.35	
+Sony	ILCE-6700|A6700	0.1	
+Sony	ILCE-7	0.35	100
+Sony	ILCE-7C|A7C	0.35	
+Sony	ILCE-7CM2|A7C II	0.35	
+Sony	ILCE-7CR|A7CR	0.3	
+Sony	ILCE-7M2|A7 II	0.35	
+Sony	ILCE-7M3|A7 III	0.35	100
+Sony	ILCE-7M4|A7 IV	0.35	100
+Sony	ILCE-7M5|A7 V	0.5	
+Sony	ILCE-7R	0.35	100
+Sony	ILCE-7RM2|A7R II	0.35	100
+Sony	ILCE-7RM3|A7R III|ILCE-7RM3A	0.15	100
+Sony	ILCE-7RM4|A7R IV	0.35	100
+Sony	ILCE-7RM5|A7R V	0.35	
+Sony	ILCE-7RM6|A7R VI	0.35	
+Sony	ILCE-7S	0.35	
+Sony	ILCE-7SM2|A7S II	0.35	
+Sony	ILCE-7SM3|A7S III	0.15	
+Sony	ILCE-9|A9	0.35	
+Sony	ILCE-9M2|A9 II	0.35	
+Sony	ILCE-9M3|A9 III	0.25	
+Sony	ILME-FX2	0.35	
+Sony	ILME-FX3	0.15	
+Sony	ILME-FX30	0.1	
+Sony	SLT-A37	0.35	
+Sony	SLT-A77|SLT-A77V	0.35	
+Sony	ZV-1	-0.2	
+Sony	ZV-1M2	-0.2	
+Sony	ZV-E1	0.15	
+Sony	ZV-E10	0.35	
+Sony	ZV-E10M2	0.1	

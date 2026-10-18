@@ -110,6 +110,16 @@ const MILESTONES: Milestone[] = [
       + 'at the photo\x27s own size, only where the photo has detail, before capture sharpening.',
   },
   {
+    stage: 'done',
+    what: 'A Lightroom-style starting look',
+    release: '26.41.13',
+    why:
+      'RAW photos opened dark and flat next to Lightroom or the camera\x27s own JPEG. DNG Standard '
+      + 'renders them as a DNG renderer does by default - the camera\x27s exposure offset and '
+      + 'Adobe\x27s tone curve, hues kept - with Lightroom\x27s default sharpening, and every RAW '
+      + 'now starts there.',
+  },
+  {
     stage: 'planned',
     what: 'White balance on RAW files only',
     why:

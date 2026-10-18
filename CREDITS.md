@@ -61,6 +61,50 @@ published it, not from us.
 
 ---
 
+## RAW rendering
+
+DNG Standard, under RAW > Rendering, is the default picture of a DNG renderer:
+the camera's exposure offset and Adobe's default tone curve, applied as Adobe
+applies it. Three sources:
+
+### [RAWmakase](https://github.com/pch/rawmakase)
+
+DNG Standard - the look every RAW now starts in - follows RAWmakase's default
+rendering, its *Standard* profile with Lightroom's default sharpening:
+
+- **The exposure offset for each camera body** is RAWmakase's camera table
+  (`data/cameras.toml` @ `7c3c81ab`), measured by its contributors against Camera
+  Raw - 230 bodies across 10 makes, kept in Argentum as
+  `src-tauri/src/mods/dng_baseline.tsv`.
+- **The approach** - camera matrix, exposure offset, then Adobe's default tone
+  curve applied so hues hold - is the one RAWmakase's Standard profile takes.
+- **The default sharpening** (Sharpen 25 at radius 1) was matched against
+  RAWmakase 0.3.3's render of Camera Raw's defaults on 200% crops.
+
+RAWmakase is also where the comparison started: it showed that the flatness of
+Argentum's default rendering was the tone, not the decoder. What Argentum does not
+take from it: its own decoder and demosaic, its *Color* look, its measured
+highlight and shadow tables, and its default colour noise reduction. MIT licence, in
+full in [docs/licenses/RAWmakase-MIT.txt](docs/licenses/RAWmakase-MIT.txt).
+
+### [RawTherapee](https://github.com/RawTherapee/RawTherapee)
+
+How the curve is applied - to each pixel's largest and smallest channel, the
+middle one kept in its place between them - is RawTherapee's
+`AdobeToneCurve::RGBTone` (`rtengine/curves.h` @ `46b92d8e`), ported to the GPU as
+`rt_rgb_tone`. The curve's 1025 samples are copied from RawTherapee's
+`rtengine/dcp.cc` @ `ca9234b1`.
+
+### Adobe DNG SDK
+
+The default tone curve itself is Adobe's, from the DNG SDK, copyright Adobe Inc.,
+distributed under the SDK's licence:
+[docs/licenses/Adobe-DNG-SDK.txt](docs/licenses/Adobe-DNG-SDK.txt). Argentum is not
+affiliated with or endorsed by Adobe; Adobe, Lightroom and Camera Raw are
+trademarks of Adobe Inc.
+
+---
+
 ## AI enlargement and restoration
 
 ### [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)

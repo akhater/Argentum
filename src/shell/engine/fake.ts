@@ -1,0 +1,238 @@
+// A test double of the engine: the same EngineClient as the real one, for the
+// shell's tests and for `?shell=new` until the engine is wired into the app.
+// Its tools are the engine's own descriptors, read from the generated
+// fixtures. It keeps each photo's edit, refuses a bad patch as a whole and
+// clamps values as the engine does (src-tauri/engine/src/engine.rs, tool.rs),
+// hands out increasing tickets, renders latest-wins, and reports frame,
+// histogram and error events in the contract's shapes.
+//
+// It is not a design mock: the shell sees only what the contract carries.
+
+import fixtures from '../contract.fixtures.json';
+import {
+  EDIT_VERSION,
+  HISTOGRAM_BINS,
+  type EditDocument,
+  type EditPatch,
+  type EngineError,
+  type ErrorKind,
+  type Event,
+  type PhotoId,
+  type Placement,
+  type RenderTicket,
+  type SectionDescriptor,
+  type SettingSpec,
+  type SettingValue,
+  type ToolDescriptor,
+  type View,
+} from '../contract';
+import type { EngineClient, FramePixels } from './client';
+import { frameLayout, type FrameLayout } from './fakeLayout';
+
+/** The engine's sections and tools, exactly as it describes them. */
+export const FAKE_SECTIONS = fixtures.sections as SectionDescriptor[];
+export const FAKE_TOOLS = fixtures.tools as ToolDescriptor[];
+
+/** Sample paths for the filmstrip. The fake paints a picture from each name. */
+export const FAKE_PHOTOS = [
+  'samples/IMG_0412.CR3',
+  'samples/IMG_0415.CR3',
+  'samples/IMG_0421.CR3',
+  'samples/DSC_1180.NEF',
+  'samples/DSC_1184.NEF',
+  'samples/_R6A2207.CR3',
+  'samples/_R6A2213.CR3',
+  'samples/P1040562.RW2',
+];
+
+/** What a painter is asked for: one view of one photo, laid out as the engine lays it out. */
+export interface PaintJob {
+  ticket: RenderTicket;
+  path: string;
+  layout: FrameLayout;
+  edit: EditDocument;
+}
+
+/** Pixels of exactly the layout's placement and their luminance bins, or null when a newer job replaced this one. */
+export type FakePainter = (job: PaintJob) => Promise<{ pixels: FramePixels; bins: number[] } | null>;
+
+export type FakeCall =
+  | { method: 'sections' }
+  | { method: 'tools' }
+  | { method: 'open'; path: string }
+  | { method: 'apply'; photo: PhotoId; patch: EditPatch; ticket: RenderTicket }
+  | { method: 'view'; photo: PhotoId; view: View; ticket: RenderTicket };
+
+export interface FakeEngine extends EngineClient {
+  /** Every call that was accepted, in order. */
+  readonly calls: FakeCall[];
+  /** Deliver an event as if the engine had sent it. */
+  emit(event: Event): void;
+  /** The engine's copy of a photo's edit. */
+  editOf(photo: PhotoId): EditDocument | undefined;
+}
+
+export interface FakeOptions {
+  tools?: ToolDescriptor[];
+  /** Makes the pixels. Without one, frames are flat grey of the asked size. */
+  paint?: FakePainter;
+  /** Render on its own after each apply and view. Off for tests that send events by hand. */
+  autoFrames?: boolean;
+}
+
+/** A stable size per path, landscape or portrait, as a camera would give. */
+function sizeOf(path: string): { width: number; height: number } {
+  let h = 0;
+  for (const c of path) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h % 4 === 0 ? { width: 4000, height: 6000 } : { width: 6000, height: 4000 };
+}
+
+const refusal = (kind: ErrorKind, message: string): EngineError => ({ kind, message });
+
+/**
+ * The value as the engine keeps it, or why it refuses it: the wrong type is
+ * refused (an int takes whole numbers only), and a number out of range is
+ * clamped to it.
+ */
+function checked(toolId: string, spec: SettingSpec, value: SettingValue | null): SettingValue | EngineError {
+  if (value === null) return spec.default;
+  const wrong = (expected: string) =>
+    refusal('badValue', `${toolId}: ${spec.key} takes ${expected}, not ${JSON.stringify(value)}`);
+  switch (spec.kind) {
+    case 'bool':
+      return typeof value === 'boolean' ? value : wrong('true or false');
+    case 'choice':
+      return typeof value === 'string' && spec.choices?.some((c) => c.value === value)
+        ? value
+        : wrong('one of its choices');
+    case 'int':
+    case 'float': {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return wrong('a number');
+      if (spec.kind === 'int' && !Number.isInteger(value)) return wrong('a whole number');
+      return Math.min(spec.max ?? Infinity, Math.max(spec.min ?? -Infinity, value));
+    }
+  }
+}
+
+const isRefusal = (v: SettingValue | EngineError): v is EngineError => typeof v === 'object';
+
+export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
+  const tools = options.tools ?? FAKE_TOOLS;
+  const autoFrames = options.autoFrames ?? true;
+  const listeners = new Set<(event: Event) => void>();
+  const photos = new Map<PhotoId, { path: string; width: number; height: number; edit: EditDocument }>();
+  const ids = new Map<string, PhotoId>();
+  const views = new Map<PhotoId, View>();
+  const calls: FakeCall[] = [];
+  let ticket = 0;
+  let latest: { ticket: RenderTicket; pixels: FramePixels | null; placement: Placement } | null = null;
+
+  const emit = (event: Event) => listeners.forEach((l) => l(event));
+  const later = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const photoOf = (id: PhotoId) => {
+    const p = photos.get(id);
+    if (!p) throw refusal('unknownPhoto', `no photo ${id} is open`);
+    return p;
+  };
+
+  // A newer ticket cancels every older one: a job superseded before its turn never renders.
+  async function render(t: RenderTicket, id: PhotoId) {
+    await later();
+    if (t !== ticket) return;
+    const p = photos.get(id);
+    const view = views.get(id);
+    if (!p || !view) return;
+    try {
+      const layout = frameLayout(view, p);
+      const painted = options.paint
+        ? await options.paint({ ticket: t, path: p.path, layout, edit: p.edit })
+        : undefined;
+      if (painted === null || t !== ticket) return;
+      const { placement } = layout;
+      latest = { ticket: t, pixels: painted?.pixels ?? null, placement };
+      emit({ event: 'frame', ticket: t, photoId: id, placement });
+      emit({ event: 'histogram', ticket: t, photoId: id, bins: painted?.bins ?? new Array(HISTOGRAM_BINS).fill(0) });
+    } catch (e) {
+      emit({ event: 'error', ticket: t, kind: 'render', message: String(e) });
+    }
+  }
+
+  return {
+    calls,
+    emit,
+    editOf: (id) => photos.get(id)?.edit,
+
+    async sections() {
+      calls.push({ method: 'sections' });
+      await later();
+      return structuredClone(FAKE_SECTIONS);
+    },
+
+    async tools() {
+      calls.push({ method: 'tools' });
+      await later();
+      return structuredClone(tools);
+    },
+
+    async open(path) {
+      calls.push({ method: 'open', path });
+      await later();
+      let id = ids.get(path);
+      if (id === undefined) {
+        id = ids.size + 1;
+        ids.set(path, id);
+        const edit: EditDocument = { version: EDIT_VERSION, tools: {} };
+        for (const t of tools) {
+          edit.tools[t.id] = { v: t.version, settings: Object.fromEntries(t.settings.map((s) => [s.key, s.default])) };
+        }
+        photos.set(id, { path, ...sizeOf(path), edit });
+      }
+      const p = photoOf(id);
+      return { photoId: id, width: p.width, height: p.height, edit: structuredClone(p.edit) };
+    },
+
+    async apply(id, patch) {
+      const p = photoOf(id);
+      // All or nothing: the first bad value refuses the whole patch.
+      const next = structuredClone(p.edit);
+      for (const [toolId, values] of Object.entries(patch)) {
+        const tool = tools.find((t) => t.id === toolId);
+        if (!tool) throw refusal('unknownTool', `no tool ${toolId}`);
+        for (const [key, value] of Object.entries(values)) {
+          const spec = tool.settings.find((s) => s.key === key);
+          if (!spec) throw refusal('unknownSetting', `${toolId} has no setting ${key}`);
+          const v = checked(toolId, spec, value);
+          if (isRefusal(v)) throw v;
+          (next.tools[toolId] ??= { v: tool.version, settings: {} }).settings[key] = v;
+        }
+      }
+      p.edit = next;
+      const t = ++ticket;
+      calls.push({ method: 'apply', photo: id, patch, ticket: t });
+      if (autoFrames && views.has(id)) void render(t, id);
+      return { ticket: t, edit: structuredClone(next) };
+    },
+
+    async view(id, view) {
+      photoOf(id);
+      views.set(id, view);
+      const t = ++ticket;
+      calls.push({ method: 'view', photo: id, view, ticket: t });
+      if (autoFrames) void render(t, id);
+      return t;
+    },
+
+    async frame(t) {
+      if (!latest || latest.ticket !== t) return null;
+      const { widthPx: width, heightPx: height } = latest.placement;
+      latest.pixels ??= { width, height, data: new Uint8ClampedArray(width * height * 4).fill(128) };
+      return latest.pixels;
+    },
+
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
