@@ -137,7 +137,7 @@ fn the_cache_stays_within_its_budget() {
     let source = common::source(512, 384);
     // A developed 512 x 384 picture is 2.4 MB; keep room for one and a bit.
     let budget = 3 << 20;
-    p.set_cache_budget(budget);
+    p.set_cache_budget_bytes(budget);
     for ev in [0.5, 1.0, 1.5, 2.0] {
         p.set::<ag_exposure_wb::AgExposureWb>(exposure(ev)).unwrap();
         p.render(&source, Size::Full).unwrap();
@@ -159,7 +159,7 @@ fn reruns_timed_on_a_real_raw() {
     };
     let mut p = pipeline(common::gpu("reruns_timed_on_a_real_raw"));
     // A full-size render of a large photo and a preview of it, kept whole.
-    p.set_cache_budget(6 << 30);
+    p.set_cache_budget_bytes(6 << 30);
 
     let started = Instant::now();
     let source = common::open(&path);

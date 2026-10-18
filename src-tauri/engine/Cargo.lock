@@ -57,6 +57,7 @@ dependencies = [
 name = "argentum-engine"
 version = "0.1.0"
 dependencies = [
+ "argentum-engine",
  "argentum-engine-reference",
  "bytemuck",
  "half",

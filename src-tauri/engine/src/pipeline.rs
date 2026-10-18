@@ -13,56 +13,17 @@
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rawler::decoders::RawDecodeParams;
-use rawler::rawimage::RawImage;
-use rawler::rawsource::RawSource;
 use serde_json::Value;
 
+use crate::cache::Cache;
 use crate::contract::{EditDocument, EditPatch, Stage};
 use crate::develop::{self, DEVELOP_VERSION};
 use crate::registry::Registry;
 use crate::tool::{self, AnySettings, Context, Tool};
-use crate::{Error, GpuSlot, Image, Result};
-
-/// A decoded photo, and the key that names it.
-pub struct Source {
-    /// Same key, same photo. Every cache key starts from it.
-    pub key: u64,
-    pub raw: RawImage,
-}
-
-impl Source {
-    pub fn open(path: impl AsRef<Path>) -> Result<Source> {
-        let path = path.as_ref();
-        let bytes =
-            std::fs::read(path).map_err(|e| Error::Decode(format!("{}: {e}", path.display())))?;
-        Self::decode(&bytes)
-    }
-
-    /// Decode with rawler, keyed by the file's bytes.
-    pub fn decode(bytes: &[u8]) -> Result<Source> {
-        let source = RawSource::new_from_slice(bytes);
-        let decoder = rawler::get_decoder(&source).map_err(|e| Error::Decode(e.to_string()))?;
-        let raw = decoder
-            .raw_image(&source, &RawDecodeParams::default(), false)
-            .map_err(|e| Error::Decode(e.to_string()))?;
-        Ok(Self::new(key_of(bytes), raw))
-    }
-
-    /// A photo decoded elsewhere. `key` has to change whenever `raw` does.
-    pub fn new(key: u64, raw: RawImage) -> Source {
-        Source { key, raw }
-    }
-
-    /// The developed picture's width and height, without developing it.
-    pub fn size(&self) -> (usize, usize) {
-        develop::developed_size(&self.raw)
-    }
-}
+use crate::{Error, GpuSlot, Image, Result, Source};
 
 /// How big a render is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -202,20 +163,14 @@ impl Pipeline {
         self.settings[i] = settings;
     }
 
-    /// The memory the cache may hold, in bytes. Least recently used results
-    /// go first.
-    pub fn set_cache_budget(&mut self, bytes: usize) {
-        self.cache.budget = bytes;
-        self.cache.evict();
+    /// The memory the cache may hold. Least recently used results go first.
+    pub fn set_cache_budget_bytes(&mut self, bytes: usize) {
+        self.cache.set_budget_bytes(bytes);
     }
 
-    /// The memory the cache holds now, in bytes.
+    /// The memory the cache holds now.
     pub fn cache_bytes(&self) -> usize {
-        self.cache.used
-    }
-
-    pub fn clear_cache(&mut self) {
-        self.cache = Cache::new(self.cache.budget);
+        self.cache.used_bytes()
     }
 
     /// The steps of the last render, in order.
@@ -252,9 +207,12 @@ impl Pipeline {
 
         // The last step with a result already kept: everything up to it is
         // done, and only what follows runs.
-        let done = (0..ops.len()).rev().find(|&i| self.cache.contains(keys[i]));
-        let (mut image, mut input_key) = match done {
-            Some(i) => (self.cache.get(keys[i]).expect("just found"), keys[i]),
+        let found = (0..ops.len())
+            .rev()
+            .find_map(|i| self.cache.get(keys[i]).map(|image| (i, image)));
+        let done = found.as_ref().map(|(i, _)| *i);
+        let (mut image, mut input_key) = match found {
+            Some((i, image)) => (image, keys[i]),
             None => match self.cache.get(start) {
                 Some(image) => (image, start),
                 None => {
@@ -351,7 +309,7 @@ impl Pipeline {
                         ),
                     });
                 }
-                let cx = Context::for_tool(info.id, info.kind, source, input_key, &self.gpu);
+                let cx = Context::for_tool(info.id, info.gpu, source, input_key, &self.gpu);
                 self.registry.tools[i].process(self.settings[i].as_ref(), input, &cx)
             }
         }
@@ -364,80 +322,10 @@ fn mix(value: &impl Hash) -> u64 {
     h.finish()
 }
 
-fn key_of(bytes: &[u8]) -> u64 {
-    mix(&bytes)
-}
-
 /// A tool's settings, as a cache key: its id, its settings version and the
 /// settings as JSON.
 fn settings_hash(id: &str, version: u32, settings: &dyn AnySettings) -> u64 {
     mix(&(id, version, settings.to_json().to_string()))
-}
-
-/// Step results by key, least recently used first out.
-struct Cache {
-    entries: HashMap<u64, Entry>,
-    budget: usize,
-    used: usize,
-    clock: u64,
-}
-
-struct Entry {
-    image: Arc<Image>,
-    /// What this entry adds to memory: nothing when it is a step that passed
-    /// its input through, which another entry already counts.
-    bytes: usize,
-    used: u64,
-}
-
-impl Cache {
-    fn new(budget: usize) -> Self {
-        Self {
-            entries: HashMap::new(),
-            budget,
-            used: 0,
-            clock: 0,
-        }
-    }
-
-    fn contains(&self, key: u64) -> bool {
-        self.entries.contains_key(&key)
-    }
-
-    fn get(&mut self, key: u64) -> Option<Arc<Image>> {
-        self.clock += 1;
-        let entry = self.entries.get_mut(&key)?;
-        entry.used = self.clock;
-        Some(entry.image.clone())
-    }
-
-    fn put(&mut self, key: u64, image: Arc<Image>, fresh: bool) {
-        self.clock += 1;
-        let bytes = if fresh { image.bytes() } else { 0 };
-        if let Some(old) = self.entries.insert(
-            key,
-            Entry {
-                image,
-                bytes,
-                used: self.clock,
-            },
-        ) {
-            self.used -= old.bytes;
-        }
-        self.used += bytes;
-        self.evict();
-    }
-
-    fn evict(&mut self) {
-        while self.used > self.budget && self.entries.len() > 1 {
-            let Some((&oldest, _)) = self.entries.iter().min_by_key(|(_, e)| e.used) else {
-                return;
-            };
-            if let Some(gone) = self.entries.remove(&oldest) {
-                self.used -= gone.bytes;
-            }
-        }
-    }
 }
 
 #[cfg(test)]

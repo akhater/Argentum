@@ -8,7 +8,10 @@ rust-version = "1.98"
 
 [lib]
 name = "argentum_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Argentum: desktop only - the binary links the rlib and nothing else is used.
+# Their staticlib (iOS) and cdylib (Android) were written by every build, the
+# staticlib alone 640 MB. A mobile build puts them back.
+crate-type = ["rlib"]
 
 [features]
 default = []
@@ -130,6 +133,8 @@ incremental = true
 opt-level = 3
 # Argentum: nor debug assertions in them — see mods/sraw_levels.rs.
 debug-assertions = false
+# Argentum: nor debug info - a PDB half the size, faster cold builds; backtraces keep names.
+debug = false
 
 [profile.release]
 codegen-units = 1

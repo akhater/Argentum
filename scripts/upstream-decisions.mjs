@@ -919,6 +919,9 @@ const FILE_165 = {
   'export-precision-selector|src/hooks/useExternalEditSession.ts': ['not-applicable', 'External edit sessions get the border and pad fields, and still do not override the global TIFF depth.', ['d151849b', 'ad25d2ba']],
   'rapidraw-164-catchup|src/components/panel/Editor.tsx': ['not-applicable', 'The neutral-grey canvas is intact.', ['3c864270', '65472097']],
   'ai-super-resolution|src/components/panel/Editor.tsx': ['not-applicable', 'The minimum zoom bound for enlarged images is intact.', ['3c864270', '65472097']],
+  'fast-dev-builds|src-tauri/Cargo.toml': ['not-applicable', 'A dependency line; their crate-type and [profile.dev.package."*"], where ours differ, are not touched. Registered after this review (26.41.13).', ['2641891c', '1e6777ed', 'b66691ba', '1732175a', '9b7e3368']],
+  'fast-dev-builds|.github/workflows/build.yml': ['not-applicable', 'Android setup only; their tauri-action step, which carries our linker variable, is not touched. Registered after this review (26.41.13).', ['2641891c', 'd4429f1f', '63472b86', '1e6777ed']],
+  'fast-dev-builds|package.json': ['not-applicable', 'Dependency versions only; the start script is not touched. Registered after this review (26.41.13).', ['b66691ba', '1732175a']],
 };
 
 // One commit in a group that did more than the rest.
@@ -1370,9 +1373,10 @@ export const REVIEW_165_DECISIONS = [
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), and 19 for
-// Restore, 6 of them for capture before an enlargement.
-if (REVIEW_165_DECISIONS.length !== 1164) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1164 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// Restore, 6 of them for capture before an enlargement, and 11 for
+// fast-dev-builds (26.41.13).
+if (REVIEW_165_DECISIONS.length !== 1175) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1175 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

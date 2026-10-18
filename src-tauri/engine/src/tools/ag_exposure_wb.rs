@@ -12,7 +12,7 @@
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{Context, Error, Field, Image, Kind, Result, Section, Stage, Tool};
+use crate::{Context, Error, Field, Image, Result, Section, Stage, Tool};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -63,7 +63,6 @@ impl Tool for AgExposureWb {
     const ID: &'static str = "ag_exposure_wb";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Basic;
-    const KIND: Kind = Kind::PerPixel;
     type Settings = Settings;
 
     fn process(&self, settings: &Settings, input: &Image, _cx: &Context) -> Result<Option<Image>> {

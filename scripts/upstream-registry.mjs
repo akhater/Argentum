@@ -1600,6 +1600,51 @@ export const REGISTRY = [
     ],
     keywords: /main\.tsx|createRoot/i,
   },
+  {
+    id: 'fast-dev-builds',
+    kind: 'behaviour-change',
+    what:
+      'Dev and test builds do less: the app library is built as an rlib only, Windows x64 dev and '
+      + 'test builds link with rust-lld, dependencies carry no debug info in dev builds, and '
+      + 'build.rs neither hashes again nor downloads an ONNX Runtime library already on this disk. '
+      + 'Shipped builds are unchanged: release profile, MSVC linker. npm start leaves the '
+      + 'mergeability check to CI and npm run check:merge.',
+    ours: ['.cargo/config.toml', 'src-tauri/src/mods/build_ort.rs'],
+    dependsOn: [
+      { file: 'src-tauri/Cargo.toml', how: 'replaces',
+        note:
+          'crate-type is ["rlib"]; theirs is ["staticlib", "cdylib", "rlib"]. The binary links the '
+          + 'rlib, and the other two were written by every build for mobile targets Argentum does not '
+          + 'build (ci-desktop-only): a 640 MB staticlib and a cdylib with its own link. A mobile '
+          + 'build needs theirs back - cdylib for Android, staticlib for iOS. Also debug = false in '
+          + 'their [profile.dev.package."*"]: dependencies lose file and line in a backtrace, keep '
+          + 'their function names, and a full rebuild of them took 368 s instead of 528 s.' },
+      { file: 'src-tauri/build.rs', how: 'calls',
+        note:
+          'Includes mods/build_ort.rs with #[path] and asks build_ort::present before their own '
+          + 'check, which then runs only when the answer is no. Relies on their dest_path and '
+          + 'expected_hash: if they move the library or the hash, present looks at the wrong file '
+          + 'and their download runs as before.' },
+      { file: '.github/workflows/build.yml', how: 'extends',
+        note:
+          'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe on their tauri-action step, so a '
+          + 'shipped Windows x64 build links with MSVC as before; the variable wins over '
+          + '.cargo/config.toml.' },
+      { file: 'package.json', how: 'replaces',
+        note:
+          'Their start is `tauri dev`; ours runs check-identity first. It ran check-mergeability '
+          + 'too, about 45 s before every dev window; that check is the required one in '
+          + 'upstream.yml and runs by hand with npm run check:merge.' },
+    ],
+    tests: [
+      'Measured on Windows x64 before and after (pull request "Faster dev and test builds"): a '
+        + 'one-line change in mods/sharpen.rs, then cargo check, cargo test --lib sharpen::, '
+        + 'cargo build; and a cold build at a new target directory.',
+      'Manual: delete src-tauri/resources/onnxruntime.dll in a worktree and build - the log says '
+        + 'it was copied from the main checkout, and its SHA-256 is the pinned one.',
+    ],
+    keywords: /crate.?type|staticlib|cdylib|linker|lld|profile\.dev|debuginfo|build\.rs|onnxruntime/i,
+  },
 ];
 
 /**
