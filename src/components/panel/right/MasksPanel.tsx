@@ -253,7 +253,7 @@ function MasksListRoot({ children, onClick }: { children: React.ReactNode; onCli
   );
 }
 
-export default function MasksPanel() {
+export default function MasksPanel({ showWaveform = true }: { showWaveform?: boolean }) {
   const { t } = useTranslation();
   const { setAdjustments } = useEditorActions();
   const isAiFree = useSettingsStore((s) => s.appSettings?.aiProvider === 'ai-free');
@@ -984,6 +984,7 @@ export default function MasksPanel() {
             <button
               className={clsx(
                 'p-2 rounded-full transition-colors',
+                !showWaveform && 'hidden',
                 isAdjustmentsPanelVisible
                   ? 'opacity-50 cursor-not-allowed text-text-secondary'
                   : isWaveformVisible
@@ -1011,7 +1012,7 @@ export default function MasksPanel() {
         </div>
 
         <AnimatePresence initial={false}>
-          {isWaveformVisible && !isAdjustmentsPanelVisible && (
+          {showWaveform && isWaveformVisible && !isAdjustmentsPanelVisible && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: waveformHeight || 256, opacity: 1 }}

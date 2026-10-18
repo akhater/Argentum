@@ -396,3 +396,28 @@ pub fn set_compact_slider_gap(gap: u8) -> Result<(), String> {
         serde_json::Value::from(gap.min(MAX_SLIDER_GAP)),
     )
 }
+
+/// Which arrangement of today's panels the editor shows. Classic until chosen.
+pub fn editor_layout() -> Result<crate::mods::editor_layout::EditorLayout, String> {
+    Ok(crate::mods::editor_layout::layout(profile_library()?))
+}
+
+/// Choose it by name. A name this build does not know is stored as Classic.
+pub fn set_editor_layout(layout: &str) -> Result<(), String> {
+    crate::mods::editor_layout::save_layout(
+        profile_library()?,
+        crate::mods::editor_layout::EditorLayout::from_name(layout),
+    )
+}
+
+/// What the RAWmakase arrangement's own parts were left as, if ever saved.
+pub fn editor_layout_panels() -> Result<Option<crate::mods::editor_layout::LayoutPanels>, String> {
+    Ok(crate::mods::editor_layout::panels(profile_library()?))
+}
+
+/// Remember them.
+pub fn set_editor_layout_panels(
+    panels: &crate::mods::editor_layout::LayoutPanels,
+) -> Result<(), String> {
+    crate::mods::editor_layout::save_panels(profile_library()?, panels)
+}
