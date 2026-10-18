@@ -244,28 +244,28 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
     let registry = standard();
     let taken = [
         // As given.
-        serde_json::json!({ "ag_exposure_wb": { "exposure": 0.5, "red": 1.05 } }),
+        serde_json::json!({ "ag_exposure": { "exposure_ev": 0.5 }, "rr_basic_tone": { "contrast": 20 } }),
         // An integer for a float.
-        serde_json::json!({ "ag_exposure_wb": { "exposure": 1 } }),
+        serde_json::json!({ "ag_exposure": { "exposure_ev": 1 } }),
         // Out of range: clamped, not refused.
         serde_json::json!({
-            "ag_exposure_wb": { "exposure": -20 },
+            "ag_exposure": { "exposure_ev": -20 },
             "rt_capture_sharpen": { "radius": 9, "iterations": 500 },
         }),
         // null is the default.
-        serde_json::json!({ "ag_exposure_wb": { "exposure": null, "blue": 2 } }),
+        serde_json::json!({ "rr_basic_tone": { "contrast": null, "shadows": 30 } }),
     ];
     let refused = [
         // A tool or a setting this engine does not have.
         serde_json::json!({ "ag_nothing": { "x": 1 } }),
-        serde_json::json!({ "ag_exposure_wb": { "contrast": 1 } }),
+        serde_json::json!({ "ag_exposure": { "contrast": 1 } }),
         // Wrong types: refused, never rounded or coerced.
-        serde_json::json!({ "ag_exposure_wb": { "exposure": "bright" } }),
+        serde_json::json!({ "ag_exposure": { "exposure_ev": "bright" } }),
         serde_json::json!({ "rt_capture_sharpen": { "iterations": 2.5 } }),
         serde_json::json!({ "dt_highlights": { "recover": 1 } }),
         // All or nothing: one bad tool refuses the whole patch.
         serde_json::json!({
-            "ag_exposure_wb": { "exposure": 1 },
+            "ag_exposure": { "exposure_ev": 1 },
             "dt_highlights": { "recover": "yes" },
         }),
     ];
@@ -273,7 +273,9 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
         .into_iter()
         .map(|json| {
             let patch = patch(json);
-            let edit = registry.merge(edit, &patch).expect("taken");
+            let edit = registry
+                .merge(edit, &patch, &registry.default_edit())
+                .expect("taken");
             Patched { patch, edit }
         })
         .collect();
@@ -281,7 +283,9 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
         .into_iter()
         .map(|json| {
             let patch = patch(json);
-            let error = registry.merge(edit, &patch).expect_err("refused");
+            let error = registry
+                .merge(edit, &patch, &registry.default_edit())
+                .expect_err("refused");
             Refused {
                 patch,
                 error: error.to_contract(),
@@ -294,7 +298,8 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
 fn fixtures() -> Fixtures {
     let edit = standard().default_edit();
     let patch = patch(serde_json::json!({
-        "ag_exposure_wb": { "exposure": 0.5, "red": 1.05 },
+        "ag_exposure": { "exposure_ev": 0.5 },
+        "rr_white_balance": { "temperature_k": 5000, "tint": 10 },
         "rt_capture_sharpen": { "radius": null },
     }));
     let (patched, refused) = patched_and_refused(&edit);
@@ -312,7 +317,7 @@ fn fixtures() -> Fixtures {
         },
         applied: Applied {
             ticket: RenderTicket(2),
-            edit: patched[0].edit.clone(),
+            edit: standard().merge(&edit, &patch, &edit).expect("taken"),
         },
         patched,
         refused,
@@ -402,13 +407,13 @@ fn what_the_engine_takes_and_refuses() {
         ]
     );
     let clamped = &patched[2].edit.tools;
-    assert_eq!(clamped["ag_exposure_wb"].settings["exposure"], -10.0);
+    assert_eq!(clamped["ag_exposure"].settings["exposure_ev"], -5.0);
     assert_eq!(clamped["rt_capture_sharpen"].settings["radius"], 2.0);
     assert_eq!(clamped["rt_capture_sharpen"].settings["iterations"], 100);
-    let reset = &patched[3].edit.tools["ag_exposure_wb"].settings;
+    let reset = &patched[3].edit.tools["rr_basic_tone"].settings;
     assert_eq!(
-        (&reset["exposure"], &reset["blue"]),
-        (&serde_json::json!(0.0), &serde_json::json!(2.0))
+        (&reset["contrast"], &reset["shadows"]),
+        (&serde_json::json!(0.0), &serde_json::json!(30.0))
     );
 }
 

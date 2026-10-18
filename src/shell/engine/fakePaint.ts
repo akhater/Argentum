@@ -24,7 +24,7 @@ function on(edit: EditDocument, toolId: string, key: string): boolean {
 
 function messageFor(job: PaintJob): PaintMessage {
   const { edit } = job;
-  const gain = Math.pow(2, amount(edit, 'ag_exposure_wb', 'exposure'));
+  const gain = Math.pow(2, amount(edit, 'ag_exposure', 'exposure_ev'));
   // Sharpening as a share of its full amount, stronger for a radius above the default.
   const radius = on(edit, 'rt_capture_sharpen', 'autoRadius')
     ? 1
@@ -37,11 +37,7 @@ function messageFor(job: PaintJob): PaintMessage {
     seed,
     aspect: job.layout.renderWidthPx / job.layout.renderHeightPx,
     layout: job.layout,
-    gains: [
-      gain * amount(edit, 'ag_exposure_wb', 'red'),
-      gain * amount(edit, 'ag_exposure_wb', 'green'),
-      gain * amount(edit, 'ag_exposure_wb', 'blue'),
-    ],
+    gains: [gain, gain, gain],
     recover: on(edit, 'dt_highlights', 'recover'),
     sharpen: on(edit, 'rt_capture_sharpen', 'capture') ? share * radius : 0,
   };

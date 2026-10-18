@@ -1,7 +1,10 @@
 //! What the integration tests share: local RAWs from the environment, a GPU
-//! if there is one, and synthetic sensor data for everything else.
+//! if there is one, synthetic sensor data for everything else, and the
+//! app's own shader functions to compare with (`app_shader`).
 
 #![allow(dead_code)]
+
+pub mod app_shader;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -140,4 +143,88 @@ pub fn scene(width: usize, height: usize) -> RawImage {
 /// A synthetic photo, keyed by its size.
 pub fn source(width: usize, height: usize) -> Source {
     Source::new((width * 31 + height) as u64, scene(width, height))
+}
+
+/// Colours for the parity tests: greys, primaries, skin and sky, values from
+/// black to far above white, a few below zero as a colour matrix can leave
+/// them, and pseudo-random ones in between. One row, every value one a half
+/// float holds exactly: the pixel pass's input is half floats, as the app's
+/// is, so both sides see the same numbers.
+pub fn colours() -> argentum_engine::Rgb {
+    let mut seed = 0x2545_f491u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed as f32 / u32::MAX as f32
+    };
+    let mut pixels: Vec<[f32; 3]> = vec![
+        [0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0],
+        [0.18, 0.18, 0.18],
+        [0.001, 0.001, 0.001],
+        [f32::MIN_POSITIVE, 1e-30, 1e-7],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.8, 0.55, 0.4],
+        [0.45, 0.3, 0.22],
+        [0.1, 0.35, 1.0],
+        [1.0, 0.45, 0.05],
+        [3.0, 2.5, 1.0],
+        [40.0, 38.0, 41.0],
+        [1000.0, 999.9, 0.18],
+        [-0.02, 0.3, 0.5],
+        [0.6, -0.01, 0.2],
+    ];
+    for _ in 0..4000 {
+        let scale = [0.05, 0.3, 1.0, 4.0][(next() * 4.0) as usize % 4];
+        pixels.push([next() * scale, next() * scale, next() * scale]);
+    }
+    for _ in 0..1000 {
+        let v = next().powi(3);
+        pixels.push([v, v * (0.9 + 0.2 * next()), v * (0.9 + 0.2 * next())]);
+    }
+    let n = pixels.len();
+    argentum_engine::Rgb::new(n, 1, pixels.into_iter().map(half_exact).collect())
+}
+
+/// `c` as a half float holds it.
+pub fn half_exact(c: [f32; 3]) -> [f32; 3] {
+    c.map(|v| half::f16::from_f32(v).to_f32())
+}
+
+/// `rgb` as the pixel shader's test entry takes it, one pixel per element.
+pub fn elements(rgb: &argentum_engine::Rgb) -> Vec<[f32; 4]> {
+    rgb.pixels.iter().map(|p| [p[0], p[1], p[2], 0.0]).collect()
+}
+
+/// A pipeline running only `T`, on this GPU, with `patch` applied: the
+/// engine's side of a parity test, through the pixel pass.
+pub fn only<T: argentum_engine::Tool>(
+    gpu: Arc<Gpu>,
+    patch: serde_json::Value,
+) -> argentum_engine::Pipeline {
+    let registry = argentum_engine::Registry::new().with::<T>();
+    let mut p = argentum_engine::Pipeline::with_gpu(
+        Arc::new(registry),
+        argentum_engine::GpuSlot::with(gpu),
+    )
+    .unwrap();
+    let mut edit = serde_json::Map::new();
+    edit.insert(T::ID.to_string(), patch);
+    p.apply(&serde_json::from_value(serde_json::Value::Object(edit)).unwrap())
+        .unwrap();
+    p
+}
+
+/// How far apart two pictures are once on screen: the largest difference of
+/// any channel after the sRGB curve, in 8-bit levels.
+pub fn worst_levels(a: &[[f32; 3]], b: &[[f32; 3]]) -> f32 {
+    use argentum_engine::colour::srgb_encode;
+    a.iter()
+        .zip(b)
+        .flat_map(|(x, y)| (0..3).map(move |c| (srgb_encode(x[c]) - srgb_encode(y[c])).abs()))
+        .fold(0.0, f32::max)
+        * 255.0
 }

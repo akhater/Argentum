@@ -135,6 +135,36 @@ pub trait Settings:
     }
 }
 
+/// A per-pixel tool's part of the pixel pass: what it does to one pixel,
+/// in WGSL, and how many parameters it reads.
+///
+/// The pipeline runs each run of consecutive per-pixel tools as one GPU
+/// dispatch, calling them in registry order from a `main` it writes itself,
+/// as the app's `shader.wgsl` calls its adjustments one after another. A
+/// tool's WGSL defines
+///
+/// ```wgsl
+/// fn <tool id>(c: vec3<f32>, px: Px) -> vec3<f32>
+/// ```
+///
+/// which takes the colour so far and returns the next. `Px` gives the
+/// pixel's place in the pass's input (`coord`), its colour as the pass
+/// received it (`input`), and where the tool's parameters start in
+/// `ag_params` (`p`). The pass also provides `ag_input` (the input picture),
+/// `ag_gf_tonal` and `ag_gf_coarse` (its guided filter, for a tool with
+/// `detail`), and the helpers in `src/pixels/common.wgsl`. Other functions
+/// the tool needs carry its id as a prefix, or the name of the app's
+/// function they were copied from, which the app's one shader keeps unique.
+/// Given parameters of all zeros, a tool leaves the colour alone.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Pixel {
+    pub wgsl: &'static str,
+    /// How many `vec4<f32>` it reads, from `ag_params[px.p]` on.
+    pub params: usize,
+    /// Whether it reads the guided filter of the pass's input.
+    pub detail: bool,
+}
+
 /// One tool.
 pub trait Tool: Default + Send + Sync + 'static {
     /// Stable for ever once an edit has saved it: origin prefix and a name,
@@ -145,16 +175,44 @@ pub trait Tool: Default + Send + Sync + 'static {
     /// Whether it runs on the GPU. Only such a tool is handed the device by
     /// `Context::gpu`.
     const GPU: bool = false;
+    /// Set for a tool that changes each pixel on its own: it runs in the
+    /// pixel pass, never in `process`.
+    const PIXEL: Option<Pixel> = None;
     type Settings: Settings;
 
-    /// `Ok(None)` means there is nothing to do: the input is the output, and
-    /// the pipeline keeps the same picture rather than a copy of it.
+    /// The settings `source` starts with: the settings' `Default`, unless
+    /// the starting point is the photo's own - the camera's white balance, a
+    /// body's exposure offset. An edit stores them like any other value, and
+    /// `null` in a patch puts them back. darktable's `reload_defaults`, which
+    /// its white balance and exposure modules use for the same reason.
+    fn defaults_for(&self, source: &Source) -> Self::Settings {
+        let _ = source;
+        Self::Settings::default()
+    }
+
+    /// A whole picture in, a new one out. `Ok(None)` means there is nothing
+    /// to do: the input is the output, and the pipeline keeps the same
+    /// picture rather than a copy of it. A per-pixel tool has none.
     fn process(
         &self,
         settings: &Self::Settings,
         input: &Image,
         cx: &Context,
-    ) -> Result<Option<Image>>;
+    ) -> Result<Option<Image>> {
+        let _ = (settings, input, cx);
+        Err(Error::Tool {
+            tool: Self::ID,
+            message: "runs in the pixel pass, not on whole pictures".into(),
+        })
+    }
+
+    /// A per-pixel tool's parameters for one pass, `PIXEL`'s `params` of
+    /// them: `None` when its settings change nothing, and the pass then
+    /// hands it zeros.
+    fn pixel_params(&self, settings: &Self::Settings, cx: &Context) -> Option<Vec<[f32; 4]>> {
+        let _ = (settings, cx);
+        None
+    }
 }
 
 /// What a tool can see besides its input.
@@ -416,6 +474,7 @@ pub(crate) struct ToolInfo {
     pub id: &'static str,
     pub stage: Stage,
     pub gpu: bool,
+    pub pixel: Option<Pixel>,
     pub version: u32,
 }
 
@@ -447,6 +506,7 @@ pub(crate) trait AnyTool: Send + Sync {
     fn info(&self) -> ToolInfo;
     fn descriptor(&self, order: u32) -> std::result::Result<ToolDescriptor, String>;
     fn defaults(&self) -> Box<dyn AnySettings>;
+    fn defaults_for(&self, source: &Source) -> Box<dyn AnySettings>;
     fn read(&self, version: u32, value: Value) -> Result<Box<dyn AnySettings>>;
     fn process(
         &self,
@@ -454,9 +514,23 @@ pub(crate) trait AnyTool: Send + Sync {
         input: &Image,
         cx: &Context,
     ) -> Result<Option<Image>>;
+    fn pixel_params(
+        &self,
+        settings: &dyn AnySettings,
+        cx: &Context,
+    ) -> Result<Option<Vec<[f32; 4]>>>;
 }
 
 pub(crate) struct Registered<T: Tool>(pub T);
+
+impl<T: Tool> Registered<T> {
+    fn settings<'a>(&self, settings: &'a dyn AnySettings) -> Result<&'a T::Settings> {
+        settings
+            .as_any()
+            .downcast_ref::<T::Settings>()
+            .ok_or_else(|| Error::Registry(format!("{} was handed another tool's settings", T::ID)))
+    }
+}
 
 impl<T: Tool> AnyTool for Registered<T> {
     fn info(&self) -> ToolInfo {
@@ -464,6 +538,7 @@ impl<T: Tool> AnyTool for Registered<T> {
             id: T::ID,
             stage: T::STAGE,
             gpu: T::GPU,
+            pixel: T::PIXEL,
             version: <T::Settings as Settings>::VERSION,
         }
     }
@@ -486,6 +561,10 @@ impl<T: Tool> AnyTool for Registered<T> {
         Box::new(T::Settings::default())
     }
 
+    fn defaults_for(&self, source: &Source) -> Box<dyn AnySettings> {
+        Box::new(clamp(self.0.defaults_for(source)))
+    }
+
     fn read(&self, version: u32, value: Value) -> Result<Box<dyn AnySettings>> {
         match read_settings::<T::Settings>(version, value) {
             Ok(settings) => Ok(Box::new(settings)),
@@ -503,13 +582,23 @@ impl<T: Tool> AnyTool for Registered<T> {
         input: &Image,
         cx: &Context,
     ) -> Result<Option<Image>> {
-        let settings = settings
-            .as_any()
-            .downcast_ref::<T::Settings>()
-            .ok_or_else(|| {
-                Error::Registry(format!("{} was handed another tool's settings", T::ID))
-            })?;
-        self.0.process(settings, input, cx)
+        self.0.process(self.settings(settings)?, input, cx)
+    }
+
+    fn pixel_params(
+        &self,
+        settings: &dyn AnySettings,
+        cx: &Context,
+    ) -> Result<Option<Vec<[f32; 4]>>> {
+        let params = self.0.pixel_params(self.settings(settings)?, cx);
+        let wanted = T::PIXEL.map_or(0, |p| p.params);
+        match params {
+            Some(p) if p.len() != wanted => Err(Error::Tool {
+                tool: T::ID,
+                message: format!("gave {} parameters to a pass that reads {wanted}", p.len()),
+            }),
+            params => Ok(params),
+        }
     }
 }
 

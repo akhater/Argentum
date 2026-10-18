@@ -24,7 +24,7 @@ describe('latest wins', () => {
   it('shows the frame of the newest request after a burst of them', async () => {
     const { engine, store } = await openShell();
     const s = store.getState;
-    for (const v of [0.1, 0.2, 0.3, 0.4, 0.5]) s().setSetting('ag_exposure_wb', 'exposure', v, { gesture: true });
+    for (const v of [0.1, 0.2, 0.3, 0.4, 0.5]) s().setSetting('ag_exposure', 'exposure_ev', v, { gesture: true });
     await settle();
     const newest = Math.max(...engine.calls.flatMap((c) => ('ticket' in c ? [c.ticket] : [])));
     expect(s().frame?.ticket).toBe(newest);

@@ -10,6 +10,7 @@
 //! building the app. The app uses it through `src-tauri/src/mods/engine_bridge.rs`.
 
 mod cache;
+pub mod colour;
 pub mod contract;
 mod develop;
 pub mod engine;
@@ -18,6 +19,7 @@ mod frame;
 mod gpu;
 mod image;
 pub mod pipeline;
+mod pixels;
 pub mod registry;
 mod source;
 pub mod tool;
@@ -31,7 +33,7 @@ pub use image::{Image, Rgb};
 pub use pipeline::{Pipeline, Size, Step};
 pub use registry::{Registry, standard, tools};
 pub use source::Source;
-pub use tool::{Context, Equals, Field, Settings, Tool};
+pub use tool::{Context, Equals, Field, Pixel, Settings, Tool};
 
 /// RawImage and friends, as the tools receive them.
 pub use rawler;

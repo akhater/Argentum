@@ -6,20 +6,69 @@
 
 mod common;
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
 use argentum_engine::Engine;
-use argentum_engine::contract::{EditPatch, Event, RenderTicket, View};
+use argentum_engine::contract::{EditPatch, Event, PhotoId, RenderTicket, View};
 
 /// A slider tick at preview size, end to end through the engine: the patch
-/// in, the frame event out. That is the render (only the tool that changed),
-/// the view cut out and encoded, and the event.
+/// in, the frame event out. That is the render (the tool that changed and
+/// every tool after it), the view cut out and encoded, and the event.
 ///
 /// Set from its first measurement: 34 MP Canon CR3, Intel Arc 140T,
 /// 2026-10-18, a 1600 x 1067 view of the whole photo - median 15 to 18 ms
-/// over three runs, with room for a busy machine.
+/// over three runs, with room for a busy machine. Checked with every tool
+/// on and the exposure slider moving: the worst case, since every tool after
+/// exposure runs again.
+///
+/// Measured with every tool on since the pixel pass (2026-10-18): medians of
+/// 8.8, 10.4 and 9.4 ms over three runs; 8.9 to 9.8 ms with DNG Standard alone
+/// on, as a photo opens. On the CPU the same tick had been 392 ms.
 const SLIDER_TICK: Duration = Duration::from_millis(25);
+
+fn wait(rx: &Receiver<Event>, ticket: RenderTicket) {
+    loop {
+        match rx.recv_timeout(Duration::from_secs(60)).expect("an event") {
+            Event::Frame { ticket: t, .. } if t == ticket => return,
+            Event::Error { message, .. } => panic!("{message}"),
+            _ => {}
+        }
+    }
+}
+
+/// Ten ticks of one slider, each waited for: their median, and all of them.
+fn ticks(
+    engine: &Engine,
+    rx: &Receiver<Event>,
+    photo: PhotoId,
+    label: &str,
+    tick: impl Fn(u32) -> serde_json::Value,
+) -> Duration {
+    let mut times: Vec<Duration> = (1..=10)
+        .map(|i| {
+            let patch: EditPatch = serde_json::from_value(tick(i)).unwrap();
+            let started = Instant::now();
+            wait(rx, engine.apply(photo, &patch).unwrap().ticket);
+            started.elapsed()
+        })
+        .collect();
+    eprintln!(
+        "  {label:<44} {} ms",
+        times
+            .iter()
+            .map(|t| format!("{:.1}", ms(t)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    times.sort();
+    // The median, so one tick that waited on the system does not decide it.
+    times[times.len() / 2]
+}
+
+fn ms(d: &Duration) -> f64 {
+    d.as_secs_f64() * 1000.0
+}
 
 #[test]
 fn a_slider_tick_at_preview_size() {
@@ -31,15 +80,9 @@ fn a_slider_tick_at_preview_size() {
         let _ = tx.send(e);
     })
     .unwrap();
-    let wait = |ticket: RenderTicket| loop {
-        match rx.recv_timeout(Duration::from_secs(60)).expect("an event") {
-            Event::Frame { ticket: t, .. } if t == ticket => return,
-            Event::Error { message, .. } => panic!("{message}"),
-            _ => {}
-        }
-    };
 
     let opened = engine.open(&path).unwrap();
+    let photo = opened.photo_id;
     let (w, h) = (opened.width as f32, opened.height as f32);
     let view = View {
         zoom: (1600.0 / w).min(1067.0 / h),
@@ -49,39 +92,54 @@ fn a_slider_tick_at_preview_size() {
         height: 1067,
     };
     let started = Instant::now();
-    wait(engine.view(opened.photo_id, view).unwrap());
+    wait(&rx, engine.view(photo, view).unwrap());
     eprintln!(
         "\n  {}\n  first preview: {:.0} ms",
         path.display(),
-        started.elapsed().as_secs_f64() * 1000.0
+        ms(&started.elapsed())
     );
 
-    let mut ticks = Vec::new();
-    for i in 1..=10 {
-        let patch: EditPatch = serde_json::from_value(serde_json::json!({
-            "ag_exposure_wb": { "exposure": i as f32 * 0.1 }
-        }))
-        .unwrap();
-        let started = Instant::now();
-        wait(engine.apply(opened.photo_id, &patch).unwrap().ticket);
-        ticks.push(started.elapsed());
-    }
-    let ms = |d: &Duration| d.as_secs_f64() * 1000.0;
-    eprintln!(
-        "  exposure ticks: {} ms",
-        ticks
-            .iter()
-            .map(|t| format!("{:.1}", ms(t)))
-            .collect::<Vec<_>>()
-            .join(", ")
+    // As the photo opens: its own white balance and offset, DNG Standard on,
+    // every other slider at zero.
+    let exposure = |i: u32| serde_json::json!({ "ag_exposure": { "exposure_ev": i as f32 * 0.1 } });
+    let opened_median = ticks(&engine, &rx, photo, "exposure, as opened:", exposure);
+
+    // Every tool on.
+    let on: EditPatch = serde_json::from_value(serde_json::json!({
+        "rr_white_balance": { "temperature_k": 4300.0, "tint": 8.0 },
+        "rr_basic_tone": {
+            "contrast": 20.0, "highlights": -40.0, "shadows": 35.0, "whites": 15.0, "blacks": -10.0
+        },
+        "rr_presence": { "vibrance": 25.0, "saturation": 10.0 },
+    }))
+    .unwrap();
+    wait(&rx, engine.apply(photo, &on).unwrap().ticket);
+    let all_on = ticks(&engine, &rx, photo, "exposure, every tool on:", exposure);
+    let shadows = ticks(
+        &engine,
+        &rx,
+        photo,
+        "shadows, every tool on:",
+        |i| serde_json::json!({ "rr_basic_tone": { "shadows": 30.0 + i as f32 } }),
     );
-    ticks.sort();
-    // The median, so one tick that waited on the system does not decide it.
-    let median = ticks[ticks.len() / 2];
+    let vibrance = ticks(
+        &engine,
+        &rx,
+        photo,
+        "vibrance, every tool on:",
+        |i| serde_json::json!({ "rr_presence": { "vibrance": 20.0 + i as f32 } }),
+    );
+    eprintln!(
+        "  medians: as opened {:.1} ms, every tool on {:.1} ms (shadows {:.1}, vibrance {:.1})",
+        ms(&opened_median),
+        ms(&all_on),
+        ms(&shadows),
+        ms(&vibrance)
+    );
     assert!(
-        median <= SLIDER_TICK,
-        "a slider tick takes {:.1} ms, the budget is {} ms",
-        ms(&median),
+        all_on <= SLIDER_TICK,
+        "a slider tick with every tool on takes {:.1} ms, the budget is {} ms",
+        ms(&all_on),
         SLIDER_TICK.as_millis()
     );
 }

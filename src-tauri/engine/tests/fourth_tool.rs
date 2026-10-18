@@ -13,7 +13,7 @@ mod common;
 
 use ag_dummy::AgDummy;
 use argentum_engine::contract::{EditPatch, SettingKind, ToolEdit};
-use argentum_engine::tools::rt_capture_sharpen;
+use argentum_engine::tools::{ag_dng_standard, rt_capture_sharpen};
 use argentum_engine::{Engine, Origin, Pipeline, Registry, Section, Size, Stage, standard};
 
 fn registry() -> Registry {
@@ -34,9 +34,15 @@ fn patch(json: serde_json::Value) -> EditPatch {
 
 fn pipeline() -> Pipeline {
     let mut p = Pipeline::new(registry()).expect("a valid registry");
-    // No GPU needed for this test.
+    // No GPU needed for this test: nothing that runs on one has anything to
+    // do. The per-pixel tools are `tests/pixel_tool.rs`'s.
     p.set::<rt_capture_sharpen::RtCaptureSharpen>(rt_capture_sharpen::Settings {
         capture: false,
+        ..Default::default()
+    })
+    .unwrap();
+    p.set::<ag_dng_standard::AgDngStandard>(ag_dng_standard::Settings {
+        enabled: false,
         ..Default::default()
     })
     .unwrap();
@@ -49,14 +55,15 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
 
     // Described last, with everything a panel needs, read off the tool.
     let tools = p.registry().descriptors();
-    assert_eq!(tools.len(), 4);
+    let standard = argentum_engine::standard().descriptors().len();
+    assert_eq!(tools.len(), standard + 1);
     let d = tools.last().unwrap();
     assert_eq!(d.id, "ag_dummy");
     assert_eq!(d.origin, Origin::Argentum);
     assert_eq!(d.label, "tools.ag_dummy.label");
     assert_eq!(
         (d.section, d.order, d.stage),
-        (Section::Effects, 3, Stage::SceneLinear)
+        (Section::Effects, standard as u32, Stage::SceneLinear)
     );
     assert_eq!(d.version, 2);
     let [amount] = &d.settings[..] else {
@@ -97,7 +104,7 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
             "dt_highlights",
             "develop",
             "rt_capture_sharpen",
-            "ag_exposure_wb",
+            "pixels",
             "ag_dummy"
         ]
     );
@@ -125,11 +132,11 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
     assert_eq!(ran(&p), ["ag_dummy"]);
 
     p.apply(&patch(
-        serde_json::json!({ "ag_exposure_wb": { "exposure": 1 } }),
+        serde_json::json!({ "ag_dng_standard": { "baseline_exposure_ev": 0.6 } }),
     ))
     .unwrap();
     p.render(&source, Size::Full).unwrap();
-    assert_eq!(ran(&p), ["ag_exposure_wb", "ag_dummy"]);
+    assert_eq!(ran(&p), ["pixels", "ag_dummy"]);
     assert_eq!(p.runs("ag_dummy"), 3);
 }
 
@@ -142,7 +149,11 @@ fn the_interface_is_told_about_it_too() {
         [
             "dt_highlights",
             "rt_capture_sharpen",
-            "ag_exposure_wb",
+            "ag_exposure",
+            "rr_white_balance",
+            "rr_basic_tone",
+            "rr_presence",
+            "ag_dng_standard",
             "ag_dummy"
         ]
     );

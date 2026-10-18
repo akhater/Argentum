@@ -289,7 +289,7 @@ mod tests {
             .engine()
             .apply(
                 opened.photo_id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "exposure": 1.0 } })),
+                &patch(serde_json::json!({ "ag_exposure": { "exposure_ev": 1.0 } })),
             )
             .unwrap()
             .ticket;
@@ -298,7 +298,7 @@ mod tests {
         assert!(matches!(
             bridge.engine().apply(
                 opened.photo_id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "nope": 1 } }))
+                &patch(serde_json::json!({ "ag_exposure": { "nope": 1 } }))
             ),
             Err(Error::UnknownSetting { .. })
         ));
@@ -309,7 +309,7 @@ mod tests {
             .engine()
             .apply(
                 opened.photo_id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "exposure": 0.2 } })),
+                &patch(serde_json::json!({ "ag_exposure": { "exposure_ev": 0.2 } })),
             )
             .unwrap()
             .ticket;
@@ -317,7 +317,7 @@ mod tests {
             .engine()
             .apply(
                 opened.photo_id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "exposure": 0.4 } })),
+                &patch(serde_json::json!({ "ag_exposure": { "exposure_ev": 0.4 } })),
             )
             .unwrap()
             .ticket;
@@ -394,7 +394,7 @@ mod tests {
             .engine()
             .apply(
                 first.photo_id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "exposure": 0.5 } })),
+                &patch(serde_json::json!({ "ag_exposure": { "exposure_ev": 0.5 } })),
             )
             .unwrap();
 
@@ -407,7 +407,7 @@ mod tests {
         );
         assert_eq!(first_again.photo_id, first.photo_id);
         assert_eq!(
-            first_again.edit.tools["ag_exposure_wb"].settings["exposure"],
+            first_again.edit.tools["ag_exposure"].settings["exposure_ev"],
             0.5
         );
 
@@ -508,7 +508,7 @@ mod tests {
                 let mut block_bytes = 0;
                 for i in 1..=12 {
                     let p = patch(
-                        serde_json::json!({ "ag_exposure_wb": { "exposure": i as f32 * 0.05 } }),
+                        serde_json::json!({ "ag_exposure": { "exposure_ev": i as f32 * 0.05 } }),
                     );
                     let started = Instant::now();
                     let t = bridge.engine().apply(opened.photo_id, &p).unwrap().ticket;
