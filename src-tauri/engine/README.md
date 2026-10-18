@@ -251,7 +251,7 @@ Colour maths several tools share - Rec. 709 luminance, the sRGB curve, a
 | Each tool moves the picture its way and renders as it did last time (golden renders, with a sheet to look at) | `tests/golden.rs` | `AG_RAW`/`AG_RAWS` |
 | The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
-| A slider tick at preview size, every tool on, stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW` |
+| A slider tick at preview size, every tool on, stays within its budget (25 ms). Fails today: see below | `tests/budgets.rs` | `AG_RAW` |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
 app's own tests take them. Unset, the real-photo tests say they skipped and
@@ -297,4 +297,11 @@ the engine's stored as a half float, rounded one way or the other.
   Standard takes every file's offset from its body's row: a DNG's own
   BaselineExposure and the app's stop off below a body's lowest native ISO
   wait for it.
+- **The slider tick with every tool on.** On the CPU it is 392 ms against
+  a budget of 25 ms (median, 1600 x 1067, 2026-10-18): the tone sliders take
+  about 96 ms per tick and their guided filter 50 ms more when anything
+  before them moves, presence 15 ms, DNG Standard 6 ms. With DNG Standard
+  alone on, as a photo opens, a tick is 24 ms. The four tools are the app's
+  shader functions; run on the GPU in one pass, as the app runs them, they
+  fit.
 - Masks, the editor's other tools, and wiring into the app - later steps.

@@ -18,9 +18,13 @@ use argentum_engine::contract::{EditPatch, Event, PhotoId, RenderTicket, View};
 ///
 /// Set from its first measurement: 34 MP Canon CR3, Intel Arc 140T,
 /// 2026-10-18, a 1600 x 1067 view of the whole photo - median 15 to 18 ms
-/// over three runs, with room for a busy machine. It holds with every tool
-/// on, the exposure slider moving: the worst case, since every tool after
+/// over three runs, with room for a busy machine. Checked with every tool
+/// on and the exposure slider moving: the worst case, since every tool after
 /// exposure runs again.
+///
+/// It does not hold yet. With the basic tools on the CPU the same tick took
+/// a median of 392 ms (2026-10-18, other builds running), most of it the
+/// tone sliders: see "Not here yet" in the README. The budget stays.
 const SLIDER_TICK: Duration = Duration::from_millis(25);
 
 fn wait(rx: &Receiver<Event>, ticket: RenderTicket) {
