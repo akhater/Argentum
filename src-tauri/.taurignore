@@ -1,0 +1,4 @@
+# The engine crate builds into its own target directory when its tests run
+# on their own. Without this, every engine build restarts a running
+# `tauri dev`.
+engine/target/
