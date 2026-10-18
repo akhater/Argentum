@@ -1689,6 +1689,22 @@ export const REGISTRY = [
     keywords: /main\.tsx|createRoot/i,
   },
   {
+    id: 'dev-watch-ignores',
+    kind: 'behaviour-change',
+    what:
+      'A running dev app no longer restarts or reloads because of agents\x27 work folders (under '
+      + '.claude/) or the engine crate\x27s own build output (src-tauri/engine/target).',
+    dependsOn: [
+      { file: 'src-tauri/.taurignore', how: 'adds',
+        note: 'A new file in their src-tauri/: tauri dev reads it to leave engine/target/ out of its watch.' },
+      { file: 'vite.config.mjs', how: 'extends',
+        note:
+          'Adds **/.claude/** to their server.watch.ignored, next to their **/src-tauri/**. '
+          + 'Without it every new worktree reloaded the page of a running dev app.' },
+    ],
+    tests: ['By hand: create a worktree under .claude/worktrees while tauri dev runs; the page does not reload.'],
+  },
+  {
     id: 'fast-dev-builds',
     kind: 'behaviour-change',
     what:
