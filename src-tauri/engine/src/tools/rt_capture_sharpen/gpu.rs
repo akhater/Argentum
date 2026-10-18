@@ -13,6 +13,9 @@ use crate::{Error, Gpu, Result, Rgb, Tool};
 const TILE: u32 = 1024;
 const BORDER: u32 = 64;
 const EXT: u32 = TILE + 2 * BORDER;
+/// How far past a tile's extent the passes read the source: the clip
+/// guard's and the local contrast's two pixels.
+const REACH: u32 = 2;
 const STOP_BLOCK: u32 = 32;
 const WORKGROUP: u32 = 16;
 
@@ -55,7 +58,7 @@ struct Uniform {
     centre_x: f32,
     centre_y: f32,
     clip: f32,
-    _pad0: u32,
+    band_y: i32,
 }
 
 /// What is going to run, worked out before anything touches the GPU.
@@ -260,8 +263,14 @@ impl Passes {
         }
     }
 
-    /// The factor each pixel of `rgb` is to be multiplied by.
-    pub(super) fn ratios(&self, rgb: &Rgb, plan: &Plan) -> Result<Vec<f32>> {
+    /// The factor each pixel of `rgb` is to be multiplied by, handed to
+    /// `each` in order, a band of whole rows at a time.
+    ///
+    /// The GPU holds a band of the picture rather than all of it: one row of
+    /// tiles with its border, and the rows the passes read past that. Every
+    /// tile reads what it would from the whole picture, so the factors are
+    /// the same.
+    pub(super) fn ratios(&self, rgb: &Rgb, plan: &Plan, each: &mut dyn FnMut(&[f32])) -> Result<()> {
         let device = &self.gpu.device;
         let (w, h) = (rgb.width as u32, rgb.height as u32);
         let limit = device.limits().max_texture_dimension_2d;
@@ -272,21 +281,33 @@ impl Passes {
             });
         }
 
-        let src = self.upload(rgb);
-        let ratio = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("rt_capture_sharpen ratio"),
-            size: wgpu::Extent3d {
-                width: w,
-                height: h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Float,
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
+        let band_h = (EXT + 2 * REACH).min(h);
+        let texture = |label: &str, format, usage| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: w,
+                    height: band_h,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage,
+                view_formats: &[],
+            })
+        };
+        let src = texture(
+            "rt_capture_sharpen input",
+            wgpu::TextureFormat::Rgba32Float,
+            wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        );
+        let ratio = texture(
+            "rt_capture_sharpen ratio",
+            wgpu::TextureFormat::R32Float,
+            wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+        );
         let src_view = src.create_view(&Default::default());
         let ratio_view = ratio.create_view(&Default::default());
 
@@ -340,17 +361,20 @@ impl Passes {
         };
 
         // Copied from src-tauri/src/mods/sharpen_gpu.rs @ 2bcb953d (`encode`):
-        // tiles of TILE with a BORDER, over the whole picture.
+        // tiles of TILE with a BORDER, over the whole picture - here a row of
+        // tiles to a band.
         let mut ty = 0;
         while ty < h {
             let th = TILE.min(h - ty);
+            let ey0 = ty.saturating_sub(BORDER);
+            let ey1 = (ty + th + BORDER).min(h);
+            let band_y = ey0.saturating_sub(REACH);
+            self.upload(&src, rgb, band_y, (ey1 + REACH).min(h) - band_y);
             let mut tx = 0;
             while tx < w {
                 let tw = TILE.min(w - tx);
                 let ex0 = tx.saturating_sub(BORDER);
-                let ey0 = ty.saturating_sub(BORDER);
                 let ex1 = (tx + tw + BORDER).min(w);
-                let ey1 = (ty + th + BORDER).min(h);
                 let uniform = Uniform {
                     origin_x: ex0 as i32,
                     origin_y: ey0 as i32,
@@ -360,48 +384,35 @@ impl Passes {
                     inner_y0: ty - ey0,
                     inner_w: tw,
                     inner_h: th,
+                    band_y: band_y as i32,
                     ..base
                 };
                 self.tile(&bind_group, &uniform, plan);
                 tx += TILE;
             }
+            self.read(&ratio, w, ty - band_y, th, each)?;
             ty += TILE;
         }
-
-        self.read(&ratio, w, h)
+        Ok(())
     }
 
-    /// `rgb` as an rgba32float texture, a band of rows at a time so the
-    /// staging copy stays small.
-    fn upload(&self, rgb: &Rgb) -> wgpu::Texture {
-        let (w, h) = (rgb.width as u32, rgb.height as u32);
-        let texture = self.gpu.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("rt_capture_sharpen input"),
-            size: wgpu::Extent3d {
-                width: w,
-                height: h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba32Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let rows = band_rows(w as usize * 16);
-        for y0 in (0..h).step_by(rows) {
-            let n = rows.min((h - y0) as usize);
-            let start = y0 as usize * rgb.width;
+    /// `rows` of `rgb` from `y0` on, into the top of `texture` as
+    /// rgba32float, a few at a time so the staging copy stays small.
+    fn upload(&self, texture: &wgpu::Texture, rgb: &Rgb, y0: u32, rows: u32) {
+        let w = rgb.width as u32;
+        let step = band_rows(w as usize * 16);
+        for at in (0..rows).step_by(step) {
+            let n = step.min((rows - at) as usize);
+            let start = (y0 + at) as usize * rgb.width;
             let band: Vec<f32> = rgb.pixels[start..start + n * rgb.width]
                 .iter()
                 .flat_map(|p| [p[0], p[1], p[2], 1.0])
                 .collect();
             self.gpu.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
+                    texture,
                     mip_level: 0,
-                    origin: wgpu::Origin3d { x: 0, y: y0, z: 0 },
+                    origin: wgpu::Origin3d { x: 0, y: at, z: 0 },
                     aspect: wgpu::TextureAspect::All,
                 },
                 bytemuck::cast_slice(&band),
@@ -417,29 +428,35 @@ impl Passes {
                 },
             );
         }
-        texture
     }
 
-    /// The factors back from the GPU, a band of rows at a time.
-    fn read(&self, texture: &wgpu::Texture, w: u32, h: u32) -> Result<Vec<f32>> {
+    /// The factors in `rows` of `texture` from `y0` on, back from the GPU
+    /// and handed to `each`, a few rows at a time.
+    fn read(
+        &self,
+        texture: &wgpu::Texture,
+        w: u32,
+        y0: u32,
+        rows: u32,
+        each: &mut dyn FnMut(&[f32]),
+    ) -> Result<()> {
         let device = &self.gpu.device;
         let row = (w * 4).div_ceil(256) * 256;
-        let rows = band_rows(row as usize) as u32;
+        let step = band_rows(row as usize) as u32;
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("rt_capture_sharpen readback"),
-            size: (row * rows.min(h)) as u64,
+            size: (row * step.min(rows)) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-        let mut out = Vec::with_capacity((w * h) as usize);
-        for y0 in (0..h).step_by(rows as usize) {
-            let n = rows.min(h - y0);
+        for at in (y0..y0 + rows).step_by(step as usize) {
+            let n = step.min(y0 + rows - at);
             let mut encoder = device.create_command_encoder(&Default::default());
             encoder.copy_texture_to_buffer(
                 wgpu::TexelCopyTextureInfo {
                     texture,
                     mip_level: 0,
-                    origin: wgpu::Origin3d { x: 0, y: y0, z: 0 },
+                    origin: wgpu::Origin3d { x: 0, y: at, z: 0 },
                     aspect: wgpu::TextureAspect::All,
                 },
                 wgpu::TexelCopyBufferInfo {
@@ -473,14 +490,16 @@ impl Passes {
                 .map_err(|e| self.failed(e))?;
             {
                 let bytes = slice.get_mapped_range();
+                let mut factors = Vec::with_capacity((w * n) as usize);
                 for r in 0..n as usize {
                     let line = &bytes[r * row as usize..r * row as usize + w as usize * 4];
-                    out.extend_from_slice(bytemuck::cast_slice::<u8, f32>(line));
+                    factors.extend_from_slice(bytemuck::cast_slice::<u8, f32>(line));
                 }
+                each(&factors);
             }
             buffer.unmap();
         }
-        Ok(out)
+        Ok(())
     }
 
     fn failed(&self, e: impl std::fmt::Display) -> Error {

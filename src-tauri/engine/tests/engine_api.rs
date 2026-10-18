@@ -185,6 +185,33 @@ fn open_apply_view_and_what_comes_back() {
     until_done(&rx, t3);
 }
 
+#[test]
+fn a_closed_photo_hands_back_its_edit_and_lets_go() {
+    let (engine, rx) = engine();
+    let id = engine.insert(common::source(128, 96)).photo_id;
+    let applied = engine
+        .apply(
+            id,
+            &patch(serde_json::json!({
+                "rt_capture_sharpen": { "capture": false },
+                "ag_exposure_wb": { "exposure": 0.5 },
+            })),
+        )
+        .unwrap();
+    assert_eq!(engine.close(id).unwrap(), applied.edit);
+    // The render asked for before it closed still reports.
+    until_done(&rx, applied.ticket);
+    let gone = |e: argentum_engine::Error| e.kind() == ErrorKind::UnknownPhoto;
+    assert!(gone(engine.apply(id, &EditPatch::default()).unwrap_err()));
+    assert!(gone(engine.close(id).unwrap_err()));
+    // Then what was kept for it goes.
+    let waited = Instant::now();
+    while engine.cache_bytes() > 0 {
+        assert!(waited.elapsed() < Duration::from_secs(30), "kept");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
 /// Settings for the test tools below.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]

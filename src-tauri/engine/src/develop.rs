@@ -77,11 +77,14 @@ pub(crate) fn develop(raw: &RawImage) -> Result<Rgb> {
     let scale = |v: f32| (v * rescale_factor).max(0.0).clamp(0.0, CLAMP_LIMIT);
 
     let pixels: Vec<[f32; 3]> = match developed {
-        Intermediate::ThreeColor(pixels) => pixels
-            .data
-            .par_iter()
-            .map(|p| [scale(p[0]), scale(p[1]), scale(p[2])])
-            .collect(),
+        // In place: a second full-size picture here would be the develop's
+        // largest allocation.
+        Intermediate::ThreeColor(pixels) => {
+            let mut data = pixels.data;
+            data.par_iter_mut()
+                .for_each(|p| *p = [scale(p[0]), scale(p[1]), scale(p[2])]);
+            data
+        }
         Intermediate::Monochrome(pixels) => pixels
             .data
             .par_iter()

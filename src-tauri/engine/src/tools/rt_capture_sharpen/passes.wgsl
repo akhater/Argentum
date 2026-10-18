@@ -43,7 +43,9 @@ struct Params {
     centre_x: f32,
     centre_y: f32,
     clip: f32,
-    _pad0: u32,
+    // The image row the src and ratio_out textures start at: they hold a
+    // band of rows, one row of tiles and what its passes read.
+    band_y: i32,
 }
 
 const FLAG_CAPTURE: u32 = 1u;
@@ -85,7 +87,7 @@ fn idx(x: u32, y: u32) -> u32 {
 fn src_lin(gx: i32, gy: i32) -> vec4<f32> {
     let c = vec2<i32>(
         clamp(gx, 0, i32(p.img_w) - 1),
-        clamp(gy, 0, i32(p.img_h) - 1),
+        clamp(gy, 0, i32(p.img_h) - 1) - p.band_y,
     );
     return textureLoad(src, c, 0);
 }
@@ -362,5 +364,5 @@ fn compose(@builtin(global_invocation_id) id: vec3<u32>) {
     if (est[i] != old_y && old_y > 0.00001) {
         ratio = est[i] / old_y;
     }
-    textureStore(ratio_out, g, vec4<f32>(ratio, 0.0, 0.0, 1.0));
+    textureStore(ratio_out, vec2<i32>(g.x, g.y - p.band_y), vec4<f32>(ratio, 0.0, 0.0, 1.0));
 }

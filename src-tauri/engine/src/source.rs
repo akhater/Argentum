@@ -2,6 +2,7 @@
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
+use std::sync::Arc;
 
 use rawler::decoders::RawDecodeParams;
 use rawler::rawimage::RawImage;
@@ -12,7 +13,8 @@ use crate::{Error, Result, develop};
 pub struct Source {
     /// Same key, same photo. Every cache key starts from it.
     pub key: u64,
-    pub raw: RawImage,
+    /// The decoded mosaic, shared with the pipeline rather than copied to it.
+    pub raw: Arc<RawImage>,
 }
 
 impl Source {
@@ -37,7 +39,10 @@ impl Source {
 
     /// A photo decoded elsewhere. `key` has to change whenever `raw` does.
     pub fn new(key: u64, raw: RawImage) -> Source {
-        Source { key, raw }
+        Source {
+            key,
+            raw: Arc::new(raw),
+        }
     }
 
     /// The developed picture's width and height in pixels, without

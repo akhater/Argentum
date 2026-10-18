@@ -53,10 +53,13 @@ enum Op {
     Resize(u32, u32),
 }
 
-/// The default memory the cache may hold. A full-size render of a 32 MP
-/// photo keeps about 1.4 GB: the decoded mosaic, the developed picture and
-/// each tool's result after it.
-pub const DEFAULT_CACHE_BYTES: usize = 2 << 30;
+/// The memory the cache may hold until the app sizes it from the machine's:
+/// 1.5 GB, for a 16 GB laptop. A full-size render of a 32 MP photo keeps
+/// about 1.1 GB - the developed picture and each tool's result after it - so
+/// a slider dragged at 100% finds what it needs. With it the engine's peak,
+/// measured by tests/memory.rs, is 1.9 GB for a 32 MP photo and 2.3 GB for a
+/// 61 MP one.
+pub const DEFAULT_CACHE_BYTES: usize = 3 << 29;
 
 pub struct Pipeline {
     registry: Arc<Registry>,
@@ -66,6 +69,9 @@ pub struct Pipeline {
     gpu: GpuSlot,
     last: Vec<Step>,
     runs: HashMap<&'static str, u32>,
+    /// The tool whose settings changed last. A slider ticks again and again,
+    /// so its input is what the cache lets go last.
+    changed: Option<usize>,
 }
 
 impl Pipeline {
@@ -93,6 +99,7 @@ impl Pipeline {
             gpu,
             last: Vec::new(),
             runs: HashMap::new(),
+            changed: None,
         })
     }
 
@@ -159,7 +166,11 @@ impl Pipeline {
 
     fn store(&mut self, i: usize, settings: Box<dyn AnySettings>) {
         let info = &self.registry.infos()[i];
-        self.hashes[i] = settings_hash(info.id, info.version, settings.as_ref());
+        let hash = settings_hash(info.id, info.version, settings.as_ref());
+        if hash != self.hashes[i] {
+            self.changed = Some(i);
+        }
+        self.hashes[i] = hash;
         self.settings[i] = settings;
     }
 
@@ -171,6 +182,11 @@ impl Pipeline {
     /// The memory the cache holds now.
     pub fn cache_bytes(&self) -> usize {
         self.cache.used_bytes()
+    }
+
+    /// Let go of every result kept for the photo keyed `source_key`.
+    pub fn forget(&mut self, source_key: u64) {
+        self.cache.forget_source(source_key);
     }
 
     /// The steps of the last render, in order.
@@ -206,22 +222,25 @@ impl Pipeline {
         }
 
         // The last step with a result already kept: everything up to it is
-        // done, and only what follows runs.
+        // done, and only what follows runs. The results it was made from are
+        // used too, so they stay as long as it does.
         let found = (0..ops.len())
             .rev()
             .find_map(|i| self.cache.get(keys[i]).map(|image| (i, image)));
         let done = found.as_ref().map(|(i, _)| *i);
+        for &key in &keys[..done.unwrap_or(0)] {
+            self.cache.get(key);
+        }
         let (mut image, mut input_key) = match found {
             Some((i, image)) => (image, keys[i]),
-            None => match self.cache.get(start) {
-                Some(image) => (image, start),
-                None => {
-                    let image = Arc::new(Image::Raw(source.raw.clone()));
-                    self.cache.put(start, image.clone(), true);
-                    (image, start)
-                }
-            },
+            // The photo's own mosaic, shared, not copied.
+            None => (Arc::new(Image::Raw(source.raw.clone())), start),
         };
+        let changed = ops
+            .iter()
+            .position(|&(op, _)| matches!(op, Op::Tool(i) if Some(i) == self.changed));
+        self.cache
+            .keep(changed.map(|at| if at == 0 { start } else { keys[at - 1] }));
 
         self.last.clear();
         let first = done.map_or(0, |i| i + 1);
@@ -236,14 +255,18 @@ impl Pipeline {
             if cancelled() {
                 return Err(Error::Cancelled);
             }
+            self.cache
+                .make_room(self.result_bytes(op, &image, source), input_key);
             let started = Instant::now();
             let made = self.run(op, &image, source, input_key)?;
             let time = started.elapsed();
-            let fresh = made.is_some();
             if let Some(made) = made {
                 image = Arc::new(made);
             }
-            self.cache.put(keys[i], image.clone(), fresh);
+            // The photo's own mosaic, passed through, is the photo's to keep.
+            if !matches!(&*image, Image::Raw(raw) if Arc::ptr_eq(raw, &source.raw)) {
+                self.cache.put(keys[i], source.key, image.clone());
+            }
             input_key = keys[i];
             *self.runs.entry(name).or_default() += 1;
             self.last.push(Step {
@@ -274,6 +297,20 @@ impl Pipeline {
             Op::Tool(i) => self.hashes[i],
             Op::Develop => mix(&("develop", DEVELOP_VERSION)),
             Op::Resize(w, h) => mix(&("resize", w, h)),
+        }
+    }
+
+    /// About what `op` makes of `input`, so room is made for it first. A tool
+    /// makes a picture the size of its input, or passes its input through.
+    fn result_bytes(&self, op: Op, input: &Image, source: &Source) -> usize {
+        let rgb_bytes = |(w, h): (usize, usize)| w * h * std::mem::size_of::<[f32; 3]>();
+        match op {
+            Op::Develop => rgb_bytes(source.size_px()),
+            Op::Resize(max_w, max_h) => input.as_rgb().map_or(0, |rgb| {
+                let (_, w, h) = develop::fit_px(rgb.width, rgb.height, max_w, max_h);
+                rgb_bytes((w, h))
+            }),
+            Op::Tool(_) => input.bytes(),
         }
     }
 
