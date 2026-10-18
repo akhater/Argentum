@@ -1861,6 +1861,80 @@ export const REGISTRY = [
     ],
     keywords: /shared.?buffer|webview2|binary ipc|ipc::response/i,
   },
+  {
+    id: 'editor-layout-rawmakase',
+    kind: 'feature',
+    what:
+      'A second arrangement of the editor, chosen in Settings > General > Layout (DEC-31): RAWmakase '
+      + '0.3\'s Lightroom Classic-style layout, built from today\'s own panels and stores. Folders on '
+      + 'the left, the toolbar under the photo, the Navigator and Histogram over the adjustments, a tab '
+      + 'panel (Presets, History, Info, Export, Tethering) beside them, a slim rail switching tools and '
+      + 'tabs, the filmstrip bar along the bottom. Classic, today\'s, stays the default. The Navigator '
+      + 'is the one new control: today\'s editor has none.',
+    ours: [
+      'src/argentum/layout/RawmakaseEditor.tsx',
+      'src/argentum/layout/ToolRail.tsx',
+      'src/argentum/layout/rail.ts',
+      'src/argentum/layout/Navigator.tsx',
+      'src/argentum/layout/HistogramSection.tsx',
+      'src/argentum/layout/HistoryPanel.tsx',
+      'src/argentum/layout/editorLayout.ts',
+      'src/argentum/layout/EditorLayoutSetting.tsx',
+      'src/argentum/layout/index.ts',
+      'src-tauri/src/mods/editor_layout.rs',
+    ],
+    dependsOn: [
+      { file: 'src/App.tsx', how: 'calls',
+        note: 'One import from src/argentum/layout (its anchor, by DEC-31). EditorView is swapped for '
+          + 'RawmakaseEditor, which takes the same props, when the layout is RAWmakase on a full-width '
+          + 'window; the two SidePanelAreas are left out while it shows the editor. The editor stays '
+          + 'mounted, hidden, in the library as before: the swap does not depend on the view. '
+          + 'renderAppPanel is how every panel but Adjustments and Masks is drawn in it.' },
+      { file: 'src/components/views/EditorView.tsx', symbol: 'besideEditor', how: 'extends',
+        note: 'Two optional props: besideEditor, drawn in a row with the editor above the filmstrip bar, '
+          + 'and toolbarBelow, passed to Editor. Without them it renders as before.' },
+      { file: 'src/components/panel/Editor.tsx', symbol: 'toolbarBelow', how: 'extends',
+        note: 'Optional prop: the toolbar row takes order-last, under the photo, and its menus open '
+          + 'upward. The transform handle (useImperativeHandle on transformWrapperRef: setTransform, '
+          + 'instance.wrapperComponent/contentComponent/transformState) is what the Navigator reads and '
+          + 'moves; it watches the inline transform this file writes onto the content element.' },
+      { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'extends',
+        note: 'The naming of history steps moved out of the component, unchanged, into an exported '
+          + 'hook, so the History tab names steps the same way. opensUpward puts the history menu and '
+          + 'the photo info pill above the toolbar when it sits under the photo.' },
+      { file: 'src/components/panel/right/ControlsPanel.tsx', symbol: 'showWaveform', how: 'extends',
+        note: 'Optional prop, true by default: false leaves out the chart button and the inline '
+          + 'analytics, which the arrangement shows at the top of its column instead.' },
+      { file: 'src/components/panel/right/MasksPanel.tsx', symbol: 'showWaveform', how: 'extends',
+        note: 'Same as ControlsPanel.' },
+      { file: 'src/components/panel/PanelSwitcher.tsx', symbol: 'PANEL_TITLES', how: 'extends',
+        note: 'Exported beside PANEL_ICONS, so the rail uses today\'s icons and tooltips.' },
+      { file: 'src/store/useUIStore.ts', symbol: 'setPanel', how: 'calls',
+        note: 'The rail opens tools through setPanel and folds columns through uiVisibility; widths are '
+          + 'leftPanelWidth and rightPanelWidth. A change of activePanel to Presets, Metadata, Export or '
+          + 'FolderTree (their shortcuts) opens that tab or the folders.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'handleZoomChange', how: 'calls',
+        note: 'The Navigator\'s Fit, 50%, 100% and 200%, in the units the zoom control under the '
+          + 'filmstrip uses (device pixels per photo pixel); 100% from Fit reads the zoom it sets.' },
+      { file: 'src/components/panel/editor/Waveform.tsx', how: 'calls',
+        note: 'The Histogram section draws it with the props and store values ControlsPanel gives it; '
+          + 'open is isWaveformVisible, toggled through useWaveformControls as their chart button does.' },
+      { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
+        note: 'The Layout row goes straight under Compact panels on General, from the data-argentum '
+          + 'slot; without that row it goes in the slot at the end of the page, in a card of its own.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/editor_layout.rs #[cfg(test)]: Classic until chosen, the choice and the '
+        + 'panels read back, unknown names are Classic, other preferences untouched.',
+      'Manual: Settings > General > Layout: RAWmakase, open a photo. Folders left (favourites, keys, '
+        + 'sort as before); toolbar under the photo with back, info, undo/redo and its history menu '
+        + 'opening upward, before/after, full screen; Navigator levels and click; Histogram folds and '
+        + 'stays folded after a restart, clipping warning cycles; rail Edit folds the adjustments, Crop, '
+        + 'Masks and AI open in their place and back; Presets, History, Info, Export tabs; filmstrip, '
+        + 'rating and copy/paste along the bottom. Layout: Classic is today\'s editor unchanged.',
+    ],
+    keywords: /layout|workspace|side.?panel|panel.?switcher|toolbar|navigator|histogram|waveform|filmstrip/i,
+  },
 ];
 
 /**

@@ -47,7 +47,7 @@
 //
 // Until 2026-10-18 the review was per commit: every upstream commit that touched
 // a file a registry entry depends on needed its own decision. The last such
-// review, RapidRAW 1.6.5, carried 1,249 of them, 84% "not-applicable". Those
+// review, RapidRAW 1.6.5, carried 1,242 of them, 84% "not-applicable". Those
 // entries stay below as history. Their decisions are still checked for shape
 // (a verdict from VERDICTS and a reason), and no new per-commit overlaps are
 // derived: re-deriving an old window against today's registry would invent
@@ -1436,18 +1436,6 @@ const startingLook165 = [
   review165('f513a4ee', 'raw-starting-look', 'not-applicable', `${MERGES_165.find(([c]) => c === 'f513a4ee')[1]}: export presets. No starting look.`, 'feature'),
 ];
 
-// first-thumbnail, registered after this review too: none of these commits
-// changes generate_single_thumbnail_and_cache, where its one line sits.
-const firstThumbnail165 = [
-  review165('9ba20c02', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['9ba20c02']} In file_management.rs it changes generate_thumbnail_data, not generate_single_thumbnail_and_cache.`),
-  review165('c4ba9ac9', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['c4ba9ac9']} In file_management.rs it changes metadata loading and folder listing, not generate_single_thumbnail_and_cache.`),
-  review165('43248097', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'Shares the embedded-preview fallback of try_load_embedded_raw_preview with the image loader. That is the thumbnail made after the first one, unchanged by it.'),
-  review165('4e45e620', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'Adds rawler\'s embedded preview to try_load_embedded_raw_preview for RAWs kamadak-exif cannot read. That is the thumbnail made after the first one, unchanged by it.'),
-  review165('b191ae05', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'The merge of 4e45e620 and 43248097, read above.'),
-  review165('078c90a8', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['078c90a8']} In file_management.rs it changes generate_thumbnail_data, not generate_single_thumbnail_and_cache.`),
-  review165('aff9b3f2', 'first-thumbnail', 'not-applicable', 'Their culling view uses the medium thumbnail, and canvas polish: which thumbnail a view shows, not how quickly the grid gets one.', 'feature'),
-];
-
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1458,7 +1446,6 @@ export const REVIEW_165_DECISIONS = [
   ...restore165,
   ...dngStandard165,
   ...startingLook165,
-  ...firstThumbnail165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1471,10 +1458,12 @@ export const REVIEW_165_DECISIONS = [
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
 // Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
-// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13), and 7
-// for first-thumbnail.
-if (REVIEW_165_DECISIONS.length !== 1249) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1249 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13). That is
+// where per-commit review ended (2026-10-18). Entries registered after it, such
+// as first-thumbnail and editor-layout-rawmakase, owe no decisions against this
+// window: their files are read at the next release review.
+if (REVIEW_165_DECISIONS.length !== 1242) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1242 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

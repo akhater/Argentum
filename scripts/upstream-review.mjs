@@ -5,7 +5,7 @@
 // WHY PER RELEASE
 //
 // Until 2026-10-18 every upstream commit that touched a file we depend on needed
-// its own recorded decision. The RapidRAW 1.6.5 review produced 1,249 of them,
+// its own recorded decision. The RapidRAW 1.6.5 review produced 1,242 of them,
 // 84% "not-applicable". Most of the effort went into saying that unrelated
 // commits were unrelated. A release is read once now, one line per feature:
 //

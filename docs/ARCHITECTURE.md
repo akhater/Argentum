@@ -18,7 +18,7 @@ theirs, and every upstream commit that touched something we depend on reviewed
 on its own.
 
 By October 2026 the rule no longer held. Our lines were in 66 of RapidRAW's
-files, about 2,000 of them, and the review of RapidRAW 1.6.5 recorded 1,249
+files, about 2,000 of them, and the review of RapidRAW 1.6.5 recorded 1,242
 per-commit decisions, 84% of them "not applicable". The effort went into
 saying that unrelated commits were unrelated, while the code that renders a
 photo, where Argentum differs most, was the code we were least free to change.
