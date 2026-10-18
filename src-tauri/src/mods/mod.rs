@@ -25,6 +25,7 @@ pub mod dispatch;
 pub mod display_monitor;
 pub mod display_profile;
 pub mod dng_standard;
+pub mod editor_layout;
 pub mod engine_bridge;
 pub mod engine_frame;
 pub mod export_metadata;

@@ -133,5 +133,14 @@
   "sharpenMore": "More",
   "sharpenLess": "Less",
   "sharpenLocal": "Sharpen",
-  "sharpenLocalHint": "Right sharpens, left softens. This mask's own Radius, Mask and Threshold are under More."
+  "sharpenLocalHint": "Right sharpens, left softens. This mask's own Radius, Mask and Threshold are under More.",
+  "layoutSetting": "Layout",
+  "layoutClassic": "Classic",
+  "layoutRawmakase": "RAWmakase",
+  "layoutSettingDesc": "How the editor's panels are arranged. RAWmakase is a Lightroom Classic-style layout: folders on the left, the toolbar under the photo, the Navigator and Histogram over the adjustments, Presets, History, Info and Export in a panel beside them, and a slim rail at the right edge to switch tools and tabs. Every panel is the same in both.",
+  "layoutNavigator": "Navigator",
+  "layoutHistogram": "Histogram",
+  "layoutFit": "Fit",
+  "layoutHistory": "History",
+  "layoutHistoryEmpty": "Open a photo to see its history."
 }
