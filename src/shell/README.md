@@ -36,7 +36,8 @@ joins it when a tool declares one.
 | `store.ts`              | The one zustand store, made of slices; the photo open and the panels' own state       |
 | `historySlice.ts`       | The edit, its undo history, presets and snapshots, and patches on their way           |
 | `viewSlice.ts`          | Zoom and centre, renders asked for by ticket, the latest frame and histogram          |
-| `view.ts`               | Photo-to-screen maths: fit, the view to ask for, points, parts, frames                |
+| `view.ts`               | Photo-to-screen maths: fit, the view to ask for, points, parts, frames, device scale  |
+| `paths.ts`              | A file's name from its path                                                           |
 | `ShellContext.tsx`      | `useShell(selector)`, the only way components read the store                          |
 | `edit.ts`               | The edit document and patches as plain functions: apply, inverse, compose, diff       |
 | `contract.ts`           | Re-exports the generated contract types                                               |

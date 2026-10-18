@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { useShell } from '../ShellContext';
+import { deviceScale } from '../view';
 
 /** The engine's luminance bins, scaled to the tallest bin short of the two ends. */
 export function Histogram() {
@@ -10,7 +11,7 @@ export function Histogram() {
   useEffect(() => {
     const c = canvas.current;
     if (!c) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = deviceScale();
     c.width = Math.round(c.clientWidth * dpr);
     c.height = Math.round(c.clientHeight * dpr);
     const ctx = c.getContext('2d')!;

@@ -103,7 +103,7 @@ describe('patches and undo', () => {
     expect(s().doc.tools.rt_capture_sharpen.settings.captureAmount).toBe(100);
     expect(s().doc.tools.ag_exposure_wb.settings.exposure).toBe(0.5);
     expect(s().past).toHaveLength(1);
-    expect(s().error).toBe('refused');
+    expect(s().error).toEqual({ kind: 'badValue', message: 'refused' });
   });
 
   it('show the edit as the engine took it, not as it was sent', async () => {

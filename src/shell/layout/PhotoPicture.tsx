@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import { fitRect, photoInFrame, type PhotoSize, type RectPx } from '../view';
+import { deviceScale, fitRect, photoInFrame, type PhotoSize, type RectPx } from '../view';
 import type { ShownFrame } from '../viewSlice';
 
 /**
@@ -22,7 +22,7 @@ export function PhotoPicture({
   useEffect(() => {
     const c = canvas.current;
     if (!c) return;
-    const scale = window.devicePixelRatio || 1;
+    const scale = deviceScale();
     c.width = Math.max(1, Math.round(c.clientWidth * scale));
     c.height = Math.max(1, Math.round(c.clientHeight * scale));
     const ctx = c.getContext('2d')!;

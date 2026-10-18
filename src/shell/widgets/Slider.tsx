@@ -6,16 +6,14 @@
 
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
-import { decimalsOf, formatValue, railPosition, railValue } from '../panels/model';
+import { decimalsOf, formatValue, railPosition, railValue, rangeOf } from '../panels/model';
+import { clamp } from '../view';
 import type { WidgetProps } from '.';
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export function Slider({ spec, label, value, disabled, onChange, onDone }: WidgetProps) {
   const rail = useRef<HTMLDivElement>(null);
   const [typing, setTyping] = useState<string | null>(null);
-  const min = spec.min ?? 0;
-  const max = spec.max ?? 1;
+  const { min, max } = rangeOf(spec);
   const n = typeof value === 'number' ? value : Number(value);
   const fallback = typeof spec.default === 'number' ? spec.default : min;
   const step = spec.step ?? (spec.kind === 'int' ? 1 : (max - min) / 100);

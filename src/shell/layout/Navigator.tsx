@@ -5,7 +5,7 @@ import type { PointerEvent } from 'react';
 
 import { text } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
-import { fitRect, visiblePart, type RectPx } from '../view';
+import { deviceScale, fitRect, visiblePart, type RectPx } from '../view';
 import { currentView } from '../viewSlice';
 import { PhotoPicture } from './PhotoPicture';
 
@@ -22,7 +22,7 @@ export function Navigator() {
     if (zoom === 'fit' || !view || !photo) return;
     const part = visiblePart(view, photo);
     ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = Math.max(1, window.devicePixelRatio || 1);
+    ctx.lineWidth = Math.max(1, deviceScale());
     ctx.strokeRect(
       drawn.x_px + part.x * drawn.width_px,
       drawn.y_px + part.y * drawn.height_px,

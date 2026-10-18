@@ -3,10 +3,9 @@
 // others show their names, since the contract has no thumbnails yet.
 
 import { text } from '../i18n';
+import { fileName } from '../paths';
 import { useShell, useShellStore } from '../ShellContext';
 import { PhotoPicture } from './PhotoPicture';
-
-const nameOf = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 export function StatusLine({ fake }: { fake: boolean }) {
   const path = useShell((s) => s.path);
@@ -14,11 +13,11 @@ export function StatusLine({ fake }: { fake: boolean }) {
   const error = useShell((s) => s.error);
   return (
     <div className="ags-status">
-      <span>{path ? `${nameOf(path)}  ·  ${photo?.width} × ${photo?.height}` : text('shell.noPhoto')}</span>
+      <span>{path ? `${fileName(path)}  ·  ${photo?.width} × ${photo?.height}` : text('shell.noPhoto')}</span>
       <span className="ags-toolbar-spacer" />
       {error ? (
         <span className="ags-error" role="alert">
-          {error}
+          {error.message}
         </span>
       ) : (
         fake && <span className="ags-dim">{text('shell.fakeEngineHint')}</span>
@@ -44,7 +43,7 @@ export function Filmstrip() {
           onClick={() => path !== current && void store.getState().openPhoto(path)}
         >
           {path === current && <PhotoPicture frame={frame} photo={photo} className="ags-film-picture" />}
-          <span className="ags-film-name">{nameOf(path)}</span>
+          <span className="ags-film-name">{fileName(path)}</span>
         </button>
       ))}
     </div>

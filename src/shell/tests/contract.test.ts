@@ -75,7 +75,9 @@ describe('the contract fixtures', () => {
     store.getState().receive({ ...(histogram as Extract<Event, { event: 'histogram' }>), ticket: ticket + 1, photoId });
     expect(store.getState().histogram).toHaveLength(HISTOGRAM_BINS);
     store.getState().receive(error);
-    expect(store.getState().error).toBe('no GPU: no adapter');
+    expect(store.getState().error).toEqual({ kind: 'noGpu', message: 'no GPU: no adapter' });
+    store.getState().fail(new Error('lost'));
+    expect(store.getState().error).toEqual({ kind: 'internal', message: 'lost' });
     await settle();
   });
 });

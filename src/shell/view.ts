@@ -38,7 +38,11 @@ export type Zoom = 'fit' | number;
 
 export const PHOTO_CENTER: PhotoPoint = { x: 0.5, y: 0.5 };
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+/** `v` held within `lo`..`hi`. */
+export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** Device pixels per CSS pixel, on the screen the window is on. */
+export const deviceScale = () => (typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
 
 /** The zoom at which the whole photo fits the view, never past 100%, as the engine fits. */
 export function fitZoom(photo: PhotoSize, view_px: SizePx): number {

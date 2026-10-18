@@ -5,7 +5,7 @@
 
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
-import type { Event, Opened, SectionDescriptor, Section, ToolDescriptor } from './contract';
+import type { EngineError, Event, Opened, SectionDescriptor, Section, ToolDescriptor } from './contract';
 import type { EngineClient, FramePixels } from './engine/client';
 import { createHistorySlice, type HistoryActions, type HistoryState } from './historySlice';
 import { createViewSlice, type ViewActions, type ViewState } from './viewSlice';
@@ -20,7 +20,8 @@ export interface CoreState {
   photos: readonly string[];
   path: string | null;
   photo: Pick<Opened, 'photoId' | 'width' | 'height'> | null;
-  error: string | null;
+  /** The last refusal or failure, with its kind; anything unexpected is `internal`. */
+  error: EngineError | null;
   /** The tab panel beside the photo; null when folded. */
   sideTab: SideTab | null;
   collapsed: Readonly<Partial<Record<Section, boolean>>>;
@@ -49,6 +50,15 @@ export interface StoreOptions {
   photos?: readonly string[];
   /** Turns frame pixels into something drawable. Defaults to createImageBitmap where there is one. */
   decode?: (pixels: FramePixels) => Promise<ImageBitmap | null>;
+}
+
+/** What was thrown, as an EngineError: the engine's own, or anything else as `internal`. */
+function asEngineError(error: unknown): EngineError {
+  if (typeof error === 'object' && error !== null && 'kind' in error && 'message' in error) {
+    return { kind: (error as EngineError).kind, message: String(error.message) };
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return { kind: 'internal', message };
 }
 
 const decodeToBitmap = (p: FramePixels) =>
@@ -108,14 +118,13 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     },
 
     fail(error) {
-      const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : error;
-      set({ error: String(message) });
+      set({ error: asEngineError(error) });
     },
 
     receive(event) {
       const s = get();
       if (event.event === 'error') {
-        set({ error: event.message });
+        set({ error: { kind: event.kind, message: event.message } });
         return;
       }
       if (!s.photo || event.photoId !== s.photo.photoId) return;

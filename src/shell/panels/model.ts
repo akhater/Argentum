@@ -4,6 +4,7 @@
 
 import type { EditDocument, Section, SectionDescriptor, SettingSpec, SettingValue, ToolDescriptor } from '../contract';
 import { text } from '../i18n';
+import { clamp } from '../view';
 
 export interface PanelSection {
   readonly id: Section;
@@ -36,23 +37,24 @@ export function isEnabled(doc: EditDocument, tool: ToolDescriptor, spec: Setting
   return value === when.equals;
 }
 
+/** A number setting's range: its own, or 0..1 when the descriptor gives none. */
+export const rangeOf = (spec: SettingSpec) => ({ min: spec.min ?? 0, max: spec.max ?? 1 });
+
 const isLog = (spec: SettingSpec, min: number, max: number) => spec.scale === 'log' && min > 0 && max > min;
 
 /** Where a value sits along its slider, 0..1: evenly, or by ratio for a log setting. */
 export function railPosition(spec: SettingSpec, value: number): number {
-  const min = spec.min ?? 0;
-  const max = spec.max ?? 1;
+  const { min, max } = rangeOf(spec);
   if (max <= min) return 0;
-  const v = Math.min(max, Math.max(min, value));
+  const v = clamp(value, min, max);
   if (isLog(spec, min, max)) return Math.log(v / min) / Math.log(max / min);
   return (v - min) / (max - min);
 }
 
 /** The value at a point along its slider, 0..1: the inverse of railPosition. */
 export function railValue(spec: SettingSpec, position: number): number {
-  const min = spec.min ?? 0;
-  const max = spec.max ?? 1;
-  const p = Math.min(1, Math.max(0, position));
+  const { min, max } = rangeOf(spec);
+  const p = clamp(position, 0, 1);
   if (isLog(spec, min, max)) return min * Math.pow(max / min, p);
   return min + p * (max - min);
 }
