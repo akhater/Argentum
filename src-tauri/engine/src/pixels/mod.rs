@@ -42,6 +42,14 @@ pub(crate) struct Pixels {
 }
 
 impl Pixels {
+    /// Let go of every picture kept on the GPU: the next pass sends its
+    /// input again.
+    pub fn release(&mut self) {
+        for run in self.runs.values_mut() {
+            run.release();
+        }
+    }
+
     /// The tools `tools` of `registry` on `input`, linear light out, or
     /// `None` when every one of them leaves it alone.
     pub fn linear(

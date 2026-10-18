@@ -85,7 +85,7 @@ fn compare(label: &str, raw: &RawImage) -> usize {
         let out = DtHighlights
             .process(
                 &dt_highlights::Settings { recover },
-                &Image::Raw(raw.clone()),
+                &Image::Raw(source.raw.clone()),
                 &cx,
             )
             .unwrap();

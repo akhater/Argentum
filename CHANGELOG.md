@@ -94,6 +94,25 @@ against the 1.6.5 review.
     folder (`radius`, `contrast`, `gpu`) with one `MAX_RADIUS_PX` and no
     second clamp, origins and the fit are each defined once, and the
     TypeScript generator builds only for the tests.
+  - Then the frame's place in its view, the transport, and memory. The frame
+    event says where the frame sits in the view (`placement`, in device
+    pixels), so a fitted photo is not stretched to the viewport, and fixtures
+    pin it. The event name, the frame block's header and the shared-memory
+    markers are defined once in `contract.rs` and generated to TypeScript.
+    A fitted view develops at half size - each 2 x 2 block of a Bayer mosaic
+    one pixel, as LibRaw's half-size decode (RAWmakase's previews) and
+    darktable's preview pipe do, with rawler's own superpixel demosaic - so a
+    screen-sized result no longer takes a sensor-sized picture; highlight
+    recovery still runs on the whole mosaic first. The cache counts each
+    picture once for as long as any step holds it, shares the photo's
+    decoded mosaic instead of copying it, and makes room for a result, and
+    for the develop's working memory, before making it; capture sharpening
+    keeps a band of the picture on the GPU instead of all of it; `close`
+    frees a photo's data and results; the budget is set by the app, 1.5 GB
+    until it does. Measured on a 32 MP CR3, held by tests: fitted, 0.57 GB at
+    the peak (was 1.25 GB); at 100% with a slider dragged, 1.75 GB (was
+    2.66 GB). On a 61 MP photo, 0.82 GB (was 1.83 GB) and 2.19 GB (was
+    3.73 GB).
 - **The engine's basic tools: white balance, DNG Standard, tone and
   presence.** Enough for the new editor to edit a photo. Each is copied from
   the app @ `c786c146`, whose RapidRAW files are RapidRAW 1.6.5 @ `79c2a46b`,
@@ -135,14 +154,22 @@ against the 1.6.5 review.
     pass. The structure is the app's uber-shader; the calls are the
     registry's rather than a hand-written list. The engine's CPU frame cut
     and encode are gone.
+  - The engine's GPU device takes memory in blocks of 8 to 64 MB (wgpu's
+    `MemoryUsage` hint) rather than 128 to 256 MB. On an integrated GPU the
+    blocks are the process's memory, and the pixel pass's textures and
+    readback had each opened one: measured on a 32 MP CR3, the peak while a
+    photo is fitted is 0.66 GB with it and 0.74 GB without, against a limit
+    of 0.73 GB in `tests/memory.rs`. Closing a photo also lets go of the
+    pixel pass's input on the GPU.
   - A tool can start a photo at the photo's own settings
     (`Tool::defaults_for`, after darktable's `reload_defaults`), and `null`
     in a patch puts a setting back to them.
   - The parity tests run the engine's pass and the app's shader functions as
     they are on the same GPU (`tests/common/app_shader.rs`); tone end to end,
     the app's guided filter included. Each tool has golden renders on local
-    RAWs (`tests/golden.rs`). The engine's reference build compiles again:
-    since DNG Standard, `mods/sharpen.rs` reads `mods/raw_tone.rs`.
+    RAWs (`tests/golden.rs`). The engine's reference build compiles the
+    app's `mods/raw_tone.rs`, `dng_standard.rs`, `profiles.rs` and `dcp.rs`
+    as they are, in place of a stand-in for `raw_tone`.
 - **Dev and test builds wait less.** Measured on Windows x64 after a one-line
   change in `mods/sharpen.rs`: `cargo build` 26-28 s → 20 s, `cargo test --lib
   sharpen::` 29 s → 26 s; a cold build into a new target directory 739 s →

@@ -57,6 +57,15 @@ the tests turn on: whatever links the engine does not build it.
   `error` event carries the same kind.
 - **`View`** - zoom, centre, and a size in device pixels (CSS pixels times
   the device pixel ratio).
+- **`Placement`** - where a frame sits in its view, in device pixels
+  (`xPx`, `yPx`, `widthPx`, `heightPx`). Where the photo is smaller than the
+  view on an axis, the frame is all of it, centred; where it is larger, the
+  frame fills the view. The fixtures' `placements` pin it.
+- **The transport** - the event name (`ENGINE_EVENT`), the frame block's
+  header (`FRAME_HEADER_BYTES`: ticket, width and height as little-endian
+  u32s, then the RGBA rows; the fixtures' `frameBlock` is one) and the markers
+  of a frame handed over in shared memory (`FRAME_SHARED`,
+  `FRAME_SHARED_KEY`). Defined once, here, and generated to TypeScript.
 
 The calls, which the app makes into Tauri commands (`src/engine.rs`):
 
@@ -67,24 +76,27 @@ The calls, which the app makes into Tauri commands (`src/engine.rs`):
 | `open(path)` | `Opened { photoId, width, height, edit }`, without rendering |
 | `apply(photoId, EditPatch)` | `Applied { ticket, edit }` at once: the render's ticket, and the edit as the engine took it |
 | `view(photoId, View { zoom, centerX, centerY, width, height })` | a `RenderTicket`, at once |
-| `frame(ticket)` | the frame's sRGB RGBA pixels, while it is the latest |
+| `frame(ticket)` | the frame's sRGB RGBA pixels, while it is the latest; `block()` is the frame as it crosses to the interface |
 
-And four the interface does not call: the app uses them to keep only a few
-photos' decoded data in memory.
+And six the interface does not call: the app uses them to keep only a few
+photos' decoded data in memory, and to size the cache.
 
 | Call | Returns |
 |---|---|
 | `edit(photoId)` | the photo's edit, every accepted patch in it |
-| `close(photoId)` | its edit; the decoded data goes once no render uses it |
+| `close(photoId)` | its edit; a render already asked for still reports, then the photo's decoded data and its cached results are freed |
 | `decoded_bytes(photoId)` | the bytes its decoded sensor data holds |
 | `open_with(path, EditDocument)` | as `open`, with that edit read as a saved one is |
+| `set_cache_budget_bytes(bytes)` | nothing: the memory cached results may take, which the app sizes from the machine's |
+| `cache_bytes()` | the memory cached results take now |
 
 Renders happen on a thread of their own and are latest-wins: a newer ticket
 replaces a render still waiting, and stops one already running at its next
-step. Each finished render sends a `frame` event (`ticket`, `photoId`,
-`width`, `height`), then a `histogram` event (`ticket`, `photoId`,
-`HISTOGRAM_BINS` luminance bins of the frame); a failed one an `error` event
-(`ticket`, `kind`, `message`). An overtaken render sends nothing.
+step. Each finished render sends a `frame` event (`ticket`, `photoId`, and
+`placement`: where the frame sits in the view, in device pixels), then a
+`histogram` event (`ticket`, `photoId`, `HISTOGRAM_BINS` luminance bins of
+the frame); a failed one an `error` event (`ticket`, `kind`, `message`). An
+overtaken render sends nothing.
 
 Below 100% the pipeline renders the whole photo at the zoom and the view is a
 cut of it, so panning re-renders nothing; at 100% and past it the view is cut
@@ -179,8 +191,7 @@ The steps are the tools in registry order, with the develop between the last
 after the develop. Each step's result is kept under a key made of its input's
 key and its own settings. Changing a tool's settings changes its key and every
 key after it, so a render finds the last step it still has and runs only what
-follows. Setting something back finds the earlier results again. A preview and
-a full-size render share everything up to the develop; after it, a preview's
+follows. Setting something back finds the earlier results again. A preview's
 tools run on the small picture, and a radius in sensor pixels is scaled by the
 picture's `scale()`.
 
@@ -198,10 +209,35 @@ another on each pixel. Ours: the calls are written from the registry, not
 by hand. `run_pixel_tools` runs every per-pixel tool on a picture of one's
 own, for tests.
 
-Results are kept up to a memory budget (`set_cache_budget_bytes`, 2 GB by default),
-least recently used first out. `last_render()` says which steps ran and how
-long each took; `runs(name)` counts them; `render_unless` gives up between
-steps when asked.
+A preview that half the photo still covers - a fitted view, below 50% -
+develops at half size (`develop_half`): each 2 x 2 block of a Bayer mosaic is
+one pixel, as in LibRaw's `half_size` (RAWmakase's draft decode) and
+darktable's preview pipe, here with rawler's own `Superpixel3Channel`; white
+balance, the camera matrix and the default crop are rawler's, as at full
+size. So a screen-sized result takes no sensor-sized picture. The `Raw` tools
+still run on the whole mosaic first, so highlight recovery is the same at
+every size. Other sensors (X-Trans, sRAW, linear DNG) and larger previews
+resize the full develop. `tests/preview.rs` holds a half-size preview to the
+full develop made small by the gates RAWmakase holds its own half-size develop
+to: colour as CIEDE2000 between blocks, detail as the luminance Laplacian's
+energy, and time against the full develop; and the crop in the same place.
+
+Results are kept up to a memory budget (`set_cache_budget_bytes`, 1.5 GB by
+default, for a 16 GB laptop), least recently used first out. The budget is
+counted by what is held: a picture two steps share (one passed its input
+through) is counted once, for as long as either holds it, and the photo's own
+decoded mosaic is shared with the photo, not copied. Room is made for a result,
+and for what the develop holds while it runs, before it is made - never by
+letting go of the step's input, which would free nothing while it is read. The
+input of the tool changed last - where the next tick of the same slider
+starts - and the result just made go last. What a tool needs while it runs
+comes on top, and so does the pixel pass's input and guided filter, kept on
+the GPU; `tests/memory.rs` holds the whole process's peak to the budget plus
+a measured margin.
+
+`last_render()` says which steps ran and how long each took; `runs(name)`
+counts them; `render_unless` gives up between steps when asked; `forget`
+lets go of a photo's results.
 
 ## Adding a tool
 
@@ -296,6 +332,8 @@ and the tests, `src/colour.rs`.
 | The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | A slider tick at preview size, every tool on, stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW`, a GPU |
+| A half-size preview is the full develop made small - size, crop, colour (CIEDE2000), detail - and faster, by RAWmakase's gates for its own | `tests/preview.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
+| The process's peak memory, fitted and at 100% with a slider dragged, stays within the cache's budget plus 1.5 full-size pictures, and under 2 pictures while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs` | a GPU (a synthetic 61 MP photo); a real one with `AG_RAW` |
 | A closed photo is gone, its edit handed back; reopened with it, it renders the same | `tests/open_close.rs` | a GPU for the renders |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the

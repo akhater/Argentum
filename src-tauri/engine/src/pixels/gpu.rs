@@ -190,6 +190,11 @@ impl Run {
         })
     }
 
+    /// Let go of the picture kept.
+    pub fn release(&mut self) {
+        self.resident = None;
+    }
+
     /// `input` through the run, the whole picture, linear light.
     pub fn linear(
         &mut self,
