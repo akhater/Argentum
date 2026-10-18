@@ -847,6 +847,24 @@ const UNREACHED_165 = [
   ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', ['ai-super-resolution#apply_curve']],
   ['078c90a8', 'src-tauri/src/mask_generation.rs', 'imports, resolve_warped_image_for_masks, get_cached_or_generate_mask', ['ai-super-resolution#generate_ai_bitmap_from_base64']],
   ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', ['ai-super-resolution#generate_ai_bitmap_from_base64']],
+  // editor-layout-rawmakase, registered after this review: the props and the
+  // store action it relies on are ours or untouched, and these commits edit
+  // around them.
+  ['3c864270', 'src/components/panel/Editor.tsx', 'Editor', ['editor-layout-rawmakase#toolbarBelow']],
+  ['65472097', 'src/components/panel/Editor.tsx', 'Editor', ['editor-layout-rawmakase#toolbarBelow']],
+  ['0f564b59', 'src/components/panel/right/ControlsPanel.tsx', 'imports, Controls', ['editor-layout-rawmakase#showWaveform']],
+  ['2f907e36', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['editor-layout-rawmakase#showWaveform']],
+  ['9ba20c02', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['editor-layout-rawmakase#showWaveform']],
+  ['f6220886', 'src/components/panel/right/ControlsPanel.tsx', 'imports, Controls', ['editor-layout-rawmakase#showWaveform']],
+  ['0f564b59', 'src/components/panel/right/MasksPanel.tsx', 'imports, SettingsPanel', ['editor-layout-rawmakase#showWaveform']],
+  ['2f907e36', 'src/components/panel/right/MasksPanel.tsx', 'SettingsPanel', ['editor-layout-rawmakase#showWaveform']],
+  ['48a124f5', 'src/components/panel/right/MasksPanel.tsx', 'MasksListRoot, MasksPanel', ['editor-layout-rawmakase#showWaveform']],
+  ['9671795e', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['editor-layout-rawmakase#showWaveform']],
+  ['f6220886', 'src/components/panel/right/MasksPanel.tsx', 'imports, SettingsPanel', ['editor-layout-rawmakase#showWaveform']],
+  ['f62a8365', 'src/components/panel/right/MasksPanel.tsx', 'ContainerRow, DraggableGridItem, MasksListRoot, MasksPanel, SubMaskRow', ['editor-layout-rawmakase#showWaveform']],
+  ['c4ba9ac9', 'src/components/views/EditorView.tsx', 'imports, EditorView', ['editor-layout-rawmakase#besideEditor']],
+  ['d14887fd', 'src/store/useUIStore.ts', 'useUIStore, UIState', ['editor-layout-rawmakase#setPanel']],
+  ['7ce629fc', 'src/store/useUIStore.ts', 'imports', ['editor-layout-rawmakase#setPanel']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -922,6 +940,8 @@ const FILE_165 = {
   'fast-dev-builds|src-tauri/Cargo.toml': ['not-applicable', 'A dependency line; their crate-type and [profile.dev.package."*"], where ours differ, are not touched. Registered after this review (26.41.13).', ['2641891c', '1e6777ed', 'b66691ba', '1732175a', '9b7e3368']],
   'fast-dev-builds|.github/workflows/build.yml': ['not-applicable', 'Android setup only; their tauri-action step, which carries our linker variable, is not touched. Registered after this review (26.41.13).', ['2641891c', 'd4429f1f', '63472b86', '1e6777ed']],
   'fast-dev-builds|package.json': ['not-applicable', 'Dependency versions only; the start script is not touched. Registered after this review (26.41.13).', ['b66691ba', '1732175a']],
+  'editor-layout-rawmakase|src/App.tsx': ['not-applicable', 'The layout import, the EditorView swap and the side panels it leaves out are ours, added after this review; the editor still stays mounted while hidden, which this does not change.', ['d14887fd', 'b66691ba', 'c4ba9ac9']],
+  'editor-layout-rawmakase|src/components/panel/SettingsPanel.tsx': ['not-applicable', 'The Layout row is placed under the Compact panels row from the existing slot; neither the slot line nor their Font row, which the Compact panels row follows, is what this commit edits. Registered after this review.', ['48a124f5', '2641891c', 'b66691ba', 'f98d68a4', 'c4ba9ac9', '3e186ce2', '290818d5', '66b800f5', 'c7c42306', '9b7e3368', '5c4b7800', '06c52a49']],
 };
 
 // One commit in a group that did more than the rest.
@@ -1011,6 +1031,7 @@ const MERGES_165 = [
     'no-cloud:src/components/panel/SettingsPanel.tsx',
     'object-label:src/components/panel/SettingsPanel.tsx#settings.processing.ai.cpu.feature1',
     'compact-sliders:src/components/panel/SettingsPanel.tsx',
+    'editor-layout-rawmakase:src/components/panel/SettingsPanel.tsx',
   ]],
   ['a1e2dda0', 'Merge of #1767 (367029d7, 7514c8f6, bbe7e986, de8d6ffe, 2f907e36, 4227dcbd, and 6 more)', [
     'import-dialogue-1714:src-tauri/src/app_settings.rs#last_import_settings',
@@ -1442,9 +1463,10 @@ export const REVIEW_165_DECISIONS = [
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
 // Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
-// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13).
-if (REVIEW_165_DECISIONS.length !== 1242) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1242 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13), and 31 for
+// editor-layout-rawmakase, registered after it.
+if (REVIEW_165_DECISIONS.length !== 1273) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1273 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

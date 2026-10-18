@@ -173,9 +173,14 @@ export const ANCHORS = [
   },
   {
     file: 'src/App.tsx',
-    hooks: 2,
-    what: 'the single <Argentum /> mount',
-    instead: 'add a portal in src/argentum/Argentum.tsx',
+    // Three since 2026-10-18, by a recorded decision (DEC-31: the interface
+    // moves to RAWmakase's layout in place, as a switch built from today's own
+    // panels). The layout has to replace where App puts the editor and its side
+    // panels, which no portal can do; one import line brings it, and every
+    // later layout change happens in src/argentum/layout/.
+    hooks: 3,
+    what: 'the single <Argentum /> mount, and the import of the editor layouts',
+    instead: 'add a portal in src/argentum/Argentum.tsx, or change src/argentum/layout/',
   },
   // UI markers. One per panel, never one per feature: everything Argentum shows
   // in that panel portals into the same marker.
