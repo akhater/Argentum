@@ -189,6 +189,49 @@ impl Engine {
         frame.as_ref().filter(|f| f.ticket == ticket).cloned()
     }
 
+    /// Decode a RAW file and give it an edit it had before, read as a saved
+    /// edit is: migrated, clamped, all or nothing. Renders nothing.
+    pub fn open_with(&self, path: impl AsRef<Path>, edit: &EditDocument) -> Result<Opened> {
+        self.insert_with(Source::open(path)?, edit)
+    }
+
+    /// A photo decoded elsewhere, opened with `edit`. A tool the edit does
+    /// not name starts where it would for this photo (`defaults_for`).
+    pub fn insert_with(&self, source: Source, edit: &EditDocument) -> Result<Opened> {
+        let defaults = self.registry.defaults_for(&source);
+        let mut whole = edit.clone();
+        for (id, tool) in &defaults.tools {
+            whole
+                .tools
+                .entry(id.clone())
+                .or_insert_with(|| tool.clone());
+        }
+        let edit = self
+            .registry
+            .merge(&whole, &EditPatch::default(), &defaults)?;
+        let mut opened = self.insert(source);
+        self.state().photo_mut(opened.photo_id)?.edit = edit.clone();
+        opened.edit = edit;
+        Ok(opened)
+    }
+
+    /// A photo's edit, with every patch it has accepted.
+    pub fn edit(&self, photo: PhotoId) -> Result<EditDocument> {
+        Ok(self.state().photo(photo)?.edit.clone())
+    }
+
+    /// Let a photo go, handing back its edit. Its decoded data is freed once
+    /// no render is using it; a render already asked for still reports.
+    pub fn close(&self, photo: PhotoId) -> Result<EditDocument> {
+        let closed = self.state().photos.remove(&photo);
+        closed.map(|p| p.edit).ok_or(Error::UnknownPhoto(photo))
+    }
+
+    /// The bytes an open photo's decoded sensor data holds.
+    pub fn decoded_bytes(&self, photo: PhotoId) -> Result<usize> {
+        Ok(self.state().photo(photo)?.source.bytes())
+    }
+
     fn state(&self) -> MutexGuard<'_, State> {
         self.shared.state.lock().unwrap_or_else(|e| e.into_inner())
     }

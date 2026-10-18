@@ -7,9 +7,10 @@ interface talks to it through.
 Tools come from darktable, RawTherapee, RapidRAW, RAWmakase or Argentum.
 Each is **one file in `src/tools/` and one line in `src/registry.rs`**.
 
-This crate builds and tests on its own, without building the app, and the app
-does not use it yet. It lives under `src-tauri/` so Vite ignores it, and it is
-a workspace of its own, so the app's `Cargo.toml` does not know about it.
+This crate builds and tests on its own, without building the app. It lives
+under `src-tauri/` so Vite ignores it, and it is a workspace of its own. The
+app uses it as a path dependency: `src-tauri/src/mods/engine_bridge.rs` makes
+the calls below into Tauri commands for the new interface.
 
 ```bash
 cd src-tauri/engine
@@ -57,7 +58,7 @@ the tests turn on: whatever links the engine does not build it.
 - **`View`** - zoom, centre, and a size in device pixels (CSS pixels times
   the device pixel ratio).
 
-The calls, which step 2 makes into Tauri commands (`src/engine.rs`):
+The calls, which the app makes into Tauri commands (`src/engine.rs`):
 
 | Call | Returns |
 |---|---|
@@ -67,6 +68,16 @@ The calls, which step 2 makes into Tauri commands (`src/engine.rs`):
 | `apply(photoId, EditPatch)` | `Applied { ticket, edit }` at once: the render's ticket, and the edit as the engine took it |
 | `view(photoId, View { zoom, centerX, centerY, width, height })` | a `RenderTicket`, at once |
 | `frame(ticket)` | the frame's sRGB RGBA pixels, while it is the latest |
+
+And four the interface does not call: the app uses them to keep only a few
+photos' decoded data in memory.
+
+| Call | Returns |
+|---|---|
+| `edit(photoId)` | the photo's edit, every accepted patch in it |
+| `close(photoId)` | its edit; the decoded data goes once no render uses it |
+| `decoded_bytes(photoId)` | the bytes its decoded sensor data holds |
+| `open_with(path, EditDocument)` | as `open`, with that edit read as a saved one is |
 
 Renders happen on a thread of their own and are latest-wins: a newer ticket
 replaces a render still waiting, and stops one already running at its next
@@ -285,6 +296,7 @@ and the tests, `src/colour.rs`.
 | The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | A slider tick at preview size, every tool on, stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW`, a GPU |
+| A closed photo is gone, its edit handed back; reopened with it, it renders the same | `tests/open_close.rs` | a GPU for the renders |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
 app's own tests take them. Unset, the real-photo tests say they skipped and
@@ -327,10 +339,8 @@ the engine's stored as a half float, rounded one way or the other.
   engine decodes with plain rawler, so sRAW levels in particular are not yet
   the app's.
 - **Orientation.** The develop leaves the picture as the sensor saw it.
-- **Closing a photo.** An open photo's decoded data stays until the engine
-  goes.
 - **A file's metadata.** `Source` carries the decoded image only, so DNG
   Standard takes every file's offset from its body's row: a DNG's own
   BaselineExposure and the app's stop off below a body's lowest native ISO
   wait for it.
-- Masks, the editor's other tools, and wiring into the app - later steps.
+- Masks and the editor's other tools - later steps.

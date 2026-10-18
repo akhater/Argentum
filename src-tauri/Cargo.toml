@@ -76,6 +76,7 @@ rgb = "0.8.53"
 imgref = "1.12.2"
 sysinfo = "0.39.6"
 tauri-plugin-http = "2.8.0"
+argentum-engine = { path = "engine" } # Argentum: the new engine, for the new interface (mods/engine_bridge.rs)
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 trash = "5.2.6"
@@ -150,3 +151,4 @@ windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gd
 # plus the DirectML entry point; flate2 unpacks the runtime from its NuGet package.
 ort = { version = "=2.0.0-rc.10", features = ["directml"] }
 flate2 = "1"
+webview2-com = "0.39" # Argentum: frames to the new interface as WebView2 shared buffers - see mods/engine_frame.rs. Already built for Tauri's wry.

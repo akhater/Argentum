@@ -7,7 +7,7 @@ rust-version = "1.98"
 publish = false
 
 # A workspace of its own. It builds and tests from this folder alone, without
-# building the app, and the app's Cargo.toml does not know it exists yet.
+# building the app; the app takes it as a path dependency.
 [workspace]
 # Today's app code compiled outside the app, for the parity tests. Not a member,
 # so `cargo clippy` here lints the engine and not the app's files.
