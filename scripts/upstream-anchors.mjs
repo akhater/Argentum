@@ -37,6 +37,14 @@ export const ANCHORS = [
     instead: 'add a match arm to mods/dispatch.rs — commands cost nothing here',
   },
   {
+    file: 'src-tauri/src/file_management.rs',
+    hooks: 1,
+    what:
+      'the first thumbnail while browsing, in generate_single_thumbnail_and_cache: '
+      + 'the camera\'s JPEG before the thumbnail is made',
+    instead: 'do more inside mods/first_thumbnail.rs',
+  },
+  {
     file: 'src-tauri/src/shaders/display.wgsl',
     hooks: 1,
     what: 'one call to ag_stage_present, the presentation stage',
@@ -173,9 +181,14 @@ export const ANCHORS = [
   },
   {
     file: 'src/App.tsx',
-    hooks: 2,
-    what: 'the single <Argentum /> mount',
-    instead: 'add a portal in src/argentum/Argentum.tsx',
+    // Three since 2026-10-18, by a recorded decision (DEC-31: the interface
+    // moves to RAWmakase's layout in place, as a switch built from today's own
+    // panels). The layout has to replace where App puts the editor and its side
+    // panels, which no portal can do; one import line brings it, and every
+    // later layout change happens in src/argentum/layout/.
+    hooks: 3,
+    what: 'the single <Argentum /> mount, and the import of the editor layouts',
+    instead: 'add a portal in src/argentum/Argentum.tsx, or change src/argentum/layout/',
   },
   // UI markers. One per panel, never one per feature: everything Argentum shows
   // in that panel portals into the same marker.

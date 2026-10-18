@@ -33,6 +33,9 @@ import { applyRenames } from './renames';
 
 export const AG_NS = 'ag';
 
+/** One of Argentum's own strings. */
+export type AgKey = keyof typeof en;
+
 /**
  * Add our bundle, whenever i18next is ready for it.
  *
@@ -72,5 +75,5 @@ export function registerArgentumTranslations() {
 export function useAgTranslation() {
   // The namespace is ours, so their generated union does not contain it.
   const { t } = useTranslation(AG_NS as never);
-  return (key: keyof typeof en): string => t(key as never) as string;
+  return (key: AgKey): string => t(key as never) as string;
 }

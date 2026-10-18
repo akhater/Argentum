@@ -1,4 +1,5 @@
 import Argentum from './argentum/Argentum';
+import { RawmakaseEditor, useRawmakaseLayout } from './argentum/layout';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -793,6 +794,8 @@ function App() {
     selectedImage?.isReady &&
     hasRenderedFirstFrame;
   const useMacWindowShell = osPlatform === 'macos' && !appSettings?.decorations && !isWindowFullScreen && !isFullScreen;
+  const EditorViewLayout = useRawmakaseLayout() && layoutMode === 'full' ? RawmakaseEditor : EditorView;
+  const isRawmakaseEditor = EditorViewLayout === RawmakaseEditor && activeView === 'editor' && !!selectedImage;
 
   const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const handleDragStart = (e: any) => {
@@ -898,7 +901,7 @@ function App() {
             }}
           >
             <div className="flex flex-row grow h-full min-h-0">
-              {!shouldHideFolderTree && hasMainContent && (
+              {!shouldHideFolderTree && hasMainContent && !isRawmakaseEditor && (
                 <SidePanelArea
                   side="left"
                   width={effectiveLeftWidth}
@@ -926,7 +929,7 @@ function App() {
                   )}
                 >
                   {selectedImage && (
-                    <EditorView
+                    <EditorViewLayout
                       transformWrapperRef={transformWrapperRef}
                       isResizing={isResizing}
                       layoutMode={layoutMode}
@@ -1001,7 +1004,7 @@ function App() {
                   </div>
                 )}
               </div>
-              {!useCompactPanels && hasMainContent && (
+              {!useCompactPanels && hasMainContent && !isRawmakaseEditor && (
                 <SidePanelArea
                   side="right"
                   width={effectiveRightWidth}
