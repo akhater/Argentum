@@ -196,6 +196,26 @@ impl Engine {
         frame.as_ref().filter(|f| f.ticket == ticket).cloned()
     }
 
+    /// Decode a RAW file and give it an edit it had before, read as a saved
+    /// edit is: migrated, clamped, all or nothing. Renders nothing.
+    pub fn open_with(&self, path: impl AsRef<Path>, edit: &EditDocument) -> Result<Opened> {
+        self.insert_with(Source::open(path)?, edit)
+    }
+
+    /// A photo decoded elsewhere, opened with `edit`.
+    pub fn insert_with(&self, source: Source, edit: &EditDocument) -> Result<Opened> {
+        let edit = self.registry.merge(edit, &EditPatch::default())?;
+        let mut opened = self.insert(source);
+        self.state().photo_mut(opened.photo_id)?.edit = edit.clone();
+        opened.edit = edit;
+        Ok(opened)
+    }
+
+    /// A photo's edit, with every patch it has accepted.
+    pub fn edit(&self, photo: PhotoId) -> Result<EditDocument> {
+        Ok(self.state().photo(photo)?.edit.clone())
+    }
+
     /// Let a photo go, handing back its edit. A render already asked for
     /// still reports; then the photo's decoded data and every result kept
     /// for it are freed.
@@ -229,6 +249,11 @@ impl Engine {
     /// The memory results are kept in now, in bytes, as of the last render.
     pub fn cache_bytes(&self) -> usize {
         self.shared.cache_bytes.load(Ordering::SeqCst)
+    }
+
+    /// The bytes an open photo's decoded sensor data holds.
+    pub fn decoded_bytes(&self, photo: PhotoId) -> Result<usize> {
+        Ok(self.state().photo(photo)?.source.bytes())
     }
 
     fn state(&self) -> MutexGuard<'_, State> {

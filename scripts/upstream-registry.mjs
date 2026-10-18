@@ -1657,7 +1657,8 @@ export const REGISTRY = [
     what:
       'The new editor interface (DEC-29), opt-in: `?shell=new` opens src/shell/ instead of their App. '
       + 'Panels are built from the engine\'s tool descriptors; it reaches the engine only through '
-      + 'src/shell/engine/client.ts, today the contract fake. Anything else opens their App as before.',
+      + 'src/shell/engine/client.ts: the real engine inside the app (engine-in-app), the contract fake '
+      + 'in a plain browser. Anything else opens their App as before.',
     ours: ['src/shell/'],
     dependsOn: [
       { file: 'src/main.tsx', how: 'calls',
@@ -1669,7 +1670,8 @@ export const REGISTRY = [
     ],
     tests: [
       'npm run test:shell (src/shell/tests)',
-      'Manual: the app opens as before without ?shell=new; with it, the shell opens on the contract fake.',
+      'Manual: the app opens as before without ?shell=new; with it, the shell opens, on the contract '
+        + 'fake in a plain browser.',
     ],
     keywords: /main\.tsx|createRoot/i,
   },
@@ -1717,6 +1719,41 @@ export const REGISTRY = [
         + 'it was copied from the main checkout, and its SHA-256 is the pinned one.',
     ],
     keywords: /crate.?type|staticlib|cdylib|linker|lld|profile\.dev|debuginfo|build\.rs|onnxruntime/i,
+  },
+  {
+    id: 'engine-in-app',
+    kind: 'feature',
+    what:
+      'The engine inside the app, for the new interface: its calls through the one `ag` command '
+      + '(mods/engine_bridge.rs), its events as one Tauri event, frames as a WebView2 shared buffer '
+      + 'on Windows and raw IPC bytes elsewhere (mods/engine_frame.rs). Opens a RAW from a file '
+      + 'dialog or from the path the app was started with; the filmstrip is that photo\'s folder '
+      + '(mods/shell_photos.rs). Writes nothing: edits stay in memory, .agdata files are never read '
+      + 'or written. Shows the window itself rather than through their frontend_ready, so it rests '
+      + 'on no file of theirs. Their Cargo.toml (identity) gains the engine and webview2-com, both '
+      + 'already built with the app: the engine shares their rawler, wgpu, rayon and serde, '
+      + 'webview2-com is Tauri\'s own.',
+    ours: [
+      'src-tauri/src/mods/engine_bridge.rs',
+      'src-tauri/src/mods/engine_frame.rs',
+      'src-tauri/src/mods/shell_photos.rs',
+      'src/shell/engine/tauri.ts',
+      'src/shell/engine/AppBar.tsx',
+      'scripts/start-shell.mjs',
+    ],
+    dependsOn: [],
+    tests: [
+      'src-tauri/src/mods/engine_bridge.rs #[cfg(test)]: open, apply, view, frame and latest-wins on '
+        + 'a real RAW (AG_RAW); refusals answered as the contract fixtures\' EngineErrors; photos past '
+        + 'the limit let go and reopened with their edits',
+      'src-tauri/src/mods/engine_frame.rs and dispatch.rs: the engine\'s frameBlock fixture as the '
+        + 'block sent, every call\'s arguments as the interface sends them',
+      'src/shell/tests/tauriClient.test.ts: the client\'s calls, the frameBlock fixture read as bytes '
+        + 'and as a shared buffer handed back once, and EngineErrors passed through',
+      'Manual: npm run start:shell opens the new interface; Open picks a RAW, its folder fills the '
+        + 'filmstrip, and the top bar says edits are not saved.',
+    ],
+    keywords: /shared.?buffer|webview2|binary ipc|ipc::response/i,
   },
 ];
 

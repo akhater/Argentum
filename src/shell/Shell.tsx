@@ -6,7 +6,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { connectEngine, type Connection } from './engine/client';
+import { AppBar } from './engine/AppBar';
+import { connectEngine, type AppConnection, type Connection } from './engine/client';
 import { text } from './i18n';
 import { fileName } from './paths';
 import { Filmstrip, StatusLine } from './layout/Filmstrip';
@@ -40,7 +41,7 @@ function shortcuts(store: ShellStore) {
   };
 }
 
-export function ShellView({ store, fake }: { store: ShellStore; fake: boolean }) {
+export function ShellView({ store, fake, app }: { store: ShellStore; fake: boolean; app?: AppConnection }) {
   const name = useShell((s) => (s.path ? fileName(s.path) : ''));
   useEffect(() => {
     void store.getState().init();
@@ -57,6 +58,7 @@ export function ShellView({ store, fake }: { store: ShellStore; fake: boolean })
       <header className="ags-top">
         <span className="ags-brand">{text('shell.brand')}</span>
         <span className="ags-top-name">{name}</span>
+        {app && <AppBar app={app} />}
         {fake && (
           <span className="ags-badge" title={text('shell.fakeEngineHint')}>
             {text('shell.fakeEngine')}
@@ -92,18 +94,37 @@ export function ShellView({ store, fake }: { store: ShellStore; fake: boolean })
 }
 
 function Connected({ connection }: { connection: Connection }) {
-  const [store] = useState(() => createShellStore(connection.client, { photos: connection.photos }));
+  const [store] = useState(() =>
+    createShellStore(connection.client, { photos: connection.photos, folder: connection.app?.library.folder }),
+  );
   return (
     <ShellProvider store={store}>
-      <ShellView store={store} fake={connection.fake} />
+      <ShellView store={store} fake={connection.fake} app={connection.app} />
     </ShellProvider>
   );
 }
 
 export default function Shell() {
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
-    void connectEngine().then(setConnection);
+    let live = true;
+    connectEngine().then(
+      (c) => live && setConnection(c),
+      (e: unknown) => live && setFailure(typeof e === 'object' && e && 'message' in e ? String(e.message) : String(e)),
+    );
+    return () => {
+      live = false;
+    };
   }, []);
-  return connection ? <Connected connection={connection} /> : <div className="ags" />;
+  if (connection) return <Connected connection={connection} />;
+  return (
+    <div className="ags">
+      {failure && (
+        <p className="ags-error" role="alert">
+          {text('shell.notConnected', { message: failure })}
+        </p>
+      )}
+    </div>
+  );
 }
