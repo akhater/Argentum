@@ -7,7 +7,7 @@
 //! the contract and how to add a tool.
 //!
 //! A library of its own: it builds and tests from its folder without
-//! building the app, and the app does not use it yet.
+//! building the app. The app uses it through `src-tauri/src/mods/engine_bridge.rs`.
 
 pub mod contract;
 mod develop;
