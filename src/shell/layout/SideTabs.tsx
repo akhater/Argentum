@@ -4,13 +4,13 @@
 
 import { Plus } from 'lucide-react';
 
-import type { ToolDescriptor } from '../contract';
+import type { SectionDescriptor, ToolDescriptor } from '../contract';
 import { text } from '../i18n';
 import { formatValue } from '../panels/model';
 import { useShell, useShellStore } from '../ShellContext';
 import type { HistoryLabel } from '../store';
 
-function describe(label: HistoryLabel, tools: ToolDescriptor[]): string {
+function describe(label: HistoryLabel, tools: ToolDescriptor[], sections: SectionDescriptor[]): string {
   switch (label.kind) {
     case 'set': {
       const tool = tools.find((t) => t.id === label.toolId);
@@ -26,7 +26,9 @@ function describe(label: HistoryLabel, tools: ToolDescriptor[]): string {
       return text('shell.history.resetTool', { tool: tool ? text(tool.label) : label.toolId });
     }
     case 'resetSection':
-      return text('shell.history.resetSection', { section: text(`sections.${label.section}`) });
+      return text('shell.history.resetSection', {
+        section: text(sections.find((s) => s.id === label.section)?.label ?? label.section),
+      });
     case 'resetAll':
       return text('shell.resetAll');
     case 'preset':
@@ -41,6 +43,7 @@ function HistoryTab() {
   const past = useShell((s) => s.past);
   const future = useShell((s) => s.future);
   const tools = useShell((s) => s.tools);
+  const sections = useShell((s) => s.sections);
   // Oldest first, then what was undone, in the order it would be redone; shown newest at the top.
   const steps = [...past, ...[...future].reverse()];
   return (
@@ -53,7 +56,7 @@ function HistoryTab() {
               className={i === past.length - 1 ? 'is-current' : i >= past.length ? 'is-undone' : ''}
               onClick={() => store.getState().travel(i + 1)}
             >
-              {describe(entry.label, tools)}
+              {describe(entry.label, tools, sections)}
             </button>
           </li>
         ))

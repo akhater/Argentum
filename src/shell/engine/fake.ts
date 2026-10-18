@@ -15,6 +15,7 @@ import type {
   Event,
   PhotoId,
   RenderTicket,
+  SectionDescriptor,
   SettingSpec,
   SettingValue,
   ToolDescriptor,
@@ -22,7 +23,8 @@ import type {
 } from '../contract';
 import type { EngineClient, FramePixels } from './client';
 
-/** The engine's tools, exactly as it describes them. */
+/** The engine's sections and tools, exactly as it describes them. */
+export const FAKE_SECTIONS = fixtures.sections as SectionDescriptor[];
 export const FAKE_TOOLS = fixtures.tools as ToolDescriptor[];
 
 /** Sample paths for the filmstrip. The fake paints a picture from each name. */
@@ -51,6 +53,7 @@ export interface PaintJob {
 export type FakePainter = (job: PaintJob) => Promise<{ pixels: FramePixels; bins: number[] } | null>;
 
 export type FakeCall =
+  | { method: 'sections' }
   | { method: 'tools' }
   | { method: 'open'; path: string }
   | { method: 'apply'; photo: PhotoId; patch: EditPatch; ticket: RenderTicket }
@@ -132,8 +135,8 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
       if (painted === null || t !== ticket) return;
       const size = painted ? { width: painted.pixels.width, height: painted.pixels.height } : view;
       latest = { ticket: t, pixels: painted?.pixels ?? null, size };
-      emit({ event: 'frame', ticket: t, width: size.width, height: size.height });
-      emit({ event: 'histogram', ticket: t, bins: painted?.bins ?? new Array(256).fill(0) });
+      emit({ event: 'frame', ticket: t, photoId: id, width: size.width, height: size.height });
+      emit({ event: 'histogram', ticket: t, photoId: id, bins: painted?.bins ?? new Array(256).fill(0) });
     } catch (e) {
       emit({ event: 'error', ticket: t, message: String(e) });
     }
@@ -143,6 +146,12 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
     calls,
     emit,
     editOf: (id) => photos.get(id)?.edit,
+
+    async sections() {
+      calls.push({ method: 'sections' });
+      await later();
+      return structuredClone(FAKE_SECTIONS);
+    },
 
     async tools() {
       calls.push({ method: 'tools' });

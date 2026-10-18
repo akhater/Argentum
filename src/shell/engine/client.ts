@@ -2,7 +2,16 @@
 // own (src-tauri/engine/src/engine.rs) and every type is the generated
 // contract's, so the real engine and the contract fake are interchangeable.
 
-import type { EditPatch, Event, Opened, PhotoId, RenderTicket, ToolDescriptor, View } from '../contract';
+import type {
+  EditPatch,
+  Event,
+  Opened,
+  PhotoId,
+  RenderTicket,
+  SectionDescriptor,
+  ToolDescriptor,
+  View,
+} from '../contract';
 
 /** One rendered view: sRGB, 8 bits per channel, RGBA, row-major. */
 export interface FramePixels {
@@ -12,6 +21,8 @@ export interface FramePixels {
 }
 
 export interface EngineClient {
+  /** The panels' sections, in the order they are shown. */
+  sections(): Promise<SectionDescriptor[]>;
   tools(): Promise<ToolDescriptor[]>;
   open(path: string): Promise<Opened>;
   /** Refused as a whole for an unknown tool or setting, or a value of the wrong type. */

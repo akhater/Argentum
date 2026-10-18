@@ -12,7 +12,8 @@ import { openShell, settle } from './helpers';
 const tools = fixtures.tools as ToolDescriptor[];
 
 describe('the contract fixtures', () => {
-  it('are the tools the fake describes', async () => {
+  it('are the sections and tools the fake describes', async () => {
+    expect(await createFakeEngine().sections()).toEqual(fixtures.sections);
     expect(await createFakeEngine().tools()).toEqual(tools);
   });
 
@@ -50,7 +51,8 @@ describe('the contract fixtures', () => {
     const [frame, histogram, error] = fixtures.events as Event[];
     expect(frame.event).toBe('frame');
     const ticket = store.getState().latestTicket;
-    store.getState().receive({ ...(histogram as Extract<Event, { event: 'histogram' }>), ticket: ticket + 1 });
+    const photoId = store.getState().photo!.id;
+    store.getState().receive({ ...(histogram as Extract<Event, { event: 'histogram' }>), ticket: ticket + 1, photoId });
     expect(store.getState().histogram).toHaveLength(256);
     store.getState().receive(error);
     expect(store.getState().error).toBe('no GPU: no adapter');

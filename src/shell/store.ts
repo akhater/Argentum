@@ -15,6 +15,7 @@ import type {
   Event,
   PhotoId,
   RenderTicket,
+  SectionDescriptor,
   SettingValue,
   ToolDescriptor,
   View,
@@ -64,6 +65,8 @@ export interface ShownFrame {
 }
 
 export interface ShellState {
+  /** The panels' sections, in the engine's order. */
+  sections: SectionDescriptor[];
   tools: ToolDescriptor[];
   photos: string[];
   path: string | null;
@@ -170,8 +173,6 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
   let latestIsFit = true;
   // The newest view asked for: what every frame from now on is a picture of.
   let lastView: View | null = null;
-  // Tickets below this are from before the photo was opened.
-  let floor = 0;
   // The edit as the engine has accepted it, and the patches it has not answered yet.
   let confirmed = emptyDocument();
   let pending: { seq: number; patch: EditPatch; entry?: number }[] = [];
@@ -248,6 +249,7 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     };
 
     return {
+      sections: [],
       tools: [],
       photos: options.photos ?? [],
       path: null,
@@ -273,7 +275,8 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
         unsubscribe ??= client.subscribe((event) => get().receive(event));
         started ??= (async () => {
           try {
-            set({ tools: await client.tools() });
+            const [sections, tools] = await Promise.all([client.sections(), client.tools()]);
+            set({ sections, tools });
             const first = get().photos[0];
             if (first) await get().openPhoto(first);
           } catch (e) {
@@ -292,7 +295,6 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
         try {
           const opened = await client.open(path);
           const s = get();
-          floor = s.latestTicket + 1;
           confirmed = opened.edit;
           pending = [];
           release(s.frame, []);
@@ -459,8 +461,8 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
           set({ error: event.message });
           return;
         }
-        // Latest wins: anything for an older request than one already seen is dropped.
-        if (!s.photo || event.ticket < floor || event.ticket < s.latestTicket) return;
+        // Only the photo shown, and latest wins: anything for an older request than one seen is dropped.
+        if (!s.photo || event.photoId !== s.photo.id || event.ticket < s.latestTicket) return;
         if (event.event === 'histogram') {
           set({ latestTicket: event.ticket, histogram: event.bins });
           return;

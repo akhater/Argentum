@@ -10,12 +10,13 @@ import { valueOf } from '../edit';
 import { text } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
 import '../widgets';
-import { advancedSettings, buildSections, mainSettings, type PanelSection } from './model';
+import { advancedSettings, buildSections, isEnabled, mainSettings, type PanelSection } from './model';
 import { widgetFor } from './registry';
 
 function SettingRow({ tool, spec }: { tool: ToolDescriptor; spec: SettingSpec }) {
   const store = useShellStore();
   const value = useShell((s) => valueOf(s.doc, tool.id, spec));
+  const enabled = useShell((s) => isEnabled(s.doc, tool, spec));
   const label = text(spec.label);
   const Widget = widgetFor(spec.kind);
   if (!Widget) {
@@ -32,6 +33,7 @@ function SettingRow({ tool, spec }: { tool: ToolDescriptor; spec: SettingSpec })
         spec={spec}
         label={label}
         value={value}
+        disabled={!enabled}
         onChange={(v, live) => store.getState().setSetting(tool.id, spec.key, v, { gesture: live })}
         onDone={() => store.getState().endGesture()}
       />
@@ -81,7 +83,7 @@ function ToolPanel({ tool }: { tool: ToolDescriptor }) {
 function Section({ section }: { section: PanelSection }) {
   const store = useShellStore();
   const collapsed = useShell((s) => s.collapsed[section.id] === true);
-  const title = text(`sections.${section.id}`);
+  const title = text(section.label);
   return (
     <section className="ags-section" data-section={section.id}>
       <div className="ags-section-head">
@@ -112,8 +114,9 @@ function Section({ section }: { section: PanelSection }) {
 }
 
 export function PanelStack() {
+  const listed = useShell((s) => s.sections);
   const tools = useShell((s) => s.tools);
-  const sections = useMemo(() => buildSections(tools), [tools]);
+  const sections = useMemo(() => buildSections(listed, tools), [listed, tools]);
   return (
     <div className="ags-stack">
       {sections.map((section) => (

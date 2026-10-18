@@ -565,3 +565,12 @@
   color: var(--ags-secondary);
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
 }
+
+/* A setting whose enabledWhen does not hold */
+.ags-row.is-disabled {
+  opacity: 0.4;
+}
+.ags-row.is-disabled .ags-rail,
+.ags-row.is-disabled .ags-row-label {
+  cursor: default;
+}

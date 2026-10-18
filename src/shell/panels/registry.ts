@@ -11,6 +11,8 @@ export interface WidgetProps {
   /** Already translated. */
   label: string;
   value: SettingValue;
+  /** The setting's `enabledWhen` does not hold: shown, but not editable. */
+  disabled?: boolean;
   /** A new value. `live` while a drag is under way: its ticks are one undo step. */
   onChange(value: SettingValue, live?: boolean): void;
   /** The drag that sent `live` changes is over. */

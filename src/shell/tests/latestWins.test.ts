@@ -1,11 +1,23 @@
-// Renders are latest-wins: nothing for an older ticket is ever shown.
+// Renders are latest-wins, and only of the photo shown: nothing for an older
+// ticket or another photo is ever shown.
 
 import { describe, expect, it } from 'vitest';
 
 import type { EngineClient } from '../engine/client';
-import { createFakeEngine } from '../engine/fake';
+import { createFakeEngine, type FakeEngine } from '../engine/fake';
 import { createShellStore } from '../store';
 import { openShell, settle } from './helpers';
+
+/** Record which tickets the store asks pixels for. */
+function watchFetches(engine: FakeEngine) {
+  const fetched: number[] = [];
+  const frame = engine.frame.bind(engine);
+  engine.frame = (t) => {
+    fetched.push(t);
+    return frame(t);
+  };
+  return fetched;
+}
 
 describe('latest wins', () => {
   it('shows the frame of the newest request after a burst of them', async () => {
@@ -19,17 +31,13 @@ describe('latest wins', () => {
 
   it('ignores a frame and a histogram older than one already seen, without fetching its pixels', async () => {
     const { engine, store } = await openShell();
-    const fetched: number[] = [];
     const s = store.getState;
+    const fetched = watchFetches(engine);
     const shown = s().frame!.ticket;
     const bins = s().histogram;
-    const frame = engine.frame.bind(engine);
-    engine.frame = (t) => {
-      fetched.push(t);
-      return frame(t);
-    };
-    s().receive({ event: 'frame', ticket: shown - 1, width: 800, height: 600 });
-    s().receive({ event: 'histogram', ticket: shown - 1, bins: new Array(256).fill(9) });
+    const photoId = s().photo!.id;
+    s().receive({ event: 'frame', ticket: shown - 1, photoId, width: 800, height: 600 });
+    s().receive({ event: 'histogram', ticket: shown - 1, photoId, bins: new Array(256).fill(9) });
     await settle();
     expect(s().frame!.ticket).toBe(shown);
     expect(s().histogram).toBe(bins);
@@ -46,8 +54,9 @@ describe('latest wins', () => {
     };
     const store = createShellStore(slow, { photos: ['samples/A.CR3'] });
     await store.getState().init();
-    store.getState().receive({ event: 'frame', ticket: 5, width: 8, height: 8 });
-    store.getState().receive({ event: 'frame', ticket: 6, width: 8, height: 8 });
+    const photoId = store.getState().photo!.id;
+    store.getState().receive({ event: 'frame', ticket: 5, photoId, width: 8, height: 8 });
+    store.getState().receive({ event: 'frame', ticket: 6, photoId, width: 8, height: 8 });
     waiting.get(5)!();
     await settle();
     expect(store.getState().frame).toBeNull();
@@ -55,14 +64,37 @@ describe('latest wins', () => {
     await settle();
     expect(store.getState().frame?.ticket).toBe(6);
   });
+});
+
+describe('only the photo shown', () => {
+  it('drops a frame and a histogram of another photo, however new their ticket', async () => {
+    const { engine, store } = await openShell();
+    const s = store.getState;
+    const fetched = watchFetches(engine);
+    const shown = s().frame!.ticket;
+    const bins = s().histogram;
+    const other = s().photo!.id + 1;
+    s().receive({ event: 'frame', ticket: shown + 10, photoId: other, width: 800, height: 600 });
+    s().receive({ event: 'histogram', ticket: shown + 10, photoId: other, bins: new Array(256).fill(9) });
+    await settle();
+    expect(s().frame!.ticket).toBe(shown);
+    expect(s().histogram).toBe(bins);
+    expect(s().latestTicket).toBe(shown);
+    expect(fetched).toEqual([]);
+  });
 
   it('does not show a late frame of the last photo on the next one', async () => {
-    const { store } = await openShell();
+    const { engine, store } = await openShell();
     const s = store.getState;
-    const old = s().latestTicket;
+    const before = s().photo!.id;
     await s().openPhoto('samples/B.CR3');
-    s().receive({ event: 'frame', ticket: old, width: 800, height: 600 });
     await settle();
-    expect(s().frame === null || s().frame!.ticket > old).toBe(true);
+    const fetched = watchFetches(engine);
+    const shown = s().frame!.ticket;
+    s().receive({ event: 'frame', ticket: shown + 1, photoId: before, width: 800, height: 600 });
+    await settle();
+    expect(s().photo!.id).not.toBe(before);
+    expect(s().frame!.ticket).toBe(shown);
+    expect(fetched).toEqual([]);
   });
 });
