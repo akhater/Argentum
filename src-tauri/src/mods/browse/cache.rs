@@ -146,6 +146,7 @@ impl MemoryCache {
         held.by_path.insert(key.path.clone(), (key, jpeg, tick));
     }
 
+    #[cfg(test)]
     pub fn bytes(&self) -> usize {
         lock(&self.held).bytes
     }
@@ -291,6 +292,7 @@ impl DiskCache {
         }
     }
 
+    #[cfg(test)]
     pub fn bytes(&self) -> u64 {
         self.index().as_ref().map_or(0, |i| i.bytes)
     }

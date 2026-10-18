@@ -117,8 +117,8 @@ screen first and then a few rows ahead; each call replaces the one before,
 so scrolling or changing folder never waits behind thumbnails no longer
 wanted. A `thumb` event says one is ready and `thumb(path)` fetches its
 bytes. The app makes them from the JPEG the camera embeds in the RAW, never
-by developing it, and keeps them in memory and on disk
-(`src-tauri/src/mods/browse/`). Edit's filmstrip is the folder browsed.
+by developing it (Shoebox's reader, copied), and keeps them in memory and on
+disk (`src-tauri/src/mods/browse/`). Edit's filmstrip is the folder browsed.
 
 ## Contract gaps still open
 

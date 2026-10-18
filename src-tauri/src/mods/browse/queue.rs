@@ -61,6 +61,7 @@ impl Queue {
         self.state().waiting.is_empty()
     }
 
+    #[cfg(test)]
     pub fn waiting(&self) -> Vec<PathBuf> {
         self.state().waiting.iter().cloned().collect()
     }

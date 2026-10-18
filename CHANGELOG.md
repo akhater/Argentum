@@ -62,13 +62,12 @@ Newest first.
   1/2 to 1/8 scale, never developing the RAW; they are kept in memory
   (64 MB) and on disk (512 MB). Its types are generated to
   `src/shell/browse/browse.generated.ts` (ts-rs, in a test). Copied from
-  RapidRAW v1.6.5 @ `79c2a46b`: `largest_tiff_jpeg_preview`
-  (`src-tauri/src/image_loader.rs`), returning every candidate rather than
-  decoding the largest, and `extract_embedded_preview`
-  (`src-tauri/src/raw_processing.rs`) as the fallback. The CR3 preview box
-  and orientation are read after Laurent Clévy's description of the format
-  (github.com/lclevy/canon_cr3). New dependency: `jpeg-decoder` (no
-  dependencies of its own), for the scaled decode.
+  Shoebox @ `4ae3a3a`: `src-tauri/src/embedded.rs` whole (the embedded-JPEG
+  finder for TIFF-based RAWs, CR3 and RAF, and its scaled decode), from
+  `imaging.rs` the order it tries previews in, rawler's orientation and the
+  turn, and from `volumes.rs` the list of disks. New dependency:
+  `jpeg-decoder` (no dependencies of its own), for the scaled decode, as
+  Shoebox uses it.
 
 ## 26.41.12 — 2026-10-11
 

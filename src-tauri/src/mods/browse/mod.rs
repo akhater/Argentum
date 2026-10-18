@@ -26,11 +26,13 @@
 mod budgets;
 pub mod cache;
 pub mod contract;
-pub mod embedded;
 pub mod listing;
 pub mod places;
 pub mod queue;
 pub mod remembered;
+pub mod sb_embedded;
+#[cfg(windows)]
+pub mod sb_volumes;
 pub mod thumbnail;
 pub mod thumbnails;
 

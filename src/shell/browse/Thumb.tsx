@@ -11,7 +11,8 @@ const extensionOf = (path: string) => path.split('.').pop()?.toUpperCase() ?? ''
 export function Thumb({ path }: { path: string }) {
   const url = useShell((s) => s.thumbUrl(path));
   const failed = useShell((s) => s.thumbFailed(path));
-  if (url) return <img className="agb-thumb" src={url} alt="" draggable={false} decoding="async" />;
+  // decoding and loading as RapidRAW's library grid sets them (LibraryItems.tsx @ c4ba9ac9).
+  if (url) return <img className="agb-thumb" src={url} alt="" draggable={false} decoding="async" loading="lazy" />;
   return (
     <span className="agb-thumb is-empty" title={failed ? text('browse.noThumb') : undefined}>
       {failed ? <ImageOff size={18} /> : extensionOf(path)}

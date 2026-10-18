@@ -94,10 +94,12 @@ impl Thumbnails {
         Ok(jpeg)
     }
 
+    #[cfg(test)]
     pub fn memory_bytes(&self) -> usize {
         self.memory.bytes()
     }
 
+    #[cfg(test)]
     pub fn disk_bytes(&self) -> u64 {
         self.disk.as_ref().map_or(0, DiskCache::bytes)
     }
@@ -107,7 +109,7 @@ impl Thumbnails {
 mod tests {
     use super::*;
     use crate::mods::browse::contract::BrowseErrorKind;
-    use crate::mods::browse::embedded::tests::{jpeg, tiff_with};
+    use crate::mods::browse::thumbnail::tests::{jpeg, tiff_with};
     use std::sync::Mutex;
     use std::sync::mpsc;
 

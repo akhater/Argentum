@@ -10,6 +10,7 @@ import { Grid, useGridRef, type CellComponentProps } from 'react-window';
 import { text } from '../i18n';
 import { samePath } from '../paths';
 import { useShell, useShellStore } from '../ShellContext';
+import { clamp } from '../view';
 import { THUMB_PX, type Photo } from './browse.generated';
 import { Thumb } from './Thumb';
 
@@ -100,7 +101,7 @@ export function PhotoGrid() {
       void store.getState().edit(photos[at].path);
     } else if (step !== undefined && photos.length > 0) {
       e.preventDefault();
-      const next = Math.min(photos.length - 1, Math.max(0, at < 0 ? 0 : at + step));
+      const next = clamp(at < 0 ? 0 : at + step, 0, photos.length - 1);
       store.getState().select(photos[next].path);
       grid.current?.scrollToCell({ rowIndex: Math.floor(next / columns), columnIndex: next % columns });
     }

@@ -1351,12 +1351,12 @@ const restore165 = [
   review165('b4a9d1a3', 'restore', 'not-applicable', 'Hides chromatic aberration and calibration by default. Their chromatic aberration is the lens-correction TCA slider: it moves colour channels, it does not undo blur. Nothing upstream corrects lens softness.', 'feature'),
 ];
 
-// Browse, registered after the merge: the thumbnail commits in this range are
-// where the code it copies came from, and the one touching its dependency
-// leaves that function alone.
+// Browse, registered after the merge: the thumbnail commits in this range
+// improve their own thumbnails, which Browse does not use, and the one
+// touching its dependency leaves that function alone.
 const browse165 = [
-  review165('4e45e620', 'browse', 'not-applicable', 'Adds extract_embedded_preview, rawler\'s embedded preview for RAWs kamadak-exif cannot read. Browse copied it from v1.6.5, after this commit, as its fallback (rr_full_image); it reads CR3 and RAF previews itself first and takes orientation from the container, not from rawler, which copies the whole file into memory.', 'feature'),
-  review165('43248097', 'browse', 'not-applicable', 'Routes their thumbnail fallback through safe_embedded_preview_fallback. Browse copied largest_tiff_jpeg_preview as it stands after this commit; its thumbnails do not go through their loader.', 'feature'),
+  review165('4e45e620', 'browse', 'not-applicable', 'Adds extract_embedded_preview, rawler\'s embedded preview for RAWs kamadak-exif cannot read. Browse takes its embedded previews from Shoebox\'s reader (sb_embedded.rs), which reads CR3 and RAF itself, with rawler\'s full_image as its fallback; none of their thumbnail code runs for it.', 'feature'),
+  review165('43248097', 'browse', 'not-applicable', 'Routes their thumbnail fallback through safe_embedded_preview_fallback. Browse\'s thumbnails do not go through their loader.', 'feature'),
   review165('b191ae05', 'browse', 'not-applicable', 'The merge of 4e45e620 and 43248097 (RAF embedded thumbnails), read above.', 'feature'),
   review165('aff9b3f2', 'browse', 'not-applicable', 'Their culling view uses the medium thumbnail, and canvas polish. Their library, not Browse.', 'feature'),
   review165('c11c7a5c', 'browse:src-tauri/src/exif_processing.rs#get_primary_sidecar_path', 'not-applicable', 'Reads a Nikon lens from the maker note; get_primary_sidecar_path is not touched, so where a sidecar is looked for does not change.'),
