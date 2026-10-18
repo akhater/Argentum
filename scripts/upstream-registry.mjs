@@ -71,6 +71,9 @@ export const OURS = [
   // Ours by adoption - it now carries both rule sets, and upstream changes to
   // it are additive lines we simply keep.
   '.gitignore',
+  // Ours by creation: upstream has no such file (keeps tauri dev off the
+  // engine crate's own build output).
+  'src-tauri/.taurignore',
   // Ours by creation: upstream has no such workflow. Their three are still
   // theirs, and what we removed from each is claimed in the registry.
   '.github/workflows/upstream.yml',
@@ -135,6 +138,10 @@ export const INTERFACE = [
   'src/components/adjustments/',
   // The editor and library layouts.
   'src/components/views/',
+  // The interface's own text: labels change with the panels they belong to.
+  'src/i18n/locales/',
+  // The interface's dev server.
+  'vite.config.mjs',
 ];
 
 export const isInterface = (file) => INTERFACE.some((p) => (p.endsWith('/') ? file.startsWith(p) : file === p));
