@@ -7,8 +7,17 @@ import { describe, expect, it } from 'vitest';
 
 import fixtures from '../contract.fixtures.json';
 import type { EditPatch, Event, ToolDescriptor } from '../contract';
-import { showFolderOf } from '../engine/AppBar';
-import { connectApp, createTauriEngine, ENGINE_EVENT, readFrame, type Transport } from '../engine/tauri';
+import {
+  connectApp,
+  createTauriEngine,
+  ENGINE_EVENT,
+  pageSharedBuffers,
+  readFrame,
+  REPLACED,
+  type SharedBufferEvent,
+  type Transport,
+  type WebView2,
+} from '../engine/tauri';
 import wire from '../engine/wire.fixtures.json';
 import { createShellStore } from '../store';
 import { settle } from './helpers';
@@ -24,15 +33,35 @@ function block(ticket: number, width: number, height: number): ArrayBuffer {
 }
 
 /**
+ * WebView2's side of shared buffers, as strict as the real one: handing a
+ * buffer back twice throws, as `releaseBuffer` does on a detached buffer.
+ */
+function webView2() {
+  const listeners = new Set<(e: SharedBufferEvent) => void>();
+  const released = new Set<ArrayBuffer>();
+  const webview: WebView2 = {
+    addEventListener: (_type, l) => listeners.add(l),
+    removeEventListener: (_type, l) => listeners.delete(l),
+    releaseBuffer(buffer) {
+      if (released.has(buffer)) throw new TypeError('Could not transfer ArrayBuffer.');
+      released.add(buffer);
+    },
+  };
+  const post = (buffer: ArrayBuffer, ticket: number) =>
+    listeners.forEach((l) => l({ getBuffer: () => buffer, additionalData: { agFrame: ticket } }));
+  return { webview, post, released, listening: () => listeners.size };
+}
+
+/**
  * The app as the client sees it: answers from the fixtures, every call
- * recorded. With `shared`, frames come as shared buffers, as on Windows.
+ * recorded. With `shared`, frames come as shared buffers, as on Windows,
+ * through the page's real shared-buffer listener.
  */
 function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } = {}) {
   const calls: [string, Record<string, unknown>][] = [];
   const listeners = new Map<string, ((payload: unknown) => void)[]>();
-  const sharedHandlers: ((buffer: ArrayBuffer, release: () => void) => void)[] = [];
-  const released: ArrayBuffer[] = [];
   const unlistened: string[] = [];
+  const page = webView2();
   let ticket = 0;
   let lastFrame: { ticket: number; width: number; height: number } | null = null;
 
@@ -42,7 +71,9 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
       if (options.refuse && name.startsWith('engine_')) throw options.refuse;
       const answer = (() => {
         switch (name) {
-          case 'shell_ready':
+          case 'shell_show_window':
+            return null;
+          case 'shell_launch_photo':
             return PATH;
           case 'engine_sections':
             return fixtures.sections;
@@ -58,7 +89,8 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
             if (!lastFrame || lastFrame.ticket !== args.ticket) return null;
             const b = block(lastFrame.ticket, lastFrame.width, lastFrame.height);
             if (!options.shared) return b;
-            for (const h of sharedHandlers) h(b, () => released.push(b));
+            // The buffer can arrive before the answer.
+            page.post(b, lastFrame.ticket);
             return 'shared';
           }
           case 'shell_folder':
@@ -82,10 +114,7 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
         );
       };
     },
-    sharedBuffers(handler) {
-      sharedHandlers.push(handler);
-      return () => sharedHandlers.splice(sharedHandlers.indexOf(handler), 1);
-    },
+    sharedBuffers: pageSharedBuffers(() => page.webview),
   };
 
   /** Send an event as the app does, and keep a frame's size for its block. */
@@ -95,7 +124,7 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
     for (const h of listeners.get(event) ?? []) h(payload);
   };
   const listening = (event: string) => listeners.get(event)?.length ?? 0;
-  return { transport, calls, emit, released, unlistened, listening };
+  return { transport, calls, emit, page, unlistened, listening };
 }
 
 describe('the real client', () => {
@@ -118,13 +147,14 @@ describe('the real client', () => {
     expect(calls.map(([name]) => name)).toEqual(Object.keys(wire.calls));
   });
 
-  it('reads a frame from the block the app sends', () => {
+  it('reads a frame from the block the app sends, as a view of it', () => {
     const { ticket, width, height, bytes } = wire.frame;
     const buffer = new Uint8Array(bytes).buffer;
     const read = readFrame(buffer)!;
     expect(read.ticket).toBe(ticket);
     expect([read.pixels.width, read.pixels.height]).toEqual([width, height]);
     expect(Array.from(read.pixels.data)).toEqual(bytes.slice(12));
+    expect(read.pixels.data.buffer).toBe(buffer);
     expect(readFrame(new ArrayBuffer(0))).toBeNull();
     // Cut short: a broken answer, not a picture.
     expect(() => readFrame(buffer.slice(0, 20))).toThrow();
@@ -132,20 +162,75 @@ describe('the real client', () => {
   });
 
   for (const shared of [false, true]) {
-    it(`fetches a frame's pixels ${shared ? 'from a shared buffer, handed back at once' : 'as bytes'}`, async () => {
-      const { transport, emit, released } = app({ shared });
+    it(`fetches a frame's pixels ${shared ? 'on a shared buffer, handed back once on release' : 'as bytes'}`, async () => {
+      const { transport, emit, page } = app({ shared });
       const client = createTauriEngine(transport);
       const ticket = await client.view(1, fixtures.view);
       emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: 1, width: 4, height: 3 });
-      const pixels = await client.frame(ticket);
+      const pixels = (await client.frame(ticket))!;
       expect(pixels).toMatchObject({ width: 4, height: 3 });
-      expect(pixels!.data).toHaveLength(4 * 3 * 4);
-      expect(pixels!.data[0]).toBe(128);
-      expect(released).toHaveLength(shared ? 1 : 0);
+      expect(pixels.data).toHaveLength(4 * 3 * 4);
+      expect(pixels.data[0]).toBe(128);
+      // Not handed back until the pixels are done with, then exactly once.
+      expect(page.released.size).toBe(0);
+      pixels.release?.();
+      pixels.release?.();
+      expect(page.released.size).toBe(shared ? 1 : 0);
       // Replaced by a newer one: nothing.
       expect(await client.frame(ticket - 1)).toBeNull();
     });
   }
+
+  it('hands back at once a shared buffer nobody asked for, whatever the clients on the page', () => {
+    const { transport, page } = app({ shared: true });
+    // Two clients, as React's strict mode makes in development.
+    createTauriEngine(transport);
+    createTauriEngine(transport);
+    expect(page.listening()).toBe(1);
+    const stray = block(9, 2, 2);
+    page.post(stray, 9);
+    expect(page.released).toEqual(new Set([stray]));
+    // A broken block is handed back too.
+    const broken = new ArrayBuffer(5);
+    page.post(broken, 10);
+    expect(page.released.has(broken)).toBe(true);
+  });
+
+  it('gives a shared buffer to the client that asked for it, and only that one', async () => {
+    const { transport, emit, page } = app({ shared: true });
+    const idle = createTauriEngine(transport);
+    const asking = createTauriEngine(transport);
+    void idle;
+    const ticket = await asking.view(1, fixtures.view);
+    emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: 1, width: 2, height: 2 });
+    const pixels = (await asking.frame(ticket))!;
+    expect(page.released.size).toBe(0);
+    pixels.release?.();
+    expect(page.released.size).toBe(1);
+  });
+
+  it('the store hands a shared frame back once it is decoded, and builds no copy of it', async () => {
+    const { transport, emit, page } = app({ shared: true });
+    const client = createTauriEngine(transport);
+    const decoded: Uint8ClampedArray[] = [];
+    const store = createShellStore(client, {
+      photos: [PATH],
+      decode: async (p) => {
+        decoded.push(p.data);
+        expect(page.released.size).toBe(0);
+        return null;
+      },
+    });
+    await store.getState().init();
+    store.getState().setViewSize({ width_px: 800, height_px: 600 });
+    await settle();
+    const ticket = store.getState().latestTicket;
+    emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: fixtures.opened.photoId, width: 4, height: 4 });
+    await settle();
+    expect(decoded).toHaveLength(1);
+    expect(page.released.size).toBe(1);
+    expect(page.released.has(decoded[0].buffer as ArrayBuffer)).toBe(true);
+  });
 
   it('rejects a refused call with the EngineError the app sends, as it is', async () => {
     for (const { patch, error } of fixtures.refused) {
@@ -163,13 +248,13 @@ describe('the real client', () => {
     client.onTickMs((ms) => ticks.push(ms));
     const { ticket } = await client.apply(1, fixtures.patch);
     emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: 1, width: 2, height: 2 });
-    await client.frame(ticket);
+    (await client.frame(ticket))?.release?.();
     expect(ticks).toHaveLength(1);
     expect(ticks[0]).toBeGreaterThanOrEqual(0);
   });
 
-  it('answers opens in the order they were asked, whichever decodes first', async () => {
-    const { transport } = app();
+  it('opens in the order asked, and skips one a newer open replaced before its turn', async () => {
+    const { transport, calls } = app();
     const waiting: (() => void)[] = [];
     const slow: Transport = {
       ...transport,
@@ -181,15 +266,33 @@ describe('the real client', () => {
     const client = createTauriEngine(slow);
     const order: string[] = [];
     const a = client.open('A.CR3').then(() => order.push('A'));
-    const b = client.open('B.CR3').then(() => order.push('B'));
     await settle();
-    // B is not even asked for until A is answered.
+    // A is under way; B and C wait their turn behind it.
+    const b = client.open('B.CR3').then(
+      () => order.push('B'),
+      (e) => order.push(e === REPLACED ? 'B replaced' : 'B failed'),
+    );
+    const c = client.open('C.CR3').then(() => order.push('C'));
+    await settle();
     expect(waiting).toHaveLength(1);
     waiting[0]();
     await settle();
+    // B was replaced by C before its turn, and never sent.
+    expect(waiting).toHaveLength(2);
     waiting[1]();
-    await Promise.all([a, b]);
-    expect(order).toEqual(['A', 'B']);
+    await Promise.all([a, b, c]);
+    expect(order).toEqual(['A', 'B replaced', 'C']);
+    expect(calls.filter(([n]) => n === 'engine_open').map(([, x]) => x.path)).toEqual(['A.CR3', 'C.CR3']);
+  });
+
+  it('takes an open the app gave way to as replaced', async () => {
+    const { transport } = app();
+    const gaveWay: Transport = {
+      ...transport,
+      ag: <T>(name: string, args?: Record<string, unknown>) =>
+        name === 'engine_open' ? Promise.resolve(null as T) : transport.ag<T>(name, args),
+    };
+    await expect(createTauriEngine(gaveWay).open(PATH)).rejects.toBe(REPLACED);
   });
 
   it('hands on the engine events in the shapes the engine sends them, until unsubscribed', async () => {
@@ -224,10 +327,13 @@ describe('the shell on the real client', () => {
     const connection = await connectApp(transport);
     expect(connection.fake).toBe(false);
     expect(connection.app?.first).toBe(PATH);
-    const store = createShellStore(connection.client, { decode: async () => null });
+    const store = createShellStore(connection.client, {
+      folder: connection.app!.library.folder,
+      decode: async () => null,
+    });
     await store.getState().init();
     store.getState().setViewSize({ width_px: 800, height_px: 600 });
-    await showFolderOf(store, connection.app!.library, connection.app!.first!);
+    await store.getState().openFolder(connection.app!.first!);
     await settle();
     const s = store.getState;
     expect(s().photos).toEqual(folder);
@@ -240,5 +346,33 @@ describe('the shell on the real client', () => {
     emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: s().photo!.photoId, width: 40, height: 30 });
     await settle();
     expect(s().frame).toMatchObject({ ticket, size_px: { width_px: 40, height_px: 30 } });
+  });
+
+  it('shows the photo opened last, and no error for one replaced on the way', async () => {
+    const { transport } = app();
+    const waiting = new Map<string, () => void>();
+    const slow: Transport = {
+      ...transport,
+      ag: <T>(name: string, args?: Record<string, unknown>) =>
+        name === 'engine_open'
+          ? new Promise<T>((resolve) =>
+              waiting.set(String(args?.path), () => void transport.ag<T>(name, args).then(resolve)),
+            )
+          : transport.ag<T>(name, args),
+    };
+    const store = createShellStore(createTauriEngine(slow), { decode: async () => null });
+    await store.getState().init();
+    const a = store.getState().openPhoto('A.CR3');
+    await settle();
+    const b = store.getState().openPhoto('B.CR3');
+    const c = store.getState().openPhoto('C.CR3');
+    await settle();
+    expect([...waiting.keys()]).toEqual(['A.CR3']);
+    waiting.get('A.CR3')!();
+    await settle();
+    waiting.get('C.CR3')!();
+    await Promise.all([a, b, c]);
+    expect(store.getState().path).toBe('C.CR3');
+    expect(store.getState().error).toBeNull();
   });
 });

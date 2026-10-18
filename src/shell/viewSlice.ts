@@ -132,8 +132,14 @@ export const createViewSlice =
       if (ticket < get().latestTicket) return;
       set({ latestTicket: ticket });
       const pixels = await client.frame(ticket);
-      if (!pixels || get().latestTicket !== ticket) return;
-      const image = await decode(pixels);
+      if (!pixels) return;
+      let image: ImageBitmap | null;
+      try {
+        if (get().latestTicket !== ticket) return;
+        image = await decode(pixels);
+      } finally {
+        pixels.release?.();
+      }
       const s = get();
       const request = s.requests.get(ticket) ?? s.requested;
       if (s.latestTicket !== ticket || !request) {

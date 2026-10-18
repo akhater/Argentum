@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rawler::decoders::RawDecodeParams;
-use rawler::rawimage::RawImage;
+use rawler::rawimage::{RawImage, RawImageData};
 use rawler::rawsource::RawSource;
 use serde_json::Value;
 
@@ -61,6 +61,14 @@ impl Source {
     /// The developed picture's width and height, without developing it.
     pub fn size(&self) -> (usize, usize) {
         develop::developed_size(&self.raw)
+    }
+
+    /// The decoded sensor data's size in memory, in bytes.
+    pub fn bytes(&self) -> usize {
+        match &self.raw.data {
+            RawImageData::Integer(v) => std::mem::size_of_val(v.as_slice()),
+            RawImageData::Float(v) => std::mem::size_of_val(v.as_slice()),
+        }
     }
 }
 

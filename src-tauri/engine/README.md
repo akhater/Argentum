@@ -59,13 +59,14 @@ The calls, which the app makes into Tauri commands (`src/engine.rs`):
 | `view(photoId, View { zoom, centerX, centerY, width, height })` | a `RenderTicket`, at once |
 | `frame(ticket)` | the frame's sRGB RGBA pixels, while it is the latest |
 
-And three the interface does not call: the app uses them to keep only a few
+And four the interface does not call: the app uses them to keep only a few
 photos' decoded data in memory.
 
 | Call | Returns |
 |---|---|
 | `edit(photoId)` | the photo's edit, every accepted patch in it |
 | `close(photoId)` | its edit; the decoded data goes once no render uses it |
+| `decoded_bytes(photoId)` | the bytes its decoded sensor data holds |
 | `open_with(path, EditDocument)` | as `open`, with that edit read as a saved one is |
 
 Renders happen on a thread of their own and are latest-wins: a newer ticket

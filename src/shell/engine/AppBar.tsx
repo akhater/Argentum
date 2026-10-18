@@ -7,25 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import { text } from '../i18n';
 import { useShellStore } from '../ShellContext';
-import type { ShellStore } from '../store';
-import type { AppConnection, Library } from './client';
+import type { AppConnection } from './client';
 import './app.css';
-
-const nameOf = (path: string) => path.split(/[\\/]/).pop();
-
-/** Open a photo from disk, its folder becoming the filmstrip. */
-export async function showFolderOf(store: ShellStore, library: Library, path: string): Promise<void> {
-  let photos: string[] = [];
-  try {
-    photos = await library.folder(path);
-  } catch (e) {
-    store.getState().fail(e);
-  }
-  // The folder's own spelling of the path, so the filmstrip marks it.
-  const same = photos.find((p) => nameOf(p) === nameOf(path)) ?? path;
-  store.setState({ photos: photos.includes(same) ? photos : [same, ...photos] });
-  await store.getState().openPhoto(same);
-}
 
 export function AppBar({ app }: { app: AppConnection }) {
   const store = useShellStore();
@@ -35,7 +18,7 @@ export function AppBar({ app }: { app: AppConnection }) {
   useEffect(() => {
     if (app.first && startedWith.current !== app.first) {
       startedWith.current = app.first;
-      void showFolderOf(store, app.library, app.first);
+      void store.getState().openFolder(app.first);
     }
     return app.onTickMs(setTickMs);
   }, [store, app]);
@@ -43,7 +26,7 @@ export function AppBar({ app }: { app: AppConnection }) {
   const pick = async () => {
     try {
       const path = await app.library.pick(store.getState().path);
-      if (path) await showFolderOf(store, app.library, path);
+      if (path) await store.getState().openFolder(path);
     } catch (e) {
       store.getState().fail(e);
     }

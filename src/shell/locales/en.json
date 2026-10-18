@@ -6,6 +6,7 @@
   "shell.open": "Open",
   "shell.notSaved": "Edits are not saved yet",
   "shell.tickMs": "{{ms}} ms a change",
+  "shell.notConnected": "The engine did not start: {{message}}",
   "shell.rail.presets": "Presets",
   "shell.rail.snapshots": "Snapshots",
   "shell.rail.history": "History",

@@ -8,6 +8,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { EngineError, Event, Opened, SectionDescriptor, Section, ToolDescriptor } from './contract';
 import type { EngineClient, FramePixels } from './engine/client';
 import { createHistorySlice, type HistoryActions, type HistoryState } from './historySlice';
+import { fileName } from './paths';
 import { createViewSlice, type ViewActions, type ViewState } from './viewSlice';
 
 export type SideTab = 'presets' | 'snapshots' | 'history';
@@ -31,7 +32,10 @@ export interface CoreActions {
   /** Subscribe to the engine, read its sections and tools, and open the first photo. */
   init(): Promise<void>;
   dispose(): void;
+  /** Open a photo. Of several asked for at once, the one asked for last is shown. */
   openPhoto(path: string): Promise<void>;
+  /** Open a photo from disk, its folder becoming the filmstrip. */
+  openFolder(path: string): Promise<void>;
   /** Show an error from a refused call: an EngineError, or anything thrown on the way. */
   fail(error: unknown): void;
   /** An engine event: errors are shown; frames and histograms of another photo are dropped. */
@@ -48,6 +52,8 @@ export type Slice<T> = (set: ShellStore['setState'], get: ShellStore['getState']
 
 export interface StoreOptions {
   photos?: readonly string[];
+  /** The photos in a photo's folder, where there are files to list (inside the app). */
+  folder?: (path: string) => Promise<readonly string[]>;
   /** Turns frame pixels into something drawable. Defaults to createImageBitmap where there is one. */
   decode?: (pixels: FramePixels) => Promise<ImageBitmap | null>;
 }
@@ -61,15 +67,18 @@ function asEngineError(error: unknown): EngineError {
   return { kind: 'internal', message };
 }
 
+// Straight from the frame's pixels: no copy of the frame on this thread.
 const decodeToBitmap = (p: FramePixels) =>
   typeof createImageBitmap === 'function'
-    ? createImageBitmap(new ImageData(new Uint8ClampedArray(p.data), p.width, p.height))
+    ? createImageBitmap(new ImageData(p.data, p.width, p.height))
     : Promise.resolve(null);
 
 export function createShellStore(client: EngineClient, options: StoreOptions = {}): ShellStore {
   // The subscription and the start-up, held so init and dispose can run twice (React's strict mode).
   let unsubscribe: (() => void) | null = null;
   let started: Promise<void> | null = null;
+  // Opens asked for so far: an answer to any but the newest is not shown.
+  let opensAsked = 0;
 
   return createStore<Shell>()((set, get) => ({
     ...createHistorySlice(client)(set, get),
@@ -105,16 +114,31 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     },
 
     async openPhoto(path) {
+      const mine = ++opensAsked;
       try {
         const opened = await client.open(path);
+        if (mine !== opensAsked) return;
         const s = get();
         s.resetHistory(opened.edit);
         s.resetView();
         set({ path, photo: { photoId: opened.photoId, width: opened.width, height: opened.height }, error: null });
         s.requestView();
       } catch (e) {
+        if (mine === opensAsked) get().fail(e);
+      }
+    },
+
+    async openFolder(path) {
+      let photos: readonly string[] = [];
+      try {
+        photos = options.folder ? await options.folder(path) : [];
+      } catch (e) {
         get().fail(e);
       }
+      // The folder's own spelling of the path, so the filmstrip marks it.
+      const same = photos.find((p) => fileName(p) === fileName(path)) ?? path;
+      set({ photos: photos.includes(same) ? photos : [same, ...photos] });
+      await get().openPhoto(same);
     },
 
     fail(error) {

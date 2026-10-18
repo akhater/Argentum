@@ -8,12 +8,14 @@
 // a little-endian u32), then the RGBA rows (src-tauri/src/mods/engine_frame.rs).
 // On Windows the block comes as a WebView2 shared buffer beside the answer,
 // which is then "shared"; elsewhere the answer is the block. `null` means a
-// newer frame has replaced the one asked for.
+// newer frame has replaced the one asked for. The pixels are a view of the
+// block, never a copy: a shared buffer goes back to WebView2 once, when the
+// pixels' `release` is called, after they are decoded or dropped.
 
 import { listen } from '@tauri-apps/api/event';
 
 import { ag } from '../../argentum/ag';
-import type { Applied, Event, Opened, RenderTicket } from '../contract';
+import type { Applied, EngineError, Event, Opened, RenderTicket } from '../contract';
 import type { Connection, EngineClient, FramePixels, Library } from './client';
 
 /** The Tauri event engine events arrive as. */
@@ -22,52 +24,92 @@ export const ENGINE_EVENT = 'ag-engine';
 const HEADER_BYTES = 12;
 /** How long a frame announced as shared may take to arrive before it counts as lost. */
 const SHARED_FRAME_TIMEOUT_MS = 5000;
+/** What an open answers when a newer open replaced it before it began. */
+export const REPLACED: EngineError = { kind: 'internal', message: 'replaced by a newer open' };
+
+/**
+ * A shared buffer, offered to each listener in turn. True takes it: the
+ * listener then owns its `release`. One nobody takes goes back at once.
+ */
+type SharedBufferListener = (buffer: ArrayBuffer, release: () => void) => boolean;
 
 /** How the client reaches the app: Tauri in the app, a recording in tests. */
 export interface Transport {
   ag<T>(name: string, args?: Record<string, unknown>): Promise<T>;
   listen<T>(event: string, handler: (payload: T) => void): Promise<() => void>;
-  /** WebView2 shared buffers the app posts, each with how to hand it back. Returns the unsubscribe. */
-  sharedBuffers(handler: (buffer: ArrayBuffer, release: () => void) => void): () => void;
+  /** WebView2 shared buffers the app posts. Returns the unsubscribe. */
+  sharedBuffers(listener: SharedBufferListener): () => void;
 }
 
 /** WebView2's side of shared buffers, where there is one. */
-interface WebView2 {
+export interface WebView2 {
   addEventListener(type: 'sharedbufferreceived', listener: (e: SharedBufferEvent) => void): void;
   removeEventListener(type: 'sharedbufferreceived', listener: (e: SharedBufferEvent) => void): void;
   releaseBuffer(buffer: ArrayBuffer): void;
 }
-interface SharedBufferEvent {
+export interface SharedBufferEvent {
   getBuffer(): ArrayBuffer;
   additionalData?: { agFrame?: number };
+}
+
+/**
+ * The page's one listener for WebView2's shared buffers. Every buffer is
+ * handed back exactly once: by the listener that took it, or here.
+ */
+export function pageSharedBuffers(
+  find: () => WebView2 | undefined = () => (window as { chrome?: { webview?: WebView2 } }).chrome?.webview,
+): Transport['sharedBuffers'] {
+  const listeners = new Set<SharedBufferListener>();
+  let webview: WebView2 | undefined;
+  const received = (e: SharedBufferEvent) => {
+    if (e.additionalData?.agFrame === undefined || !webview) return;
+    const owner = webview;
+    const buffer = e.getBuffer();
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      owner.releaseBuffer(buffer);
+    };
+    for (const listener of listeners) if (listener(buffer, release)) return;
+    release();
+  };
+  return (listener) => {
+    webview ??= find();
+    if (!webview) return () => undefined;
+    if (listeners.size === 0) webview.addEventListener('sharedbufferreceived', received);
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) webview?.removeEventListener('sharedbufferreceived', received);
+    };
+  };
 }
 
 export const tauriTransport: Transport = {
   ag,
   listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
-  sharedBuffers(handler) {
-    const webview = (window as { chrome?: { webview?: WebView2 } }).chrome?.webview;
-    if (!webview) return () => undefined;
-    const received = (e: SharedBufferEvent) => {
-      if (e.additionalData?.agFrame === undefined) return;
-      const buffer = e.getBuffer();
-      handler(buffer, () => webview.releaseBuffer(buffer));
-    };
-    webview.addEventListener('sharedbufferreceived', received);
-    return () => webview.removeEventListener('sharedbufferreceived', received);
-  },
+  sharedBuffers: pageSharedBuffers(),
 };
 
-/** A frame's block as its ticket and pixels; null when there is none. Throws on a broken block. */
-export function readFrame(block: ArrayBuffer): { ticket: RenderTicket; pixels: FramePixels } | null {
+/**
+ * A frame's block as its ticket and pixels, a view of the block with
+ * `release` to hand it back; null when there is none. Throws on a broken block.
+ */
+export function readFrame(
+  block: ArrayBuffer,
+  release?: () => void,
+): { ticket: RenderTicket; pixels: FramePixels } | null {
   if (block.byteLength === 0) return null;
   if (block.byteLength < HEADER_BYTES) throw new Error(`a frame of ${block.byteLength} bytes`);
   const head = new DataView(block, 0, HEADER_BYTES);
   const [ticket, width, height] = [0, 4, 8].map((at) => head.getUint32(at, true));
-  if (block.byteLength !== HEADER_BYTES + width * height * 4) {
+  const pixelBytes = width * height * 4;
+  if (block.byteLength !== HEADER_BYTES + pixelBytes) {
     throw new Error(`a ${width} x ${height} frame of ${block.byteLength} bytes`);
   }
-  return { ticket, pixels: { width, height, data: new Uint8ClampedArray(block, HEADER_BYTES) } };
+  const data = new Uint8ClampedArray(block, HEADER_BYTES, pixelBytes);
+  return { ticket, pixels: release ? { width, height, data, release } : { width, height, data } };
 }
 
 /**
@@ -93,8 +135,8 @@ function subscription<T>(transport: Transport, event: string, handler: (payload:
 
 /**
  * Frames posted as shared buffers, each handed to the `frame` call that asked
- * for it. A buffer is copied out and handed back at once, so nothing holds
- * WebView2's memory; one older than a frame already handed over is dropped.
+ * for it, which then owns its release. One nobody asked for, or older than
+ * a frame already handed over, is not taken, and goes back at once.
  */
 function sharedFrames(transport: Transport) {
   const waiting = new Map<
@@ -111,13 +153,15 @@ function sharedFrames(transport: Transport) {
   transport.sharedBuffers((buffer, release) => {
     let read: ReturnType<typeof readFrame>;
     try {
-      read = readFrame(buffer.slice(0));
-    } finally {
-      release();
+      read = readFrame(buffer, release);
+    } catch {
+      return false;
     }
-    if (!read) return;
+    if (!read) return false;
     for (const older of [...waiting.keys()].filter((t) => t < read.ticket)) settle(older, null);
+    if (!waiting.has(read.ticket)) return false;
     settle(read.ticket, read.pixels);
+    return true;
   });
   return {
     /** The pixels of `ticket`'s shared buffer, once it comes; null if it never does. */
@@ -141,8 +185,10 @@ export function createTauriEngine(transport: Transport = tauriTransport): Engine
   const shared = sharedFrames(transport);
   const changedAt = new Map<RenderTicket, number>();
   const tickListeners = new Set<(ms: number) => void>();
-  // Opens answer in the order they were asked: the photo asked for last is the one shown.
+  // Opens run in the order they were asked, and one a newer open replaced
+  // before its turn gives way without being sent.
   let opening: Promise<unknown> = Promise.resolve();
+  let opensAsked = 0;
 
   const delivered = (ticket: RenderTicket, pixels: FramePixels | null) => {
     const at = changedAt.get(ticket);
@@ -155,7 +201,14 @@ export function createTauriEngine(transport: Transport = tauriTransport): Engine
     sections: () => call('engine_sections'),
     tools: () => call('engine_tools'),
     open(path) {
-      const opened = opening.then(() => call<Opened>('engine_open', { path }));
+      const mine = ++opensAsked;
+      const opened = opening.then(async () => {
+        if (mine !== opensAsked) throw REPLACED;
+        // null: the app gave it way to a newer open before decoding.
+        const answer = await call<Opened | null>('engine_open', { path });
+        if (!answer) throw REPLACED;
+        return answer;
+      });
       opening = opened.catch(() => undefined);
       return opened;
     },
@@ -193,12 +246,13 @@ export function appLibrary(transport: Transport = tauriTransport): Library {
   };
 }
 
-/**
- * The real engine, and the photo the app was started with, if any. The app
- * builds its window hidden; `shell_ready` shows it.
- */
+/** Show the window, which the app builds hidden. */
+export const showWindow = (transport: Transport = tauriTransport) => transport.ag<null>('shell_show_window');
+
+/** The real engine, and the photo the app was started with, if any. */
 export async function connectApp(transport: Transport = tauriTransport): Promise<Connection> {
-  const first = await transport.ag<string | null>('shell_ready');
+  await showWindow(transport);
+  const first = await transport.ag<string | null>('shell_launch_photo');
   const client = createTauriEngine(transport);
   return {
     client,

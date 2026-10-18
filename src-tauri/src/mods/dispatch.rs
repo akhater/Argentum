@@ -453,12 +453,15 @@ async fn json(
             serde_json::to_value(found).map_err(|e| e.to_string())
         }
         // The new interface, inside the app: see shell_photos.rs.
-        "shell_ready" => {
+        "shell_show_window" => {
             // The window is built hidden and today's interface shows it; the
             // new one has no window buttons of its own, so it gets the system's.
             window.show().map_err(|e| e.to_string())?;
-            let _ = window.set_decorations(true);
-            let _ = window.set_focus();
+            window.set_decorations(true).map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+            Ok(serde_json::Value::Null)
+        }
+        "shell_launch_photo" => {
             serde_json::to_value(shell_photos::launched_with(std::env::args().skip(1)))
                 .map_err(|e| e.to_string())
         }
@@ -511,11 +514,11 @@ mod tests {
             serde_json::from_str(include_str!("../../../src/shell/engine/wire.fixtures.json"))
                 .unwrap();
         let calls = wire["calls"].as_object().unwrap();
-        assert!(calls.len() >= 8);
+        assert!(calls.len() >= 10);
         for (name, args) in calls {
             let args = args.clone();
             match name.as_str() {
-                "engine_sections" | "engine_tools" | "shell_ready" => {
+                "engine_sections" | "engine_tools" | "shell_show_window" | "shell_launch_photo" => {
                     assert_eq!(args, serde_json::json!({}))
                 }
                 "engine_open" | "shell_folder" => {

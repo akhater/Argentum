@@ -28,6 +28,7 @@ pub enum Delivery {
     /// The block, as the answer itself.
     Bytes(Vec<u8>),
     /// The block went to the page as a shared buffer.
+    #[cfg(windows)]
     Shared,
 }
 
@@ -37,6 +38,7 @@ impl Delivery {
         match self {
             Delivery::Replaced => Response::new("null".to_string()),
             Delivery::Bytes(bytes) => Response::new(bytes),
+            #[cfg(windows)]
             Delivery::Shared => Response::new("\"shared\"".to_string()),
         }
     }

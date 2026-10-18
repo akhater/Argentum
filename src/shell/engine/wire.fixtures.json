@@ -1,6 +1,7 @@
 {
   "calls": {
-    "shell_ready": {},
+    "shell_show_window": {},
+    "shell_launch_photo": {},
     "engine_sections": {},
     "engine_tools": {},
     "engine_open": {

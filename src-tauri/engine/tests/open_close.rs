@@ -71,6 +71,11 @@ fn edit_is_the_photos_edit_with_every_accepted_patch() {
 fn a_closed_photo_is_gone_and_hands_back_its_edit() {
     let (engine, _rx) = engine();
     let opened = engine.insert(common::source(256, 192));
+    // A 16-bit mosaic: two bytes a photosite.
+    assert_eq!(
+        engine.decoded_bytes(opened.photo_id).unwrap(),
+        256 * 192 * 2
+    );
     engine
         .apply(
             opened.photo_id,
@@ -86,6 +91,10 @@ fn a_closed_photo_is_gone_and_hands_back_its_edit() {
     ));
     assert!(matches!(
         engine.view(opened.photo_id, VIEW),
+        Err(Error::UnknownPhoto(_))
+    ));
+    assert!(matches!(
+        engine.decoded_bytes(opened.photo_id),
         Err(Error::UnknownPhoto(_))
     ));
     assert!(

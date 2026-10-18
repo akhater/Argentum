@@ -219,6 +219,11 @@ impl Engine {
         closed.map(|p| p.edit).ok_or(Error::UnknownPhoto(photo))
     }
 
+    /// The bytes an open photo's decoded sensor data holds.
+    pub fn decoded_bytes(&self, photo: PhotoId) -> Result<usize> {
+        Ok(self.state().photo(photo)?.source.bytes())
+    }
+
     fn state(&self) -> MutexGuard<'_, State> {
         self.shared.state.lock().unwrap_or_else(|e| e.into_inner())
     }

@@ -14,6 +14,8 @@
 //! | `engine_frame`    | `frame(ticket)`, delivered by `engine_frame.rs`      |
 //! | `shell_folder`    | the RAWs beside a photo (`shell_photos.rs`)          |
 //! | `shell_pick`      | a file dialog for one RAW (`shell_photos.rs`)        |
+//! | `shell_launch_photo` | the photo the app was started with (`shell_photos.rs`) |
+//! | `shell_show_window`  | shows the window, which the app builds hidden        |
 //!
 //! It hears the engine through one Tauri event, `ag-engine`, which carries
 //! each engine event exactly as the contract writes it. The engine sends
@@ -23,14 +25,15 @@
 //! sidecar of its own; today's `.agdata` files are never read or written.
 //!
 //! MEMORY. The engine keeps an open photo's decoded sensor data - 65 MB for
-//! a 32 MP mosaic - until it is closed. So only the last `OPEN_PHOTOS` stay
-//! open, and opening one more lets the oldest go: its edit stays here, and
-//! opening it again decodes it again with that edit. The engine's cache of
-//! results has its own budget. The engine is made the first time the
-//! interface asks for it, so today's interface never pays for it.
+//! a 32 MP mosaic - until it is closed. So open photos are held to
+//! `OPEN_PHOTOS_BYTES`, oldest let go first: a photo let go leaves its edit
+//! here, and opening it again decodes it again with that edit. The engine's
+//! cache of results has its own budget. The engine is made the first time
+//! the interface asks for it, so today's interface never pays for it.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use argentum_engine::contract::{EditDocument, Event, Opened, PhotoId, RenderTicket};
@@ -41,16 +44,20 @@ use tauri::{AppHandle, Emitter};
 /// The Tauri event engine events go out as.
 pub const EVENT: &str = "ag-engine";
 
-/// Photos kept decoded at once.
-const OPEN_PHOTOS: usize = 4;
+/// Decoded sensor data kept for open photos, in bytes: seven 32 MP mosaics,
+/// two of 100 MP. The photo opened last is kept whatever its size.
+const OPEN_PHOTOS_BYTES: usize = 512 << 20;
 
 pub struct Bridge {
     engine: Engine,
     photos: Mutex<Photos>,
-    /// Photos kept decoded at once.
-    limit: usize,
+    /// Decoded sensor data kept for open photos, in bytes.
+    budget_bytes: usize,
     /// Opens run one at a time, so one file is never decoded twice at once.
     opening: Mutex<()>,
+    /// Opens asked for so far: one that waited while a newer one was asked
+    /// for gives way to it before decoding.
+    asked: AtomicU64,
 }
 
 #[derive(Default)]
@@ -66,6 +73,7 @@ struct Open {
     photo: PhotoId,
     width: u32,
     height: u32,
+    decoded_bytes: usize,
 }
 
 /// The app's one engine, made the first time the new interface asks for it.
@@ -75,7 +83,7 @@ pub fn bridge(app: &AppHandle) -> Result<&'static Bridge> {
     BRIDGE
         .get_or_init(|| {
             let app = app.clone();
-            Bridge::new(OPEN_PHOTOS, move |event| {
+            Bridge::new(OPEN_PHOTOS_BYTES, move |event| {
                 if let Err(e) = app.emit(EVENT, &event) {
                     log::warn!("[engine] event not sent: {e}");
                 }
@@ -86,13 +94,15 @@ pub fn bridge(app: &AppHandle) -> Result<&'static Bridge> {
 }
 
 impl Bridge {
-    /// An engine whose events go to `sink`, keeping `limit` photos decoded.
-    fn new(limit: usize, sink: impl Fn(Event) + Send + Sync + 'static) -> Result<Bridge> {
+    /// An engine whose events go to `sink`, keeping `budget_bytes` of
+    /// decoded photos.
+    fn new(budget_bytes: usize, sink: impl Fn(Event) + Send + Sync + 'static) -> Result<Bridge> {
         Ok(Bridge {
             engine: Engine::new(sink)?,
             photos: Mutex::default(),
-            limit: limit.max(1),
+            budget_bytes,
             opening: Mutex::new(()),
+            asked: AtomicU64::new(0),
         })
     }
 
@@ -103,12 +113,17 @@ impl Bridge {
     }
 
     /// Open a RAW file - or the photo already open from it, with its edit as
-    /// it stands - and let the oldest open photo go past the limit. Blocks
-    /// while it decodes.
-    pub fn open(&self, path: &Path) -> Result<Opened> {
+    /// it stands - and let the oldest open photos go past the budget. Blocks
+    /// while it decodes. None when a newer open was asked for while this one
+    /// waited its turn: it gives way without decoding.
+    pub fn open(&self, path: &Path) -> Result<Option<Opened>> {
         let path = std::path::absolute(path)
             .map_err(|e| Error::Decode(format!("{}: {e}", path.display())))?;
+        let mine = self.asked.fetch_add(1, Ordering::SeqCst) + 1;
         let _one_at_a_time = self.opening.lock().unwrap_or_else(|e| e.into_inner());
+        if self.asked.load(Ordering::SeqCst) != mine {
+            return Ok(None);
+        }
 
         let mut photos = self.photos();
         if let Some(i) = photos.open.iter().position(|o| o.path == path) {
@@ -120,7 +135,7 @@ impl Bridge {
                 edit: self.engine.edit(open.photo)?,
             };
             photos.open.push(open);
-            return Ok(opened);
+            return Ok(Some(opened));
         }
         let kept = photos.kept.get(&path).cloned();
         // Not held while decoding: renders of the open photo go on meanwhile.
@@ -130,6 +145,7 @@ impl Bridge {
             Some(edit) => self.engine.open_with(&path, edit),
             None => self.engine.open(&path),
         }?;
+        let decoded_bytes = self.engine.decoded_bytes(opened.photo_id)?;
 
         let mut photos = self.photos();
         photos.kept.remove(&path);
@@ -138,14 +154,16 @@ impl Bridge {
             photo: opened.photo_id,
             width: opened.width,
             height: opened.height,
+            decoded_bytes,
         });
-        while photos.open.len() > self.limit {
+        let held = |photos: &Photos| photos.open.iter().map(|o| o.decoded_bytes).sum::<usize>();
+        while photos.open.len() > 1 && held(&photos) > self.budget_bytes {
             let old = photos.open.remove(0);
             if let Ok(edit) = self.engine.close(old.photo) {
                 photos.kept.insert(old.path, edit);
             }
         }
-        Ok(opened)
+        Ok(Some(opened))
     }
 
     /// The frame a `frame` event announced, while it is the latest.
@@ -171,13 +189,21 @@ mod tests {
         serde_json::from_value(json).unwrap()
     }
 
-    fn with_limit(limit: usize) -> (Bridge, Receiver<Event>) {
+    fn with_budget(budget_bytes: usize) -> (Bridge, Receiver<Event>) {
         let (tx, rx) = channel();
-        let bridge = Bridge::new(limit, move |e| {
+        let bridge = Bridge::new(budget_bytes, move |e| {
             let _ = tx.send(e);
         })
         .unwrap();
         (bridge, rx)
+    }
+
+    /// Opened, and not given way to a newer open.
+    fn open(bridge: &Bridge, path: &Path) -> Opened {
+        bridge
+            .open(path)
+            .unwrap()
+            .expect("not replaced by a newer open")
     }
 
     /// The RAW named by `AG_RAW`, as the app's other real-photo tests take it.
@@ -224,7 +250,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("broken.cr3");
         std::fs::write(&path, b"not a raw").unwrap();
-        let (bridge, _rx) = with_limit(2);
+        let (bridge, _rx) = with_budget(usize::MAX);
         assert!(matches!(bridge.open(&path), Err(Error::Decode(_))));
         assert!(matches!(
             bridge.open(&dir.path().join("missing.cr3")),
@@ -239,11 +265,11 @@ mod tests {
         let Some(path) = raw("open_apply_view_frame_and_latest_wins") else {
             return;
         };
-        let (bridge, rx) = with_limit(2);
+        let (bridge, rx) = with_budget(usize::MAX);
         assert_eq!(bridge.engine().tools().len(), 3);
         assert!(!bridge.engine().sections().is_empty());
 
-        let opened = bridge.open(&path).unwrap();
+        let opened = open(&bridge, &path);
         let view = fit(&opened, 800, 600);
         let t = bridge.engine().view(opened.photo_id, view).unwrap();
         let events = until_done(&rx, t);
@@ -311,11 +337,42 @@ mod tests {
         assert!(bridge.frame(second).is_none());
     }
 
-    /// Past the limit the oldest photo is let go; opened again, it has its
+    /// An open that waited its turn while a newer one was asked for gives
+    /// way without decoding; the newer one goes ahead.
+    #[test]
+    fn an_open_replaced_while_it_waited_gives_way() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("not-a-raw.cr3");
+        std::fs::write(&path, b"not a raw").unwrap();
+        let (bridge, _rx) = with_budget(usize::MAX);
+        let bridge = Arc::new(bridge);
+        let asked = |n| {
+            while bridge.asked.load(Ordering::SeqCst) < n {
+                std::thread::yield_now();
+            }
+        };
+        let busy = bridge.opening.lock().unwrap();
+        let first = std::thread::spawn({
+            let (bridge, path) = (bridge.clone(), path.clone());
+            move || bridge.open(&path)
+        });
+        asked(1);
+        let second = std::thread::spawn({
+            let (bridge, path) = (bridge.clone(), path.clone());
+            move || bridge.open(&path)
+        });
+        asked(2);
+        drop(busy);
+        assert!(matches!(first.join().unwrap(), Ok(None)), "gave way");
+        // The newer one tried to decode: this file is no photo.
+        assert!(matches!(second.join().unwrap(), Err(Error::Decode(_))));
+    }
+
+    /// Past the budget the oldest photo is let go; opened again, it has its
     /// edit back. A photo still open comes back at once, with its edit.
     #[test]
-    fn photos_past_the_limit_are_let_go_and_keep_their_edits() {
-        let Some(path) = raw("photos_past_the_limit_are_let_go_and_keep_their_edits") else {
+    fn photos_past_the_budget_are_let_go_and_keep_their_edits() {
+        let Some(path) = raw("photos_past_the_budget_are_let_go_and_keep_their_edits") else {
             return;
         };
         let others: Vec<PathBuf> = shell_photos::folder(&path)
@@ -326,11 +383,15 @@ mod tests {
             .take(2)
             .collect();
         if others.len() < 2 {
-            eprintln!("photos_past_the_limit_...: SKIPPED - AG_RAW's folder needs two more RAWs");
+            eprintln!("photos_past_the_budget_...: SKIPPED - AG_RAW's folder needs two more RAWs");
             return;
         }
-        let (bridge, _rx) = with_limit(2);
-        let first = bridge.open(&path).unwrap();
+        // Room for two of these photos, not three.
+        let (bridge, _rx) = with_budget(usize::MAX);
+        let first = open(&bridge, &path);
+        let one = bridge.engine().decoded_bytes(first.photo_id).unwrap();
+        let (bridge, _rx) = with_budget(one * 5 / 2);
+        let first = open(&bridge, &path);
         bridge
             .engine()
             .apply(
@@ -339,9 +400,9 @@ mod tests {
             )
             .unwrap();
 
-        let second = bridge.open(&others[0]).unwrap();
+        let second = open(&bridge, &others[0]);
         let started = Instant::now();
-        let first_again = bridge.open(&path).unwrap();
+        let first_again = open(&bridge, &path);
         assert!(
             started.elapsed() < Duration::from_millis(50),
             "not decoded again"
@@ -353,7 +414,7 @@ mod tests {
         );
 
         // Two open: the second is now the oldest, and goes.
-        bridge.open(&others[1]).unwrap();
+        open(&bridge, &others[1]);
         assert!(
             bridge
                 .engine()
@@ -363,14 +424,14 @@ mod tests {
         assert_eq!(bridge.photos().open.len(), 2);
 
         // Then the first goes too, and comes back as a new photo with its edit.
-        bridge.open(&others[0]).unwrap();
+        open(&bridge, &others[0]);
         assert!(
             bridge
                 .engine()
                 .view(first.photo_id, fit(&first, 64, 64))
                 .is_err()
         );
-        let reopened = bridge.open(&path).unwrap();
+        let reopened = open(&bridge, &path);
         assert_ne!(reopened.photo_id, first.photo_id);
         assert_eq!(reopened.edit, first_again.edit);
         assert_eq!(
@@ -427,9 +488,9 @@ mod tests {
             v[v.len() / 2]
         };
         let gb = |bytes: usize| bytes as f64 / (1u64 << 30) as f64;
-        let (bridge, rx) = with_limit(2);
+        let (bridge, rx) = with_budget(usize::MAX);
         let started = Instant::now();
-        let opened = bridge.open(&path).unwrap();
+        let opened = open(&bridge, &path);
         eprintln!(
             "\n  {} x {}: opened in {:.0} ms",
             opened.width,

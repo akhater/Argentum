@@ -94,7 +94,9 @@ export function ShellView({ store, fake, app }: { store: ShellStore; fake: boole
 }
 
 function Connected({ connection }: { connection: Connection }) {
-  const [store] = useState(() => createShellStore(connection.client, { photos: connection.photos }));
+  const [store] = useState(() =>
+    createShellStore(connection.client, { photos: connection.photos, folder: connection.app?.library.folder }),
+  );
   return (
     <ShellProvider store={store}>
       <ShellView store={store} fake={connection.fake} app={connection.app} />
@@ -104,8 +106,25 @@ function Connected({ connection }: { connection: Connection }) {
 
 export default function Shell() {
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
-    void connectEngine().then(setConnection);
+    let live = true;
+    connectEngine().then(
+      (c) => live && setConnection(c),
+      (e: unknown) => live && setFailure(typeof e === 'object' && e && 'message' in e ? String(e.message) : String(e)),
+    );
+    return () => {
+      live = false;
+    };
   }, []);
-  return connection ? <Connected connection={connection} /> : <div className="ags" />;
+  if (connection) return <Connected connection={connection} />;
+  return (
+    <div className="ags">
+      {failure && (
+        <p className="ags-error" role="alert">
+          {text('shell.notConnected', { message: failure })}
+        </p>
+      )}
+    </div>
+  );
 }

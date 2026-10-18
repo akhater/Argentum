@@ -20,7 +20,13 @@ import type {
 export interface FramePixels {
   width: number;
   height: number;
-  data: Uint8ClampedArray;
+  data: Uint8ClampedArray<ArrayBuffer>;
+  /**
+   * Hands the pixels' memory back, where it is borrowed (a WebView2 shared
+   * buffer). Call it once the pixels are decoded or dropped; never read
+   * `data` after.
+   */
+  release?(): void;
 }
 
 export interface EngineClient {
@@ -78,7 +84,16 @@ export interface Connection {
  */
 export async function connectEngine(): Promise<Connection> {
   const fake = new URLSearchParams(window.location.search).get('engine') === 'fake';
-  if (isTauri() && !fake) return (await import('./tauri')).connectApp();
+  if (isTauri() && !fake) {
+    const { connectApp, showWindow } = await import('./tauri');
+    try {
+      return await connectApp();
+    } catch (e) {
+      // The window is built hidden: show it, so the failure can be seen.
+      await showWindow().catch(() => undefined);
+      throw e;
+    }
+  }
   const [{ createFakeEngine, FAKE_PHOTOS }, { createWorkerPainter }] = await Promise.all([
     import('./fake'),
     import('./fakePaint'),
