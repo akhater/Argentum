@@ -1,0 +1,90 @@
+{
+  "places": {
+    "drives": [
+      {
+        "name": "C:",
+        "path": "C:/",
+        "hasFolders": true
+      }
+    ],
+    "standard": [
+      {
+        "name": "Pictures",
+        "path": "C:/Photos/Pictures",
+        "hasFolders": true
+      }
+    ],
+    "favourites": [
+      "C:/Photos/2026-10-09"
+    ],
+    "recent": [
+      "C:/Photos/2026-10-09",
+      "C:/Photos/2026-09-26"
+    ]
+  },
+  "folders": [
+    {
+      "name": "2026-09-26",
+      "path": "C:/Photos/2026-09-26",
+      "hasFolders": false
+    },
+    {
+      "name": "2026-10-09",
+      "path": "C:/Photos/2026-10-09",
+      "hasFolders": true
+    }
+  ],
+  "events": [
+    {
+      "event": "listed",
+      "listing": 1,
+      "photos": [
+        {
+          "name": "IMG_0001.CR3",
+          "path": "C:/Photos/2026-10-09/IMG_0001.CR3",
+          "bytes": 31457280,
+          "modifiedMs": 1760000000000,
+          "edited": true
+        },
+        {
+          "name": "IMG_0002.CR3",
+          "path": "C:/Photos/2026-10-09/IMG_0002.CR3",
+          "bytes": 31457280,
+          "modifiedMs": 1760000000000,
+          "edited": false
+        }
+      ],
+      "done": false
+    },
+    {
+      "event": "listed",
+      "listing": 1,
+      "photos": [
+        {
+          "name": "IMG_0003.JPG",
+          "path": "C:/Photos/2026-10-09/IMG_0003.JPG",
+          "bytes": 31457280,
+          "modifiedMs": 1760000000000,
+          "edited": false
+        }
+      ],
+      "done": true
+    },
+    {
+      "event": "thumb",
+      "path": "C:/Photos/2026-10-09/IMG_0001.CR3"
+    },
+    {
+      "event": "noThumb",
+      "path": "C:/Photos/2026-10-09/IMG_0002.CR3",
+      "error": {
+        "kind": "noPreview",
+        "message": "IMG_0002.CR3: no embedded picture"
+      }
+    }
+  ],
+  "error": {
+    "kind": "notFound",
+    "message": "C:/Photos/gone: not found"
+  }
+}

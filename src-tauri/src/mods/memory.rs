@@ -105,7 +105,7 @@ fn run(app: AppHandle) {
 }
 
 /// The process's committed memory, the number Task Manager calls "Memory".
-fn committed() -> usize {
+pub fn committed() -> usize {
     let mut v = [0usize; 8];
     let [
         elapsed,
@@ -133,7 +133,8 @@ fn committed() -> usize {
     v[5]
 }
 
-fn collect() {
+/// Hand the memory this thread has freed back to the system.
+pub fn collect() {
     // SAFETY: takes no pointers; force-collects this thread's heap and purges
     // every arena's freed pages.
     unsafe { libmimalloc_sys::mi_collect(true) }

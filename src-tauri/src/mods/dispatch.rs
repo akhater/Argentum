@@ -36,6 +36,7 @@
 
 use crate::app_state::AppState;
 use crate::mods::auto_wb::DetectMode;
+use crate::mods::browse::{self, contract::BrowseError};
 use crate::mods::commands;
 use crate::mods::engine_bridge::bridge;
 use crate::mods::{engine_frame, shell_photos};
@@ -198,12 +199,19 @@ struct PickArgs {
 #[serde(untagged)]
 pub enum Refusal {
     Engine(EngineError),
+    Browse(BrowseError),
     Message(String),
 }
 
 impl From<String> for Refusal {
     fn from(message: String) -> Self {
         Refusal::Message(message)
+    }
+}
+
+impl From<BrowseError> for Refusal {
+    fn from(e: BrowseError) -> Self {
+        Refusal::Browse(e)
     }
 }
 
@@ -242,6 +250,9 @@ pub async fn ag(
             return Ok(engine_frame::deliver(&window, frame).await.into_response());
         }
         engine if engine.starts_with("engine_") => engine_call(engine, args, &app_handle).await?,
+        browse if browse.starts_with("browse_") => {
+            return Ok(browse::call(browse, args, &app_handle).await?);
+        }
         _ => json(name, args, state, app_handle, window).await?,
     };
     Ok(Response::new(value.to_string()))

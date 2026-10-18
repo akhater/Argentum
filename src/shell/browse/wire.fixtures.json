@@ -1,0 +1,11 @@
+{
+  "calls": {
+    "browse_places": {},
+    "browse_folders": { "path": "C:/Photos" },
+    "browse_list": { "path": "C:/Photos/2026-10-09" },
+    "browse_want": { "paths": ["C:/Photos/2026-10-09/IMG_0001.CR3", "C:/Photos/2026-10-09/IMG_0002.CR3"] },
+    "browse_thumb": { "path": "C:/Photos/2026-10-09/IMG_0001.CR3" },
+    "browse_favourite": { "path": "C:/Photos/2026-10-09", "on": true },
+    "browse_add_recent": { "path": "C:/Photos/2026-10-09" }
+  }
+}

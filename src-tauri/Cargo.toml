@@ -74,6 +74,7 @@ imgref = "1.12.2"
 sysinfo = "0.39.6"
 tauri-plugin-http = "2.8.0"
 argentum-engine = { path = "engine" } # Argentum: the new engine, for the new interface (mods/engine_bridge.rs)
+jpeg-decoder = { version = "0.3", default-features = false } # Argentum: Browse thumbnails decode a camera's preview JPEG at 1/2 to 1/8 scale (mods/browse/thumbnail.rs). No dependencies.
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 trash = "5.2.6"
@@ -115,6 +116,9 @@ include_dir = "0.7.4"
 gtk = "0.18.2"
 webkit2gtk = "=2.0.2"
 tauri-plugin-wayland-nvidia-quirk = "0.1.0"
+
+[dev-dependencies]
+ts-rs = { version = "10.1", features = ["no-serde-warnings"] } # Argentum: mods/browse/contract.rs generates the Browse view's TypeScript in a test. Already built for the engine.
 
 [build-dependencies]
 tauri-build = { version = "2.6", features = [] }
