@@ -38,6 +38,10 @@ Newest first.
 
 ### Changed
 
+- **Effects > Vignette is now called Post-Crop Vignette**, in every language and
+  in the edit history. Its rendering is unchanged: it was already drawn on the
+  cropped photo, centred on the crop. The new name sets it apart from lens
+  vignetting correction under Crop & Transform, which works on the whole frame.
 - **A RAW starts in DNG Standard, with Camera Raw's default sharpening.** A RAW
   whose edit names no rendering - never edited, reset, or given settings pasted
   onto it unedited - renders in DNG Standard, and DNG Standard brings Sharpen 25 at

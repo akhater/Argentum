@@ -131,7 +131,7 @@
       "roughness": "Drsnost",
       "roundness": "Kulatost",
       "size": "Velikost",
-      "vignette": "Viněta"
+      "vignette": "Viněta po oříznutí"
     }
   },
   "contextMenus": {
@@ -1262,7 +1262,7 @@
         "sharpness": "Ostrost",
         "tone": "Tón",
         "transformRotation": "Transformace a rotace",
-        "vignette": "Viněta",
+        "vignette": "Viněta po oříznutí",
         "whiteBalance": "Vyvážení bílé"
       },
       "includedAdjustments": "Zahrnuté úpravy",

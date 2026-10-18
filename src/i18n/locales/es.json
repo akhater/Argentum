@@ -132,7 +132,7 @@
       "roughness": "Rugosidad",
       "roundness": "Redondez",
       "size": "Tamaño",
-      "vignette": "Viñeteado"
+      "vignette": "Viñeteado tras recorte"
     }
   },
   "contextMenus": {
@@ -1289,7 +1289,7 @@
         "sharpness": "Nitidez",
         "tone": "Tonos",
         "transformRotation": "Transformación y Rotación",
-        "vignette": "Viñeteado",
+        "vignette": "Viñeteado tras recorte",
         "whiteBalance": "Balance de blancos"
       },
       "includedAdjustments": "Ajustes incluidos",

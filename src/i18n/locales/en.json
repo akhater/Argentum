@@ -132,7 +132,7 @@
       "roughness": "Roughness",
       "roundness": "Roundness",
       "size": "Size",
-      "vignette": "Vignette"
+      "vignette": "Post-Crop Vignette"
     }
   },
   "contextMenus": {
@@ -1263,7 +1263,7 @@
         "sharpness": "Sharpness",
         "tone": "Tone",
         "transformRotation": "Transform & Rotation",
-        "vignette": "Vignette",
+        "vignette": "Post-Crop Vignette",
         "whiteBalance": "White Balance"
       },
       "includedAdjustments": "Included Adjustments",

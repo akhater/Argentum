@@ -131,7 +131,7 @@
       "roughness": "Ruwheid",
       "roundness": "Rondheid",
       "size": "Grootte",
-      "vignette": "Vignet"
+      "vignette": "Vignet na bijsnijden"
     }
   },
   "contextMenus": {
@@ -1240,7 +1240,7 @@
         "sharpness": "Scherpte",
         "tone": "Toon",
         "transformRotation": "Transformeren & rotatie",
-        "vignette": "Vignet",
+        "vignette": "Vignet na bijsnijden",
         "whiteBalance": "Witbalans"
       },
       "includedAdjustments": "Opgenomen aanpassingen",
