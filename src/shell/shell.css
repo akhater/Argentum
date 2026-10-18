@@ -29,6 +29,8 @@
   inset: 0;
   display: grid;
   grid-template-rows: 36px minmax(0, 1fr) auto;
+  /* The window's width, whatever is inside: a filmstrip of a thousand photos is wider. */
+  grid-template-columns: minmax(0, 1fr);
   background: var(--ags-window);
   color: var(--ags-text);
   font:
@@ -525,7 +527,7 @@
   gap: 6px;
   height: 128px;
   padding: 6px 20px 10px;
-  overflow-x: auto;
+  overflow: hidden;
   background: var(--ags-window);
 }
 .ags-film {

@@ -31,18 +31,6 @@ import type { EngineClient, FramePixels } from './client';
 export const FAKE_SECTIONS = fixtures.sections as SectionDescriptor[];
 export const FAKE_TOOLS = fixtures.tools as ToolDescriptor[];
 
-/** Sample paths for the filmstrip. The fake paints a picture from each name. */
-export const FAKE_PHOTOS = [
-  'samples/IMG_0412.CR3',
-  'samples/IMG_0415.CR3',
-  'samples/IMG_0421.CR3',
-  'samples/DSC_1180.NEF',
-  'samples/DSC_1184.NEF',
-  'samples/_R6A2207.CR3',
-  'samples/_R6A2213.CR3',
-  'samples/P1040562.RW2',
-];
-
 /** What a painter is asked for: one view of one photo. */
 export interface PaintJob {
   ticket: RenderTicket;

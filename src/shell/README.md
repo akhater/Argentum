@@ -2,7 +2,10 @@
 
 Argentum's own editor interface (DEC-29), beside today's. It is opt-in: open
 the app with `?shell=new`. Without it, `src/main.tsx` renders today's app
-exactly as before. The layout follows RAWmakase 0.3.3's Develop view (MIT),
+exactly as before. It has two modes, switched in the top bar or with G and D
+as in Lightroom: **Browse**, folders and a grid of their photos, where it
+opens when started without a photo; and **Edit**. Edit's layout follows
+RAWmakase 0.3.3's Develop view (MIT),
 itself Lightroom Classic's: from the window's right edge a slim rail, the tool
 panels under the histogram and navigator, the Presets / Snapshots / History
 panel, then the photo with its toolbar under it, and the filmstrip along the
@@ -33,12 +36,12 @@ joins it when a tool declares one.
 | Path                    | What                                                                                  |
 | ----------------------- | ------------------------------------------------------------------------------------- |
 | `switch.tsx`            | The door from `src/main.tsx`: `?shell=new` loads the shell, anything else today's app |
-| `Shell.tsx`             | The window: top bar, photo and toolbar, side tabs, tool panels, rail, filmstrip       |
+| `Shell.tsx`             | The window: top bar, Browse or Edit's photo, side tabs, tool panels, rail, filmstrip  |
 | `store.ts`              | The one zustand store, made of slices; the photo open and the panels' own state       |
 | `historySlice.ts`       | The edit, its undo history, presets and snapshots, and patches on their way           |
 | `viewSlice.ts`          | Zoom and centre, renders asked for by ticket, the latest frame and histogram          |
 | `view.ts`               | Photo-to-screen maths: fit, the view to ask for, points, parts, frames, device scale  |
-| `paths.ts`              | A file's name from its path                                                           |
+| `paths.ts`              | Paths as text: a file's name and folder, folders above it, two spellings compared     |
 | `ShellContext.tsx`      | `useShell(selector)`, the only way components read the store                          |
 | `edit.ts`               | The edit document and patches as plain functions: apply, inverse, compose, diff       |
 | `contract.ts`           | Re-exports the generated contract types                                               |
@@ -47,6 +50,7 @@ joins it when a tool declares one.
 | `engine/fakePaint*.ts`  | The fake's pixels, painted in a worker                                                |
 | `engine/tauri.ts`       | The real client, inside the app: `ag` calls, the `ag-engine` event, frame blocks      |
 | `engine/AppBar.tsx`     | Inside the app: Open, the photo it was started with, "not saved yet", tick time       |
+| `browse/`               | Browse: the folder tree, the photo grid, thumbnails; see below                        |
 | `panels/model.ts`       | Descriptors to sections; value formatting                                             |
 | `panels/PanelStack.tsx` | Sections, tool blocks and setting rows, from descriptors                              |
 | `widgets/`              | `WIDGETS`, one per kind: `Slider` (float, int), `Toggle` (bool), `Choice` (choice)    |
@@ -88,13 +92,42 @@ joins it when a tool declares one.
 Adding a widget kind (a curve, a colour) is one component and one entry in
 `WIDGETS` (`widgets/index.ts`). Nothing names a tool.
 
+## Browse (`browse/`)
+
+A file browser, not a library (DEC-30): it lists folders and shows their
+photos, and remembers only favourite and recent folders, in Argentum's
+preferences. No catalog, no ratings, no last photo: started without one, the
+window opens in Browse at the folders remembered.
+
+| Path                  | What                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `browse.generated.ts` | The types, generated from `src-tauri/src/mods/browse/contract.rs`, with fixtures beside |
+| `client.ts`           | `BrowseClient`: places, folders, list, want, thumb, favourites, recent, events          |
+| `tauri.ts`            | The real client: `browse_*` calls through `ag`, the `ag-browse` event                   |
+| `fake.ts`             | The browse fake: a made-up disk, 1,200 photos in one folder, painted thumbnails         |
+| `browseSlice.ts`      | The store's part: tree, folder, its photos sorted, the mode, what is picked             |
+| `thumbs.ts`           | The thumbnails the page holds, as object URLs, within 48 MB                             |
+| `FolderTree.tsx`      | Favourites, recent, then Pictures, home and the drives, each folder read when opened    |
+| `PhotoGrid.tsx`       | The grid, drawn only as far as it shows; the photos on screen asked for first           |
+| `BrowseView.tsx`      | Tree and grid side by side; the folders remembered before one is picked                 |
+
+A folder's photos come as `listed` events in parts, and the newest listing
+stops older ones. Thumbnails are asked for with `want(paths)`, the photos on
+screen first and then a few rows ahead; each call replaces the one before,
+so scrolling or changing folder never waits behind thumbnails no longer
+wanted. A `thumb` event says one is ready and `thumb(path)` fetches its
+bytes. The app makes them from the JPEG the camera embeds in the RAW, never
+by developing it, and keeps them in memory and on disk
+(`src-tauri/src/mods/browse/`). Edit's filmstrip is the folder browsed.
+
 ## Contract gaps still open
 
 - **Frame pixels.** A `frame` event carries a ticket, a photo and a size, and
   the pixels are fetched separately. `EngineClient.frame(ticket)` stands for
   that until the transport is decided.
-- **Thumbnails.** The filmstrip has nothing to show for a photo that is not
-  open.
+- **Photos the engine cannot open.** Browse lists JPEG, TIFF and PNG files
+  beside RAWs; the engine decodes RAWs only so far, so opening one of those
+  in Edit says so.
 
 ## Running it
 
@@ -109,5 +142,6 @@ Inside the app the shell edits in memory only: nothing is saved, and
 `.agdata` files are never read or written. `npm run tauri dev` starts
 today's interface as before.
 
-In a plain browser the shell runs on the contract fake. Today's app needs
+In a plain browser the shell runs on the contract fake and the browse fake.
+Today's app needs
 Tauri, so it does not load there; the switch keeps the two apart.

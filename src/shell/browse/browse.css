@@ -1,0 +1,267 @@
+/*
+ * Browse: folders on the left, the grid in the middle, in the shell's greys
+ * (shell.css). Lightroom Classic's Library grid is the model: grey tiles,
+ * the picture fitted in each, the name under it, the picked one outlined.
+ * Scoped under .ags like the rest of the shell.
+ */
+
+.agb {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Left: favourites, recent, the tree */
+.agb-side {
+  flex: none;
+  width: 260px;
+  overflow-y: auto;
+  border-right: 1px solid var(--ags-outline);
+}
+.agb-tree {
+  padding: 4px 0 12px;
+}
+.agb-group-title {
+  margin: 0;
+  padding: 12px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ags-dim);
+}
+.ags .agb-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 24px;
+  padding: 0 8px 0 12px;
+  color: var(--ags-secondary);
+  text-align: left;
+}
+div.agb-row {
+  gap: 2px;
+}
+.agb-row:hover {
+  background: var(--ags-hover) !important;
+  color: var(--ags-text);
+}
+.agb-row.is-current {
+  background: var(--ags-selected) !important;
+  color: var(--ags-text);
+}
+.agb-twisty {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 20px;
+  color: var(--ags-dim) !important;
+}
+.agb-twisty:disabled {
+  opacity: 1 !important;
+}
+.agb-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 24px;
+  text-align: left;
+}
+.agb-row-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Middle: the folder's head and its grid */
+.agb-middle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--ags-backdrop);
+}
+.agb-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ags-outline);
+  background: var(--ags-window);
+}
+.agb-head-name {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agb-pin {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--ags-dim) !important;
+}
+.agb-pin:hover {
+  background: var(--ags-hover) !important;
+  color: var(--ags-text) !important;
+}
+.agb-pin.is-pinned {
+  color: var(--ags-warning) !important;
+}
+.agb-pin.is-pinned svg {
+  fill: currentColor;
+}
+.agb-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.agb-sort select {
+  font: inherit;
+  color: var(--ags-text);
+  background: var(--ags-surface);
+  border: 1px solid var(--ags-outline);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.agb-message {
+  margin: 0;
+  padding: 10px 16px 0;
+}
+.agb-grid {
+  flex: 1;
+  min-height: 0;
+  padding: 6px;
+  outline: none;
+}
+
+.agb-cell-slot {
+  padding: 5px;
+}
+.ags .agb-cell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 6px 6px 0;
+  border-radius: 4px;
+  background: var(--ags-surface) !important;
+  border: 1px solid transparent !important;
+}
+.agb-cell:hover {
+  background: rgb(50 50 50) !important;
+}
+.agb-cell.is-selected {
+  background: var(--ags-selected) !important;
+  border-color: var(--ags-marker) !important;
+}
+.agb-cell-picture {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+/* Fitted in the cell, whichever way up, and centred. */
+.agb-thumb {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+.agb-thumb.is-empty {
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ags-dim);
+  box-shadow: none;
+}
+.agb-edited {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  color: var(--ags-window);
+  background: var(--ags-marker);
+}
+.agb-cell-name {
+  height: 22px;
+  line-height: 22px;
+  font-size: 11px;
+  color: var(--ags-secondary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Before a folder is picked */
+.agb-start {
+  padding: 28px 36px;
+  overflow-y: auto;
+}
+.ags .agb-start-folder {
+  display: grid;
+  grid-template-columns: 20px minmax(0, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  text-align: left;
+  color: var(--ags-secondary);
+}
+.agb-start-folder:hover {
+  background: var(--ags-hover) !important;
+  color: var(--ags-text);
+}
+.agb-start-name {
+  font-weight: 600;
+  color: var(--ags-text);
+}
+.agb-start-folder > :last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The switch in the top bar */
+.agb-modes {
+  display: inline-flex;
+  border: 1px solid var(--ags-outline);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ags .agb-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  color: var(--ags-secondary);
+}
+.agb-mode:hover {
+  background: var(--ags-hover) !important;
+}
+.agb-mode.is-on {
+  background: var(--ags-active) !important;
+  color: var(--ags-text);
+}
+
+/* The filmstrip's thumbnails, in Edit */
+.ags-film .agb-thumb {
+  box-shadow: none;
+}

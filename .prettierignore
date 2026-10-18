@@ -6,3 +6,5 @@ src-tauri/rawler
 data
 src/shell/contract.generated.ts
 src/shell/contract.fixtures.json
+src/shell/browse/browse.generated.ts
+src/shell/browse/browse.fixtures.json

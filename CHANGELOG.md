@@ -52,6 +52,23 @@ Newest first.
   `side_tabs.rs`, `toolbar.rs`, `widgets.rs`, `theme.rs` and
   `library/filmstrip.rs`: layout, sizes and greys, no code. Tests with
   Vitest: `npm run test:shell`.
+- **Browse, in the new interface.** A file browser, not a library: a folder
+  tree with favourite and recent folders, a grid of the folder's photos
+  (RAWs, JPEG, TIFF, PNG) with an edited mark where a `.agdata` sidecar
+  exists, sort by name or date, and G / D to switch between Browse and
+  Edit; Edit's filmstrip is the same folder. Nothing is remembered but the
+  favourite and recent folders. `src-tauri/src/mods/browse/` lists folders
+  in parts and makes thumbnails from the JPEG each camera embeds, decoded at
+  1/2 to 1/8 scale, never developing the RAW; they are kept in memory
+  (64 MB) and on disk (512 MB). Its types are generated to
+  `src/shell/browse/browse.generated.ts` (ts-rs, in a test). Copied from
+  RapidRAW v1.6.5 @ `79c2a46b`: `largest_tiff_jpeg_preview`
+  (`src-tauri/src/image_loader.rs`), returning every candidate rather than
+  decoding the largest, and `extract_embedded_preview`
+  (`src-tauri/src/raw_processing.rs`) as the fallback. The CR3 preview box
+  and orientation are read after Laurent Clévy's description of the format
+  (github.com/lclevy/canon_cr3). New dependency: `jpeg-decoder` (no
+  dependencies of its own), for the scaled decode.
 
 ## 26.41.12 — 2026-10-11
 

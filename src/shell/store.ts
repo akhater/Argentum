@@ -1,14 +1,17 @@
 // The shell's one store, made of slices: the edit and its history
-// (historySlice.ts), what is on screen (viewSlice.ts), and here what the
-// engine offers, the photo open, and the panels' own state. Components read it
+// (historySlice.ts), what is on screen (viewSlice.ts), the folders browsed
+// (browse/browseSlice.ts), and here what the engine offers, the photo open,
+// and the panels' own state. Components read it
 // through selectors (useShell in ShellContext.tsx).
 
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
+import { createBrowseSlice, type BrowseActions, type BrowseState } from './browse/browseSlice';
+import type { BrowseClient } from './browse/client';
 import type { EngineError, Event, Opened, SectionDescriptor, Section, ToolDescriptor } from './contract';
 import type { EngineClient, FramePixels } from './engine/client';
 import { createHistorySlice, type HistoryActions, type HistoryState } from './historySlice';
-import { fileName } from './paths';
+import { folderOf } from './paths';
 import { createViewSlice, type ViewActions, type ViewState } from './viewSlice';
 
 export type SideTab = 'presets' | 'snapshots' | 'history';
@@ -17,7 +20,7 @@ export interface CoreState {
   /** The panels' sections, in the engine's order. */
   sections: readonly SectionDescriptor[];
   tools: readonly ToolDescriptor[];
-  /** The filmstrip's photos. */
+  /** The filmstrip's photos: the folder browsed. */
   photos: readonly string[];
   path: string | null;
   photo: Pick<Opened, 'photoId' | 'width' | 'height'> | null;
@@ -34,7 +37,7 @@ export interface CoreActions {
   dispose(): void;
   /** Open a photo. Of several asked for at once, the one asked for last is shown. */
   openPhoto(path: string): Promise<void>;
-  /** Open a photo from disk, its folder becoming the filmstrip. */
+  /** Open a photo from disk in Edit, its folder browsed and the filmstrip. */
   openFolder(path: string): Promise<void>;
   /** Show an error from a refused call: an EngineError, or anything thrown on the way. */
   fail(error: unknown): void;
@@ -44,16 +47,24 @@ export interface CoreActions {
   toggleSection(section: Section): void;
 }
 
-export type Shell = CoreState & CoreActions & HistoryState & HistoryActions & ViewState & ViewActions;
+export type Shell = CoreState &
+  CoreActions &
+  HistoryState &
+  HistoryActions &
+  ViewState &
+  ViewActions &
+  BrowseState &
+  BrowseActions;
 export type ShellStore = StoreApi<Shell>;
 
 /** A part of the store, given the whole store's set and get. */
 export type Slice<T> = (set: ShellStore['setState'], get: ShellStore['getState']) => T;
 
 export interface StoreOptions {
+  /** Photos to start with, the first open in Edit. Without any the window starts in Browse. */
   photos?: readonly string[];
-  /** The photos in a photo's folder, where there are files to list (inside the app). */
-  folder?: (path: string) => Promise<readonly string[]>;
+  /** Folders and thumbnails: the app's, or the browse fake. */
+  browse?: BrowseClient;
   /** Turns frame pixels into something drawable. Defaults to createImageBitmap where there is one. */
   decode?: (pixels: FramePixels) => Promise<ImageBitmap | null>;
 }
@@ -83,6 +94,7 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
   return createStore<Shell>()((set, get) => ({
     ...createHistorySlice(client)(set, get),
     ...createViewSlice(client, options.decode ?? decodeToBitmap)(set, get),
+    ...createBrowseSlice(options.browse, options.photos?.length ? 'edit' : 'browse')(set, get),
 
     sections: [],
     tools: [],
@@ -129,16 +141,8 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     },
 
     async openFolder(path) {
-      let photos: readonly string[] = [];
-      try {
-        photos = options.folder ? await options.folder(path) : [];
-      } catch (e) {
-        get().fail(e);
-      }
-      // The folder's own spelling of the path, so the filmstrip marks it.
-      const same = photos.find((p) => fileName(p) === fileName(path)) ?? path;
-      set({ photos: photos.includes(same) ? photos : [same, ...photos] });
-      await get().openPhoto(same);
+      void get().browseFolder(folderOf(path));
+      await get().edit(path);
     },
 
     fail(error) {

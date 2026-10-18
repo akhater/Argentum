@@ -454,6 +454,21 @@ export const REGISTRY = [
     keywords: /sidecar|rrdata|agdata|\.xmp|metadata.?file/i,
   },
   {
+    id: 'browse',
+    kind: 'feature',
+    what:
+      'Browse in the new interface: folders, a grid of thumbnails made from the JPEG each RAW embeds, '
+      + 'and an edited mark where a photo has a sidecar.',
+    ours: ['src-tauri/src/mods/browse/', 'src/shell/browse/'],
+    dependsOn: [
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'get_primary_sidecar_path', how: 'calls',
+        note: 'The other way round from an anchor: our listing calls theirs, for where a photo\'s '
+          + 'sidecar is. Only its existence is checked; the sidecar is never read.' },
+    ],
+    tests: ['src-tauri/src/mods/browse/listing.rs #[cfg(test)] a_photo_says_whether_it_has_a_sidecar_and_its_stat'],
+    keywords: /sidecar|agdata|thumbnail|embedded.?(jpeg|preview)|folder.?tree/i,
+  },
+  {
     id: 'import-dialogue-1714',
     kind: 'feature',
     what:

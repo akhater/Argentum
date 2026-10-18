@@ -1,4 +1,5 @@
-// The new editor interface. Layout after RAWmakase 0.3.3's Develop
+// The new editor interface, in two modes. Browse: folders and a grid of their
+// photos (browse/). Edit: layout after RAWmakase 0.3.3's Develop
 // (src/app/workspace.rs and side_tabs.rs @ 7c3c81ab, MIT), itself Lightroom Classic's:
 // from the window's right edge the rail, the tool panels under the histogram
 // and navigator, the Presets / Snapshots / History panel, then the photo with
@@ -6,6 +7,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { BrowseView } from './browse/BrowseView';
+import { MODE_KEYS, ModeSwitch } from './browse/ModeSwitch';
 import { AppBar } from './engine/AppBar';
 import { connectEngine, type AppConnection, type Connection } from './engine/client';
 import { text } from './i18n';
@@ -35,21 +38,28 @@ function shortcuts(store: ShellStore) {
     } else if (mod && e.key.toLowerCase() === 'y') {
       e.preventDefault();
       s.redo();
-    } else if (!mod && e.key.toLowerCase() === 'z') {
+    } else if (!mod && e.key.toLowerCase() === MODE_KEYS.browse) {
+      s.setMode('browse');
+    } else if (!mod && e.key.toLowerCase() === MODE_KEYS.edit) {
+      s.setMode('edit');
+    } else if (!mod && e.key.toLowerCase() === 'z' && s.mode === 'edit') {
       s.setZoom(s.zoom === 'fit' ? 1 : 'fit');
     }
   };
 }
 
 export function ShellView({ store, fake, app }: { store: ShellStore; fake: boolean; app?: AppConnection }) {
-  const name = useShell((s) => (s.path ? fileName(s.path) : ''));
+  const name = useShell((s) => (s.mode === 'edit' && s.path ? fileName(s.path) : ''));
+  const mode = useShell((s) => s.mode);
   useEffect(() => {
     void store.getState().init();
+    void store.getState().initBrowse();
     const onKey = shortcuts(store);
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
       store.getState().dispose();
+      store.getState().disposeBrowse();
     };
   }, [store]);
 
@@ -57,6 +67,7 @@ export function ShellView({ store, fake, app }: { store: ShellStore; fake: boole
     <div className="ags">
       <header className="ags-top">
         <span className="ags-brand">{text('shell.brand')}</span>
+        <ModeSwitch />
         <span className="ags-top-name">{name}</span>
         {app && <AppBar app={app} />}
         {fake && (
@@ -65,38 +76,44 @@ export function ShellView({ store, fake, app }: { store: ShellStore; fake: boole
           </span>
         )}
       </header>
-      <main className="ags-main">
-        <div className="ags-photo">
-          <Viewer />
-          <Toolbar />
-        </div>
-        <SideTabs />
-        <aside className="ags-tools">
-          <div className="ags-panel-block">
-            <div className="ags-block-head">
-              <span>{text('shell.histogram')}</span>
-            </div>
-            <Histogram />
-          </div>
-          <Navigator />
-          <div className="ags-tools-scroll">
-            <PanelStack />
-          </div>
-        </aside>
-        <Rail />
-      </main>
-      <footer className="ags-bottom">
-        <StatusLine fake={fake} />
-        <Filmstrip />
-      </footer>
+      <main className="ags-main">{mode === 'browse' ? <BrowseView /> : <EditView />}</main>
+      {mode === 'edit' && (
+        <footer className="ags-bottom">
+          <StatusLine fake={fake} />
+          <Filmstrip />
+        </footer>
+      )}
     </div>
   );
 }
 
-function Connected({ connection }: { connection: Connection }) {
-  const [store] = useState(() =>
-    createShellStore(connection.client, { photos: connection.photos, folder: connection.app?.library.folder }),
+function EditView() {
+  return (
+    <>
+      <div className="ags-photo">
+        <Viewer />
+        <Toolbar />
+      </div>
+      <SideTabs />
+      <aside className="ags-tools">
+        <div className="ags-panel-block">
+          <div className="ags-block-head">
+            <span>{text('shell.histogram')}</span>
+          </div>
+          <Histogram />
+        </div>
+        <Navigator />
+        <div className="ags-tools-scroll">
+          <PanelStack />
+        </div>
+      </aside>
+      <Rail />
+    </>
   );
+}
+
+function Connected({ connection }: { connection: Connection }) {
+  const [store] = useState(() => createShellStore(connection.client, { browse: connection.browse }));
   return (
     <ShellProvider store={store}>
       <ShellView store={store} fake={connection.fake} app={connection.app} />

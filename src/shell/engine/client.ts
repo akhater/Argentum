@@ -4,6 +4,7 @@
 
 import { isTauri } from '@tauri-apps/api/core';
 
+import type { BrowseClient } from '../browse/client';
 import type {
   Applied,
   EditPatch,
@@ -51,10 +52,8 @@ export interface EngineClient {
   subscribe(listener: (event: Event) => void): () => void;
 }
 
-/** Photos on this computer. Only inside the app: a plain browser has the fake's samples. */
+/** Files on this computer, beyond browsing. Only inside the app. */
 export interface Library {
-  /** The RAWs in a photo's folder, sorted by name. */
-  folder(path: string): Promise<string[]>;
   /** A file dialog for one RAW, in `from`'s folder; null when closed without one. */
   pick(from: string | null): Promise<string | null>;
 }
@@ -72,8 +71,8 @@ export interface Connection {
   client: EngineClient;
   /** True while the contract fake stands in for the engine. */
   fake: boolean;
-  /** What the filmstrip shows until a photo is opened from a folder. */
-  photos: string[];
+  /** Folders and thumbnails: the app's, or the browse fake's made-up disk with the engine fake. */
+  browse: BrowseClient;
   /** Inside the app only. */
   app?: AppConnection;
 }
@@ -85,18 +84,26 @@ export interface Connection {
 export async function connectEngine(): Promise<Connection> {
   const fake = new URLSearchParams(window.location.search).get('engine') === 'fake';
   if (isTauri() && !fake) {
-    const { connectApp, showWindow } = await import('./tauri');
+    const [{ connectApp, showWindow }, { createTauriBrowse }] = await Promise.all([
+      import('./tauri'),
+      import('../browse/tauri'),
+    ]);
     try {
-      return await connectApp();
+      return { ...(await connectApp()), browse: createTauriBrowse() };
     } catch (e) {
       // The window is built hidden: show it, so the failure can be seen.
       await showWindow().catch(() => undefined);
       throw e;
     }
   }
-  const [{ createFakeEngine, FAKE_PHOTOS }, { createWorkerPainter }] = await Promise.all([
+  const [{ createFakeEngine }, { createWorkerPainter }, { createFakeBrowse, paintThumb }] = await Promise.all([
     import('./fake'),
     import('./fakePaint'),
+    import('../browse/fake'),
   ]);
-  return { client: createFakeEngine({ paint: createWorkerPainter() }), fake: true, photos: FAKE_PHOTOS };
+  return {
+    client: createFakeEngine({ paint: createWorkerPainter() }),
+    fake: true,
+    browse: createFakeBrowse({ thumbMs: 25, paint: paintThumb }),
+  };
 }

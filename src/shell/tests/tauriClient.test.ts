@@ -5,6 +5,8 @@
 
 import { describe, expect, it } from 'vitest';
 
+import browseFixtures from '../browse/browse.fixtures.json';
+import { BROWSE_EVENT, createTauriBrowse } from '../browse/tauri';
 import fixtures from '../contract.fixtures.json';
 import type { EditPatch, Event, ToolDescriptor } from '../contract';
 import {
@@ -19,6 +21,7 @@ import {
   type WebView2,
 } from '../engine/tauri';
 import wire from '../engine/wire.fixtures.json';
+import { fileName, folderOf, samePath } from '../paths';
 import { createShellStore } from '../store';
 import { settle } from './helpers';
 
@@ -63,6 +66,7 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
   const unlistened: string[] = [];
   const page = webView2();
   let ticket = 0;
+  let listings = 0;
   let lastFrame: { ticket: number; width: number; height: number } | null = null;
 
   const transport: Transport = {
@@ -93,8 +97,25 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
             page.post(b, lastFrame.ticket);
             return 'shared';
           }
-          case 'shell_folder':
-            return options.folder ?? [args.path];
+          case 'browse_places':
+            return browseFixtures.places;
+          case 'browse_add_recent':
+            return [args.path];
+          case 'browse_want':
+            return null;
+          case 'browse_list': {
+            const listing = ++listings;
+            const photos = (options.folder ?? []).map((path) => ({
+              name: fileName(path),
+              path,
+              bytes: 1,
+              modifiedMs: 0,
+              edited: false,
+            }));
+            // As from the app, the photos can come before the answer.
+            emit(BROWSE_EVENT, { event: 'listed', listing, photos, done: true });
+            return listing;
+          }
           case 'shell_pick':
             return PATH;
           default:
@@ -141,7 +162,6 @@ describe('the real client', () => {
     expect((await client.apply(opened.photoId, fixtures.patch)).edit).toEqual(fixtures.applied.edit);
     await client.view(opened.photoId, fixtures.view);
     expect(await client.frame(fixtures.events[0].ticket)).toBeNull();
-    await library.folder(PATH);
     await library.pick(PATH);
     expect(Object.fromEntries(calls)).toEqual(wire.calls);
     expect(calls.map(([name]) => name)).toEqual(Object.keys(wire.calls));
@@ -328,17 +348,20 @@ describe('the shell on the real client', () => {
     expect(connection.fake).toBe(false);
     expect(connection.app?.first).toBe(PATH);
     const store = createShellStore(connection.client, {
-      folder: connection.app!.library.folder,
+      browse: createTauriBrowse(transport),
       decode: async () => null,
     });
     await store.getState().init();
+    await store.getState().initBrowse();
     store.getState().setViewSize({ width_px: 800, height_px: 600 });
     await store.getState().openFolder(connection.app!.first!);
     await settle();
     const s = store.getState;
+    expect(s().mode).toBe('edit');
+    expect(s().folder).toBe(folderOf(PATH));
     expect(s().photos).toEqual(folder);
-    // The folder's spelling of the path, so the filmstrip marks it.
-    expect(s().path).toBe(folder[1]);
+    // The same file, however each side spells it: the filmstrip marks it.
+    expect(samePath(s().path!, folder[1])).toBe(true);
     expect(s().photo?.photoId).toBe(fixtures.opened.photoId);
     expect(s().sections).toEqual(fixtures.sections);
 

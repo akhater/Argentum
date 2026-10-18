@@ -116,7 +116,7 @@ export function readFrame(
  * Listen until the returned function is called, including when it is called
  * before Tauri has said it is listening.
  */
-function subscription<T>(transport: Transport, event: string, handler: (payload: T) => void): () => void {
+export function subscription<T>(transport: Transport, event: string, handler: (payload: T) => void): () => void {
   let gone = false;
   let stop: (() => void) | null = null;
   void transport
@@ -238,10 +238,9 @@ export function createTauriEngine(transport: Transport = tauriTransport): Engine
   };
 }
 
-/** The photos on this computer, through the app. */
+/** Files on this computer, through the app. */
 export function appLibrary(transport: Transport = tauriTransport): Library {
   return {
-    folder: (path) => transport.ag('shell_folder', { path }),
     pick: (from) => transport.ag('shell_pick', { from }),
   };
 }
@@ -249,15 +248,14 @@ export function appLibrary(transport: Transport = tauriTransport): Library {
 /** Show the window, which the app builds hidden. */
 export const showWindow = (transport: Transport = tauriTransport) => transport.ag<null>('shell_show_window');
 
-/** The real engine, and the photo the app was started with, if any. */
-export async function connectApp(transport: Transport = tauriTransport): Promise<Connection> {
+/** The real engine, and the photo the app was started with, if any. Browsing is joined to it by `connectEngine`. */
+export async function connectApp(transport: Transport = tauriTransport): Promise<Omit<Connection, 'browse'>> {
   await showWindow(transport);
   const first = await transport.ag<string | null>('shell_launch_photo');
   const client = createTauriEngine(transport);
   return {
     client,
     fake: false,
-    photos: [],
     app: { first: first ?? undefined, library: appLibrary(transport), onTickMs: client.onTickMs },
   };
 }

@@ -12,7 +12,6 @@
 //! | `engine_apply`    | `apply(photo, patch)`                                |
 //! | `engine_view`     | `view(photo, view)`                                  |
 //! | `engine_frame`    | `frame(ticket)`, delivered by `engine_frame.rs`      |
-//! | `shell_folder`    | the RAWs beside a photo (`shell_photos.rs`)          |
 //! | `shell_pick`      | a file dialog for one RAW (`shell_photos.rs`)        |
 //! | `shell_launch_photo` | the photo the app was started with (`shell_photos.rs`) |
 //! | `shell_show_window`  | shows the window, which the app builds hidden        |
@@ -180,7 +179,6 @@ impl Bridge {
 mod tests {
     use super::*;
     use crate::mods::engine_frame;
-    use crate::mods::shell_photos;
     use argentum_engine::contract::{EditPatch, View};
     use std::sync::mpsc::{Receiver, channel};
     use std::time::{Duration, Instant};
@@ -375,10 +373,10 @@ mod tests {
         let Some(path) = raw("photos_past_the_budget_are_let_go_and_keep_their_edits") else {
             return;
         };
-        let others: Vec<PathBuf> = shell_photos::folder(&path)
+        let others: Vec<PathBuf> = std::fs::read_dir(path.parent().unwrap())
             .unwrap()
-            .into_iter()
-            .map(PathBuf::from)
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| crate::mods::browse::listing::is_raw(p))
             .filter(|p| std::path::absolute(p).ok() != std::path::absolute(&path).ok())
             .take(2)
             .collect();

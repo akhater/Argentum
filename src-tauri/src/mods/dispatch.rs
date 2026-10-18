@@ -476,16 +476,6 @@ async fn json(
             serde_json::to_value(shell_photos::launched_with(std::env::args().skip(1)))
                 .map_err(|e| e.to_string())
         }
-        "shell_folder" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let r = tokio::task::spawn_blocking(move || {
-                shell_photos::folder(std::path::Path::new(&a.path))
-            })
-            .await
-            .map_err(|e| e.to_string())?
-            .map_err(|e| e.to_string())?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
         "shell_pick" => {
             let a: PickArgs = args_for(&name, args)?;
             serde_json::to_value(shell_photos::pick(&app_handle, a.from).await)
@@ -525,14 +515,14 @@ mod tests {
             serde_json::from_str(include_str!("../../../src/shell/engine/wire.fixtures.json"))
                 .unwrap();
         let calls = wire["calls"].as_object().unwrap();
-        assert!(calls.len() >= 10);
+        assert!(calls.len() >= 9);
         for (name, args) in calls {
             let args = args.clone();
             match name.as_str() {
                 "engine_sections" | "engine_tools" | "shell_show_window" | "shell_launch_photo" => {
                     assert_eq!(args, serde_json::json!({}))
                 }
-                "engine_open" | "shell_folder" => {
+                "engine_open" => {
                     args_for::<PathArgs>(name, args).unwrap();
                 }
                 "engine_apply" => {
