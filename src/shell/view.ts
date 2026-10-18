@@ -102,19 +102,3 @@ export function fitRect(content_px: SizePx, box_px: SizePx): RectPx {
   const height_px = content_px.height_px * scale;
   return { x_px: (box_px.width_px - width_px) / 2, y_px: (box_px.height_px - height_px) / 2, width_px, height_px };
 }
-
-/** Where the photo lies in a frame rendered for `view`, in the frame's own pixels, cut to the frame. */
-export function photoInFrame(view: View, photo: PhotoSize, frame_px: SizePx): RectPx {
-  const fx = frame_px.width_px / view.width;
-  const fy = frame_px.height_px / view.height;
-  const x_px = (view.width / 2 - view.centerX * photo.width * view.zoom) * fx;
-  const y_px = (view.height / 2 - view.centerY * photo.height * view.zoom) * fy;
-  const x0 = Math.max(0, x_px);
-  const y0 = Math.max(0, y_px);
-  return {
-    x_px: x0,
-    y_px: y0,
-    width_px: Math.min(frame_px.width_px, x_px + photo.width * view.zoom * fx) - x0,
-    height_px: Math.min(frame_px.height_px, y_px + photo.height * view.zoom * fy) - y0,
-  };
-}

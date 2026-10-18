@@ -18,6 +18,7 @@ import {
   type ErrorKind,
   type Event,
   type PhotoId,
+  type Placement,
   type RenderTicket,
   type SectionDescriptor,
   type SettingSpec,
@@ -26,6 +27,7 @@ import {
   type View,
 } from '../contract';
 import type { EngineClient, FramePixels } from './client';
+import { frameLayout, type FrameLayout } from './fakeLayout';
 
 /** The engine's sections and tools, exactly as it describes them. */
 export const FAKE_SECTIONS = fixtures.sections as SectionDescriptor[];
@@ -43,17 +45,15 @@ export const FAKE_PHOTOS = [
   'samples/P1040562.RW2',
 ];
 
-/** What a painter is asked for: one view of one photo. */
+/** What a painter is asked for: one view of one photo, laid out as the engine lays it out. */
 export interface PaintJob {
   ticket: RenderTicket;
   path: string;
-  width: number;
-  height: number;
-  view: View;
+  layout: FrameLayout;
   edit: EditDocument;
 }
 
-/** Pixels and their luminance bins, or null when a newer job replaced this one. */
+/** Pixels of exactly the layout's placement and their luminance bins, or null when a newer job replaced this one. */
 export type FakePainter = (job: PaintJob) => Promise<{ pixels: FramePixels; bins: number[] } | null>;
 
 export type FakeCall =
@@ -125,8 +125,7 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
   const views = new Map<PhotoId, View>();
   const calls: FakeCall[] = [];
   let ticket = 0;
-  let latest: { ticket: RenderTicket; pixels: FramePixels | null; size: { width: number; height: number } } | null =
-    null;
+  let latest: { ticket: RenderTicket; pixels: FramePixels | null; placement: Placement } | null = null;
 
   const emit = (event: Event) => listeners.forEach((l) => l(event));
   const later = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -145,11 +144,14 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
     const view = views.get(id);
     if (!p || !view) return;
     try {
-      const painted = options.paint ? await options.paint({ ticket: t, ...p, view }) : undefined;
+      const layout = frameLayout(view, p);
+      const painted = options.paint
+        ? await options.paint({ ticket: t, path: p.path, layout, edit: p.edit })
+        : undefined;
       if (painted === null || t !== ticket) return;
-      const size = painted ? { width: painted.pixels.width, height: painted.pixels.height } : view;
-      latest = { ticket: t, pixels: painted?.pixels ?? null, size };
-      emit({ event: 'frame', ticket: t, photoId: id, width: size.width, height: size.height });
+      const { placement } = layout;
+      latest = { ticket: t, pixels: painted?.pixels ?? null, placement };
+      emit({ event: 'frame', ticket: t, photoId: id, placement });
       emit({ event: 'histogram', ticket: t, photoId: id, bins: painted?.bins ?? new Array(HISTOGRAM_BINS).fill(0) });
     } catch (e) {
       emit({ event: 'error', ticket: t, kind: 'render', message: String(e) });
@@ -223,7 +225,7 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
 
     async frame(t) {
       if (!latest || latest.ticket !== t) return null;
-      const { width, height } = latest.size;
+      const { widthPx: width, heightPx: height } = latest.placement;
       latest.pixels ??= { width, height, data: new Uint8ClampedArray(width * height * 4).fill(128) };
       return latest.pixels;
     },

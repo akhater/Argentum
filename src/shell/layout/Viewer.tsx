@@ -1,5 +1,5 @@
-// The photo. It tells the store its size in screen pixels and draws the latest
-// frame; a click toggles between fitted and 100% at the point clicked, and a
+// The photo. It tells the store its size in device pixels and draws the latest
+// frame where the engine placed it in the view, never stretched; a click toggles between fitted and 100% at the point clicked, and a
 // drag pans while zoomed in.
 
 import { useEffect, useRef, type PointerEvent } from 'react';
@@ -39,7 +39,9 @@ export function Viewer() {
     c.height = size.height_px;
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
-    if (frame?.image) ctx.drawImage(frame.image, 0, 0, c.width, c.height);
+    if (!frame?.image) return;
+    const { xPx, yPx, widthPx, heightPx } = frame.placement;
+    ctx.drawImage(frame.image, xPx, yPx, widthPx, heightPx);
   }, [frame, store]);
 
   const down = (e: PointerEvent<HTMLDivElement>) => {

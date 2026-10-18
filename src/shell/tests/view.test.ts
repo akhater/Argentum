@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { fitRect, fitZoom, pannedCenter, photoInFrame, photoPointAt, viewFor, visiblePart } from '../view';
+import { fitRect, fitZoom, pannedCenter, photoPointAt, viewFor, visiblePart } from '../view';
 
 const photo = { width: 6000, height: 4000 };
 const screen = { width_px: 1200, height_px: 1000 };
@@ -32,19 +32,11 @@ describe('the view', () => {
     expect(pannedCenter(view, photo, 600, 0).x).toBeCloseTo(0.5 - 600 / 6000, 10);
   });
 
-  it('says what part of the photo is on screen, and where the photo is in a frame', () => {
+  it('says what part of the photo is on screen, and fits a picture in a box', () => {
     const view = viewFor(photo, screen, 1, { x: 0.5, y: 0.5 })!;
     const part = visiblePart(view, photo);
     expect(part.width).toBeCloseTo(0.2, 10);
     expect(part.x).toBeCloseTo(0.4, 10);
-    const fitted = viewFor(photo, screen, 'fit', { x: 0.5, y: 0.5 })!;
-    // At 0.2 the photo is 1200 x 800, in a frame half the view's size.
-    expect(photoInFrame(fitted, photo, { width_px: 600, height_px: 500 })).toEqual({
-      x_px: 0,
-      y_px: 50,
-      width_px: 600,
-      height_px: 400,
-    });
     expect(fitRect({ width_px: 300, height_px: 200 }, { width_px: 150, height_px: 150 })).toEqual({
       x_px: 0,
       y_px: 25,

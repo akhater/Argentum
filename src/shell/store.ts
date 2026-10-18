@@ -129,7 +129,7 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
       }
       if (!s.photo || event.photoId !== s.photo.photoId) return;
       if (event.event === 'histogram') s.takeHistogram(event.ticket, event.bins);
-      else void s.takeFrame(event.ticket);
+      else void s.takeFrame(event.ticket, event.placement);
     },
 
     setSideTab: (sideTab) => set({ sideTab }),
