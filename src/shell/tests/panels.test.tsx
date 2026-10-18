@@ -10,14 +10,18 @@ import { Slider } from '../widgets/Slider';
 import { openShell, renderPanels } from './helpers';
 
 const count = (html: string, needle: string) => html.split(needle).length - 1;
-const rowOf = (html: string, key: string) => html.slice(html.indexOf(`data-setting="${key}"`)).split('</div></div>')[0];
+// A setting's row, within its tool's block: two tools may share a key.
+const rowOf = (html: string, toolId: string, key: string) => {
+  const block = html.slice(html.indexOf(`data-tool="${toolId}"`));
+  return block.slice(block.indexOf(`data-setting="${key}"`)).split('</div></div>')[0];
+};
 
 describe('panels from descriptors', () => {
   it('show sections in the order and with the labels the engine gives, leaving out empty ones', () => {
     const sections = buildSections(FAKE_SECTIONS, FAKE_TOOLS);
     expect(sections.map((s) => [s.id, s.label, s.tools.map((t) => t.id)])).toEqual([
-      ['basic', 'sections.basic', ['ag_exposure_wb']],
-      ['tone', 'sections.tone', ['dt_highlights']],
+      ['basic', 'sections.basic', ['ag_exposure', 'rr_white_balance', 'rr_basic_tone', 'rr_presence']],
+      ['tone', 'sections.tone', ['dt_highlights', 'ag_dng_standard']],
       ['detail', 'sections.detail', ['rt_capture_sharpen']],
     ]);
     const reversed = buildSections([...FAKE_SECTIONS].reverse(), FAKE_TOOLS);
@@ -47,10 +51,10 @@ describe('panels from descriptors', () => {
 
   it('label tools and settings from the locale, and values from the edit', async () => {
     const { store } = await openShell();
-    store.getState().setSetting('ag_exposure_wb', 'exposure', 1.25);
+    store.getState().setSetting('ag_exposure', 'exposure_ev', 1.25);
     const html = renderPanels(store);
     expect(html).toContain('Capture sharpening');
-    expect(html).toContain('Exposure &amp; white balance');
+    expect(html).toContain('White balance');
     expect(html).toContain('value="1.25"');
     expect(html).toContain('aria-valuetext="+1.25 EV"');
   });
@@ -60,7 +64,7 @@ describe('panels from descriptors', () => {
     store.getState().toggleSection('detail');
     const html = renderPanels(store);
     expect(html).not.toContain('data-tool="rt_capture_sharpen"');
-    expect(html).toContain('data-tool="ag_exposure_wb"');
+    expect(html).toContain('data-tool="ag_exposure"');
   });
 });
 
@@ -99,9 +103,14 @@ describe('a log setting', () => {
     expect(html).toContain('class="ags-rail-thumb" style="left:50%"');
     const { store } = await openShell();
     const panels = renderPanels(store);
-    const logs = FAKE_TOOLS.flatMap((t) => t.settings.filter((x) => x.scale === 'log' && !x.advanced));
+    const logs = FAKE_TOOLS.flatMap((t) =>
+      t.settings.filter((x) => x.scale === 'log' && !x.advanced).map((x) => [t, x] as const),
+    );
     expect(logs.length).toBeGreaterThan(0);
-    for (const spec of logs) expect(rowOf(panels, spec.key)).toContain('class="ags-rail-thumb" style="left:50%"');
+    for (const [tool, spec] of logs)
+      expect(rowOf(panels, tool.id, spec.key)).toContain(
+        `class="ags-rail-thumb" style="left:${railPosition(spec, Number(spec.default)) * 100}%"`,
+      );
   });
 });
 
@@ -116,11 +125,11 @@ describe('enabledWhen', () => {
     );
     expect(dependent.length).toBeGreaterThan(0);
     let html = renderPanels(store);
-    for (const [, spec] of dependent) expect(rowOf(html, spec.key)).toContain('aria-disabled="true"');
+    for (const [tool, spec] of dependent) expect(rowOf(html, tool.id, spec.key)).toContain('aria-disabled="true"');
     for (const [tool, spec] of dependent)
       store.getState().setSetting(tool.id, spec.enabledWhen!.key, spec.enabledWhen!.equals);
     html = renderPanels(store);
-    for (const [, spec] of dependent) expect(rowOf(html, spec.key)).not.toContain('aria-disabled="true"');
+    for (const [tool, spec] of dependent) expect(rowOf(html, tool.id, spec.key)).not.toContain('aria-disabled="true"');
     expect(disabledKeys(html)).toEqual([]);
   });
 });

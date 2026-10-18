@@ -317,7 +317,7 @@ fn fixtures() -> Fixtures {
         },
         applied: Applied {
             ticket: RenderTicket(2),
-            edit: patched[0].edit.clone(),
+            edit: standard().merge(&edit, &patch, &edit).expect("taken"),
         },
         patched,
         refused,

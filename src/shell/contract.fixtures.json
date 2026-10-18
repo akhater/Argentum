@@ -437,7 +437,7 @@
           "v": 1,
           "settings": {
             "blacks": 0.0,
-            "contrast": 20.0,
+            "contrast": 0.0,
             "highlights": 0.0,
             "shadows": 0.0,
             "whites": 0.0
@@ -453,8 +453,8 @@
         "rr_white_balance": {
           "v": 1,
           "settings": {
-            "temperature_k": 6503.707029390634,
-            "tint": 9.769979251235142
+            "temperature_k": 5000.0,
+            "tint": 10.0
           }
         },
         "rt_capture_sharpen": {
