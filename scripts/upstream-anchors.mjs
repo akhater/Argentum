@@ -32,15 +32,6 @@
  */
 export const ANCHORS = [
   {
-    file: 'src-tauri/src/file_management.rs',
-    hooks: 1,
-    what:
-      'the first thumbnail while browsing, in generate_single_thumbnail_and_cache: '
-      + 'the camera\'s JPEG before the thumbnail is made, and the start of the watcher '
-      + 'that sends it for every photo waiting in the queue',
-    instead: 'do more inside mods/first_thumbnail.rs',
-  },
-  {
     file: 'src-tauri/src/shaders/display.wgsl',
     hooks: 1,
     what: 'one call to ag_stage_present, the presentation stage',

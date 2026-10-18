@@ -1436,6 +1436,16 @@ const startingLook165 = [
   review165('f513a4ee', 'raw-starting-look', 'not-applicable', `${MERGES_165.find(([c]) => c === 'f513a4ee')[1]}: export presets. No starting look.`, 'feature'),
 ];
 
+// Added 2026-10-18, when first-thumbnail was reverted: its window is this one,
+// so it owes this review its decision. Nothing upstream did caused it.
+const firstThumbnailRetired165 = [
+  {
+    overlap: 'retire:first-thumbnail',
+    verdict: 'adopt',
+    why: 'Their thumbnail path is kept as it was: the camera JPEG shown first gave edited photos their unedited look, and the change had not been asked for.',
+  },
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1446,6 +1456,7 @@ export const REVIEW_165_DECISIONS = [
   ...restore165,
   ...dngStandard165,
   ...startingLook165,
+  ...firstThumbnailRetired165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1460,10 +1471,10 @@ export const REVIEW_165_DECISIONS = [
 // Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
 // 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13). That is
 // where per-commit review ended (2026-10-18). Entries registered after it, such
-// as first-thumbnail and editor-layout-rawmakase, owe no decisions against this
+// as editor-layout-rawmakase, owe no decisions against this
 // window: their files are read at the next release review.
-if (REVIEW_165_DECISIONS.length !== 1242) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1242 decisions, found ${REVIEW_165_DECISIONS.length}`);
+if (REVIEW_165_DECISIONS.length !== 1243) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1243 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

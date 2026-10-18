@@ -77,7 +77,6 @@ imgref = "1.12.2"
 sysinfo = "0.39.6"
 tauri-plugin-http = "2.8.0"
 argentum-engine = { path = "engine" } # Argentum: the new engine, for the new interface (mods/engine_bridge.rs)
-jpeg-decoder = { version = "0.3", default-features = false } # Argentum: the first thumbnail decodes a camera's JPEG at 1/2 to 1/8 scale (mods/sb_embedded.rs, from Shoebox). No dependencies.
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 trash = "5.2.6"

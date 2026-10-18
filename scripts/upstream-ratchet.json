@@ -14,7 +14,7 @@
     "src-tauri/src/cache_utils.rs": 1,
     "src-tauri/src/exif_processing.rs": 3,
     "src-tauri/src/export_processing.rs": 46,
-    "src-tauri/src/file_management.rs": 422,
+    "src-tauri/src/file_management.rs": 421,
     "src-tauri/src/formats.rs": 1,
     "src-tauri/src/image_loader.rs": 3,
     "src-tauri/src/launch_request.rs": 54,

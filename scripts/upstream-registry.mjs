@@ -314,27 +314,22 @@ export const REGISTRY = [
   {
     id: 'first-thumbnail',
     kind: 'feature',
-    what: 'While browsing, a RAW\'s thumbnail is its camera\'s JPEG at once, for every photo the grid asks for; '
-      + 'the made thumbnail replaces it.',
+    what: 'While browsing, a RAW\'s thumbnail is its camera\'s JPEG at once; the made thumbnail replaces it.',
     ours: ['src-tauri/src/mods/first_thumbnail.rs', 'src-tauri/src/mods/sb_embedded.rs'],
     dependsOn: [
       { file: 'src-tauri/src/file_management.rs', symbol: 'generate_single_thumbnail_and_cache', how: 'calls',
-        note: 'One line, after the cache check, for the browsing queue only (force_regenerate false): the first '
-          + 'thumbnail of a photo the watcher did not reach, and the start of the watcher. The '
+        note: 'One line, after the cache check, for the browsing queue only (force_regenerate false). The '
           + 'grid takes the picture as the data of their thumbnail-generated event, which useTauriListeners.ts already reads.' },
-      { file: 'src-tauri/src/file_management.rs', how: 'calls',
-        note: 'The watcher relies on three things here. update_thumbnail_queue queues the photos the grid asks for, '
-          + 'newest at the back, clears the queue for another folder, and calls notify_all on its condvar each time. '
-          + 'start_thumbnail_workers takes a photo from the queue, under its lock, before making its thumbnail, so a '
-          + 'photo still queued has not been started. A cached thumbnail is <get_cache_key_hash>_small.jpg and '
-          + '_medium.jpg in get_thumb_cache_dir, as generate_single_thumbnail_and_cache names them; such a photo '
-          + 'gets no first thumbnail. If any of these changes, first thumbnails can arrive after the made ones, or '
-          + 'over an edited photo\'s cached one.' },
-      { file: 'src-tauri/src/app_state.rs', symbol: 'ThumbnailManager', how: 'calls',
-        note: 'The watcher locks queue, reads rotational_disk and waits on cvar, beside their workers.' },
     ],
     tests: ['src-tauri/src/mods/first_thumbnail.rs #[cfg(test)]'],
     keywords: /thumbnail|embedded.?(jpeg|preview)/i,
+    retired: {
+      recordedIn: '79c2a46b448b9a0bee0b30f8c345daad003ad694',
+      why:
+        'Reverted on 2026-10-18 by the owner\x27s choice, not because upstream moved: the camera JPEG first '
+        + 'showed edited photos in their unedited look, and the owner had not asked for thumbnail changes. '
+        + 'Their thumbnail path is unchanged again. The code is in git at 13fb04b8 (#83) and 5d0538f3 (#78).',
+    },
   },
   {
     id: 'raw-decode',
