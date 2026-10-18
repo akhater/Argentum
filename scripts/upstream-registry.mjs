@@ -212,6 +212,19 @@ export const REGISTRY = [
     keywords: /preview|thumbnail|cpu.?raw|tone.?curve|gamma|encode/i,
   },
   {
+    id: 'first-thumbnail',
+    kind: 'feature',
+    what: 'While browsing, a RAW\'s thumbnail is its camera\'s JPEG at once; the made thumbnail replaces it.',
+    ours: ['src-tauri/src/mods/first_thumbnail.rs', 'src-tauri/src/mods/sb_embedded.rs'],
+    dependsOn: [
+      { file: 'src-tauri/src/file_management.rs', symbol: 'generate_single_thumbnail_and_cache', how: 'calls',
+        note: 'One line, after the cache check, for the browsing queue only (force_regenerate false). The '
+          + 'grid takes the picture as the data of their thumbnail-generated event, which useTauriListeners.ts already reads.' },
+    ],
+    tests: ['src-tauri/src/mods/first_thumbnail.rs #[cfg(test)]'],
+    keywords: /thumbnail|embedded.?(jpeg|preview)/i,
+  },
+  {
     id: 'raw-decode',
     kind: 'feature',
     what: 'One anchor after the raw decode, where sRAW levels and our own steps run.',
