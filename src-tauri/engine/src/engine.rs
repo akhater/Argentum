@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 
@@ -39,6 +39,8 @@ struct Shared {
     /// The newest ticket handed out. A render for any other gives up.
     latest: AtomicU32,
     frame: Mutex<Option<Arc<Frame>>>,
+    /// What the render thread's cache holds, as of its last render or chore.
+    cache_bytes: AtomicUsize,
     sink: Box<dyn Fn(Event) + Send + Sync>,
 }
 
@@ -47,7 +49,17 @@ struct State {
     next_photo: u32,
     next_ticket: u32,
     job: Option<Job>,
+    chores: Chores,
     stop: bool,
+}
+
+/// What the render thread does to its cache after the render it is given
+/// with them.
+#[derive(Default)]
+struct Chores {
+    budget_bytes: Option<usize>,
+    /// The keys of closed photos, whose results are let go.
+    forget: Vec<u64>,
 }
 
 struct Photo {
@@ -85,11 +97,13 @@ impl Engine {
                 next_photo: 1,
                 next_ticket: 1,
                 job: None,
+                chores: Chores::default(),
                 stop: false,
             }),
             wake: Condvar::new(),
             latest: AtomicU32::new(0),
             frame: Mutex::new(None),
+            cache_bytes: AtomicUsize::new(0),
             sink: Box::new(sink),
         });
         let worker = {
@@ -202,11 +216,39 @@ impl Engine {
         Ok(self.state().photo(photo)?.edit.clone())
     }
 
-    /// Let a photo go, handing back its edit. Its decoded data is freed once
-    /// no render is using it; a render already asked for still reports.
+    /// Let a photo go, handing back its edit. A render already asked for
+    /// still reports; then the photo's decoded data and every result kept
+    /// for it are freed.
     pub fn close(&self, photo: PhotoId) -> Result<EditDocument> {
-        let closed = self.state().photos.remove(&photo);
-        closed.map(|p| p.edit).ok_or(Error::UnknownPhoto(photo))
+        let mut state = self.state();
+        let closed = state
+            .photos
+            .remove(&photo)
+            .ok_or(Error::UnknownPhoto(photo))?;
+        // The same file open twice shares its results.
+        let key = closed.source.key;
+        if !state.photos.values().any(|p| p.source.key == key) {
+            state.chores.forget.push(key);
+            self.shared.wake.notify_one();
+        }
+        Ok(closed.edit)
+    }
+
+    /// The memory the engine may keep results in, in bytes: what makes a
+    /// slider tick or a pan fast. Least recently used results go first. The
+    /// app sizes it from the memory the machine has;
+    /// `pipeline::DEFAULT_CACHE_BYTES` until it does.
+    ///
+    /// What a render needs while it runs comes on top: the result being made
+    /// is kept within it, but a tool's own working memory is not.
+    pub fn set_cache_budget_bytes(&self, bytes: usize) {
+        self.state().chores.budget_bytes = Some(bytes);
+        self.shared.wake.notify_one();
+    }
+
+    /// The memory results are kept in now, in bytes, as of the last render.
+    pub fn cache_bytes(&self) -> usize {
+        self.shared.cache_bytes.load(Ordering::SeqCst)
     }
 
     /// The bytes an open photo's decoded sensor data holds.
@@ -256,46 +298,72 @@ impl Drop for Engine {
         }
     }
 }
+
 /// The render thread: the newest job, rendered, reported - unless a newer
-/// one arrives first.
+/// one arrives first - and the cache's chores.
 fn work(shared: &Shared, mut pipeline: Pipeline) {
     loop {
-        let job = {
+        let (job, chores) = {
             let mut state = shared.state.lock().unwrap_or_else(|e| e.into_inner());
             loop {
                 if state.stop {
                     return;
                 }
-                if let Some(job) = state.job.take() {
-                    break job;
+                let job = state.job.take();
+                let chores = std::mem::take(&mut state.chores);
+                if job.is_some() || chores.budget_bytes.is_some() || !chores.forget.is_empty() {
+                    break (job, chores);
                 }
                 state = shared.wake.wait(state).unwrap_or_else(|e| e.into_inner());
             }
         };
-        let overtaken = || shared.latest.load(Ordering::SeqCst) != job.ticket.0;
-        match render(&mut pipeline, &job, &overtaken) {
-            Ok(_) if overtaken() => {}
-            Ok((frame, bins)) => {
-                let placement = frame.placement;
-                *shared.frame.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(frame));
-                (shared.sink)(Event::Frame {
-                    ticket: job.ticket,
-                    photo_id: job.photo,
-                    placement,
-                });
-                (shared.sink)(Event::Histogram {
-                    ticket: job.ticket,
-                    photo_id: job.photo,
-                    bins,
-                });
-            }
-            Err(Error::Cancelled) => {}
-            Err(e) => (shared.sink)(Event::Error {
-                ticket: Some(job.ticket),
-                kind: e.kind(),
-                message: e.to_string(),
-            }),
+        if let Some(bytes) = chores.budget_bytes {
+            pipeline.set_cache_budget_bytes(bytes);
         }
+        if let Some(job) = job {
+            report(
+                shared,
+                &job,
+                render(&mut pipeline, &job, &|| overtaken(shared, &job)),
+            );
+        }
+        // After the render: one asked for before the photo closed still runs.
+        for key in chores.forget {
+            pipeline.forget(key);
+        }
+        shared
+            .cache_bytes
+            .store(pipeline.cache_bytes(), Ordering::SeqCst);
+    }
+}
+
+fn overtaken(shared: &Shared, job: &Job) -> bool {
+    shared.latest.load(Ordering::SeqCst) != job.ticket.0
+}
+
+fn report(shared: &Shared, job: &Job, rendered: Result<(Frame, Vec<u32>)>) {
+    match rendered {
+        Ok(_) if overtaken(shared, job) => {}
+        Ok((frame, bins)) => {
+            let placement = frame.placement;
+            *shared.frame.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(frame));
+            (shared.sink)(Event::Frame {
+                ticket: job.ticket,
+                photo_id: job.photo,
+                placement,
+            });
+            (shared.sink)(Event::Histogram {
+                ticket: job.ticket,
+                photo_id: job.photo,
+                bins,
+            });
+        }
+        Err(Error::Cancelled) => {}
+        Err(e) => (shared.sink)(Event::Error {
+            ticket: Some(job.ticket),
+            kind: e.kind(),
+            message: e.to_string(),
+        }),
     }
 }
 
