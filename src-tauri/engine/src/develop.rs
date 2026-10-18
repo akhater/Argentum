@@ -146,7 +146,9 @@ fn bayer(raw: &RawImage) -> bool {
 /// (`dt_iop_clip_and_zoom_demosaic_half_size_f`, `src/develop/imageop_math.c`
 /// @ d5db8356)
 /// both make each 2 x 2 block of photosites one pixel, its two greens
-/// averaged. Here that is rawler's own `Superpixel3Channel`
+/// averaged, and so does RAWmakase's own reader since replacing LibRaw
+/// (`crates/rawmakase-decode/src/demosaic.rs` @ 183e09fd, `half`,
+/// pch/rawmakase#526). Here that is rawler's own `Superpixel3Channel`
 /// (`src/imgop/sensor/bayer/superpixel.rs` @ 16b9b010). The steps around it
 /// are rawler's `develop_intermediate` (`src/imgop/develop.rs` @ 16b9b010):
 /// the levels scaled first, the active area as the demosaic's region; then

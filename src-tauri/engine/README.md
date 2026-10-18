@@ -168,7 +168,9 @@ size. So a screen-sized result takes no sensor-sized picture. The `Raw` tools
 still run on the whole mosaic first, so highlight recovery is the same at
 every size. Other sensors (X-Trans, sRAW, linear DNG) and larger previews
 resize the full develop. `tests/preview.rs` holds a half-size preview to the
-full develop made small: same size, colour, crop, tone and highlights.
+full develop made small by the gates RAWmakase holds its own half-size develop
+to: colour as CIEDE2000 between blocks, detail as the luminance Laplacian's
+energy, and time against the full develop; and the crop in the same place.
 
 Results are kept up to a memory budget (`set_cache_budget_bytes`, 1.5 GB by
 default, for a 16 GB laptop), least recently used first out. The budget is
@@ -262,7 +264,7 @@ and the sensor, so it comes before anything that is an edit.
 | The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | A slider tick at preview size stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW` |
-| A half-size preview is the full develop made small: size, colour, crop, tone, highlights | `tests/preview.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
+| A half-size preview is the full develop made small - size, crop, colour (CIEDE2000), detail - and faster, by RAWmakase's gates for its own | `tests/preview.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | The process's peak memory, fitted and at 100% with a slider dragged, stays within the cache's budget plus 1.5 full-size pictures, and under 2 pictures while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs` | nothing (a synthetic 61 MP photo); a real one with `AG_RAW` |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
