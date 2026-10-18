@@ -1,0 +1,10 @@
+# Windows x64 dev and test builds link with rust-lld, which ships with the Rust
+# toolchain, instead of MSVC's link.exe. Release builds keep link.exe:
+# .github/workflows/build.yml sets CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER
+# for them, and that variable wins over this file.
+#
+# Nothing else goes here. Not `target-dir` in particular: Vite watches the
+# repository root and ignores only src-tauri/, so build output must stay in
+# src-tauri/target.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"

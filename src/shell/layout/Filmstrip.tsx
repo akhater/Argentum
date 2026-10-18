@@ -31,7 +31,6 @@ export function Filmstrip() {
   const photos = useShell((s) => s.photos);
   const current = useShell((s) => s.path);
   const frame = useShell((s) => s.fitFrame);
-  const photo = useShell((s) => s.photo);
   return (
     <div className="ags-filmstrip">
       {photos.map((path) => (
@@ -42,7 +41,7 @@ export function Filmstrip() {
           title={path}
           onClick={() => path !== current && void store.getState().openPhoto(path)}
         >
-          {path === current && <PhotoPicture frame={frame} photo={photo} className="ags-film-picture" />}
+          {path === current && <PhotoPicture frame={frame} className="ags-film-picture" />}
           <span className="ags-film-name">{fileName(path)}</span>
         </button>
       ))}

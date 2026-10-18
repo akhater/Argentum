@@ -919,6 +919,9 @@ const FILE_165 = {
   'export-precision-selector|src/hooks/useExternalEditSession.ts': ['not-applicable', 'External edit sessions get the border and pad fields, and still do not override the global TIFF depth.', ['d151849b', 'ad25d2ba']],
   'rapidraw-164-catchup|src/components/panel/Editor.tsx': ['not-applicable', 'The neutral-grey canvas is intact.', ['3c864270', '65472097']],
   'ai-super-resolution|src/components/panel/Editor.tsx': ['not-applicable', 'The minimum zoom bound for enlarged images is intact.', ['3c864270', '65472097']],
+  'fast-dev-builds|src-tauri/Cargo.toml': ['not-applicable', 'A dependency line; their crate-type and [profile.dev.package."*"], where ours differ, are not touched. Registered after this review (26.41.13).', ['2641891c', '1e6777ed', 'b66691ba', '1732175a', '9b7e3368']],
+  'fast-dev-builds|.github/workflows/build.yml': ['not-applicable', 'Android setup only; their tauri-action step, which carries our linker variable, is not touched. Registered after this review (26.41.13).', ['2641891c', 'd4429f1f', '63472b86', '1e6777ed']],
+  'fast-dev-builds|package.json': ['not-applicable', 'Dependency versions only; the start script is not touched. Registered after this review (26.41.13).', ['b66691ba', '1732175a']],
 };
 
 // One commit in a group that did more than the rest.
@@ -1351,6 +1354,72 @@ const restore165 = [
   review165('b4a9d1a3', 'restore', 'not-applicable', 'Hides chromatic aberration and calibration by default. Their chromatic aberration is the lens-correction TCA slider: it moves colour channels, it does not undo blur. Nothing upstream corrects lens softness.', 'feature'),
 ];
 
+// DNG Standard was registered after this review (26.41.13), so its window is
+// checked here, from each commit's diff of the file. None reaches what it relies
+// on: the tone-mapper chain that fills default_tonemapped, after which
+// ag_stage_tone is called; their apply_curve and linear_to_srgb, which it calls;
+// and rawToneRendering in their adjustments. [commit, file, where its hunks are,
+// symbol or key].
+const UNREACHED_DNG_STANDARD_165 = [
+  ...['c91e0bf7', '89020724', '28fa5120', '9ba20c02', 'e8834210'].flatMap((commit) =>
+    ['default_tonemapped', 'apply_curve', 'linear_to_srgb'].map((symbol) => [commit, 'src-tauri/src/shaders/shader.wgsl', symbol])),
+  ...['1cc99d56', '66fa1600'].flatMap((commit) =>
+    ['default_tonemapped', 'linear_to_srgb'].map((symbol) => [commit, 'src-tauri/src/shaders/shader.wgsl', symbol])),
+  ...['9ba20c02', '181a7e32', 'b4a9d1a3', '7514c8f6', '2f907e36', 'f4a4c8d0', 'c7c42306', '0f564b59']
+    .map((commit) => [commit, 'src/utils/adjustments.ts', 'rawToneRendering']),
+];
+
+// Where each commit's hunks are, as UNREACHED_165 records them for the same file.
+const hunksIn165 = (commit, file) =>
+  UNREACHED_165.find(([c, f]) => c === commit && f === file)?.[2] ?? 'only lines elsewhere in the file';
+
+const dngStandard165 = [
+  ...UNREACHED_DNG_STANDARD_165.map(([commit, file, symbol]) => review165(
+    commit,
+    `dng-standard:${file}${file.endsWith('.ts') ? ':' : '#'}${symbol}`,
+    'not-applicable',
+    `${DID_165[commit]} In ${file} it changes ${hunksIn165(commit, file)}; no changed line names ${symbol}, and no hunk is labelled with it.`,
+  )),
+  // A hunk is labelled apply_curve only because it starts just below it: the
+  // lines it changes are the parameters of apply_tonal_adjustments, next in the
+  // file. apply_curve itself is the same, line for line.
+  review165('1cc99d56', 'dng-standard:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', `${DID_165['1cc99d56']} One hunk is labelled apply_curve because it starts just below it; what it changes is a parameter of apply_tonal_adjustments (mid_log_detail). apply_curve is unchanged, line for line.`),
+  review165('66fa1600', 'dng-standard:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', `${DID_165['66fa1600']} One hunk is labelled apply_curve because it starts just below it; what it changes is a parameter of apply_tonal_adjustments (blurred_color_input_space becomes local_log_detail). apply_curve is unchanged, line for line.`),
+];
+
+// raw-starting-look was registered after this review too (26.41.13), and is
+// checked against the same window, from each commit's diff of the file:
+// [commit, file, symbol or key] where no changed line names it and no hunk is
+// labelled with it.
+const UNREACHED_STARTING_LOOK_165 = [
+  ...['078c90a8', '28fa5120', '3ba2fcae', '3f3e7df1', '9ba20c02', '9fe2ee29', 'c4ba9ac9', 'c91e0bf7', 'e4d6fd16']
+    .map((commit) => [commit, 'src-tauri/src/image_processing.rs', 'raw_tone_mode']),
+  ...['078c90a8', '3ba2fcae', '3f3e7df1', '9fe2ee29', 'c4ba9ac9', 'c91e0bf7', 'e4d6fd16']
+    .map((commit) => [commit, 'src-tauri/src/image_processing.rs', 'is_image_edited']),
+  ...['078c90a8', '43248097', '4e45e620', '9ba20c02', 'c4ba9ac9']
+    .map((commit) => [commit, 'src-tauri/src/file_management.rs', 'reset_adjustments_for_paths']),
+  ['c11c7a5c', 'src-tauri/src/exif_processing.rs', 'load_sidecar'],
+  ...['9ba20c02', '181a7e32', 'b4a9d1a3', '7514c8f6', '2f907e36', 'f4a4c8d0', 'c7c42306', '0f564b59']
+    .map((commit) => [commit, 'src/utils/adjustments.ts', 'rawToneRendering']),
+];
+
+const startingLook165 = [
+  ...UNREACHED_STARTING_LOOK_165.map(([commit, file, symbol]) => review165(
+    commit,
+    `raw-starting-look:${file}${file.endsWith('.ts') ? ':' : '#'}${symbol}`,
+    'not-applicable',
+    `${DID_165[commit]} In ${file} it changes ${hunksIn165(commit, file)}; no changed line names ${symbol}, and no hunk is labelled with it.`,
+  )),
+  review165('28fa5120', 'raw-starting-look:src-tauri/src/image_processing.rs#is_image_edited', 'not-applicable', `${DID_165['28fa5120']} The hunk labelled is_image_edited adds is_section_visible after it; is_image_edited is unchanged.`),
+  review165('9ba20c02', 'raw-starting-look:src-tauri/src/image_processing.rs#is_image_edited', 'combine', `${DID_165['9ba20c02']} Inside is_image_edited both renders gain a white balance reference. What raw-starting-look relies on stays: the edit is compared against json!({}), which now reads as DNG Standard, so a photo nobody edited still counts as unedited.`),
+  review165('c4ba9ac9', 'raw-starting-look:src-tauri/src/exif_processing.rs#load_sidecar', 'not-applicable', `${DID_165['c4ba9ac9']} It reaches load_sidecar only through a caller in file_management.rs that it rewrites; load_sidecar, and the empty adjustments it returns for a photo with no sidecar, are unchanged.`),
+  review165('b191ae05', 'raw-starting-look:src-tauri/src/file_management.rs#reset_adjustments_for_paths', 'not-applicable', `${MERGES_165.find(([c]) => c === 'b191ae05')[1]}. It changes nothing of its own here; the work is reviewed in those commits.`),
+  review165('0110fa2d', 'raw-starting-look', 'not-applicable', '"Reset hidden tools to default constant": the panel layout\u2019s hidden tools, not an edit\u2019s values. No default look.', 'feature'),
+  review165('454c33d6', 'raw-starting-look', 'not-applicable', `${DID_165['454c33d6']} A crop ratio preset, not a starting look.`, 'feature'),
+  review165('476389ad', 'raw-starting-look', 'not-applicable', `${DID_165['476389ad']} Export presets, not a photo\u2019s starting look.`, 'feature'),
+  review165('f513a4ee', 'raw-starting-look', 'not-applicable', `${MERGES_165.find(([c]) => c === 'f513a4ee')[1]}: export presets. No starting look.`, 'feature'),
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1359,6 +1428,8 @@ export const REVIEW_165_DECISIONS = [
   ...hints165,
   ...sharpening165,
   ...restore165,
+  ...dngStandard165,
+  ...startingLook165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1369,10 +1440,11 @@ export const REVIEW_165_DECISIONS = [
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
-// sharpening, 11 of them for a mask's own Sharpen (26.41.11), and 19 for
-// Restore, 6 of them for capture before an enlargement.
-if (REVIEW_165_DECISIONS.length !== 1164) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1164 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
+// Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
+// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13).
+if (REVIEW_165_DECISIONS.length !== 1242) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1242 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

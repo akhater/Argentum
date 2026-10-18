@@ -1165,8 +1165,9 @@ export const REGISTRY = [
       { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
         note: 'raw_tone_mode, the curve and its count, filled from rawToneRendering/rawToneCurve.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
-        note: 'The same fields on the GPU side, and two blocks in main() that replace their tone '
-          + 'mapper for a RAW when a curve is set. Their struct and ours must stay in step.' },
+        note: 'The same fields on the GPU side, read by ag_stage_tone (modules.wgsl), which replaces '
+          + 'their tone mapper’s result for a RAW when a curve is set. Until 2026-10-17 that was two '
+          + 'blocks inside their main(). Their struct and ours must stay in step.' },
       { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
         note: 'rawToneRendering and rawToneCurve in their adjustments type, defaults and loader.' },
       { file: 'src-tauri/src/image_loader.rs', symbol: 'embedded_preview_fallback', how: 'calls',
@@ -1179,6 +1180,78 @@ export const REGISTRY = [
     ],
     tests: ['src-tauri/src/mods/raw_tone.rs #[cfg(test)]'],
     keywords: /tone.?(curve|map)|base.?curve|embedded.?(jpe?g|preview)|agx|filmic/i,
+  },
+  {
+    id: 'dng-standard',
+    kind: 'feature',
+    what:
+      'DNG Standard, a fourth RAW tone rendering, opt-in: the camera’s exposure offset '
+      + '(BaselineExposure, from a DNG or a per-body table taken from RAWmakase) and Adobe’s default '
+      + 'tone curve, applied in linear ProPhoto to each pixel’s largest and smallest channel as '
+      + 'Adobe’s RGBTone does, so hues hold.',
+    ours: [
+      'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/dng_baseline.tsv',
+      'src-tauri/src/shaders/modules.wgsl', 'src/argentum/RawToneRendering.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'default_tonemapped', how: 'extends',
+        note: 'One call, ag_stage_tone, right after their tone-mapper chain, which fills default_tonemapped. It is handed their result '
+          + 'and the scene-linear colour, and returns theirs unless a RAW tone rendering is set. If '
+          + 'upstream moves their tone mapping, the call has to move with it, or ours runs on the '
+          + 'wrong colour.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_curve', how: 'calls',
+        note: 'The 16 points are read with their monotone spline. mods/dng_standard.rs tests the '
+          + 'points against a copy of it, so a change to their spline must be copied there too.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'linear_to_srgb', how: 'calls',
+        note: 'The final encode, which is also the per-channel clip of colours beyond sRGB.' },
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'dngStandard in their type and in the loader’s list of values it keeps.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/dng_standard.rs #[cfg(test)]',
+      'src-tauri/src/mods/shader_check.rs #[cfg(test)]',
+    ],
+    keywords: /baseline.?exposure|dng.?(render|sdk|standard)|acr3|camera.?raw|prophoto|rgb.?tone/i,
+  },
+  {
+    id: 'raw-starting-look',
+    kind: 'behaviour-change',
+    what:
+      'A RAW whose edit names no rendering - one nobody has edited, one reset, settings pasted '
+      + 'onto an unedited photo - starts in DNG Standard, which brings Sharpen 25 at radius 1 until '
+      + 'someone sets their own. Edits that name RapidRAW’s rendering keep it; edits saved '
+      + 'before 2026-09-22 name none and now open in DNG Standard. Read the same everywhere: '
+      + 'raw_tone::mode_of and sharpen::from_json for the renderers, INITIAL_ADJUSTMENTS and their '
+      + 'loader for the editor.',
+    ours: [
+      'src-tauri/src/mods/raw_tone.rs', 'src-tauri/src/mods/sharpen.rs',
+      'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/super_resolution.rs',
+      'src-tauri/src/mods/cache_version.rs', 'src/argentum/sharpenSettings.ts',
+      'src/argentum/Sharpening.tsx', 'src/argentum/RawToneRendering.tsx',
+    ],
+    dependsOn: [
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'INITIAL_ADJUSTMENTS starts it at dngStandard, and their loader fills a saved edit '
+          + 'without it from INITIAL_ADJUSTMENTS, as mode_of does.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'raw_tone_mode', how: 'calls',
+        note: 'Their get_global_adjustments_from_json asks raw_tone::mode_of for the mode and '
+          + 'raw_tone::fill_missing for the photo’s points.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'is_image_edited', how: 'calls',
+        note: 'Compares an edit against json!({}), which now reads as DNG Standard: a photo nobody '
+          + 'edited still counts as unedited; an edit naming RapidRAW’s rendering now counts as edited.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'reset_adjustments_for_paths', how: 'calls',
+        note: 'Their reset writes an empty edit, which now renders as the new start, as the '
+          + 'editor’s reset to INITIAL_ADJUSTMENTS does.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'load_sidecar', how: 'calls',
+        note: 'A photo without a sidecar has no adjustments, which every renderer reads as the new '
+          + 'start. If upstream ever fills in a rendering here, unedited RAWs lose it.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/raw_tone.rs #[cfg(test)]',
+      'src-tauri/src/mods/sharpen.rs #[cfg(test)]',
+      'src-tauri/src/mods/super_resolution.rs #[cfg(test)]',
+    ],
+    keywords: /default.?(look|render|sharpen|preset)|initial.?adjust|unedited|reset/i,
   },
   {
     id: 'object-label',
@@ -1603,6 +1676,51 @@ export const REGISTRY = [
     keywords: /main\.tsx|createRoot/i,
   },
   {
+    id: 'fast-dev-builds',
+    kind: 'behaviour-change',
+    what:
+      'Dev and test builds do less: the app library is built as an rlib only, Windows x64 dev and '
+      + 'test builds link with rust-lld, dependencies carry no debug info in dev builds, and '
+      + 'build.rs neither hashes again nor downloads an ONNX Runtime library already on this disk. '
+      + 'Shipped builds are unchanged: release profile, MSVC linker. npm start leaves the '
+      + 'mergeability check to CI and npm run check:merge.',
+    ours: ['.cargo/config.toml', 'src-tauri/src/mods/build_ort.rs'],
+    dependsOn: [
+      { file: 'src-tauri/Cargo.toml', how: 'replaces',
+        note:
+          'crate-type is ["rlib"]; theirs is ["staticlib", "cdylib", "rlib"]. The binary links the '
+          + 'rlib, and the other two were written by every build for mobile targets Argentum does not '
+          + 'build (ci-desktop-only): a 640 MB staticlib and a cdylib with its own link. A mobile '
+          + 'build needs theirs back - cdylib for Android, staticlib for iOS. Also debug = false in '
+          + 'their [profile.dev.package."*"]: dependencies lose file and line in a backtrace, keep '
+          + 'their function names, and a full rebuild of them took 368 s instead of 528 s.' },
+      { file: 'src-tauri/build.rs', how: 'calls',
+        note:
+          'Includes mods/build_ort.rs with #[path] and asks build_ort::present before their own '
+          + 'check, which then runs only when the answer is no. Relies on their dest_path and '
+          + 'expected_hash: if they move the library or the hash, present looks at the wrong file '
+          + 'and their download runs as before.' },
+      { file: '.github/workflows/build.yml', how: 'extends',
+        note:
+          'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe on their tauri-action step, so a '
+          + 'shipped Windows x64 build links with MSVC as before; the variable wins over '
+          + '.cargo/config.toml.' },
+      { file: 'package.json', how: 'replaces',
+        note:
+          'Their start is `tauri dev`; ours runs check-identity first. It ran check-mergeability '
+          + 'too, about 45 s before every dev window; that check is the required one in '
+          + 'upstream.yml and runs by hand with npm run check:merge.' },
+    ],
+    tests: [
+      'Measured on Windows x64 before and after (pull request "Faster dev and test builds"): a '
+        + 'one-line change in mods/sharpen.rs, then cargo check, cargo test --lib sharpen::, '
+        + 'cargo build; and a cold build at a new target directory.',
+      'Manual: delete src-tauri/resources/onnxruntime.dll in a worktree and build - the log says '
+        + 'it was copied from the main checkout, and its SHA-256 is the pinned one.',
+    ],
+    keywords: /crate.?type|staticlib|cdylib|linker|lld|profile\.dev|debuginfo|build\.rs|onnxruntime/i,
+  },
+  {
     id: 'engine-in-app',
     kind: 'feature',
     what:
@@ -1621,7 +1739,6 @@ export const REGISTRY = [
       'src-tauri/src/mods/shell_photos.rs',
       'src/shell/engine/tauri.ts',
       'src/shell/engine/AppBar.tsx',
-      'src/shell/engine/wire.fixtures.json',
       'scripts/start-shell.mjs',
     ],
     dependsOn: [],
@@ -1629,10 +1746,10 @@ export const REGISTRY = [
       'src-tauri/src/mods/engine_bridge.rs #[cfg(test)]: open, apply, view, frame and latest-wins on '
         + 'a real RAW (AG_RAW); refusals answered as the contract fixtures\' EngineErrors; photos past '
         + 'the limit let go and reopened with their edits',
-      'src-tauri/src/mods/engine_frame.rs and dispatch.rs: the frame block and every call\'s '
-        + 'arguments, read from src/shell/engine/wire.fixtures.json',
-      'src/shell/tests/tauriClient.test.ts: the client sends exactly the wire fixtures, reads the '
-        + 'frame block as bytes and as a shared buffer, and passes EngineErrors through',
+      'src-tauri/src/mods/engine_frame.rs and dispatch.rs: the engine\'s frameBlock fixture as the '
+        + 'block sent, every call\'s arguments as the interface sends them',
+      'src/shell/tests/tauriClient.test.ts: the client\'s calls, the frameBlock fixture read as bytes '
+        + 'and as a shared buffer handed back once, and EngineErrors passed through',
       'Manual: npm run start:shell opens the new interface; Open picks a RAW, its folder fills the '
         + 'filmstrip, and the top bar says edits are not saved.',
     ],

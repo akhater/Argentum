@@ -37,7 +37,12 @@ describe('latest wins', () => {
     const shown = s().frame!.ticket;
     const bins = s().histogram;
     const photoId = s().photo!.photoId;
-    s().receive({ event: 'frame', ticket: shown - 1, photoId, width: 800, height: 600 });
+    s().receive({
+      event: 'frame',
+      ticket: shown - 1,
+      photoId,
+      placement: { xPx: 0, yPx: 0, widthPx: 800, heightPx: 600 },
+    });
     s().receive({ event: 'histogram', ticket: shown - 1, photoId, bins: new Array(HISTOGRAM_BINS).fill(9) });
     await settle();
     expect(s().frame!.ticket).toBe(shown);
@@ -57,8 +62,12 @@ describe('latest wins', () => {
     await store.getState().init();
     store.getState().setViewSize({ width_px: 8, height_px: 8 });
     const photoId = store.getState().photo!.photoId;
-    store.getState().receive({ event: 'frame', ticket: 5, photoId, width: 8, height: 8 });
-    store.getState().receive({ event: 'frame', ticket: 6, photoId, width: 8, height: 8 });
+    store
+      .getState()
+      .receive({ event: 'frame', ticket: 5, photoId, placement: { xPx: 0, yPx: 0, widthPx: 8, heightPx: 8 } });
+    store
+      .getState()
+      .receive({ event: 'frame', ticket: 6, photoId, placement: { xPx: 0, yPx: 0, widthPx: 8, heightPx: 8 } });
     waiting.get(5)!();
     await settle();
     expect(store.getState().frame).toBeNull();
@@ -76,7 +85,12 @@ describe('only the photo shown', () => {
     const shown = s().frame!.ticket;
     const bins = s().histogram;
     const other = s().photo!.photoId + 1;
-    s().receive({ event: 'frame', ticket: shown + 10, photoId: other, width: 800, height: 600 });
+    s().receive({
+      event: 'frame',
+      ticket: shown + 10,
+      photoId: other,
+      placement: { xPx: 0, yPx: 0, widthPx: 800, heightPx: 600 },
+    });
     s().receive({ event: 'histogram', ticket: shown + 10, photoId: other, bins: new Array(HISTOGRAM_BINS).fill(9) });
     await settle();
     expect(s().frame!.ticket).toBe(shown);
@@ -93,7 +107,12 @@ describe('only the photo shown', () => {
     await settle();
     const fetched = watchFetches(engine);
     const shown = s().frame!.ticket;
-    s().receive({ event: 'frame', ticket: shown + 1, photoId: before, width: 800, height: 600 });
+    s().receive({
+      event: 'frame',
+      ticket: shown + 1,
+      photoId: before,
+      placement: { xPx: 0, yPx: 0, widthPx: 800, heightPx: 600 },
+    });
     await settle();
     expect(s().photo!.photoId).not.toBe(before);
     expect(s().frame!.ticket).toBe(shown);

@@ -1,16 +1,15 @@
 // The real client, as it runs inside the app, against the engine's contract
-// fixtures and the app's wire fixtures (engine/wire.fixtures.json): the same
-// calls and the same frame block the Rust side's tests read
-// (src-tauri/src/mods/dispatch.rs, engine_frame.rs).
+// fixtures: its calls with the arguments the app's dispatcher reads
+// (src-tauri/src/mods/dispatch.rs, whose test reads the same shapes), and
+// the engine's own frame block.
 
 import { describe, expect, it } from 'vitest';
 
 import fixtures from '../contract.fixtures.json';
-import type { EditPatch, Event, ToolDescriptor } from '../contract';
+import { ENGINE_EVENT, FRAME_SHARED_KEY, type EditPatch, type Event, type ToolDescriptor } from '../contract';
 import {
   connectApp,
   createTauriEngine,
-  ENGINE_EVENT,
   pageSharedBuffers,
   readFrame,
   REPLACED,
@@ -18,11 +17,18 @@ import {
   type Transport,
   type WebView2,
 } from '../engine/tauri';
-import wire from '../engine/wire.fixtures.json';
 import { createShellStore } from '../store';
 import { settle } from './helpers';
 
-const PATH = wire.calls.engine_open.path;
+const PATH = 'C:/Photos/IMG_0001.CR3';
+
+/** A frame event the app sends, for a frame of `width` x `height`. */
+const frameEvent = (ticket: number, photoId: number, width: number, height: number): Event => ({
+  event: 'frame',
+  ticket,
+  photoId,
+  placement: { xPx: 0, yPx: 0, widthPx: width, heightPx: height },
+});
 
 /** A frame's block: the header, then grey pixels. */
 function block(ticket: number, width: number, height: number): ArrayBuffer {
@@ -48,7 +54,7 @@ function webView2() {
     },
   };
   const post = (buffer: ArrayBuffer, ticket: number) =>
-    listeners.forEach((l) => l({ getBuffer: () => buffer, additionalData: { agFrame: ticket } }));
+    listeners.forEach((l) => l({ getBuffer: () => buffer, additionalData: { [FRAME_SHARED_KEY]: ticket } }));
   return { webview, post, released, listening: () => listeners.size };
 }
 
@@ -120,7 +126,9 @@ function app(options: { folder?: string[]; shared?: boolean; refuse?: unknown } 
   /** Send an event as the app does, and keep a frame's size for its block. */
   const emit = (event: string, payload: unknown) => {
     const e = payload as Event;
-    if (event === ENGINE_EVENT && e.event === 'frame') lastFrame = e;
+    if (event === ENGINE_EVENT && e.event === 'frame') {
+      lastFrame = { ticket: e.ticket, width: e.placement.widthPx, height: e.placement.heightPx };
+    }
     for (const h of listeners.get(event) ?? []) h(payload);
   };
   const listening = (event: string) => listeners.get(event)?.length ?? 0;
@@ -143,21 +151,32 @@ describe('the real client', () => {
     expect(await client.frame(fixtures.events[0].ticket)).toBeNull();
     await library.folder(PATH);
     await library.pick(PATH);
-    expect(Object.fromEntries(calls)).toEqual(wire.calls);
-    expect(calls.map(([name]) => name)).toEqual(Object.keys(wire.calls));
+    const photo = fixtures.opened.photoId;
+    expect(calls).toEqual([
+      ['shell_show_window', {}],
+      ['shell_launch_photo', {}],
+      ['engine_sections', {}],
+      ['engine_tools', {}],
+      ['engine_open', { path: PATH }],
+      ['engine_apply', { photo, patch: fixtures.patch }],
+      ['engine_view', { photo, view: fixtures.view }],
+      ['engine_frame', { ticket: fixtures.events[0].ticket }],
+      ['shell_folder', { path: PATH }],
+      ['shell_pick', { from: PATH }],
+    ]);
   });
 
   it('reads a frame from the block the app sends, as a view of it', () => {
-    const { ticket, width, height, bytes } = wire.frame;
+    const { ticket, widthPx: width, heightPx: height, rgba, bytes } = fixtures.frameBlock;
     const buffer = new Uint8Array(bytes).buffer;
     const read = readFrame(buffer)!;
     expect(read.ticket).toBe(ticket);
     expect([read.pixels.width, read.pixels.height]).toEqual([width, height]);
-    expect(Array.from(read.pixels.data)).toEqual(bytes.slice(12));
+    expect(Array.from(read.pixels.data)).toEqual(rgba);
     expect(read.pixels.data.buffer).toBe(buffer);
     expect(readFrame(new ArrayBuffer(0))).toBeNull();
     // Cut short: a broken answer, not a picture.
-    expect(() => readFrame(buffer.slice(0, 20))).toThrow();
+    expect(() => readFrame(buffer.slice(0, bytes.length - 1))).toThrow();
     expect(() => readFrame(buffer.slice(0, 6))).toThrow();
   });
 
@@ -166,7 +185,7 @@ describe('the real client', () => {
       const { transport, emit, page } = app({ shared });
       const client = createTauriEngine(transport);
       const ticket = await client.view(1, fixtures.view);
-      emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: 1, width: 4, height: 3 });
+      emit(ENGINE_EVENT, frameEvent(ticket, 1, 4, 3));
       const pixels = (await client.frame(ticket))!;
       expect(pixels).toMatchObject({ width: 4, height: 3 });
       expect(pixels.data).toHaveLength(4 * 3 * 4);
@@ -202,7 +221,7 @@ describe('the real client', () => {
     const asking = createTauriEngine(transport);
     void idle;
     const ticket = await asking.view(1, fixtures.view);
-    emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: 1, width: 2, height: 2 });
+    emit(ENGINE_EVENT, frameEvent(ticket, 1, 2, 2));
     const pixels = (await asking.frame(ticket))!;
     expect(page.released.size).toBe(0);
     pixels.release?.();
@@ -225,7 +244,7 @@ describe('the real client', () => {
     store.getState().setViewSize({ width_px: 800, height_px: 600 });
     await settle();
     const ticket = store.getState().latestTicket;
-    emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: fixtures.opened.photoId, width: 4, height: 4 });
+    emit(ENGINE_EVENT, frameEvent(ticket, fixtures.opened.photoId, 4, 4));
     await settle();
     expect(decoded).toHaveLength(1);
     expect(page.released.size).toBe(1);
@@ -247,7 +266,7 @@ describe('the real client', () => {
     const ticks: number[] = [];
     client.onTickMs((ms) => ticks.push(ms));
     const { ticket } = await client.apply(1, fixtures.patch);
-    emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: 1, width: 2, height: 2 });
+    emit(ENGINE_EVENT, frameEvent(ticket, 1, 2, 2));
     (await client.frame(ticket))?.release?.();
     expect(ticks).toHaveLength(1);
     expect(ticks[0]).toBeGreaterThanOrEqual(0);
@@ -343,9 +362,9 @@ describe('the shell on the real client', () => {
     expect(s().sections).toEqual(fixtures.sections);
 
     const ticket = s().latestTicket;
-    emit(ENGINE_EVENT, { event: 'frame', ticket, photoId: s().photo!.photoId, width: 40, height: 30 });
+    emit(ENGINE_EVENT, frameEvent(ticket, s().photo!.photoId, 40, 30));
     await settle();
-    expect(s().frame).toMatchObject({ ticket, size_px: { width_px: 40, height_px: 30 } });
+    expect(s().frame).toMatchObject({ ticket, placement: { xPx: 0, yPx: 0, widthPx: 40, heightPx: 30 } });
   });
 
   it('shows the photo opened last, and no error for one replaced on the way', async () => {

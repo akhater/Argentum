@@ -103,7 +103,7 @@ pub(crate) fn develop(raw: &RawImage) -> Result<Rgb> {
 /// rawler's `develop_intermediate` (rawler `src/imgop/develop.rs` @ 16b9b010)
 /// that decide the size, without touching a pixel. A mosaic comes out of
 /// demosaic at its active area, and the default crop is then taken.
-pub(crate) fn developed_size(raw: &RawImage) -> (usize, usize) {
+pub(crate) fn developed_size_px(raw: &RawImage) -> (usize, usize) {
     use rawler::imgop::{Dim2, Point, Rect};
 
     let demosaics = !matches!(raw.photometric, RawPhotometricInterpretation::LinearRaw);
@@ -133,23 +133,29 @@ pub(crate) fn developed_size(raw: &RawImage) -> (usize, usize) {
     (dim.w, dim.h)
 }
 
-/// The size `rgb` comes down to so that it fits in `max_w` x `max_h`, keeping
-/// its shape. Never larger than it is.
-pub(crate) fn fit(width: usize, height: usize, max_w: u32, max_h: u32) -> (usize, usize) {
-    let s = (max_w as f64 / width as f64)
-        .min(max_h as f64 / height as f64)
-        .min(1.0);
+/// A picture of `width_px` x `height_px` fitted in `max_w_px` x `max_h_px`,
+/// keeping its shape and never enlarged: the scale, and the size it comes to.
+/// The one fit: the preview's resize and the engine's first view both use it.
+pub(crate) fn fit_px(
+    width_px: usize,
+    height_px: usize,
+    max_w_px: u32,
+    max_h_px: u32,
+) -> (f64, usize, usize) {
+    let (w, h) = (width_px.max(1) as f64, height_px.max(1) as f64);
+    let scale = (max_w_px as f64 / w).min(max_h_px as f64 / h).min(1.0);
     (
-        ((width as f64 * s).round() as usize).max(1),
-        ((height as f64 * s).round() as usize).max(1),
+        scale,
+        ((w * scale).round() as usize).max(1),
+        ((h * scale).round() as usize).max(1),
     )
 }
 
-/// Box-filter `rgb` down to fit in `max_w` x `max_h`, or `None` when it
+/// Box-filter `rgb` down to fit in `max_w_px` x `max_h_px`, or `None` when it
 /// already does. Each output pixel is the plain average of the input pixels
 /// under it.
-pub(crate) fn resize(rgb: &Rgb, max_w: u32, max_h: u32) -> Option<Rgb> {
-    let (w, h) = fit(rgb.width, rgb.height, max_w, max_h);
+pub(crate) fn resize(rgb: &Rgb, max_w_px: u32, max_h_px: u32) -> Option<Rgb> {
+    let (_, w, h) = fit_px(rgb.width, rgb.height, max_w_px, max_h_px);
     if (w, h) == (rgb.width, rgb.height) {
         return None;
     }

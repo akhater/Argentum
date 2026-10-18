@@ -4,6 +4,9 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
+#[path = "src/mods/build_ort.rs"]
+mod build_ort; // Argentum: no re-hash, no download of a library already on this disk
+
 fn verify_sha256(path: &Path, expected_hash: &str) -> Result<bool, io::Error> {
     let mut file = fs::File::open(path)?;
     let mut hasher = Sha256::new();
@@ -123,8 +126,8 @@ fn main() {
     fs::create_dir_all(&dest_dir).unwrap();
     let dest_path = dest_dir.join(lib_name);
 
-    let mut is_valid = false;
-    if dest_path.exists() {
+    let mut is_valid = build_ort::present(&dest_path, expected_hash);
+    if !is_valid && dest_path.exists() {
         match verify_sha256(&dest_path, expected_hash) {
             Ok(true) => {
                 println!(

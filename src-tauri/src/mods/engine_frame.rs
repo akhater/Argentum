@@ -1,9 +1,8 @@
 //! How a rendered frame reaches the new interface.
 //!
-//! A frame crosses as one block: a 12-byte header - ticket, width, height,
-//! each a little-endian u32 - then the RGBA rows. `src/shell/engine/tauri.ts`
-//! reads it, and `src/shell/engine/wire.fixtures.json` holds one block that
-//! both sides' tests check.
+//! A frame crosses as the engine's block (`Frame::block`): the header -
+//! ticket, width, height - then the RGBA rows. `src/shell/engine/tauri.ts`
+//! reads it; the contract fixtures' `frameBlock` is one both sides test.
 //!
 //! On Windows the block goes into a WebView2 shared buffer posted to the page.
 //! Tauri's IPC hands raw bytes to WebView2 through its custom-protocol bridge
@@ -14,12 +13,11 @@
 
 use std::sync::Arc;
 
-use argentum_engine::engine::Frame;
+use argentum_engine::Frame;
+#[cfg(windows)]
+use argentum_engine::contract::FRAME_SHARED;
 use tauri::WebviewWindow;
 use tauri::ipc::Response;
-
-/// Ticket, width, height.
-pub const HEADER_BYTES: usize = 12;
 
 /// What `engine_frame` answers.
 pub enum Delivery {
@@ -33,13 +31,13 @@ pub enum Delivery {
 }
 
 impl Delivery {
-    /// The IPC answer: JSON `null`, the bytes, or JSON `"shared"`.
+    /// The IPC answer: JSON `null`, the bytes, or JSON `FRAME_SHARED`.
     pub fn into_response(self) -> Response {
         match self {
             Delivery::Replaced => Response::new("null".to_string()),
             Delivery::Bytes(bytes) => Response::new(bytes),
             #[cfg(windows)]
-            Delivery::Shared => Response::new("\"shared\"".to_string()),
+            Delivery::Shared => Response::new(serde_json::Value::from(FRAME_SHARED).to_string()),
         }
     }
 }
@@ -56,31 +54,7 @@ pub async fn deliver(window: &WebviewWindow, frame: Option<Arc<Frame>>) -> Deliv
     }
     #[cfg(not(windows))]
     let _ = window;
-    Delivery::Bytes(block(&frame))
-}
-
-/// The block's size in bytes.
-pub fn block_bytes(frame: &Frame) -> usize {
-    HEADER_BYTES + frame.rgba.len()
-}
-
-/// The block, in a new Vec.
-pub fn block(frame: &Frame) -> Vec<u8> {
-    let mut out = vec![0; block_bytes(frame)];
-    write_block(frame, &mut out);
-    out
-}
-
-/// Write the block into `out`, which is `block_bytes(frame)` long.
-fn write_block(frame: &Frame, out: &mut [u8]) {
-    let (head, pixels) = out.split_at_mut(HEADER_BYTES);
-    for (at, v) in [frame.ticket.0, frame.width, frame.height]
-        .into_iter()
-        .enumerate()
-    {
-        head[at * 4..at * 4 + 4].copy_from_slice(&v.to_le_bytes());
-    }
-    pixels.copy_from_slice(&frame.rgba);
+    Delivery::Bytes(frame.block())
 }
 
 /// WebView2 objects live on the window's thread, so that thread makes the
@@ -92,7 +66,8 @@ mod shared {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use argentum_engine::engine::Frame;
+    use argentum_engine::Frame;
+    use argentum_engine::contract::FRAME_SHARED_KEY;
     use tauri::WebviewWindow;
     use tauri::webview::PlatformWebview;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -124,7 +99,7 @@ mod shared {
 
     pub async fn post(window: &WebviewWindow, frame: &Arc<Frame>) -> Result<(), String> {
         let id = NEXT.fetch_add(1, Ordering::Relaxed);
-        let size = super::block_bytes(frame);
+        let size = frame.block_bytes();
         let ticket = frame.ticket.0;
 
         let start = on_window_thread(window, move |webview| {
@@ -149,7 +124,7 @@ mod shared {
             // until the buffer is closed - below, after this copy, by the
             // window's thread, which holds the only reference meanwhile.
             let out = unsafe { std::slice::from_raw_parts_mut(start as *mut u8, size) };
-            super::write_block(&source, out);
+            source.write_block(out);
         })
         .await
         .map_err(|e| e.to_string());
@@ -165,7 +140,8 @@ mod shared {
                     .CoreWebView2()
                     .and_then(|c| c.cast())
                     .map_err(|e| e.to_string())?;
-                let about = HSTRING::from(format!("{{\"agFrame\":{ticket}}}"));
+                let about =
+                    HSTRING::from(serde_json::json!({ FRAME_SHARED_KEY: ticket }).to_string());
                 core.PostSharedBufferToScript(
                     &buffer,
                     COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_ONLY,
@@ -179,34 +155,5 @@ mod shared {
             posted
         })
         .await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use argentum_engine::contract::RenderTicket;
-
-    /// The block the interface's client reads (src/shell/engine/wire.fixtures.json,
-    /// whose own test reads the same bytes back).
-    #[test]
-    fn a_frame_is_a_header_then_its_pixels() {
-        let wire: serde_json::Value =
-            serde_json::from_str(include_str!("../../../src/shell/engine/wire.fixtures.json"))
-                .unwrap();
-        let f = &wire["frame"];
-        let n = |k: &str| f[k].as_u64().unwrap() as u32;
-        let want: Vec<u8> = serde_json::from_value(f["bytes"].clone()).unwrap();
-        let frame = Frame {
-            ticket: RenderTicket(n("ticket")),
-            width: n("width"),
-            height: n("height"),
-            rgba: want[HEADER_BYTES..].to_vec(),
-        };
-        assert_eq!(block(&frame), want);
-        assert_eq!(
-            block_bytes(&frame),
-            HEADER_BYTES + (n("width") * n("height") * 4) as usize
-        );
     }
 }

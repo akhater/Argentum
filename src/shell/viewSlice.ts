@@ -3,21 +3,21 @@
 // are latest-wins: anything for a ticket older than one already seen is
 // dropped, and so are pixels that arrive after a newer frame.
 
-import type { RenderTicket, View } from './contract';
+import type { Placement, RenderTicket, View } from './contract';
 import type { EngineClient, FramePixels } from './engine/client';
 import type { Shell, Slice } from './store';
 import { PHOTO_CENTER, viewFor, type PhotoPoint, type SizePx, type Zoom } from './view';
 
-/** A render asked for: the view it draws, and whether that is the whole photo fitted. */
+/** A render asked for: whether it is of the whole photo fitted, which the Navigator shows. */
 export interface RenderRequest {
-  readonly view: View;
   readonly fit: boolean;
 }
 
 /** A frame ready to draw. `image` is null where there is nothing to decode into (tests). */
 export interface ShownFrame {
   readonly ticket: RenderTicket;
-  readonly size_px: SizePx;
+  /** Where it sits in its view, in device pixels, as the engine placed it. */
+  readonly placement: Placement;
   readonly image: ImageBitmap | null;
   /** What it is a render of. */
   readonly request: RenderRequest;
@@ -52,7 +52,7 @@ export interface ViewActions {
   /** A ticket the engine handed out, for `request`. */
   recordTicket(ticket: RenderTicket, request: RenderRequest | null): void;
   /** A frame of the photo shown was announced: fetch, decode and show it, unless a newer one came first. */
-  takeFrame(ticket: RenderTicket): Promise<void>;
+  takeFrame(ticket: RenderTicket, placement: Placement): Promise<void>;
   takeHistogram(ticket: RenderTicket, bins: readonly number[]): void;
 }
 
@@ -110,7 +110,7 @@ export const createViewSlice =
       const s = get();
       const view = currentView(s);
       if (!s.photo || !view) return;
-      const request: RenderRequest = { view, fit: s.zoom === 'fit' };
+      const request: RenderRequest = { fit: s.zoom === 'fit' };
       set({ requested: request });
       client.view(s.photo.photoId, view).then(
         (ticket) => get().recordTicket(ticket, request),
@@ -128,7 +128,7 @@ export const createViewSlice =
       });
     },
 
-    async takeFrame(ticket) {
+    async takeFrame(ticket, placement) {
       if (ticket < get().latestTicket) return;
       set({ latestTicket: ticket });
       const pixels = await client.frame(ticket);
@@ -146,12 +146,7 @@ export const createViewSlice =
         image?.close();
         return;
       }
-      const shown: ShownFrame = {
-        ticket,
-        size_px: { width_px: pixels.width, height_px: pixels.height },
-        image,
-        request,
-      };
+      const shown: ShownFrame = { ticket, placement, image, request };
       const fitFrame = request.fit ? shown : s.fitFrame;
       // Requests up to this one are done.
       const requests = new Map([...s.requests].filter(([t]) => t > ticket));

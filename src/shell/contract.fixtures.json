@@ -574,13 +574,124 @@
     "width": 1786,
     "height": 1190
   },
+  "placements": [
+    {
+      "view": {
+        "zoom": 0.22396417,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 1600,
+        "height": 1200
+      },
+      "photoWidthPx": 7144,
+      "photoHeightPx": 4760,
+      "placement": {
+        "xPx": 0,
+        "yPx": 66,
+        "widthPx": 1600,
+        "heightPx": 1067
+      }
+    },
+    {
+      "view": {
+        "zoom": 1.0,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 1786,
+        "height": 1190
+      },
+      "photoWidthPx": 7144,
+      "photoHeightPx": 4760,
+      "placement": {
+        "xPx": 0,
+        "yPx": 0,
+        "widthPx": 1786,
+        "heightPx": 1190
+      }
+    },
+    {
+      "view": {
+        "zoom": 2.0,
+        "centerX": 0.0,
+        "centerY": 0.0,
+        "width": 800,
+        "height": 600
+      },
+      "photoWidthPx": 7144,
+      "photoHeightPx": 4760,
+      "placement": {
+        "xPx": 0,
+        "yPx": 0,
+        "widthPx": 800,
+        "heightPx": 600
+      }
+    },
+    {
+      "view": {
+        "zoom": 1.0,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 800,
+        "height": 600
+      },
+      "photoWidthPx": 640,
+      "photoHeightPx": 480,
+      "placement": {
+        "xPx": 80,
+        "yPx": 60,
+        "widthPx": 640,
+        "heightPx": 480
+      }
+    }
+  ],
+  "frameBlock": {
+    "ticket": 7,
+    "widthPx": 2,
+    "heightPx": 1,
+    "rgba": [
+      255,
+      0,
+      0,
+      255,
+      0,
+      128,
+      255,
+      255
+    ],
+    "bytes": [
+      7,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      255,
+      0,
+      0,
+      255,
+      0,
+      128,
+      255,
+      255
+    ]
+  },
   "events": [
     {
       "event": "frame",
       "ticket": 3,
       "photoId": 1,
-      "width": 1786,
-      "height": 1190
+      "placement": {
+        "xPx": 0,
+        "yPx": 66,
+        "widthPx": 1600,
+        "heightPx": 1067
+      }
     },
     {
       "event": "histogram",

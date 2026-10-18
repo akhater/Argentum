@@ -65,7 +65,7 @@ export function Navigator() {
         </span>
       </div>
       <div className="ags-navigator" onPointerDown={goTo}>
-        <PhotoPicture frame={frame} photo={photo} className="ags-navigator-canvas" overlay={marker} />
+        <PhotoPicture frame={frame} className="ags-navigator-canvas" overlay={marker} />
       </div>
     </div>
   );

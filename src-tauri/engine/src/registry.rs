@@ -44,7 +44,7 @@ impl Registry {
         const {
             assert!(
                 Origin::of(T::ID).is_some(),
-                "a tool id is dt_, rt_, rr_, rm_ or ag_ and a lowercase name"
+                "a tool id is an origin code (Origin::ALL), an underscore and a lowercase name"
             )
         };
         let tool = Registered(T::default());
@@ -196,7 +196,7 @@ macro_rules! registry {
 
 registry! {
     "tools/dt_highlights.rs"      => dt_highlights::DtHighlights,
-    "tools/rt_capture_sharpen.rs" => rt_capture_sharpen::RtCaptureSharpen,
+    "tools/rt_capture_sharpen/mod.rs" => rt_capture_sharpen::RtCaptureSharpen,
     "tools/ag_exposure_wb.rs"     => ag_exposure_wb::AgExposureWb,
 }
 

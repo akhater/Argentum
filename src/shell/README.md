@@ -23,7 +23,8 @@ joins it when a tool declares one.
   keeps each step's patch and its inverse, never a copy of the document.
 - **Latest wins, and only the photo shown.** A frame or histogram for another
   photo, or for an older ticket than one already seen, is dropped, and so are
-  pixels that arrive after a newer frame.
+  pixels that arrive after a newer frame. A frame is drawn at the placement
+  the engine gives it in the view, never stretched to the view.
 - **The engine only through the client.** `engine/client.ts` is the one door:
   inside the app it opens on the real engine (`engine/tauri.ts`); in a plain
   browser, in tests or with `?engine=fake`, on `engine/fake.ts`.
@@ -44,6 +45,7 @@ joins it when a tool declares one.
 | `contract.ts`           | Re-exports the generated contract types                                               |
 | `engine/client.ts`      | `EngineClient`: tools, open, apply, view, frame pixels, events                        |
 | `engine/fake.ts`        | The contract fake: the engine's descriptors from the fixtures, its rules for patches  |
+| `engine/fakeLayout.ts`  | The engine's frame layout, copied, so the fake paints exactly the engine's placement  |
 | `engine/fakePaint*.ts`  | The fake's pixels, painted in a worker                                                |
 | `engine/tauri.ts`       | The real client, inside the app: `ag` calls, the `ag-engine` event, frame blocks      |
 | `engine/AppBar.tsx`     | Inside the app: Open, the photo it was started with, "not saved yet", tick time       |

@@ -6,11 +6,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
-use argentum_engine::contract::{EditPatch, ErrorKind, Event, PhotoId, RenderTicket, View};
+use argentum_engine::contract::{
+    EditPatch, ErrorKind, Event, PhotoId, Placement, RenderTicket, View,
+};
 use argentum_engine::rawler::imgop::{Dim2, Point, Rect};
 use argentum_engine::{
-    Context, Engine, Error, Image, Kind, Pipeline, Registry, Result, Section, Size, Source, Stage,
-    Tool, standard,
+    Context, Engine, Error, Image, Pipeline, Registry, Result, Section, Size, Source, Stage, Tool,
+    standard,
 };
 use serde::{Deserialize, Serialize};
 
@@ -92,8 +94,7 @@ fn open_apply_view_and_what_comes_back() {
         Event::Frame {
             ticket,
             photo_id,
-            width,
-            height,
+            placement,
         },
         Event::Histogram {
             ticket: t,
@@ -106,7 +107,16 @@ fn open_apply_view_and_what_comes_back() {
     };
     assert_eq!((*ticket, *t), (t1, t1));
     assert_eq!((*photo_id, *p), (opened.photo_id, opened.photo_id));
-    assert_eq!((*width, *height), (512, 384));
+    // The first view fits the photo in 1600 px: here, all of it, filling it.
+    assert_eq!(
+        *placement,
+        Placement {
+            x_px: 0,
+            y_px: 0,
+            width_px: 512,
+            height_px: 384
+        }
+    );
     assert_eq!(bins.len(), 256);
     assert_eq!(bins.iter().sum::<u32>(), 512 * 384);
     let frame = engine.frame(t1).expect("the latest frame");
@@ -126,8 +136,12 @@ fn open_apply_view_and_what_comes_back() {
         matches!(
             events[0],
             Event::Frame {
-                width: 300,
-                height: 200,
+                placement: Placement {
+                    x_px: 0,
+                    y_px: 0,
+                    width_px: 300,
+                    height_px: 200
+                },
                 ..
             }
         ),
@@ -194,7 +208,6 @@ macro_rules! slow_tool {
             const ID: &'static str = $id;
             const STAGE: Stage = Stage::SceneLinear;
             const SECTION: Section = Section::Effects;
-            const KIND: Kind = Kind::PerPixel;
             type Settings = Step;
 
             fn process(&self, _: &Step, _: &Image, _: &Context) -> Result<Option<Image>> {
@@ -268,7 +281,6 @@ impl Tool for AgFails {
     const ID: &'static str = "ag_fails";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Effects;
-    const KIND: Kind = Kind::PerPixel;
     type Settings = Step;
 
     fn process(&self, s: &Step, _: &Image, _: &Context) -> Result<Option<Image>> {
@@ -336,7 +348,7 @@ fn the_size_open_reports_is_the_developed_size() {
     for (name, source) in sources {
         let image = p.render(&source, Size::Full).unwrap();
         let rgb = image.as_rgb().unwrap();
-        eprintln!("  {name:<52} {:?}", source.size());
-        assert_eq!(source.size(), (rgb.width, rgb.height), "{name}");
+        eprintln!("  {name:<52} {:?}", source.size_px());
+        assert_eq!(source.size_px(), (rgb.width, rgb.height), "{name}");
     }
 }

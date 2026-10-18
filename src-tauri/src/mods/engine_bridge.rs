@@ -36,13 +36,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use argentum_engine::contract::{EditDocument, Event, Opened, PhotoId, RenderTicket};
-use argentum_engine::engine::Frame;
-use argentum_engine::{Engine, Error, Result};
+use argentum_engine::contract::{ENGINE_EVENT, EditDocument, Event, Opened, PhotoId, RenderTicket};
+use argentum_engine::{Engine, Error, Frame, Result};
 use tauri::{AppHandle, Emitter};
-
-/// The Tauri event engine events go out as.
-pub const EVENT: &str = "ag-engine";
 
 /// Decoded sensor data kept for open photos, in bytes: seven 32 MP mosaics,
 /// two of 100 MP. The photo opened last is kept whatever its size.
@@ -84,7 +80,7 @@ pub fn bridge(app: &AppHandle) -> Result<&'static Bridge> {
         .get_or_init(|| {
             let app = app.clone();
             Bridge::new(OPEN_PHOTOS_BYTES, move |event| {
-                if let Err(e) = app.emit(EVENT, &event) {
+                if let Err(e) = app.emit(ENGINE_EVENT, &event) {
                     log::warn!("[engine] event not sent: {e}");
                 }
             })
@@ -179,7 +175,6 @@ impl Bridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mods::engine_frame;
     use crate::mods::shell_photos;
     use argentum_engine::contract::{EditPatch, View};
     use std::sync::mpsc::{Receiver, channel};
@@ -273,7 +268,7 @@ mod tests {
         let view = fit(&opened, 800, 600);
         let t = bridge.engine().view(opened.photo_id, view).unwrap();
         let events = until_done(&rx, t);
-        let Some(Event::Frame { width, height, .. }) = events.first() else {
+        let Some(Event::Frame { placement, .. }) = events.first() else {
             panic!("{events:?}")
         };
         // As the interface receives it: camelCase, with the photo.
@@ -283,8 +278,11 @@ mod tests {
         assert_eq!(json["ticket"], t.0);
 
         let shown = bridge.frame(t).expect("the latest frame");
-        assert_eq!((shown.width, shown.height), (*width, *height));
-        assert_eq!(shown.rgba.len(), (*width * *height * 4) as usize);
+        assert_eq!(shown.placement, *placement);
+        assert_eq!(
+            shown.rgba.len(),
+            (placement.width_px * placement.height_px * 4) as usize
+        );
 
         // A patch renders again; a bad one is refused and renders nothing.
         let brighter = bridge
@@ -522,7 +520,7 @@ mod tests {
                         }
                     }
                     let rendered = started.elapsed();
-                    let b = engine_frame::block(&bridge.frame(t).unwrap());
+                    let b = bridge.frame(t).unwrap().block();
                     let done = started.elapsed();
                     block_bytes = b.len();
                     render.push(ms(rendered));

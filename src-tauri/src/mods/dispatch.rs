@@ -505,52 +505,52 @@ mod tests {
         assert_eq!(a.mode, DetectMode::Surfaces);
     }
 
-    /// Every call the new interface makes, with the arguments its client sends
-    /// (src/shell/engine/wire.fixtures.json, whose own test checks the client
-    /// sends exactly these).
+    /// The engine's calls with their arguments as the new interface's client
+    /// sends them (src/shell/engine/tauri.ts, whose test checks the same
+    /// shapes), its values from the contract fixtures.
     #[test]
     fn the_shells_calls_deserialise_as_its_client_sends_them() {
-        let wire: serde_json::Value =
-            serde_json::from_str(include_str!("../../../src/shell/engine/wire.fixtures.json"))
+        let f: serde_json::Value =
+            serde_json::from_str(include_str!("../../../src/shell/contract.fixtures.json"))
                 .unwrap();
-        let calls = wire["calls"].as_object().unwrap();
-        assert!(calls.len() >= 10);
-        for (name, args) in calls {
-            let args = args.clone();
-            match name.as_str() {
-                "engine_sections" | "engine_tools" | "shell_show_window" | "shell_launch_photo" => {
-                    assert_eq!(args, serde_json::json!({}))
-                }
-                "engine_open" | "shell_folder" => {
-                    args_for::<PathArgs>(name, args).unwrap();
-                }
-                "engine_apply" => {
-                    let a: ApplyArgs = args_for(name, args).unwrap();
-                    assert_eq!(a.photo, PhotoId(1));
-                    // null puts a setting back to its default.
-                    assert!(
-                        a.patch
-                            .0
-                            .values()
-                            .flat_map(|t| t.values())
-                            .any(|v| v.is_null())
-                    );
-                }
-                "engine_view" => {
-                    let a: ViewArgs = args_for(name, args).unwrap();
-                    assert!(a.view.zoom > 0.0 && a.view.width > 0);
-                }
-                "engine_frame" => {
-                    args_for::<TicketArgs>(name, args).unwrap();
-                }
-                "shell_pick" => {
-                    assert!(args_for::<PickArgs>(name, args).unwrap().from.is_some());
-                    let none: PickArgs = args_for(name, serde_json::json!({})).unwrap();
-                    assert!(none.from.is_none());
-                }
-                other => panic!("{other}: the dispatcher has no arguments for it"),
-            }
-        }
+        let photo = f["opened"]["photoId"].clone();
+        let path = serde_json::json!({ "path": "C:/Photos/IMG_0001.CR3" });
+
+        let a: ApplyArgs = args_for(
+            "engine_apply",
+            serde_json::json!({ "photo": photo, "patch": f["patch"] }),
+        )
+        .unwrap();
+        assert_eq!(serde_json::to_value(a.photo).unwrap(), photo);
+        assert_eq!(serde_json::to_value(&a.patch).unwrap(), f["patch"]);
+
+        let v: ViewArgs = args_for(
+            "engine_view",
+            serde_json::json!({ "photo": photo, "view": f["view"] }),
+        )
+        .unwrap();
+        assert_eq!(serde_json::to_value(v.view).unwrap(), f["view"]);
+
+        let t: TicketArgs = args_for(
+            "engine_frame",
+            serde_json::json!({ "ticket": f["events"][0]["ticket"] }),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(t.ticket).unwrap(),
+            f["events"][0]["ticket"]
+        );
+
+        args_for::<PathArgs>("engine_open", path.clone()).unwrap();
+        args_for::<PathArgs>("shell_folder", path).unwrap();
+        let from: PickArgs = args_for(
+            "shell_pick",
+            serde_json::json!({ "from": "C:/Photos/IMG_0001.CR3" }),
+        )
+        .unwrap();
+        assert!(from.from.is_some());
+        let none: PickArgs = args_for("shell_pick", serde_json::json!({})).unwrap();
+        assert!(none.from.is_none());
     }
 
     /// Today's commands still answer a refusal with a bare message.
