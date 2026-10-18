@@ -47,7 +47,6 @@ function Film({ columnIndex, style, photos, current }: CellComponentProps<FilmPr
   const path = photos[columnIndex];
   const isCurrent = current !== null && samePath(path, current);
   const frame = useShell((s) => (isCurrent ? s.fitFrame : null));
-  const photo = useShell((s) => (isCurrent ? s.photo : null));
   return (
     <div style={style}>
       <button
@@ -56,11 +55,7 @@ function Film({ columnIndex, style, photos, current }: CellComponentProps<FilmPr
         title={path}
         onClick={() => !isCurrent && void store.getState().edit(path)}
       >
-        {isCurrent && frame ? (
-          <PhotoPicture frame={frame} photo={photo} className="ags-film-picture" />
-        ) : (
-          <Thumb path={path} />
-        )}
+        {isCurrent && frame ? <PhotoPicture frame={frame} className="ags-film-picture" /> : <Thumb path={path} />}
         <span className="ags-film-name">{fileName(path)}</span>
       </button>
     </div>

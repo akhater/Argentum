@@ -5,7 +5,9 @@
  * It answers a different question: which camera-style rendering should happen
  * at the RAW display-transform stage? Default is the existing Argentum path;
  * Base Curve is a camera-style curve; Auto-Matched is fitted from the JPEG
- * embedded in this RAW file.
+ * embedded in this RAW file; DNG Standard is a DNG renderer's default - the
+ * camera's exposure offset and Adobe's default tone curve, applied as Adobe
+ * applies it (mods/dng_standard.rs).
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -14,14 +16,14 @@ import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
 
-type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched';
+type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
 
 interface ToneCurvePoint {
   x: number;
   y: number;
 }
 
-const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched'];
+const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard'];
 
 export default function RawToneRendering() {
   const t = useAgTranslation();
@@ -56,8 +58,18 @@ export default function RawToneRendering() {
     [path, setAdjustments],
   );
 
+  // DNG Standard needs nothing fitted: the renderer reads the photo's curve
+  // itself (raw_tone::fill_missing), so a RAW that merely opens in it is not
+  // written to.
   useEffect(() => {
-    if (!isRaw || !path || current === 'default' || adjustments?.rawToneCurve?.length >= 2 || busy) {
+    if (
+      !isRaw ||
+      !path ||
+      current === 'default' ||
+      current === 'dngStandard' ||
+      adjustments?.rawToneCurve?.length >= 2 ||
+      busy
+    ) {
       return;
     }
     ensureCurve(current);
@@ -92,6 +104,7 @@ export default function RawToneRendering() {
           <option value="default">{t('rawToneDefault')}</option>
           <option value="baseCurve">{t('rawToneBaseCurve')}</option>
           <option value="autoMatched">{t('rawToneAutoMatched')}</option>
+          <option value="dngStandard">{t('rawToneDngStandard')}</option>
         </select>
       </div>
       {busy && <p className="mt-1 text-xs text-text-secondary">{t('rawToneCalculating')}</p>}

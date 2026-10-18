@@ -6,7 +6,7 @@
 //! through a version change, so the test also shows an old saved edit being
 //! migrated.
 
-use argentum_engine::{Context, Error, Field, Image, Kind, Result, Section, Stage, Tool};
+use argentum_engine::{Context, Error, Field, Image, Result, Section, Stage, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -48,7 +48,6 @@ impl Tool for AgDummy {
     const ID: &'static str = "ag_dummy";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Effects;
-    const KIND: Kind = Kind::PerPixel;
     type Settings = Settings;
 
     fn process(&self, s: &Settings, input: &Image, _cx: &Context) -> Result<Option<Image>> {

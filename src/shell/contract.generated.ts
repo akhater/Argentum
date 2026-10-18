@@ -9,6 +9,14 @@ export const EDIT_VERSION = 1;
 
 export const HISTOGRAM_BINS = 256;
 
+export const ENGINE_EVENT = "ag-engine";
+
+export const FRAME_HEADER_BYTES = 12;
+
+export const FRAME_SHARED = "shared";
+
+export const FRAME_SHARED_KEY = "agFrame";
+
 /**
  * Whose code a tool is: the first two letters of its id.
  */
@@ -210,6 +218,18 @@ export type View = {
 };
 
 /**
+ * Where a frame sits in its view, in device pixels: its top left corner,
+ * and its size. On an axis where the photo is smaller than the view, the
+ * frame is all of it, centred; where it is larger, the frame fills the view.
+ */
+export type Placement = {
+  xPx: number,
+  yPx: number,
+  widthPx: number,
+  heightPx: number,
+};
+
+/**
  * What went wrong, as a kind the interface can act on.
  */
 export type ErrorKind = "unknownPhoto" | "badView" | "unknownTool" | "unknownSetting" | "badValue" | "badEdit" | "decode" | "noGpu" | "render" | "internal";
@@ -233,8 +253,7 @@ export type Event = {
    * be told apart and dropped.
    */
   photoId: PhotoId,
-  width: number,
-  height: number,
+  placement: Placement,
 } | {
   "event": "histogram",
   ticket: RenderTicket,

@@ -1,13 +1,13 @@
 // The engine inside the app: the same EngineClient as the contract fake, over
 // Argentum's one `ag` command (src-tauri/src/mods/dispatch.rs) and the
-// `ag-engine` event (src-tauri/src/mods/engine_bridge.rs). Nothing here knows
+// ENGINE_EVENT event (src-tauri/src/mods/engine_bridge.rs). Nothing here knows
 // a tool. Each answer is the engine's own, and a refused call rejects with
 // the engine's EngineError, both passed through as the app sends them.
 //
-// A frame crosses as one block: a 12-byte header (ticket, width, height, each
-// a little-endian u32), then the RGBA rows (src-tauri/src/mods/engine_frame.rs).
-// On Windows the block comes as a WebView2 shared buffer beside the answer,
-// which is then "shared"; elsewhere the answer is the block. `null` means a
+// A frame crosses as the engine's block: FRAME_HEADER_BYTES of ticket, width
+// and height, then the RGBA rows (src-tauri/src/mods/engine_frame.rs). On
+// Windows the block comes as a WebView2 shared buffer beside the answer,
+// which is then FRAME_SHARED; elsewhere the answer is the block. `null` means a
 // newer frame has replaced the one asked for. The pixels are a view of the
 // block, never a copy: a shared buffer goes back to WebView2 once, when the
 // pixels' `release` is called, after they are decoded or dropped.
@@ -15,13 +15,19 @@
 import { listen } from '@tauri-apps/api/event';
 
 import { ag } from '../../argentum/ag';
-import type { Applied, EngineError, Event, Opened, RenderTicket } from '../contract';
+import {
+  ENGINE_EVENT,
+  FRAME_HEADER_BYTES,
+  FRAME_SHARED,
+  FRAME_SHARED_KEY,
+  type Applied,
+  type EngineError,
+  type Event,
+  type Opened,
+  type RenderTicket,
+} from '../contract';
 import type { Connection, EngineClient, FramePixels, Library } from './client';
 
-/** The Tauri event engine events arrive as. */
-export const ENGINE_EVENT = 'ag-engine';
-/** Ticket, width, height. */
-const HEADER_BYTES = 12;
 /** How long a frame announced as shared may take to arrive before it counts as lost. */
 const SHARED_FRAME_TIMEOUT_MS = 5000;
 /** What an open answers when a newer open replaced it before it began. */
@@ -49,7 +55,7 @@ export interface WebView2 {
 }
 export interface SharedBufferEvent {
   getBuffer(): ArrayBuffer;
-  additionalData?: { agFrame?: number };
+  additionalData?: Record<string, unknown>;
 }
 
 /**
@@ -62,7 +68,7 @@ export function pageSharedBuffers(
   const listeners = new Set<SharedBufferListener>();
   let webview: WebView2 | undefined;
   const received = (e: SharedBufferEvent) => {
-    if (e.additionalData?.agFrame === undefined || !webview) return;
+    if (e.additionalData?.[FRAME_SHARED_KEY] === undefined || !webview) return;
     const owner = webview;
     const buffer = e.getBuffer();
     let released = false;
@@ -101,14 +107,14 @@ export function readFrame(
   release?: () => void,
 ): { ticket: RenderTicket; pixels: FramePixels } | null {
   if (block.byteLength === 0) return null;
-  if (block.byteLength < HEADER_BYTES) throw new Error(`a frame of ${block.byteLength} bytes`);
-  const head = new DataView(block, 0, HEADER_BYTES);
+  if (block.byteLength < FRAME_HEADER_BYTES) throw new Error(`a frame of ${block.byteLength} bytes`);
+  const head = new DataView(block, 0, FRAME_HEADER_BYTES);
   const [ticket, width, height] = [0, 4, 8].map((at) => head.getUint32(at, true));
   const pixelBytes = width * height * 4;
-  if (block.byteLength !== HEADER_BYTES + pixelBytes) {
+  if (block.byteLength !== FRAME_HEADER_BYTES + pixelBytes) {
     throw new Error(`a ${width} x ${height} frame of ${block.byteLength} bytes`);
   }
-  const data = new Uint8ClampedArray(block, HEADER_BYTES, pixelBytes);
+  const data = new Uint8ClampedArray(block, FRAME_HEADER_BYTES, pixelBytes);
   return { ticket, pixels: release ? { width, height, data, release } : { width, height, data } };
 }
 
@@ -222,8 +228,8 @@ export function createTauriEngine(transport: Transport = tauriTransport): Engine
     async frame(ticket) {
       // Asked for before the call, as the buffer can come before the answer.
       const posted = shared.expect(ticket);
-      const answer = await call<ArrayBuffer | 'shared' | null>('engine_frame', { ticket });
-      if (answer === 'shared') return delivered(ticket, await posted);
+      const answer = await call<ArrayBuffer | typeof FRAME_SHARED | null>('engine_frame', { ticket });
+      if (answer === FRAME_SHARED) return delivered(ticket, await posted);
       shared.forget(ticket);
       const read = answer ? readFrame(answer) : null;
       return delivered(ticket, read && read.ticket === ticket ? read.pixels : null);

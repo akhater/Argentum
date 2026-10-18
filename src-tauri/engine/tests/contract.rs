@@ -12,11 +12,12 @@
 use std::path::PathBuf;
 
 use argentum_engine::contract::{
-    Applied, Choice, EDIT_VERSION, EditDocument, EditPatch, EnabledWhen, EngineError, ErrorKind,
-    Event, HISTOGRAM_BINS, Opened, Origin, PhotoId, RenderTicket, Section, SectionDescriptor,
-    SettingKind, SettingScale, SettingSpec, Stage, ToolDescriptor, ToolEdit, View, sections,
+    Applied, Choice, EDIT_VERSION, ENGINE_EVENT, EditDocument, EditPatch, EnabledWhen, EngineError,
+    ErrorKind, Event, FRAME_HEADER_BYTES, FRAME_SHARED, FRAME_SHARED_KEY, HISTOGRAM_BINS, Opened,
+    Origin, PhotoId, Placement, RenderTicket, Section, SectionDescriptor, SettingKind,
+    SettingScale, SettingSpec, Stage, ToolDescriptor, ToolEdit, View, sections,
 };
-use argentum_engine::standard;
+use argentum_engine::{Frame, placement, standard};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -93,6 +94,10 @@ fn typescript() -> String {
     );
     out += &format!("export const EDIT_VERSION = {EDIT_VERSION};\n\n");
     out += &format!("export const HISTOGRAM_BINS = {HISTOGRAM_BINS};\n\n");
+    out += &format!("export const ENGINE_EVENT = \"{ENGINE_EVENT}\";\n\n");
+    out += &format!("export const FRAME_HEADER_BYTES = {FRAME_HEADER_BYTES};\n\n");
+    out += &format!("export const FRAME_SHARED = \"{FRAME_SHARED}\";\n\n");
+    out += &format!("export const FRAME_SHARED_KEY = \"{FRAME_SHARED_KEY}\";\n\n");
     for d in [
         decl::<Origin>(),
         decl::<Stage>(),
@@ -112,6 +117,7 @@ fn typescript() -> String {
         decl::<Applied>(),
         decl::<Opened>(),
         decl::<View>(),
+        decl::<Placement>(),
         decl::<ErrorKind>(),
         decl::<EngineError>(),
         decl::<Event>(),
@@ -126,6 +132,7 @@ fn typescript() -> String {
 
 /// One of each, made by the engine itself.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
 struct Fixtures {
     sections: Vec<SectionDescriptor>,
     tools: Vec<ToolDescriptor>,
@@ -138,7 +145,81 @@ struct Fixtures {
     refused: Vec<Refused>,
     opened: Opened,
     view: View,
+    /// Where the frame of each view goes, as the engine places it.
+    placements: Vec<Placed>,
+    /// A frame as it crosses to the interface, made by the engine.
+    frame_block: FrameBlock,
     events: Vec<Event>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct Placed {
+    view: View,
+    photo_width_px: u32,
+    photo_height_px: u32,
+    placement: Placement,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct FrameBlock {
+    ticket: RenderTicket,
+    width_px: u32,
+    height_px: u32,
+    rgba: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+/// Views worth pinning: fitted with bands, at 100% filling the view, past
+/// 100% at a corner, and a photo smaller than its view.
+fn placements() -> Vec<Placed> {
+    let views = [
+        (1600.0 / 7144.0, 0.5, 0.5, 1600, 1200, 7144, 4760),
+        (1.0, 0.5, 0.5, 1786, 1190, 7144, 4760),
+        (2.0, 0.0, 0.0, 800, 600, 7144, 4760),
+        (1.0, 0.5, 0.5, 800, 600, 640, 480),
+    ];
+    views
+        .into_iter()
+        .map(
+            |(zoom, center_x, center_y, width, height, photo_w, photo_h)| {
+                let view = View {
+                    zoom,
+                    center_x,
+                    center_y,
+                    width,
+                    height,
+                };
+                Placed {
+                    placement: placement(&view, photo_w, photo_h),
+                    view,
+                    photo_width_px: photo_w,
+                    photo_height_px: photo_h,
+                }
+            },
+        )
+        .collect()
+}
+
+fn frame_block() -> FrameBlock {
+    let frame = Frame {
+        ticket: RenderTicket(7),
+        placement: Placement {
+            x_px: 0,
+            y_px: 0,
+            width_px: 2,
+            height_px: 1,
+        },
+        rgba: vec![255, 0, 0, 255, 0, 128, 255, 255],
+    };
+    FrameBlock {
+        ticket: frame.ticket,
+        width_px: frame.placement.width_px,
+        height_px: frame.placement.height_px,
+        bytes: frame.block(),
+        rgba: frame.rgba,
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -235,6 +316,8 @@ fn fixtures() -> Fixtures {
         },
         patched,
         refused,
+        placements: placements(),
+        frame_block: frame_block(),
         edit,
         patch,
         view: View {
@@ -248,8 +331,7 @@ fn fixtures() -> Fixtures {
             Event::Frame {
                 ticket: RenderTicket(3),
                 photo_id: PhotoId(1),
-                width: 1786,
-                height: 1190,
+                placement: placements()[0].placement,
             },
             Event::Histogram {
                 ticket: RenderTicket(3),
@@ -342,13 +424,22 @@ fn the_wire_names_are_the_contracts() {
     let event = serde_json::to_value(Event::Frame {
         ticket: RenderTicket(7),
         photo_id: PhotoId(2),
-        width: 10,
-        height: 20,
+        placement: Placement {
+            x_px: 1,
+            y_px: 2,
+            width_px: 10,
+            height_px: 20,
+        },
     })
     .unwrap();
     assert_eq!(
         event,
-        serde_json::json!({ "event": "frame", "ticket": 7, "photoId": 2, "width": 10, "height": 20 })
+        serde_json::json!({
+            "event": "frame",
+            "ticket": 7,
+            "photoId": 2,
+            "placement": { "xPx": 1, "yPx": 2, "widthPx": 10, "heightPx": 20 },
+        })
     );
     let radius = &fixtures().tools[1].settings[3];
     assert_eq!(radius.key, "radius");

@@ -4,7 +4,55 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
-## 26.41.13 — unreleased
+## 26.41.13 — 2026-10-17
+
+### Added
+
+- **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
+  Rendering). The default picture of a DNG renderer: the camera's exposure offset
+  and Adobe's default tone curve, applied in linear ProPhoto RGB to each pixel's
+  largest and smallest channel with the middle one kept between them, so a hue
+  holds as the curve brightens it. RapidRAW's own RAW rendering - the sRGB curve, a
+  1.1 gamma lift and a gentle S - is about a stop darker in the mid-tones and flat
+  next to Camera Raw, and the decoder is not why. `mods/dng_standard.rs`.
+  - The exposure offset is a DNG's own BaselineExposure, else the body's row in a
+    table of 230 bodies across 10 makes from RAWmakase `data/cameras.toml` @
+    `7c3c81ab` (MIT, `mods/dng_baseline.tsv`). A body not listed takes its make's
+    median, then the table's. Below a Sony body's lowest native ISO a stop comes
+    off, as in Camera Raw. Not read yet: Canon Highlight Tone Priority and
+    Fujifilm DR modes; and the values were measured against LibRaw's white level,
+    not rawler's.
+  - The tone curve is the DNG SDK's ACR3 default curve as RawTherapee ships it,
+    `rtengine/dcp.cc` @ `ca9234b1` (Adobe DNG SDK licence, `docs/licenses/`).
+    RGBTone is ported from RawTherapee `rtengine/curves.h` @ `46b92d8e`
+    (`rt_rgb_tone`).
+  - The photo's curve travels as its 16-point RAW tone curve, within 0.45/255 of
+    the exact one; on the GPU the whole render is within 0.77/255 of a CPU
+    reference.
+  - Enlargements carry it in the luma curve, per channel, so saturated colours
+    land a little stronger there.
+- **A tone stage in the shader** (`ag_stage_tone`): one call after RapidRAW's
+  tone-mapper chain replaces the two RAW tone blocks that were inside their
+  `main()`, so their chain is upstream's again, line for line. shader.wgsl hooks:
+  2 to 3.
+
+### Changed
+
+- **A RAW starts in DNG Standard, with Camera Raw's default sharpening.** A RAW
+  whose edit names no rendering - never edited, reset, or given settings pasted
+  onto it unedited - renders in DNG Standard, and DNG Standard brings Sharpen 25 at
+  radius 1 until an amount is set. On 200% crops of an R6 Mark III frame that
+  matched RAWmakase 0.3.3's render of Camera Raw's defaults (Amount 40, Radius
+  1.0), and added less grain than it at ISO 12800 and 32000. The editor,
+  thumbnails, exports and enlargements read an edit the same way
+  (`raw_tone::mode_of`, `sharpen::from_json`); thumbnails are rebuilt once
+  (pipeline 7).
+  - Edits that chose RapidRAW's Default keep it, and every edit saved since
+    2026-09-22 names its rendering. Edits saved before then name none and now open
+    in DNG Standard; Default under RAW > Rendering gives back the earlier look.
+
+Registered as `dng-standard` and `raw-starting-look`, with 29 and 38 decisions
+against the 1.6.5 review.
 
 ### Internal
 
@@ -39,6 +87,36 @@ Newest first.
     `view` - return at once and render on a thread of their own,
     latest-wins. A slider tick at preview size is held to a measured budget
     of 25 ms by a test.
+  - Then tidied against the code hygiene rules: `apply` returns the edit as
+    the engine took it, errors are typed (`ErrorKind`), a patch is merged by
+    one pure `Registry::merge` against the registry the render thread uses,
+    `Source` and the cache have files of their own, capture sharpening is a
+    folder (`radius`, `contrast`, `gpu`) with one `MAX_RADIUS_PX` and no
+    second clamp, origins and the fit are each defined once, and the
+    TypeScript generator builds only for the tests.
+- **Dev and test builds wait less.** Measured on Windows x64 after a one-line
+  change in `mods/sharpen.rs`: `cargo build` 26-28 s → 20 s, `cargo test --lib
+  sharpen::` 29 s → 26 s; a cold build into a new target directory 739 s →
+  633 s. Shipped builds are unchanged.
+  - The app library is built as an rlib only. Upstream's staticlib (iOS) and
+    cdylib (Android) were written by every desktop build, the staticlib alone
+    640 MB, and Argentum builds no mobile app. A mobile build needs them back
+    in `Cargo.toml`.
+  - Windows x64 dev and test builds link with rust-lld, which ships with Rust
+    (`.cargo/config.toml`): the app relinks in 5.6 s instead of 7-10 s.
+    Shipped Windows builds keep MSVC's linker.
+  - Dependencies carry no debug info in dev builds: the app's PDB is 86 MB
+    instead of 194 MB, and a full rebuild of the dependencies took 368 s
+    instead of 528 s. A backtrace through a dependency keeps its function
+    names but not file and line.
+  - `build.rs` does not hash the ONNX Runtime library again once it has been
+    checked, and a new git worktree copies it from the main checkout instead
+    of downloading it.
+  - `npm start` no longer runs the mergeability check, about 45 s before
+    every dev window. It is still the required check in CI, and
+    `npm run check:merge` runs it by hand.
+  - The first build after this change rebuilds every crate once: cargo and
+    sccache both key on the linker and the debug settings.
 - **The new editor interface, first step.** `src/shell/`, opt-in with
   `?shell=new`; without it the app opens as before. Every tool panel is built
   from the engine's tool descriptors, a widget per setting kind, so a new

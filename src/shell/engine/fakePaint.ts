@@ -35,8 +35,8 @@ function messageFor(job: PaintJob): PaintMessage {
   for (const c of job.path) seed = (seed * 33 + c.charCodeAt(0)) % 9973;
   return {
     seed,
-    photo: { width: job.width, height: job.height },
-    view: job.view,
+    aspect: job.layout.renderWidthPx / job.layout.renderHeightPx,
+    layout: job.layout,
     gains: [
       gain * amount(edit, 'ag_exposure_wb', 'red'),
       gain * amount(edit, 'ag_exposure_wb', 'green'),

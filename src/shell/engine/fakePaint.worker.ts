@@ -1,16 +1,17 @@
 // The contract fake's pixels, off the UI thread: a made-up landscape per photo
-// name, drawn for the asked view with the three tools' settings applied in the
-// crudest way that shows they work. Nothing here is image processing; it lets
+// name, painted at exactly the engine's placement for the asked view, with the
+// three tools' settings applied in the crudest way that shows they work. Nothing here is image processing; it lets
 // the shell be looked at before the engine is wired in.
 
-import { HISTOGRAM_BINS, type View } from '../contract';
-import type { PhotoSize } from '../view';
+import { HISTOGRAM_BINS } from '../contract';
 import type { FramePixels } from './client';
+import type { FrameLayout } from './fakeLayout';
 
 export interface PaintMessage {
   seed: number;
-  photo: PhotoSize;
-  view: View;
+  /** The photo's width over its height. */
+  aspect: number;
+  layout: FrameLayout;
   gains: [number, number, number];
   recover: boolean;
   sharpen: number;
@@ -61,24 +62,17 @@ const LEVELS = 256;
 
 const encode = (x: number) => Math.round((LEVELS - 1) * Math.pow(Math.max(0, Math.min(1, x)), 1 / 2.2));
 
-/** Most pixels painted per frame. A larger view gets a smaller frame, scaled up on screen. */
-const MAX_PIXELS = 1_200_000;
-
 function paint(job: PaintMessage): PaintReply {
-  const { view, gains } = job;
-  const { width: pw, height: ph } = job.photo;
-  const scale = Math.min(1, Math.sqrt(MAX_PIXELS / Math.max(1, view.width * view.height)));
-  const width = Math.max(1, Math.round(view.width * scale));
-  const height = Math.max(1, Math.round(view.height * scale));
+  const { layout, gains } = job;
+  const { widthPx: width, heightPx: height } = layout.placement;
   const data = new Uint8ClampedArray(width * height * 4);
   const bins = new Array(HISTOGRAM_BINS).fill(0);
-  const aspect = pw / ph;
+  // Each frame pixel samples the render where the engine's would: its centre, in render pixels.
   for (let y = 0; y < height; y++) {
-    const v = (view.centerY * ph + (y / scale - view.height / 2) / view.zoom) / ph;
+    const v = (layout.y0Px + (y + 0.5) * layout.perScreen) / layout.renderHeightPx;
     for (let x = 0; x < width; x++) {
-      const u = (view.centerX * pw + (x / scale - view.width / 2) / view.zoom) / pw;
-      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
-      const lin = scene(u, v, aspect, job.seed, job.sharpen);
+      const u = (layout.x0Px + (x + 0.5) * layout.perScreen) / layout.renderWidthPx;
+      const lin = scene(u, v, job.aspect, job.seed, job.sharpen);
       const [r, g, b] = tone(lin[0] * gains[0], lin[1] * gains[1], lin[2] * gains[2], job.recover);
       const i = (y * width + x) * 4;
       data[i] = encode(r);

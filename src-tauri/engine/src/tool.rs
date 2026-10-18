@@ -1,7 +1,7 @@
 //! The contract every tool implements.
 //!
 //! A tool is a type with a stable id, the stage it runs in, the section its
-//! panel goes in, the kind of work it does, a settings struct, and one
+//! panel goes in, whether it needs the GPU, a settings struct, and one
 //! function from an image to an image. That is all of it. The registry puts
 //! tools in order, the pipeline runs and caches them, and the interface
 //! builds each panel from a descriptor read off the tool itself; none of them
@@ -22,66 +22,6 @@ use crate::contract::{
     ToolDescriptor,
 };
 use crate::{Error, Gpu, GpuSlot, Image, Result, Source};
-
-impl Origin {
-    pub const ALL: [Origin; 5] = [
-        Origin::Darktable,
-        Origin::RawTherapee,
-        Origin::RapidRaw,
-        Origin::Rawmakase,
-        Origin::Argentum,
-    ];
-
-    pub const fn prefix(self) -> &'static str {
-        match self {
-            Origin::Darktable => "dt_",
-            Origin::RawTherapee => "rt_",
-            Origin::RapidRaw => "rr_",
-            Origin::Rawmakase => "rm_",
-            Origin::Argentum => "ag_",
-        }
-    }
-
-    /// The origin an id names, or `None` when it has no known prefix or is
-    /// not a usable id: lowercase ASCII letters, digits and `_`, with a name
-    /// after the prefix. Ids are keys in saved edits, so they stay that
-    /// plain. `const` so that `Registry::with` can refuse a bad id at compile
-    /// time.
-    pub const fn of(id: &str) -> Option<Origin> {
-        let b = id.as_bytes();
-        if b.len() < 4 || b[2] != b'_' {
-            return None;
-        }
-        let mut i = 0;
-        while i < b.len() {
-            let c = b[i];
-            if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_') {
-                return None;
-            }
-            i += 1;
-        }
-        match (b[0], b[1]) {
-            (b'd', b't') => Some(Origin::Darktable),
-            (b'r', b't') => Some(Origin::RawTherapee),
-            (b'r', b'r') => Some(Origin::RapidRaw),
-            (b'r', b'm') => Some(Origin::Rawmakase),
-            (b'a', b'g') => Some(Origin::Argentum),
-            _ => None,
-        }
-    }
-}
-
-/// The kind of work a tool does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Kind {
-    /// Each output pixel from the same input pixel alone.
-    PerPixel,
-    /// Several passes over the whole image on the GPU. The only kind that
-    /// `Context::gpu` hands a device to.
-    GpuMultiPass,
-    /// Whole-image work on the CPU.
-    Cpu,
-}
 
 /// What a panel needs to know about one setting beyond its type and default,
 /// which are read off the settings struct itself. Numbers outside
@@ -202,7 +142,9 @@ pub trait Tool: Default + Send + Sync + 'static {
     const ID: &'static str;
     const STAGE: Stage;
     const SECTION: Section;
-    const KIND: Kind;
+    /// Whether it runs on the GPU. Only such a tool is handed the device by
+    /// `Context::gpu`.
+    const GPU: bool = false;
     type Settings: Settings;
 
     /// `Ok(None)` means there is nothing to do: the input is the output, and
@@ -225,7 +167,7 @@ pub struct Context<'a> {
     /// that keeps a measurement between runs.
     pub input_key: u64,
     tool: &'static str,
-    kind: Kind,
+    gpu_allowed: bool,
     gpu: &'a GpuSlot,
 }
 
@@ -233,12 +175,12 @@ impl<'a> Context<'a> {
     /// The context `T` runs in. The pipeline makes these; so can a caller
     /// running one tool on its own.
     pub fn new<T: Tool>(source: &'a Source, input_key: u64, gpu: &'a GpuSlot) -> Self {
-        Self::for_tool(T::ID, T::KIND, source, input_key, gpu)
+        Self::for_tool(T::ID, T::GPU, source, input_key, gpu)
     }
 
     pub(crate) fn for_tool(
         tool: &'static str,
-        kind: Kind,
+        gpu_allowed: bool,
         source: &'a Source,
         input_key: u64,
         gpu: &'a GpuSlot,
@@ -247,17 +189,17 @@ impl<'a> Context<'a> {
             source,
             input_key,
             tool,
-            kind,
+            gpu_allowed,
             gpu,
         }
     }
 
     /// The engine's GPU device, opened the first time any tool asks.
     pub fn gpu(&self) -> Result<Arc<Gpu>> {
-        if self.kind != Kind::GpuMultiPass {
+        if !self.gpu_allowed {
             return Err(Error::Tool {
                 tool: self.tool,
-                message: "only a GpuMultiPass tool is given the GPU".into(),
+                message: "only a tool with GPU = true is given the GPU".into(),
             });
         }
         self.gpu.get()
@@ -473,7 +415,7 @@ fn skeleton(
 pub(crate) struct ToolInfo {
     pub id: &'static str,
     pub stage: Stage,
-    pub kind: Kind,
+    pub gpu: bool,
     pub version: u32,
 }
 
@@ -521,7 +463,7 @@ impl<T: Tool> AnyTool for Registered<T> {
         ToolInfo {
             id: T::ID,
             stage: T::STAGE,
-            kind: T::KIND,
+            gpu: T::GPU,
             version: <T::Settings as Settings>::VERSION,
         }
     }
@@ -583,21 +525,6 @@ pub(crate) fn as_map(value: Value) -> BTreeMap<String, Value> {
 mod tests {
     use super::*;
     use serde::Deserialize;
-
-    #[test]
-    fn origins_come_from_the_prefix() {
-        assert_eq!(Origin::of("dt_highlights"), Some(Origin::Darktable));
-        assert_eq!(Origin::of("rt_capture_sharpen"), Some(Origin::RawTherapee));
-        assert_eq!(Origin::of("rr_tone"), Some(Origin::RapidRaw));
-        assert_eq!(Origin::of("rm_grain"), Some(Origin::Rawmakase));
-        assert_eq!(Origin::of("ag_exposure_wb"), Some(Origin::Argentum));
-        for prefix in Origin::ALL.map(Origin::prefix) {
-            assert_eq!(Origin::of(prefix), None, "a prefix alone is not an id");
-        }
-        assert_eq!(Origin::of("xx_tool"), None);
-        assert_eq!(Origin::of("dt_Highlights"), None, "lowercase only");
-        assert_eq!(Origin::of("dt_high-lights"), None);
-    }
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(default)]

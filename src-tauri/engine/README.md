@@ -26,12 +26,16 @@ one: `CARGO_TARGET_DIR=<main checkout>/src-tauri/engine/target`.
 Every type the interface sees is in `contract.rs` and nowhere else. The
 TypeScript types in `src/shell/contract.generated.ts` are generated from it,
 with an example of each in `src/shell/contract.fixtures.json` for both sides
-to test against. `tests/contract.rs` fails when either file is stale; to
-write them:
+to test against, including the patches the engine takes ("patched") and
+refuses ("refused"), made by the engine itself. `tests/contract.rs` fails
+when either file is stale; to write them:
 
 ```bash
 AG_WRITE_CONTRACT=1 cargo test --test contract
 ```
+
+The TypeScript derive (ts-rs) is behind the crate's `ts` feature, which only
+the tests turn on: whatever links the engine does not build it.
 
 - **`ToolDescriptor`** - a tool's id, origin, label (an i18n key), section,
   order, stage, settings version and `SettingSpec`s: key, label, kind
@@ -43,10 +47,16 @@ AG_WRITE_CONTRACT=1 cargo test --test contract
 - **`SectionDescriptor`** - the panels, in order, each with an id and a
   label key, defined once in `contract.rs`; each tool names its own.
 - **`EditDocument`** - `{ version: 1, tools: { id: { v, settings } } }`.
-- **`EditPatch`** - `{ id: { key: value } }`, merged into the edit; `null`
-  puts a setting back to its default. All or nothing: an unknown tool or
-  setting, or a value of the wrong type, changes nothing. Only the tools it
-  names, and the tools after them, run again.
+- **`EditPatch`** - `{ id: { key: value } }`, merged into the edit by
+  `Registry::merge`; `null` puts a setting back to its default. All or
+  nothing: an unknown tool or setting, or a value of the wrong type, changes
+  nothing. Only the tools it names, and the tools after them, run again.
+- **`EngineError`** - what a refused call returns: an `ErrorKind`
+  (`unknownPhoto`, `badView`, `unknownTool`, `unknownSetting`, `badValue`,
+  `badEdit`, `decode`, `noGpu`, `render`, `internal`) and a message. The
+  `error` event carries the same kind.
+- **`View`** - zoom, centre, and a size in device pixels (CSS pixels times
+  the device pixel ratio).
 
 The calls, which the app makes into Tauri commands (`src/engine.rs`):
 
@@ -55,7 +65,7 @@ The calls, which the app makes into Tauri commands (`src/engine.rs`):
 | `sections()` | every `SectionDescriptor`, in the order the panels are shown |
 | `tools()` | every `ToolDescriptor`, in pipeline order |
 | `open(path)` | `Opened { photoId, width, height, edit }`, without rendering |
-| `apply(photoId, EditPatch)` | a `RenderTicket`, at once |
+| `apply(photoId, EditPatch)` | `Applied { ticket, edit }` at once: the render's ticket, and the edit as the engine took it |
 | `view(photoId, View { zoom, centerX, centerY, width, height })` | a `RenderTicket`, at once |
 | `frame(ticket)` | the frame's sRGB RGBA pixels, while it is the latest |
 
@@ -72,9 +82,9 @@ photos' decoded data in memory.
 Renders happen on a thread of their own and are latest-wins: a newer ticket
 replaces a render still waiting, and stops one already running at its next
 step. Each finished render sends a `frame` event (`ticket`, `photoId`,
-`width`, `height`), then a `histogram` event (`ticket`, `photoId`, 256
-luminance bins of the frame); a failed one an `error` event. An overtaken
-render sends nothing.
+`width`, `height`), then a `histogram` event (`ticket`, `photoId`,
+`HISTOGRAM_BINS` luminance bins of the frame); a failed one an `error` event
+(`ticket`, `kind`, `message`). An overtaken render sends nothing.
 
 Below 100% the pipeline renders the whole photo at the zoom and the view is a
 cut of it, so panning re-renders nothing; at 100% and past it the view is cut
@@ -86,9 +96,9 @@ display tools take over.
 ```rust
 pub trait Tool: Default + Send + Sync + 'static {
     const ID: &'static str;      // "rt_capture_sharpen": origin prefix + name
-    const STAGE: Stage;          // Raw | SceneLinear | Display
+    const STAGE: Stage;          // Raw | SceneLinear
     const SECTION: Section;      // the panel it is shown in
-    const KIND: Kind;            // PerPixel | GpuMultiPass | Cpu
+    const GPU: bool = false;     // true for a tool that runs on the GPU
     type Settings: Settings;
     fn process(&self, settings: &Self::Settings, input: &Image, cx: &Context)
         -> Result<Option<Image>>;
@@ -108,9 +118,9 @@ pub trait Settings: Serialize + DeserializeOwned + Default + Clone + PartialEq +
 - **Stage.** `Raw` tools get the sensor data before demosaic (`Image::Raw`, a
   rawler `RawImage`: a mosaic, or three colours per pixel for sRAW). The
   pipeline then develops it (demosaic and the camera matrix, as the app does)
-  and `SceneLinear` and `Display` tools get linear RGB (`Image::Rgb`). The
-  registry must list every `Raw` tool, then `SceneLinear`, then `Display`.
-- **Kind.** What sort of work it is. Only a `GpuMultiPass` tool may ask
+  and `SceneLinear` tools get linear RGB (`Image::Rgb`). The registry must
+  list every `Raw` tool before every `SceneLinear` one.
+- **GPU.** Only a tool with `GPU = true` may ask
   `cx.gpu()` for the engine's device - a wgpu device of its own, opened the
   first time it is asked for.
 - **Settings.** A serde struct with `#[serde(default)]`, each field a number,
@@ -149,7 +159,7 @@ a full-size render share everything up to the develop; after it, a preview's
 tools run on the small picture, and a radius in sensor pixels is scaled by the
 picture's `scale()`.
 
-Results are kept up to a memory budget (`set_cache_budget`, 2 GB by default),
+Results are kept up to a memory budget (`set_cache_budget_bytes`, 2 GB by default),
 least recently used first out. `last_render()` says which steps ran and how
 long each took; `runs(name)` counts them; `render_unless` gives up between
 steps when asked.
@@ -161,7 +171,7 @@ steps when asked.
 
    ```rust
    use serde::{Deserialize, Serialize};
-   use crate::{Context, Error, Field, Image, Kind, Result, Section, Stage, Tool};
+   use crate::{Context, Error, Field, Image, Result, Section, Stage, Tool};
 
    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
    #[serde(default)]
@@ -178,7 +188,6 @@ steps when asked.
        const ID: &'static str = "xx_name";
        const STAGE: Stage = Stage::SceneLinear;
        const SECTION: Section = Section::Effects;
-       const KIND: Kind = Kind::PerPixel;
        type Settings = Settings;
        fn process(&self, s: &Settings, input: &Image, _cx: &Context) -> Result<Option<Image>> {
            if s.amount == 0.0 { return Ok(None); }
@@ -196,6 +205,8 @@ steps when asked.
    "tools/xx_name.rs" => xx_name::XxName,
    ```
 
+A tool too big for one file is a folder with a `mod.rs` - `rt_capture_sharpen/` keeps its radius, contrast and GPU passes apart - and its line names `tools/<id>/mod.rs`.
+
 That line declares the module and registers the tool. Nothing else changes:
 the pipeline's order, the interface's panel, the settings in an edit and the
 cache all come from the registry. `tests/fourth_tool.rs` proves it with a
@@ -207,11 +218,11 @@ commit.
 
 ## The tools
 
-| Id | Stage | Section | Kind | What | From |
+| Id | Stage | Section | GPU | What | From |
 |---|---|---|---|---|---|
-| `dt_highlights` | Raw | tone | Cpu | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction |
-| `rt_capture_sharpen` | SceneLinear | detail | GpuMultiPass | Richardson-Lucy deconvolution of the luminance, through a contrast mask, with the radius read from the RAW | RawTherapee `capturesharpening.cc` and `rt_algo.cc`, via `mods/sharpen.rs`, `mods/sharpen_gpu.rs`, `shaders/sharpen.wgsl` |
-| `ag_exposure_wb` | SceneLinear | basic | PerPixel | Exposure in stops, times a red, green and blue multiplier, on top of the as-shot balance | Argentum |
+| `dt_highlights` | Raw | tone | no | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction |
+| `rt_capture_sharpen` | SceneLinear | detail | yes | Richardson-Lucy deconvolution of the luminance, through a contrast mask, with the radius read from the RAW | RawTherapee `capturesharpening.cc` and `rt_algo.cc`, via `mods/sharpen.rs`, `mods/sharpen_gpu.rs`, `shaders/sharpen.wgsl` |
+| `ag_exposure_wb` | SceneLinear | basic | no | Exposure in stops, times a red, green and blue multiplier, on top of the as-shot balance | Argentum |
 
 Capture sharpening runs before exposure, as in the app: it undoes the lens
 and the sensor, so it comes before anything that is an edit.

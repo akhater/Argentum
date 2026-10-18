@@ -12,13 +12,22 @@ import {
   type EditPatch,
   type EngineError,
   type Event,
+  type Placement,
+  type View,
 } from '../contract';
 import { createFakeEngine } from '../engine/fake';
+import { frameLayout } from '../engine/fakeLayout';
 import { openShell, settle } from './helpers';
 
 // JSON imports are typed by their contents; these are the contract's shapes.
 const patched = fixtures.patched as unknown as { patch: EditPatch; edit: EditDocument }[];
 const refused = fixtures.refused as unknown as { patch: EditPatch; error: EngineError }[];
+const placements = fixtures.placements as unknown as {
+  view: View;
+  photoWidthPx: number;
+  photoHeightPx: number;
+  placement: Placement;
+}[];
 
 /** A fake with one photo open, at the defaults. */
 async function opened() {
@@ -64,6 +73,30 @@ describe('the contract fixtures', () => {
       expect(refusal?.kind, JSON.stringify(patch)).toBe(error.kind);
       expect(engine.editOf(photoId), JSON.stringify(patch)).toEqual(fixtures.edit);
     }
+  });
+
+  it('placements: the fake lays a frame out exactly as the engine', () => {
+    expect(placements.length).toBeGreaterThan(0);
+    for (const { view, photoWidthPx, photoHeightPx, placement } of placements) {
+      const photo = { width: photoWidthPx, height: photoHeightPx };
+      expect(frameLayout(view, photo).placement, JSON.stringify(view)).toEqual(placement);
+    }
+  });
+
+  it('frames: the fake announces the engine’s placement and sends pixels of exactly that size', async () => {
+    const { engine, photoId } = await opened();
+    const frames: Extract<Event, { event: 'frame' }>[] = [];
+    engine.subscribe((e) => {
+      if (e.event === 'frame') frames.push(e);
+    });
+    const view: View = { zoom: 0.1, centerX: 0.5, centerY: 0.5, width: 1600, height: 1200 };
+    const ticket = await engine.view(photoId, view);
+    await settle();
+    const frame = frames.find((f) => f.ticket === ticket)!;
+    const photo = await engine.open('samples/A.CR3');
+    expect(frame.placement).toEqual(frameLayout(view, photo).placement);
+    const pixels = (await engine.frame(ticket))!;
+    expect([pixels.width, pixels.height]).toEqual([frame.placement.widthPx, frame.placement.heightPx]);
   });
 
   it('events are read in the shapes the engine sends', async () => {

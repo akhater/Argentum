@@ -47,6 +47,7 @@
   "rawToneDefault": "Default (RapidRAW)",
   "rawToneBaseCurve": "Base Curve (darktable-style)",
   "rawToneAutoMatched": "Auto-Matched (RawTherapee-style)",
+  "rawToneDngStandard": "DNG Standard (Lightroom-style)",
   "rawToneCalculating": "Calculating tone curve…",
   "gearAddProfile": "Add profile…",
   "gearRemoveProfile": "Delete this profile",
