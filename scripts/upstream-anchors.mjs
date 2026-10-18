@@ -36,7 +36,8 @@ export const ANCHORS = [
     hooks: 1,
     what:
       'the first thumbnail while browsing, in generate_single_thumbnail_and_cache: '
-      + 'the camera\'s JPEG before the thumbnail is made',
+      + 'the camera\'s JPEG before the thumbnail is made, and the start of the watcher '
+      + 'that sends it for every photo waiting in the queue',
     instead: 'do more inside mods/first_thumbnail.rs',
   },
   {
