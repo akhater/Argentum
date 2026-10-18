@@ -16,7 +16,7 @@ import { ThumbCache } from '../browse/thumbs';
 import wire from '../browse/wire.fixtures.json';
 import { createFakeEngine } from '../engine/fake';
 import type { Transport } from '../engine/tauri';
-import { ancestorsOf, folderName, folderOf, samePath } from '../paths';
+import { ancestorsOf, compareNames, folderName, folderOf, samePath } from '../paths';
 import { createShellStore } from '../store';
 import { settle } from './helpers';
 
@@ -171,6 +171,12 @@ describe('browsing', () => {
     expect(s().expanded[PICTURES]).toBe(false);
   });
 
+  it('sorts the folders in a folder as Explorer does, whatever order the disk gives', async () => {
+    const { s } = await browsing();
+    await s().toggleExpanded(PICTURES);
+    expect(s().subfolders[PICTURES]?.map((f) => f.name)).toEqual(['_inbox', '2026', 'Big shoot', 'Scans']);
+  });
+
   it('pins and unpins a favourite', async () => {
     const { s } = await browsing();
     await s().setFavourite(BIG, true);
@@ -273,6 +279,20 @@ describe('paths', () => {
     expect(folderName('C:\\')).toBe('C:');
     expect(folderName('C:\\Photos\\')).toBe('Photos');
     expect(folderName('/')).toBe('/');
+  });
+
+  it('orders names as Windows Explorer does', () => {
+    const names = ['img10', 'Archive', '2026', '_inbox', 'IMG2', '2021', 'beta', '_Inbox2'];
+    expect([...names].sort(compareNames)).toEqual([
+      '_inbox',
+      '_Inbox2',
+      '2021',
+      '2026',
+      'Archive',
+      'beta',
+      'IMG2',
+      'img10',
+    ]);
   });
 
   it('tells two spellings of one Windows path apart from two paths', () => {

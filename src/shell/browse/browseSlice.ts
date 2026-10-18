@@ -3,7 +3,7 @@
 // The disk is reached only through a BrowseClient (client.ts). Nothing here
 // is saved but what the app remembers itself: favourite and recent folders.
 
-import { ancestorsOf, samePath } from '../paths';
+import { ancestorsOf, compareNames, samePath } from '../paths';
 import type { Slice } from '../store';
 import type { BrowseError, BrowseEvent, Folder, ListingId, Photo, Places } from './browse.generated';
 import type { BrowseClient } from './client';
@@ -59,11 +59,9 @@ export interface BrowseActions {
   receiveBrowse(event: BrowseEvent): void;
 }
 
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-
-/** By name as people count (IMG_2 before IMG_10), or by date, oldest first. */
+/** By name in Explorer's order (compareNames), or by date, oldest first. */
 export function sortPhotos(photos: readonly Photo[], by: SortBy): Photo[] {
-  const byName = (a: Photo, b: Photo) => collator.compare(a.name, b.name);
+  const byName = (a: Photo, b: Photo) => compareNames(a.name, b.name);
   return [...photos].sort(by === 'name' ? byName : (a, b) => a.modifiedMs - b.modifiedMs || byName(a, b));
 }
 
@@ -115,7 +113,7 @@ export const createBrowseSlice =
 
     const loadSubfolders = async (path: string) => {
       if (!browse || get().subfolders[path]) return;
-      const found = await browse.folders(path);
+      const found = (await browse.folders(path)).sort((a, b) => compareNames(a.name, b.name));
       set({ subfolders: { ...get().subfolders, [path]: found } });
     };
 

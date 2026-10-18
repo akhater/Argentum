@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { SettingSpec } from '../contract';
 import { FAKE_SECTIONS, FAKE_TOOLS } from '../engine/fake';
+import { PanelBlock } from '../layout/PanelBlock';
 import { buildSections, railPosition, railValue } from '../panels/model';
+import { ShellProvider } from '../ShellContext';
 import { Slider } from '../widgets/Slider';
 import { openShell, renderPanels } from './helpers';
 
@@ -55,9 +57,26 @@ describe('panels from descriptors', () => {
     expect(html).toContain('aria-valuetext="+1.25 EV"');
   });
 
+  it('fold the histogram and the navigator', async () => {
+    const { store } = await openShell();
+    const render = () =>
+      renderToStaticMarkup(
+        <ShellProvider store={store}>
+          <PanelBlock part="histogram" title="Histogram">
+            <canvas className="inside" />
+          </PanelBlock>
+        </ShellProvider>,
+      );
+    expect(render()).toContain('class="inside"');
+    store.getState().toggleFolded('histogram');
+    expect(render()).not.toContain('class="inside"');
+    expect(render()).toContain('aria-expanded="false"');
+    expect(store.getState().collapsed.navigator).toBeUndefined();
+  });
+
   it('fold a section', async () => {
     const { store } = await openShell();
-    store.getState().toggleSection('detail');
+    store.getState().toggleFolded('detail');
     const html = renderPanels(store);
     expect(html).not.toContain('data-tool="rt_capture_sharpen"');
     expect(html).toContain('data-tool="ag_exposure_wb"');

@@ -113,6 +113,14 @@ window opens in Browse at the folders remembered.
 | `PhotoGrid.tsx`       | The grid, drawn only as far as it shows; the photos on screen asked for first           |
 | `BrowseView.tsx`      | Tree and grid side by side; the folders remembered before one is picked                 |
 
+The tree takes the keys of Windows Explorer's folder pane: Up and Down,
+Right to open a folder or go into it, Left to close it or go to its parent,
+Home, End, and Enter to show its photos. A folder is pinned to the
+favourites with the star on its row, from its menu (right click, the menu
+key or Shift+F10) or from the button above the grid. Folders and photos are
+sorted by one comparison, Explorer's (`compareNames` in `paths.ts`): case
+ignored, numbers by value, `_` first.
+
 A folder's photos come as `listed` events in parts, and the newest listing
 stops older ones. Thumbnails are asked for with `want(paths)`, the photos on
 screen first and then a few rows ahead; each call replaces the one before,

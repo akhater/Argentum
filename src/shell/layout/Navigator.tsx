@@ -7,6 +7,7 @@ import { text } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
 import { deviceScale, fitRect, visiblePart, type RectPx } from '../view';
 import { currentView } from '../viewSlice';
+import { PanelBlock } from './PanelBlock';
 import { PhotoPicture } from './PhotoPicture';
 
 export function Navigator() {
@@ -48,9 +49,10 @@ export function Navigator() {
   };
 
   return (
-    <div className="ags-panel-block">
-      <div className="ags-block-head">
-        <span>{text('shell.navigator')}</span>
+    <PanelBlock
+      part="navigator"
+      title={text('shell.navigator')}
+      controls={
         <span className="ags-zoom-buttons">
           <button
             type="button"
@@ -63,10 +65,11 @@ export function Navigator() {
             {text('shell.oneToOne')}
           </button>
         </span>
-      </div>
+      }
+    >
       <div className="ags-navigator" onPointerDown={goTo}>
         <PhotoPicture frame={frame} className="ags-navigator-canvas" overlay={marker} />
       </div>
-    </div>
+    </PanelBlock>
   );
 }

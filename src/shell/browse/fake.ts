@@ -27,6 +27,7 @@ const PHOTO_NAMES: Record<string, string[]> = {
   [`${PICTURES}\\Big shoot`]: numbered('_R6A', 1, 1200, '.CR3'),
   [`${PICTURES}\\Scans`]: ['scan_01.jpg', 'scan_02.jpg', 'scan_03.tif', 'poster.png'],
   [CARD]: numbered('IMG_', 9001, 40, '.CR3'),
+  [`${PICTURES}\\_inbox`]: numbered('IMG_', 1, 12, '.CR3'),
 };
 
 const FOLDERS = ['C:\\Users', 'C:\\Users\\you', PICTURES, `${PICTURES}\\2026`, ...Object.keys(PHOTO_NAMES), 'D:\\DCIM'];
@@ -47,9 +48,8 @@ function hash(text: string): number {
 function childrenOf(path: string): Folder[] {
   const dir = path.endsWith('\\') ? path.slice(0, -1) : path;
   const kids = FOLDERS.filter((f) => parentOf(f) === dir);
-  return kids
-    .map((f) => ({ name: nameOf(f), path: f, hasFolders: FOLDERS.some((g) => parentOf(g) === f) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // In no order, as a disk gives them: the interface sorts.
+  return kids.map((f) => ({ name: nameOf(f), path: f, hasFolders: FOLDERS.some((g) => parentOf(g) === f) }));
 }
 
 const notFound = (path: string): BrowseError => ({ kind: 'notFound', message: `${path}: not found` });

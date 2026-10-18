@@ -16,6 +16,7 @@ import { fileName } from './paths';
 import { Filmstrip, StatusLine } from './layout/Filmstrip';
 import { Histogram } from './layout/Histogram';
 import { Navigator } from './layout/Navigator';
+import { PanelBlock } from './layout/PanelBlock';
 import { Rail } from './layout/Rail';
 import { SideTabs } from './layout/SideTabs';
 import { Toolbar } from './layout/Toolbar';
@@ -96,12 +97,9 @@ function EditView() {
       </div>
       <SideTabs />
       <aside className="ags-tools">
-        <div className="ags-panel-block">
-          <div className="ags-block-head">
-            <span>{text('shell.histogram')}</span>
-          </div>
+        <PanelBlock part="histogram" title={text('shell.histogram')}>
           <Histogram />
-        </div>
+        </PanelBlock>
         <Navigator />
         <div className="ags-tools-scroll">
           <PanelStack />

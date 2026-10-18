@@ -31,6 +31,7 @@ function FolderHead({ folder }: { folder: string }) {
         onClick={() => void store.getState().setFavourite(folder, !pinned)}
       >
         <Star size={14} />
+        <span>{text(pinned ? 'browse.pinned' : 'browse.pin')}</span>
       </button>
       <span className="ags-dim">
         {text('browse.count', { count })}

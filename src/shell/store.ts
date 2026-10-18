@@ -16,6 +16,9 @@ import { createViewSlice, type ViewActions, type ViewState } from './viewSlice';
 
 export type SideTab = 'presets' | 'snapshots' | 'history';
 
+/** What folds: a section of tool panels, or one of the two panels above them. */
+export type Foldable = Section | 'histogram' | 'navigator';
+
 export interface CoreState {
   /** The panels' sections, in the engine's order. */
   sections: readonly SectionDescriptor[];
@@ -28,7 +31,8 @@ export interface CoreState {
   error: EngineError | null;
   /** The tab panel beside the photo; null when folded. */
   sideTab: SideTab | null;
-  collapsed: Readonly<Partial<Record<Section, boolean>>>;
+  /** Folded sections and panels, kept between runs: a layout preference, not a session. */
+  collapsed: Readonly<Partial<Record<Foldable, boolean>>>;
 }
 
 export interface CoreActions {
@@ -44,7 +48,7 @@ export interface CoreActions {
   /** An engine event: errors are shown; frames and histograms of another photo are dropped. */
   receive(event: Event): void;
   setSideTab(tab: SideTab | null): void;
-  toggleSection(section: Section): void;
+  toggleFolded(part: Foldable): void;
 }
 
 export type Shell = CoreState &
@@ -67,6 +71,26 @@ export interface StoreOptions {
   browse?: BrowseClient;
   /** Turns frame pixels into something drawable. Defaults to createImageBitmap where there is one. */
   decode?: (pixels: FramePixels) => Promise<ImageBitmap | null>;
+}
+
+/** Where folded panels are kept: the page's own storage, which a plain browser and tests may not have. */
+const FOLDED_KEY = 'argentum.shell.folded';
+
+function readFolded(): Partial<Record<Foldable, boolean>> {
+  try {
+    const kept: unknown = JSON.parse(globalThis.localStorage?.getItem(FOLDED_KEY) ?? '{}');
+    return typeof kept === 'object' && kept !== null ? (kept as Partial<Record<Foldable, boolean>>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function keepFolded(collapsed: Partial<Record<Foldable, boolean>>) {
+  try {
+    globalThis.localStorage?.setItem(FOLDED_KEY, JSON.stringify(collapsed));
+  } catch {
+    // Not kept: the panels fold for this run only.
+  }
 }
 
 /** What was thrown, as an EngineError: the engine's own, or anything else as `internal`. */
@@ -103,7 +127,7 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     photo: null,
     error: null,
     sideTab: 'history',
-    collapsed: {},
+    collapsed: readFolded(),
 
     init() {
       unsubscribe ??= client.subscribe((event) => get().receive(event));
@@ -161,6 +185,10 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     },
 
     setSideTab: (sideTab) => set({ sideTab }),
-    toggleSection: (section) => set({ collapsed: { ...get().collapsed, [section]: !get().collapsed[section] } }),
+    toggleFolded(part) {
+      const collapsed = { ...get().collapsed, [part]: !get().collapsed[part] };
+      set({ collapsed });
+      keepFolded(collapsed);
+    },
   }));
 }

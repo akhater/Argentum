@@ -97,7 +97,9 @@ pub fn folder(path: &Path) -> Folder {
     }
 }
 
-/// The folders in `dir`, by name, hidden ones left out.
+/// The folders in `dir`, hidden ones left out, in the order the disk gives
+/// them: the interface sorts names, with one comparison for folders and
+/// photos (`compareNames` in src/shell/paths.ts).
 pub fn folders(dir: &Path) -> Result<Vec<Folder>, BrowseError> {
     let paths: Vec<_> = read_dir(dir)?
         .filter_map(Result::ok)
@@ -106,9 +108,7 @@ pub fn folders(dir: &Path) -> Result<Vec<Folder>, BrowseError> {
         .collect();
     // One look inside each, side by side: on a folder of dated folders this
     // is most of the time.
-    let mut found: Vec<Folder> = paths.par_iter().map(|p| folder(p)).collect();
-    found.sort_by_cached_key(|f| f.name.to_lowercase());
-    Ok(found)
+    Ok(paths.par_iter().map(|p| folder(p)).collect())
 }
 
 /// The photo `entry` is, if it is one: one stat (free on Windows, where the
@@ -318,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn folders_come_by_name_and_say_whether_they_hold_folders() {
+    fn folders_say_whether_they_hold_folders() {
         let dir = tempfile::tempdir().unwrap();
         for name in ["b", "A", "c", ".git"] {
             std::fs::create_dir(dir.path().join(name)).unwrap();
@@ -326,12 +326,14 @@ mod tests {
         std::fs::create_dir(dir.path().join("A").join("inner")).unwrap();
         std::fs::create_dir(dir.path().join("c").join(".hidden")).unwrap();
         touch(dir.path(), "file.CR3");
-        let got = folders(dir.path()).unwrap();
-        let shown: Vec<_> = got
-            .iter()
-            .map(|f| (f.name.as_str(), f.has_folders))
+        let mut shown: Vec<_> = folders(dir.path())
+            .unwrap()
+            .into_iter()
+            .map(|f| (f.name, f.has_folders))
             .collect();
-        assert_eq!(shown, [("A", true), ("b", false), ("c", false)]);
+        shown.sort();
+        let want = [("A", true), ("b", false), ("c", false)].map(|(n, h)| (n.to_string(), h));
+        assert_eq!(shown, want);
         assert_eq!(
             folders(&dir.path().join("gone")).unwrap_err().kind,
             BrowseErrorKind::NotFound

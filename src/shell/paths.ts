@@ -30,3 +30,12 @@ export function samePath(a: string, b: string): boolean {
 
 /** A folder's name: its last part, or a drive's (`C:`), or the root's (`/`). */
 export const folderName = (path: string): string => fileName(path.replace(/[\\/]+$/, '')) || path;
+
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/**
+ * Two names in Windows Explorer's order: case ignored, numbers by their value
+ * (IMG_2 before IMG_10), and `_`, `-` and other punctuation before digits and
+ * letters, so `_inbox` comes first. Folders and photos are both sorted by it.
+ */
+export const compareNames = (a: string, b: string): number => byName.compare(a, b);

@@ -78,7 +78,7 @@ function Section({ section }: { section: PanelSection }) {
   return (
     <section className="ags-section" data-section={section.id}>
       <div className="ags-section-head">
-        <button type="button" className="ags-section-toggle" onClick={() => store.getState().toggleSection(section.id)}>
+        <button type="button" className="ags-section-toggle" onClick={() => store.getState().toggleFolded(section.id)}>
           <span className="ags-section-title">{title}</span>
         </button>
         <button
@@ -89,7 +89,7 @@ function Section({ section }: { section: PanelSection }) {
         >
           <RotateCcw size={12} />
         </button>
-        <button type="button" className="ags-icon-button" onClick={() => store.getState().toggleSection(section.id)}>
+        <button type="button" className="ags-icon-button" onClick={() => store.getState().toggleFolded(section.id)}>
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>
