@@ -2,10 +2,11 @@
 // is a patch sent to the engine, with its inverse kept for undo; the document
 // is never snapshotted for undo.
 //
-// Changes show at once and are confirmed by the engine afterwards. The engine
-// refuses a bad patch as a whole, so the slice keeps the edit the engine has
-// accepted and the patches still on their way, and a refusal rebuilds the edit
-// from those: the refused change is rolled back and nothing else is.
+// Changes show at once and are confirmed by the engine afterwards. The slice
+// keeps the edit as the engine last returned it - clamped, defaults filled -
+// and the patches still on their way; what is shown is the one with the other
+// on top. The engine refuses a bad patch as a whole, so a refusal drops that
+// patch alone: the refused change is rolled back and nothing else is.
 
 import type { EditDocument, EditPatch, Section, SettingValue } from './contract';
 import {
@@ -51,7 +52,7 @@ export interface HistoryState {
   past: readonly HistoryEntry[];
   /** Steps undone, the next to redo last. */
   future: readonly HistoryEntry[];
-  /** The edit as the engine has accepted it. */
+  /** The edit as the engine last returned it. */
   confirmed: EditDocument;
   /** Patches sent and not answered yet, in the order sent. */
   pending: readonly PendingPatch[];
@@ -96,24 +97,23 @@ export const createHistorySlice =
       const mine: PendingPatch = { patch, entry };
       set({ pending: [...get().pending, mine] });
       const request = get().requested;
+      /** The edit to show: the engine's, with the patches it has not answered on top. */
+      const shown = (confirmed: EditDocument, pending: readonly PendingPatch[]) =>
+        pending.reduce((doc, p) => applyPatch(doc, p.patch, get().tools), confirmed);
       client.apply(photo.photoId, patch).then(
-        (ticket) => {
+        (applied) => {
           const s = get();
           if (s.photo?.photoId !== photo.photoId) return;
-          set({ confirmed: applyPatch(s.confirmed, patch, s.tools), pending: s.pending.filter((p) => p !== mine) });
-          s.recordTicket(ticket, request);
+          const pending = s.pending.filter((p) => p !== mine);
+          set({ confirmed: applied.edit, pending, doc: shown(applied.edit, pending) });
+          s.recordTicket(applied.ticket, request);
         },
         (e) => {
           const s = get();
           if (s.photo?.photoId !== photo.photoId) return;
           const pending = s.pending.filter((p) => p !== mine);
           const keep = (h: HistoryEntry) => entry === undefined || h.id !== entry;
-          set({
-            pending,
-            doc: pending.reduce((doc, p) => applyPatch(doc, p.patch, s.tools), s.confirmed),
-            past: s.past.filter(keep),
-            future: s.future.filter(keep),
-          });
+          set({ pending, doc: shown(s.confirmed, pending), past: s.past.filter(keep), future: s.future.filter(keep) });
           s.fail(e);
         },
       );

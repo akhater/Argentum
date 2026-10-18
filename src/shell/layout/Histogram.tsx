@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import { useShell } from '../ShellContext';
 
-/** The engine's 256 luminance bins, scaled to the tallest bin short of the two ends. */
+/** The engine's luminance bins, scaled to the tallest bin short of the two ends. */
 export function Histogram() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const bins = useShell((s) => s.histogram);

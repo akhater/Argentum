@@ -3,6 +3,7 @@
 // contract's, so the real engine and the contract fake are interchangeable.
 
 import type {
+  Applied,
   EditPatch,
   Event,
   Opened,
@@ -25,8 +26,12 @@ export interface EngineClient {
   sections(): Promise<SectionDescriptor[]>;
   tools(): Promise<ToolDescriptor[]>;
   open(path: string): Promise<Opened>;
-  /** Refused as a whole for an unknown tool or setting, or a value of the wrong type. */
-  apply(photo: PhotoId, patch: EditPatch): Promise<RenderTicket>;
+  /**
+   * The edit as the engine took it, and the render's ticket. Refused as a
+   * whole, with an EngineError, for an unknown tool or setting or a value of
+   * the wrong type. Every refused call rejects with an EngineError.
+   */
+  apply(photo: PhotoId, patch: EditPatch): Promise<Applied>;
   view(photo: PhotoId, view: View): Promise<RenderTicket>;
   /**
    * The pixels a `frame` event announced, or null once a newer frame has

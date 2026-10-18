@@ -31,7 +31,7 @@ export interface CoreActions {
   init(): Promise<void>;
   dispose(): void;
   openPhoto(path: string): Promise<void>;
-  /** Show an error from the engine or a call to it. */
+  /** Show an error from a refused call: an EngineError, or anything thrown on the way. */
   fail(error: unknown): void;
   /** An engine event: errors are shown; frames and histograms of another photo are dropped. */
   receive(event: Event): void;
@@ -108,7 +108,8 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
     },
 
     fail(error) {
-      set({ error: error instanceof Error ? error.message : String(error) });
+      const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : error;
+      set({ error: String(message) });
     },
 
     receive(event) {

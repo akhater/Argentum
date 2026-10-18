@@ -3,7 +3,7 @@
 // crudest way that shows they work. Nothing here is image processing; it lets
 // the shell be looked at before the engine is wired in.
 
-import type { View } from '../contract';
+import { HISTOGRAM_BINS, type View } from '../contract';
 import type { PhotoSize } from '../view';
 import type { FramePixels } from './client';
 
@@ -56,7 +56,10 @@ function tone(r: number, g: number, b: number, recover: boolean): [number, numbe
   return [r * s, g * s, b * s];
 }
 
-const encode = (x: number) => Math.round(255 * Math.pow(Math.max(0, Math.min(1, x)), 1 / 2.2));
+/** Values an 8-bit channel can take. */
+const LEVELS = 256;
+
+const encode = (x: number) => Math.round((LEVELS - 1) * Math.pow(Math.max(0, Math.min(1, x)), 1 / 2.2));
 
 /** Most pixels painted per frame. A larger view gets a smaller frame, scaled up on screen. */
 const MAX_PIXELS = 1_200_000;
@@ -68,7 +71,7 @@ function paint(job: PaintMessage): PaintReply {
   const width = Math.max(1, Math.round(view.width * scale));
   const height = Math.max(1, Math.round(view.height * scale));
   const data = new Uint8ClampedArray(width * height * 4);
-  const bins = new Array(256).fill(0);
+  const bins = new Array(HISTOGRAM_BINS).fill(0);
   const aspect = pw / ph;
   for (let y = 0; y < height; y++) {
     const v = (view.centerY * ph + (y / scale - view.height / 2) / view.zoom) / ph;
@@ -83,7 +86,8 @@ function paint(job: PaintMessage): PaintReply {
       data[i + 2] = encode(b);
       data[i + 3] = 255;
       // Rec. 709 weights on the encoded values, as the engine's histogram.
-      bins[Math.round(0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2])]++;
+      const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      bins[Math.min(HISTOGRAM_BINS - 1, Math.floor((luma * HISTOGRAM_BINS) / LEVELS))]++;
     }
   }
   return { width, height, data, bins };

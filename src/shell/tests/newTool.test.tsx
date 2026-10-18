@@ -15,7 +15,7 @@ const GRAIN: ToolDescriptor = {
   label: 'tools.rm_grain.label',
   section: 'effects',
   order: 10,
-  stage: 'display',
+  stage: 'scene',
   version: 1,
   settings: [
     {

@@ -70,8 +70,10 @@ joins it when a tool declares one.
    setting does not have that value.
 6. A change calls `setSetting(toolId, key, value)`. The store applies the
    patch at once, records it with its inverse, and sends it to the engine.
-   Ticks of one slider drag are one undo step. If the engine refuses a patch,
-   that change alone is rolled back and the error is shown.
+   Ticks of one slider drag are one undo step. The engine answers with the
+   edit as it took it (clamped, defaults filled), and that is what is shown.
+   If it refuses a patch, that change alone is rolled back and the error's
+   message is shown.
 7. Labels are i18n keys from the descriptors (`sections.<id>`,
    `tools.<id>.label`, `tools.<id>.<key>`, choices
    `tools.<id>.<key>.<value>`), looked up in `locales/en.json`. A key with no

@@ -90,7 +90,9 @@ describe('patches and undo', () => {
       client: (engine) => ({
         ...engine,
         apply: (photo, patch) =>
-          patch.rt_capture_sharpen ? Promise.reject(new Error('refused')) : engine.apply(photo, patch),
+          patch.rt_capture_sharpen
+            ? Promise.reject({ kind: 'badValue', message: 'refused' })
+            : engine.apply(photo, patch),
       }),
     });
     const s = store.getState;
@@ -102,6 +104,16 @@ describe('patches and undo', () => {
     expect(s().doc.tools.ag_exposure_wb.settings.exposure).toBe(0.5);
     expect(s().past).toHaveLength(1);
     expect(s().error).toBe('refused');
+  });
+
+  it('show the edit as the engine took it, not as it was sent', async () => {
+    const { store } = await openShell();
+    const s = store.getState;
+    s().setSetting('ag_exposure_wb', 'exposure', -20);
+    expect(s().doc.tools.ag_exposure_wb.settings.exposure).toBe(-20);
+    await settle();
+    expect(s().doc.tools.ag_exposure_wb.settings.exposure).toBe(-10);
+    expect(s().confirmed).toEqual(s().doc);
   });
 
   it('apply presets and snapshots as patches', async () => {

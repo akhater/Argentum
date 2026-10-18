@@ -11,8 +11,11 @@
 import fixtures from '../contract.fixtures.json';
 import {
   EDIT_VERSION,
+  HISTOGRAM_BINS,
   type EditDocument,
   type EditPatch,
+  type EngineError,
+  type ErrorKind,
   type Event,
   type PhotoId,
   type RenderTicket,
@@ -50,7 +53,7 @@ export interface PaintJob {
   edit: EditDocument;
 }
 
-/** Pixels and their 256 luminance bins, or null when a newer job replaced this one. */
+/** Pixels and their luminance bins, or null when a newer job replaced this one. */
 export type FakePainter = (job: PaintJob) => Promise<{ pixels: FramePixels; bins: number[] } | null>;
 
 export type FakeCall =
@@ -84,24 +87,34 @@ function sizeOf(path: string): { width: number; height: number } {
   return h % 4 === 0 ? { width: 4000, height: 6000 } : { width: 6000, height: 4000 };
 }
 
-/** The value as the engine keeps it, or why it refuses it. */
-function checked(spec: SettingSpec, value: SettingValue | null): SettingValue | Error {
+const refusal = (kind: ErrorKind, message: string): EngineError => ({ kind, message });
+
+/**
+ * The value as the engine keeps it, or why it refuses it: the wrong type is
+ * refused (an int takes whole numbers only), and a number out of range is
+ * clamped to it.
+ */
+function checked(toolId: string, spec: SettingSpec, value: SettingValue | null): SettingValue | EngineError {
   if (value === null) return spec.default;
+  const wrong = (expected: string) =>
+    refusal('badValue', `${toolId}: ${spec.key} takes ${expected}, not ${JSON.stringify(value)}`);
   switch (spec.kind) {
     case 'bool':
-      return typeof value === 'boolean' ? value : new Error(`${spec.key} takes true or false`);
+      return typeof value === 'boolean' ? value : wrong('true or false');
     case 'choice':
       return typeof value === 'string' && spec.choices?.some((c) => c.value === value)
         ? value
-        : new Error(`${spec.key} has no choice ${String(value)}`);
+        : wrong('one of its choices');
     case 'int':
     case 'float': {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return new Error(`${spec.key} takes a number`);
-      const n = spec.kind === 'int' ? Math.round(value) : value;
-      return Math.min(spec.max ?? Infinity, Math.max(spec.min ?? -Infinity, n));
+      if (typeof value !== 'number' || !Number.isFinite(value)) return wrong('a number');
+      if (spec.kind === 'int' && !Number.isInteger(value)) return wrong('a whole number');
+      return Math.min(spec.max ?? Infinity, Math.max(spec.min ?? -Infinity, value));
     }
   }
 }
+
+const isRefusal = (v: SettingValue | EngineError): v is EngineError => typeof v === 'object';
 
 export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
   const tools = options.tools ?? FAKE_TOOLS;
@@ -120,7 +133,7 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
 
   const photoOf = (id: PhotoId) => {
     const p = photos.get(id);
-    if (!p) throw new Error(`no photo ${id} is open`);
+    if (!p) throw refusal('unknownPhoto', `no photo ${id} is open`);
     return p;
   };
 
@@ -137,9 +150,9 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
       const size = painted ? { width: painted.pixels.width, height: painted.pixels.height } : view;
       latest = { ticket: t, pixels: painted?.pixels ?? null, size };
       emit({ event: 'frame', ticket: t, photoId: id, width: size.width, height: size.height });
-      emit({ event: 'histogram', ticket: t, photoId: id, bins: painted?.bins ?? new Array(256).fill(0) });
+      emit({ event: 'histogram', ticket: t, photoId: id, bins: painted?.bins ?? new Array(HISTOGRAM_BINS).fill(0) });
     } catch (e) {
-      emit({ event: 'error', ticket: t, message: String(e) });
+      emit({ event: 'error', ticket: t, kind: 'render', message: String(e) });
     }
   }
 
@@ -183,12 +196,12 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
       const next = structuredClone(p.edit);
       for (const [toolId, values] of Object.entries(patch)) {
         const tool = tools.find((t) => t.id === toolId);
-        if (!tool) throw new Error(`no tool ${toolId}`);
+        if (!tool) throw refusal('unknownTool', `no tool ${toolId}`);
         for (const [key, value] of Object.entries(values)) {
           const spec = tool.settings.find((s) => s.key === key);
-          if (!spec) throw new Error(`${toolId} has no setting ${key}`);
-          const v = checked(spec, value);
-          if (v instanceof Error) throw v;
+          if (!spec) throw refusal('unknownSetting', `${toolId} has no setting ${key}`);
+          const v = checked(toolId, spec, value);
+          if (isRefusal(v)) throw v;
           (next.tools[toolId] ??= { v: tool.version, settings: {} }).settings[key] = v;
         }
       }
@@ -196,7 +209,7 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
       const t = ++ticket;
       calls.push({ method: 'apply', photo: id, patch, ticket: t });
       if (autoFrames && views.has(id)) void render(t, id);
-      return t;
+      return { ticket: t, edit: structuredClone(next) };
     },
 
     async view(id, view) {

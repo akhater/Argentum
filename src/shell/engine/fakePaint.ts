@@ -2,26 +2,48 @@
 // job that arrives while another is painting waits; a newer one replaces it,
 // and the replaced one answers null, so only the latest is painted.
 
-import type { FakePainter, PaintJob } from './fake';
+import type { EditDocument } from '../contract';
+import { valueOf } from '../edit';
+import { FAKE_TOOLS, type FakePainter, type PaintJob } from './fake';
 import type { PaintMessage, PaintReply } from './fakePaint.worker';
 
-const num = (v: unknown, fallback: number) => (typeof v === 'number' ? v : fallback);
+const specOf = (toolId: string, key: string) =>
+  FAKE_TOOLS.find((t) => t.id === toolId)?.settings.find((s) => s.key === key);
+
+/** A number setting of the edit, or its descriptor's default. */
+function amount(edit: EditDocument, toolId: string, key: string): number {
+  const spec = specOf(toolId, key);
+  return spec ? Number(valueOf(edit, toolId, spec)) : 0;
+}
+
+/** Whether a bool setting of the edit is on, or its descriptor's default. */
+function on(edit: EditDocument, toolId: string, key: string): boolean {
+  const spec = specOf(toolId, key);
+  return spec ? valueOf(edit, toolId, spec) === true : false;
+}
 
 function messageFor(job: PaintJob): PaintMessage {
-  const tools = job.edit.tools;
-  const wb = tools.ag_exposure_wb?.settings ?? {};
-  const sharpen = tools.rt_capture_sharpen?.settings ?? {};
-  const gain = Math.pow(2, num(wb.exposure, 0));
-  const radius = sharpen.autoRadius === false ? num(sharpen.radius, 0.75) / 0.75 : 1;
+  const { edit } = job;
+  const gain = Math.pow(2, amount(edit, 'ag_exposure_wb', 'exposure'));
+  // Sharpening as a share of its full amount, stronger for a radius above the default.
+  const radius = on(edit, 'rt_capture_sharpen', 'autoRadius')
+    ? 1
+    : amount(edit, 'rt_capture_sharpen', 'radius') / Number(specOf('rt_capture_sharpen', 'radius')?.default ?? 1);
+  const share =
+    amount(edit, 'rt_capture_sharpen', 'captureAmount') / (specOf('rt_capture_sharpen', 'captureAmount')?.max ?? 1);
   let seed = 0;
   for (const c of job.path) seed = (seed * 33 + c.charCodeAt(0)) % 9973;
   return {
     seed,
     photo: { width: job.width, height: job.height },
     view: job.view,
-    gains: [gain * num(wb.red, 1), gain * num(wb.green, 1), gain * num(wb.blue, 1)],
-    recover: tools.dt_highlights?.settings.recover !== false,
-    sharpen: sharpen.capture === false ? 0 : (num(sharpen.captureAmount, 100) / 100) * radius,
+    gains: [
+      gain * amount(edit, 'ag_exposure_wb', 'red'),
+      gain * amount(edit, 'ag_exposure_wb', 'green'),
+      gain * amount(edit, 'ag_exposure_wb', 'blue'),
+    ],
+    recover: on(edit, 'dt_highlights', 'recover'),
+    sharpen: on(edit, 'rt_capture_sharpen', 'capture') ? share * radius : 0,
   };
 }
 

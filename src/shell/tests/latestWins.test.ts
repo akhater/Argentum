@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { HISTOGRAM_BINS } from '../contract';
 import type { EngineClient } from '../engine/client';
 import { createFakeEngine, type FakeEngine } from '../engine/fake';
 import { createShellStore } from '../store';
@@ -37,7 +38,7 @@ describe('latest wins', () => {
     const bins = s().histogram;
     const photoId = s().photo!.photoId;
     s().receive({ event: 'frame', ticket: shown - 1, photoId, width: 800, height: 600 });
-    s().receive({ event: 'histogram', ticket: shown - 1, photoId, bins: new Array(256).fill(9) });
+    s().receive({ event: 'histogram', ticket: shown - 1, photoId, bins: new Array(HISTOGRAM_BINS).fill(9) });
     await settle();
     expect(s().frame!.ticket).toBe(shown);
     expect(s().histogram).toBe(bins);
@@ -76,7 +77,7 @@ describe('only the photo shown', () => {
     const bins = s().histogram;
     const other = s().photo!.photoId + 1;
     s().receive({ event: 'frame', ticket: shown + 10, photoId: other, width: 800, height: 600 });
-    s().receive({ event: 'histogram', ticket: shown + 10, photoId: other, bins: new Array(256).fill(9) });
+    s().receive({ event: 'histogram', ticket: shown + 10, photoId: other, bins: new Array(HISTOGRAM_BINS).fill(9) });
     await settle();
     expect(s().frame!.ticket).toBe(shown);
     expect(s().histogram).toBe(bins);
