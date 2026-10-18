@@ -1,5 +1,11 @@
 import Argentum from './argentum/Argentum';
-import { ModernEditor, useModernLayout } from './argentum/layout';
+import {
+  ModernEditor,
+  refreshModernTrees,
+  rootImageCounts,
+  startModernLibrary,
+  useModernLayout,
+} from './argentum/layout';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -370,11 +376,20 @@ function App() {
     handleLibraryImageSingleClick,
     handleImageClick,
     handleSetFlag,
-    refreshAllFolderTrees,
+    refreshAllFolderTrees: refreshLibraryTrees,
     handleTogglePinFolder,
     handleCreateAlbumItem,
     handleRenameAlbumItem,
   } = useLibraryActions(handleImageSelect);
+
+  // Argentum: under Modern the folder tree's roots are the disks. It starts on
+  // them with no start screen, and its refresh leaves their photos uncounted.
+  const isModernLayout = useModernLayout();
+  const refreshAllFolderTrees = isModernLayout ? refreshModernTrees : refreshLibraryTrees;
+  const handleModernStart = useCallback(
+    () => startModernLibrary(preloadedDataRef, handleSelectSubfolder),
+    [handleSelectSubfolder],
+  );
 
   useEffect(() => {
     const { setImageSelectHandler } = useUIStore.getState();
@@ -691,7 +706,7 @@ function App() {
       });
       if (!isExpanding) return;
       try {
-        const showCounts = appSettings?.enableFolderImageCounts ?? false;
+        const showCounts = rootImageCounts(appSettings?.enableFolderImageCounts ?? false);
         const newChildren: any[] = await invoke(Invokes.GetFolderChildren, {
           path,
           showImageCounts: showCounts,
@@ -794,7 +809,7 @@ function App() {
     selectedImage?.isReady &&
     hasRenderedFirstFrame;
   const useMacWindowShell = osPlatform === 'macos' && !appSettings?.decorations && !isWindowFullScreen && !isFullScreen;
-  const EditorViewLayout = useModernLayout() && layoutMode === 'full' ? ModernEditor : EditorView;
+  const EditorViewLayout = isModernLayout && layoutMode === 'full' ? ModernEditor : EditorView;
   const isModernEditor = EditorViewLayout === ModernEditor && activeView === 'editor' && !!selectedImage;
 
   const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -979,7 +994,7 @@ function App() {
                     handleRate={handleRate}
                     handleThumbnailContextMenu={handleThumbnailContextMenu}
                     handleMainLibraryContextMenu={handleMainLibraryContextMenu}
-                    handleContinueSession={handleContinueSession}
+                    handleContinueSession={isModernLayout ? handleModernStart : handleContinueSession}
                     handleGoHome={handleGoHome}
                     handleOpenFolder={handleOpenFolder}
                     handleImportClick={handleImportClick}

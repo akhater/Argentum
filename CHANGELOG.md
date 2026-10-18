@@ -8,6 +8,21 @@ Newest first.
 
 ### Added
 
+- **The Modern layout opens straight on your folders** (Settings > General >
+  Layout > Modern). There is no start screen and nothing to add: the folder
+  column lists every disk under This computer, with its name and free space,
+  then your favourite folders and the six opened most recently, and the folder
+  last open is selected again. A first run, or a folder whose disk is unplugged,
+  opens on the column with nothing selected. Changing the layout takes effect at
+  once. Albums and Add folder are not shown in Modern; Classic is unchanged.
+  `mods/drives.rs`, `mods/recent_folders.rs`, `mods/modern_start.rs`,
+  `src/argentum/layout/modernFolders.ts`.
+  - The disk list is adapted from Shoebox `src-tauri/src/volumes.rs` @
+    `c34c8bc` (`mounted`, `query`, `quiet_errors`). Network drives are left
+    out. On macOS and Linux it lists `/Volumes`, or `/` and the usual mount
+    folders, without free space for now.
+  - Photos are not counted in the disks' folders, since counting reads every
+    folder on a disk; favourites follow the photo-count setting as before.
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
   Rendering). The default picture of a DNG renderer: the camera's exposure offset
   and Adobe's default tone curve, applied in linear ProPhoto RGB to each pixel's

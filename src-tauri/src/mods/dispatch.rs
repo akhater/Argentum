@@ -164,6 +164,15 @@ struct LayoutPanelsArgs {
     panels: crate::mods::editor_layout::LayoutPanels,
 }
 
+/// The library's saved folder state, for `modern_start`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModernStartArgs {
+    last_folder: Option<String>,
+    #[serde(default)]
+    expanded: Vec<String>,
+}
+
 /// A catalogue id from `mods::model_catalog`, never a path.
 #[derive(Deserialize)]
 struct IdArgs {
@@ -414,6 +423,22 @@ async fn json(
             let a: LayoutPanelsArgs = args_for(&name, args)?;
             commands::set_editor_layout_panels(&a.panels)?;
             Ok(serde_json::Value::Null)
+        }
+        "modern_start" => {
+            let a: ModernStartArgs = args_for(&name, args)?;
+            let start = tokio::task::spawn_blocking(move || {
+                commands::modern_start(a.last_folder.as_deref(), &a.expanded)
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+            serde_json::to_value(start).map_err(|e| e.to_string())
+        }
+        "add_recent_folder" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let list = tokio::task::spawn_blocking(move || commands::add_recent_folder(&a.path))
+                .await
+                .map_err(|e| e.to_string())??;
+            serde_json::to_value(list).map_err(|e| e.to_string())
         }
         "super_resolution_preview" => {
             let a: SuperResolutionPreviewArgs = args_for(&name, args)?;

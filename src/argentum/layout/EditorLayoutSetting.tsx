@@ -16,6 +16,7 @@ import { TextVariants } from '../../types/typography';
 import { useAgTranslation } from '../locales';
 import { COMPACT_SLIDERS_ROW } from '../CompactSlidersSetting';
 import { type EditorLayoutName, useEditorLayout } from './editorLayout';
+import { restartLibrary } from './modernFolders';
 
 function EditorLayoutRow() {
   const t = useAgTranslation();
@@ -28,7 +29,12 @@ function EditorLayoutRow() {
         {t('layoutSetting')}
       </Text>
       <Dropdown<EditorLayoutName>
-        onChange={(value) => choose(value)}
+        onChange={(value) => {
+          if (value === layout) return;
+          choose(value);
+          // The folder column changes with the layout, so the library starts again.
+          restartLibrary();
+        }}
         options={[
           { value: 'classic', label: t('layoutClassic') },
           { value: 'modern', label: t('layoutModern') },

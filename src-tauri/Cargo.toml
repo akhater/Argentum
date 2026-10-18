@@ -144,9 +144,9 @@ strip = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
-# Argentum: the display's colour profile — see mods/display_monitor.rs.
+# Argentum: the display's colour profile (mods/display_monitor.rs) and the disks the folder column lists (mods/drives.rs).
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug"] }
 # Argentum: AI enlargement on the GPU — see mods/gpu_runtime.rs. Same ort as above,
 # plus the DirectML entry point; flate2 unpacks the runtime from its NuGet package.
 ort = { version = "=2.0.0-rc.10", features = ["directml"] }

@@ -43,6 +43,8 @@ import { useUIStore } from '../../store/useUIStore';
 import SettingsPanel from './SettingsPanel';
 
 import LibraryGrid from './library/LibraryGrid';
+import { ModernStarting, useModernStart } from '../../argentum/layout/ModernStarting';
+import { useAgTranslation } from '../../argentum/locales';
 import { SearchInput, ViewOptionsDropdown } from './library/LibraryHeader';
 
 export interface ColumnWidths {
@@ -164,6 +166,8 @@ function DisplayModeSwitch({ displayMode, setDisplayMode, t }: DisplayModeSwitch
 export default function MainLibrary(props: MainLibraryProps) {
   const { t } = useTranslation();
   const setUI = useUIStore((state) => state.setUI);
+  const modernStart = useModernStart();
+  const agT = useAgTranslation();
   const [appVersion, setAppVersion] = useState('');
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState('');
@@ -327,6 +331,10 @@ export default function MainLibrary(props: MainLibraryProps) {
   if (!props.rootPaths || props.rootPaths.length === 0) {
     if (!props.appSettings) {
       return null;
+    }
+    // Argentum: Modern has no start screen; it fills the folder column itself.
+    if (modernStart !== 'splash') {
+      return <ModernStarting layoutKnown={modernStart !== 'unknown'} onStart={props.onContinueSession} />;
     }
     const hasLastPath = !!props.appSettings.lastRootPath || !!props.appSettings.rootFolders?.length;
     const currentThemeId = props.theme || DEFAULT_THEME_ID;
@@ -656,8 +664,18 @@ export default function MainLibrary(props: MainLibraryProps) {
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center" onContextMenu={props.onEmptyAreaContextMenu}>
-          <SlidersHorizontal className="h-12 w-12 mb-4 text-text-secondary" />
-          <Text>{t('library.filters.noMatch')}</Text>
+          {/* Argentum: in Modern nothing is open until a folder is picked in the column. */}
+          {modernStart === 'modern' && !props.currentFolderPath ? (
+            <>
+              <Folder className="h-12 w-12 mb-4 text-text-secondary" />
+              <Text>{agT('modernPickFolder')}</Text>
+            </>
+          ) : (
+            <>
+              <SlidersHorizontal className="h-12 w-12 mb-4 text-text-secondary" />
+              <Text>{t('library.filters.noMatch')}</Text>
+            </>
+          )}
         </div>
       )}
       {props.isAndroid && (

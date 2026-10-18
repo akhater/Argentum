@@ -137,10 +137,16 @@
   "layoutSetting": "Layout",
   "layoutClassic": "Classic",
   "layoutModern": "Modern",
-  "layoutSettingDesc": "How the editor's panels are arranged; it shows once a photo is open. Modern is a Lightroom Classic-style layout: folders on the left, the toolbar under the photo, the Navigator and Histogram over the adjustments, Presets, History, Info and Export in a panel beside them, and a slim rail at the right edge to switch tools and tabs. Every panel is the same in both.",
+  "layoutSettingDesc": "How Argentum is arranged. Modern opens straight on your folders, with no start screen: every disk under This computer, your favourite and recent folders, and the folder you were last in. With a photo open it is a Lightroom Classic-style layout: the toolbar under the photo, the Navigator and Histogram over the adjustments, Presets, History, Info and Export in a panel beside them, and a slim rail at the right edge to switch tools and tabs. Every panel is the same in both.",
   "layoutNavigator": "Navigator",
   "layoutHistogram": "Histogram",
   "layoutFit": "Fit",
   "layoutHistory": "History",
-  "layoutHistoryEmpty": "Open a photo to see its history."
+  "layoutHistoryEmpty": "Open a photo to see its history.",
+  "modernFolders": "Folders",
+  "modernFavourites": "Favourites",
+  "modernRecent": "Recent",
+  "modernThisComputer": "This computer",
+  "modernFree": "{size} free",
+  "modernPickFolder": "Pick a folder on the left to see its photos."
 }

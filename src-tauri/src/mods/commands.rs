@@ -421,3 +421,27 @@ pub fn set_editor_layout_panels(
 ) -> Result<(), String> {
     crate::mods::editor_layout::save_panels(profile_library()?, panels)
 }
+
+/// Where the Modern layout opens: the disks, the recent folders, and the
+/// folder last open if it is still there. Reads the disks, so call it off the
+/// main thread.
+pub fn modern_start(
+    last_folder: Option<&str>,
+    expanded: &[String],
+) -> Result<crate::mods::modern_start::ModernStart, String> {
+    Ok(crate::mods::modern_start::plan(
+        crate::mods::drives::list(),
+        crate::mods::recent_folders::stored(profile_library()?),
+        last_folder,
+        expanded,
+        |folder| std::path::Path::new(folder).is_dir(),
+    ))
+}
+
+/// Put a folder at the top of the Recent list. Returns the list, without the
+/// folders that are not there now.
+pub fn add_recent_folder(folder: &str) -> Result<Vec<String>, String> {
+    let mut list = crate::mods::recent_folders::add(profile_library()?, folder)?;
+    list.retain(|f| std::path::Path::new(f).is_dir());
+    Ok(list)
+}
