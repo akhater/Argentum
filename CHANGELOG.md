@@ -39,6 +39,19 @@ Newest first.
     `view` - return at once and render on a thread of their own,
     latest-wins. A slider tick at preview size is held to a measured budget
     of 25 ms by a test.
+- **The new editor interface, first step.** `src/shell/`, opt-in with
+  `?shell=new`; without it the app opens as before. Every tool panel is built
+  from the engine's tool descriptors, a widget per setting kind, so a new
+  engine tool gets its panel with no interface change (a test proves it).
+  Edits are patches with their inverses for undo; renders are latest-wins.
+  It reaches the engine only through `src/shell/engine/client.ts`, and until
+  the engine is wired into the app that is a fake of the contract that
+  paints a made-up landscape. Layout after
+  [RAWmakase](https://github.com/pch/rawmakase) 0.3.3 (MIT)
+  @ `7c3c81ab4bf6cac93c5f501b2cc9673ada1c3b37`, `src/app/workspace.rs`,
+  `side_tabs.rs`, `toolbar.rs`, `widgets.rs`, `theme.rs` and
+  `library/filmstrip.rs`: layout, sizes and greys, no code. Tests with
+  Vitest: `npm run test:shell`.
 
 ## 26.41.12 — 2026-10-11
 
