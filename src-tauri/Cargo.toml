@@ -121,7 +121,7 @@ webkit2gtk = "=2.0.2"
 tauri-plugin-wayland-nvidia-quirk = "0.1.0"
 
 [dev-dependencies]
-ts-rs = { version = "10.1", features = ["no-serde-warnings"] } # Argentum: mods/browse/contract.rs generates the Browse view's TypeScript in a test. Already built for the engine.
+ts-rs = { version = "10.1", features = ["no-serde-warnings"] } # Argentum: mods/browse/contract.rs generates the Browse view's TypeScript in a test; built for tests only, as the engine builds it only for its own.
 
 [build-dependencies]
 tauri-build = { version = "2.6", features = [] }
