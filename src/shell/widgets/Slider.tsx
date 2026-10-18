@@ -7,7 +7,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
 import { decimalsOf, formatValue, railPosition, railValue } from '../panels/model';
-import type { WidgetProps } from '../panels/registry';
+import type { WidgetProps } from '.';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 

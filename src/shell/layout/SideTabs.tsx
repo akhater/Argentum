@@ -5,25 +5,29 @@
 import { Plus } from 'lucide-react';
 
 import type { SectionDescriptor, ToolDescriptor } from '../contract';
-import { text } from '../i18n';
+import { text, toolLabel } from '../i18n';
 import { formatValue } from '../panels/model';
 import { useShell, useShellStore } from '../ShellContext';
-import type { HistoryLabel } from '../store';
+import type { HistoryLabel } from '../historySlice';
 
-function describe(label: HistoryLabel, tools: ToolDescriptor[], sections: SectionDescriptor[]): string {
+function describe(
+  label: HistoryLabel,
+  tools: readonly ToolDescriptor[],
+  sections: readonly SectionDescriptor[],
+): string {
   switch (label.kind) {
     case 'set': {
       const tool = tools.find((t) => t.id === label.toolId);
       const spec = tool?.settings.find((s) => s.key === label.key);
       return text('shell.history.set', {
-        tool: tool ? text(tool.label) : label.toolId,
+        tool: tool ? toolLabel(tool) : label.toolId,
         setting: spec ? text(spec.label) : label.key,
         value: spec ? formatValue(spec, label.value) : String(label.value),
       });
     }
     case 'resetTool': {
       const tool = tools.find((t) => t.id === label.toolId);
-      return text('shell.history.resetTool', { tool: tool ? text(tool.label) : label.toolId });
+      return text('shell.history.resetTool', { tool: tool ? toolLabel(tool) : label.toolId });
     }
     case 'resetSection':
       return text('shell.history.resetSection', {

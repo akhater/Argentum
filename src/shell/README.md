@@ -6,7 +6,8 @@ exactly as before. The layout follows RAWmakase 0.3.3's Develop view (MIT),
 itself Lightroom Classic's: from the window's right edge a slim rail, the tool
 panels under the histogram and navigator, the Presets / Snapshots / History
 panel, then the photo with its toolbar under it, and the filmstrip along the
-bottom.
+bottom. The rail holds the tabs; a tool mode (crop, spot removal, masking)
+joins it when a tool declares one.
 
 ## Rules it is built on
 
@@ -32,7 +33,10 @@ bottom.
 | ----------------------- | ------------------------------------------------------------------------------------- |
 | `switch.tsx`            | The door from `src/main.tsx`: `?shell=new` loads the shell, anything else today's app |
 | `Shell.tsx`             | The window: top bar, photo and toolbar, side tabs, tool panels, rail, filmstrip       |
-| `store.ts`              | The one zustand store: the edit, history, frames, view, interface state               |
+| `store.ts`              | The one zustand store, made of slices; the photo open and the panels' own state       |
+| `historySlice.ts`       | The edit, its undo history, presets and snapshots, and patches on their way           |
+| `viewSlice.ts`          | Zoom and centre, renders asked for by ticket, the latest frame and histogram          |
+| `view.ts`               | Photo-to-screen maths: fit, the view to ask for, points, parts, frames                |
 | `ShellContext.tsx`      | `useShell(selector)`, the only way components read the store                          |
 | `edit.ts`               | The edit document and patches as plain functions: apply, inverse, compose, diff       |
 | `contract.ts`           | Re-exports the generated contract types                                               |
@@ -40,9 +44,8 @@ bottom.
 | `engine/fake.ts`        | The contract fake: the engine's descriptors from the fixtures, its rules for patches  |
 | `engine/fakePaint*.ts`  | The fake's pixels, painted in a worker                                                |
 | `panels/model.ts`       | Descriptors to sections; value formatting                                             |
-| `panels/registry.ts`    | Widgets by setting kind                                                               |
 | `panels/PanelStack.tsx` | Sections, tool blocks and setting rows, from descriptors                              |
-| `widgets/`              | One widget per kind: `Slider` (float, int), `Toggle` (bool), `Choice` (choice)        |
+| `widgets/`              | `WIDGETS`, one per kind: `Slider` (float, int), `Toggle` (bool), `Choice` (choice)    |
 | `layout/`               | Viewer, toolbar, histogram, navigator, side tabs, rail, filmstrip                     |
 | `i18n.ts`, `locales/`   | The shell's own strings, apart from the app's                                         |
 | `tests/`                | Vitest: `npm run test:shell`                                                          |
@@ -58,8 +61,8 @@ bottom.
 3. `PanelStack` draws a collapsible section per group, a block per tool (its
    label, its origin, a reset), and a row per setting. Settings marked
    `advanced` sit under **More**.
-4. Each row asks `widgetFor(spec.kind)` for its widget. A kind with no widget
-   yet shows a placeholder row, so its tool still appears. A float with
+4. Each row takes `WIDGETS[spec.kind]`, a record with an entry for every kind
+   the contract has, so a kind without a widget does not compile. A float with
    `scale: "log"` moves by ratio, so a multiplier's 1 sits mid-rail.
 5. A row reads its value with `useShell((s) => valueOf(s.doc, tool.id, spec))`:
    the edit's value or the descriptor's default. Only that row re-renders when
@@ -76,8 +79,8 @@ bottom.
    is translated. The locale file is flat, because a choice's key sits under
    its setting's own key.
 
-Adding a widget kind (a curve, a colour) is one component and one
-`registerWidget` line in `widgets/index.ts`. Nothing names a tool.
+Adding a widget kind (a curve, a colour) is one component and one entry in
+`WIDGETS` (`widgets/index.ts`). Nothing names a tool.
 
 ## Contract gaps still open
 

@@ -17,8 +17,7 @@ function messageFor(job: PaintJob): PaintMessage {
   for (const c of job.path) seed = (seed * 33 + c.charCodeAt(0)) % 9973;
   return {
     seed,
-    photoWidth: job.width,
-    photoHeight: job.height,
+    photo: { width: job.width, height: job.height },
     view: job.view,
     gains: [gain * num(wb.red, 1), gain * num(wb.green, 1), gain * num(wb.blue, 1)],
     recover: tools.dt_highlights?.settings.recover !== false,

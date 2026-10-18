@@ -5,8 +5,9 @@ import type { PointerEvent } from 'react';
 
 import { text } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
-import { viewOf } from '../store';
-import { PhotoPicture, type PhotoRect } from './PhotoPicture';
+import { fitRect, visiblePart, type RectPx } from '../view';
+import { currentView } from '../viewSlice';
+import { PhotoPicture } from './PhotoPicture';
 
 export function Navigator() {
   const store = useShellStore();
@@ -14,31 +15,36 @@ export function Navigator() {
   const photo = useShell((s) => s.photo);
   const zoom = useShell((s) => s.zoom);
   const center = useShell((s) => s.center);
-  const viewSize = useShell((s) => s.viewSize);
+  const viewSize_px = useShell((s) => s.viewSize_px);
 
-  const marker = (ctx: CanvasRenderingContext2D, r: PhotoRect) => {
-    const view = viewOf({ photo, viewSize, zoom, center });
+  const marker = (ctx: CanvasRenderingContext2D, drawn: RectPx) => {
+    const view = currentView({ photo, viewSize_px, zoom, center });
     if (zoom === 'fit' || !view || !photo) return;
-    const w = view.width / (view.zoom * photo.width);
-    const h = view.height / (view.zoom * photo.height);
-    const x = Math.max(0, view.centerX - w / 2);
-    const y = Math.max(0, view.centerY - h / 2);
+    const part = visiblePart(view, photo);
     ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.lineWidth = Math.max(1, window.devicePixelRatio || 1);
-    ctx.strokeRect(r.x + x * r.width, r.y + y * r.height, Math.min(1, w) * r.width, Math.min(1, h) * r.height);
+    ctx.strokeRect(
+      drawn.x_px + part.x * drawn.width_px,
+      drawn.y_px + part.y * drawn.height_px,
+      part.width * drawn.width_px,
+      part.height * drawn.height_px,
+    );
   };
 
   const goTo = (e: PointerEvent<HTMLDivElement>) => {
     const s = store.getState();
     if (!s.photo) return;
     const box = e.currentTarget.getBoundingClientRect();
-    const aspect = s.photo.width / s.photo.height;
-    const w = Math.min(box.width, box.height * aspect);
-    const h = w / aspect;
-    const x = (e.clientX - box.left - (box.width - w) / 2) / w;
-    const y = (e.clientY - box.top - (box.height - h) / 2) / h;
-    if (s.zoom === 'fit') s.setZoom(1, { x, y });
-    else s.setCenter(x, y);
+    const drawn = fitRect(
+      { width_px: s.photo.width, height_px: s.photo.height },
+      { width_px: box.width, height_px: box.height },
+    );
+    const point = {
+      x: (e.clientX - box.left - drawn.x_px) / drawn.width_px,
+      y: (e.clientY - box.top - drawn.y_px) / drawn.height_px,
+    };
+    if (s.zoom === 'fit') s.setZoom(1, point);
+    else s.setCenter(point);
   };
 
   return (

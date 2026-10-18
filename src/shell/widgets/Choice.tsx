@@ -1,5 +1,5 @@
 import { text } from '../i18n';
-import type { WidgetProps } from '../panels/registry';
+import type { WidgetProps } from '.';
 
 /** A choice setting: its label and a menu of the choices. */
 export function Choice({ spec, label, value, disabled, onChange, onDone }: WidgetProps) {

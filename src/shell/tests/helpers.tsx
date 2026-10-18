@@ -19,7 +19,7 @@ export async function openShell(
   const engine = createFakeEngine({ tools: options.tools ?? FAKE_TOOLS });
   const store = createShellStore(options.client ? options.client(engine) : engine, { photos: ['samples/A.CR3'] });
   await store.getState().init();
-  store.getState().setViewSize(800, 600);
+  store.getState().setViewSize({ width_px: 800, height_px: 600 });
   await settle();
   return { engine, store };
 }

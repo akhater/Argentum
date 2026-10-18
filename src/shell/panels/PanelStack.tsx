@@ -1,32 +1,23 @@
-// The tool panels, built from descriptors alone: a section per descriptor
-// `section`, a tool block per descriptor, a row per setting with the widget its
-// kind is registered to. There is no code here for any particular tool.
+// The tool panels, built from descriptors alone: the engine's sections, a tool
+// block per descriptor, a row per setting with the widget of its kind. There is
+// no code here for any particular tool.
 
 import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import type { SettingSpec, ToolDescriptor } from '../contract';
 import { valueOf } from '../edit';
-import { text } from '../i18n';
+import { text, toolLabel } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
-import '../widgets';
+import { WIDGETS } from '../widgets';
 import { advancedSettings, buildSections, isEnabled, mainSettings, type PanelSection } from './model';
-import { widgetFor } from './registry';
 
 function SettingRow({ tool, spec }: { tool: ToolDescriptor; spec: SettingSpec }) {
   const store = useShellStore();
   const value = useShell((s) => valueOf(s.doc, tool.id, spec));
   const enabled = useShell((s) => isEnabled(s.doc, tool, spec));
   const label = text(spec.label);
-  const Widget = widgetFor(spec.kind);
-  if (!Widget) {
-    return (
-      <div className="ags-row ags-unsupported" data-setting={spec.key}>
-        <span className="ags-row-label">{label}</span>
-        <span className="ags-dim">{text('shell.unsupported', { kind: spec.kind })}</span>
-      </div>
-    );
-  }
+  const Widget = WIDGETS[spec.kind];
   return (
     <div data-setting={spec.key} data-kind={spec.kind}>
       <Widget
@@ -46,7 +37,7 @@ function ToolPanel({ tool }: { tool: ToolDescriptor }) {
   const [more, setMore] = useState(false);
   const changed = useShell((s) => tool.settings.some((spec) => valueOf(s.doc, tool.id, spec) !== spec.default));
   const advanced = advancedSettings(tool);
-  const name = text(tool.label);
+  const name = toolLabel(tool);
   return (
     <div className="ags-tool" data-tool={tool.id}>
       <div className="ags-tool-head">

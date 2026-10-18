@@ -3,16 +3,15 @@
 
 import { Redo2, RotateCcw, Undo2 } from 'lucide-react';
 
-import { resetPatch } from '../edit';
 import { text } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
-import { fitZoom } from '../store';
+import { currentView } from '../viewSlice';
 
 export function Toolbar() {
   const store = useShellStore();
   const canUndo = useShell((s) => s.past.length > 0);
   const canRedo = useShell((s) => s.future.length > 0);
-  const percent = useShell((s) => Math.round((s.zoom === 'fit' ? fitZoom(s) : s.zoom) * 100));
+  const percent = useShell((s) => Math.round((currentView(s)?.zoom ?? 1) * 100));
   const hasPhoto = useShell((s) => s.photo !== null);
 
   return (
@@ -36,14 +35,7 @@ export function Toolbar() {
       <span className="ags-toolbar-divider" />
       <span className="ags-toolbar-zoom">{hasPhoto ? `${percent}%` : ''}</span>
       <span className="ags-toolbar-spacer" />
-      <button
-        type="button"
-        disabled={!hasPhoto}
-        onClick={() => {
-          const s = store.getState();
-          s.commit(resetPatch(s.doc, s.tools), { kind: 'resetAll' });
-        }}
-      >
+      <button type="button" disabled={!hasPhoto} onClick={() => store.getState().resetAll()}>
         <RotateCcw size={13} />
         <span>{text('shell.resetAll')}</span>
       </button>

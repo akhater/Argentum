@@ -20,12 +20,6 @@ import { ShellProvider, useShell } from './ShellContext';
 import { createShellStore, type ShellStore } from './store';
 import './shell.css';
 
-function ToolArea() {
-  const mode = useShell((s) => s.mode);
-  if (mode === 'edit') return <PanelStack />;
-  return <p className="ags-dim ags-tab-note">{text('shell.nothingHere', { mode: text(`shell.rail.${mode}`) })}</p>;
-}
-
 function shortcuts(store: ShellStore) {
   return (e: KeyboardEvent) => {
     const target = e.target as HTMLElement | null;
@@ -83,7 +77,7 @@ export function ShellView({ store, fake }: { store: ShellStore; fake: boolean })
           </div>
           <Navigator />
           <div className="ags-tools-scroll">
-            <ToolArea />
+            <PanelStack />
           </div>
         </aside>
         <Rail />

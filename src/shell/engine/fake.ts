@@ -9,17 +9,18 @@
 // It is not a design mock: the shell sees only what the contract carries.
 
 import fixtures from '../contract.fixtures.json';
-import type {
-  EditDocument,
-  EditPatch,
-  Event,
-  PhotoId,
-  RenderTicket,
-  SectionDescriptor,
-  SettingSpec,
-  SettingValue,
-  ToolDescriptor,
-  View,
+import {
+  EDIT_VERSION,
+  type EditDocument,
+  type EditPatch,
+  type Event,
+  type PhotoId,
+  type RenderTicket,
+  type SectionDescriptor,
+  type SettingSpec,
+  type SettingValue,
+  type ToolDescriptor,
+  type View,
 } from '../contract';
 import type { EngineClient, FramePixels } from './client';
 
@@ -166,7 +167,7 @@ export function createFakeEngine(options: FakeOptions = {}): FakeEngine {
       if (id === undefined) {
         id = ids.size + 1;
         ids.set(path, id);
-        const edit: EditDocument = { version: 1, tools: {} };
+        const edit: EditDocument = { version: EDIT_VERSION, tools: {} };
         for (const t of tools) {
           edit.tools[t.id] = { v: t.version, settings: Object.fromEntries(t.settings.map((s) => [s.key, s.default])) };
         }

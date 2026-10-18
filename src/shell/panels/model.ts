@@ -2,14 +2,14 @@
 // tools by their order within each. This is the whole of it, and it knows no
 // tool and no section by name.
 
-import type { EditDocument, SectionDescriptor, SettingSpec, SettingValue, ToolDescriptor } from '../contract';
+import type { EditDocument, Section, SectionDescriptor, SettingSpec, SettingValue, ToolDescriptor } from '../contract';
 import { text } from '../i18n';
 
 export interface PanelSection {
-  id: string;
+  readonly id: Section;
   /** i18n key. */
-  label: string;
-  tools: ToolDescriptor[];
+  readonly label: string;
+  readonly tools: readonly ToolDescriptor[];
 }
 
 /**
@@ -17,16 +17,15 @@ export interface PanelSection {
  * `order`. A tool naming a section the engine did not list still shows, after
  * the listed ones, so no tool can go missing.
  */
-export function buildSections(sections: SectionDescriptor[], tools: ToolDescriptor[]): PanelSection[] {
+export function buildSections(
+  sections: readonly SectionDescriptor[],
+  tools: readonly ToolDescriptor[],
+): PanelSection[] {
   const sorted = [...tools].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
-  const listed: PanelSection[] = sections.map((s) => ({ id: s.id, label: s.label, tools: [] }));
-  const out = [...listed];
-  for (const tool of sorted) {
-    let section = out.find((s) => s.id === tool.section);
-    if (!section) out.push((section = { id: tool.section, label: tool.section, tools: [] }));
-    section.tools.push(tool);
-  }
-  return out.filter((s) => s.tools.length > 0);
+  const unlisted = [...new Set(sorted.map((t) => t.section))].filter((id) => !sections.some((s) => s.id === id));
+  return [...sections, ...unlisted.map((id) => ({ id, label: id }))]
+    .map((s) => ({ id: s.id, label: s.label, tools: sorted.filter((t) => t.section === s.id) }))
+    .filter((s) => s.tools.length > 0);
 }
 
 /** Whether a setting means anything now: its `enabledWhen` holds, or it has none. */

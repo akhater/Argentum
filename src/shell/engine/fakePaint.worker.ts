@@ -3,20 +3,20 @@
 // crudest way that shows they work. Nothing here is image processing; it lets
 // the shell be looked at before the engine is wired in.
 
+import type { View } from '../contract';
+import type { PhotoSize } from '../view';
+import type { FramePixels } from './client';
+
 export interface PaintMessage {
   seed: number;
-  photoWidth: number;
-  photoHeight: number;
-  view: { zoom: number; centerX: number; centerY: number; width: number; height: number };
+  photo: PhotoSize;
+  view: View;
   gains: [number, number, number];
   recover: boolean;
   sharpen: number;
 }
 
-export interface PaintReply {
-  width: number;
-  height: number;
-  data: Uint8ClampedArray;
+export interface PaintReply extends FramePixels {
   bins: number[];
 }
 
@@ -62,7 +62,8 @@ const encode = (x: number) => Math.round(255 * Math.pow(Math.max(0, Math.min(1, 
 const MAX_PIXELS = 1_200_000;
 
 function paint(job: PaintMessage): PaintReply {
-  const { view, photoWidth: pw, photoHeight: ph, gains } = job;
+  const { view, gains } = job;
+  const { width: pw, height: ph } = job.photo;
   const scale = Math.min(1, Math.sqrt(MAX_PIXELS / Math.max(1, view.width * view.height)));
   const width = Math.max(1, Math.round(view.width * scale));
   const height = Math.max(1, Math.round(view.height * scale));

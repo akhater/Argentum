@@ -51,7 +51,7 @@ describe('the contract fixtures', () => {
     const [frame, histogram, error] = fixtures.events as Event[];
     expect(frame.event).toBe('frame');
     const ticket = store.getState().latestTicket;
-    const photoId = store.getState().photo!.id;
+    const photoId = store.getState().photo!.photoId;
     store.getState().receive({ ...(histogram as Extract<Event, { event: 'histogram' }>), ticket: ticket + 1, photoId });
     expect(store.getState().histogram).toHaveLength(256);
     store.getState().receive(error);

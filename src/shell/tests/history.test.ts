@@ -32,7 +32,7 @@ describe('patches and undo', () => {
       { ag_exposure_wb: { exposure: 0 } },
       { ag_exposure_wb: { exposure: 0.5 } },
     ]);
-    expect(engine.editOf(s().photo!.id)!.tools.ag_exposure_wb.settings.exposure).toBe(0.5);
+    expect(engine.editOf(s().photo!.photoId)!.tools.ag_exposure_wb.settings.exposure).toBe(0.5);
     // The history holds patches, never documents.
     for (const entry of [...s().past, ...s().future]) {
       expect(Object.keys(entry.patch)).toEqual(['ag_exposure_wb']);
@@ -77,7 +77,7 @@ describe('patches and undo', () => {
     s().resetTool('rt_capture_sharpen');
     await settle();
     expect(applies(engine).at(-1)).toEqual({ rt_capture_sharpen: { captureAmount: null, capture: null } });
-    expect(engine.editOf(s().photo!.id)!.tools.rt_capture_sharpen.settings).toMatchObject({
+    expect(engine.editOf(s().photo!.photoId)!.tools.rt_capture_sharpen.settings).toMatchObject({
       captureAmount: 100,
       capture: true,
     });

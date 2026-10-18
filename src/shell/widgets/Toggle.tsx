@@ -1,4 +1,4 @@
-import type { WidgetProps } from '../panels/registry';
+import type { WidgetProps } from '.';
 
 /** A bool setting: its label and a switch. */
 export function Toggle({ label, value, disabled, onChange, onDone }: WidgetProps) {

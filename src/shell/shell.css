@@ -203,13 +203,6 @@
   color: var(--ags-text);
   box-shadow: inset 2px 0 0 var(--ags-marker);
 }
-.ags-rail-gap {
-  height: 1px;
-  width: 20px;
-  margin: 8px 0;
-  background: var(--ags-outline);
-}
-
 /* Histogram and Navigator at the top of the tool panels */
 .ags-panel-block {
   padding: 8px 8px 0;

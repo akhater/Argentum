@@ -6,7 +6,7 @@ import type { ToolDescriptor } from './contract';
 
 export const emptyDocument = (): EditDocument => ({ version: EDIT_VERSION, tools: {} });
 
-const specOf = (tools: ToolDescriptor[], toolId: string, key: string) =>
+const specOf = (tools: readonly ToolDescriptor[], toolId: string, key: string) =>
   tools.find((t) => t.id === toolId)?.settings.find((s) => s.key === key);
 
 /** The value shown for a setting: the edit's, or the default when the edit has none. */
@@ -14,7 +14,7 @@ export const valueOf = (doc: EditDocument, toolId: string, spec: SettingSpec): S
   doc.tools[toolId]?.settings[spec.key] ?? spec.default;
 
 /** `doc` with `patch` applied, `null` meaning the default. The document is never mutated. */
-export function applyPatch(doc: EditDocument, patch: EditPatch, tools: ToolDescriptor[]): EditDocument {
+export function applyPatch(doc: EditDocument, patch: EditPatch, tools: readonly ToolDescriptor[]): EditDocument {
   const next: EditDocument = { version: doc.version, tools: { ...doc.tools } };
   for (const [toolId, values] of Object.entries(patch)) {
     const before = next.tools[toolId];
@@ -31,7 +31,7 @@ export function applyPatch(doc: EditDocument, patch: EditPatch, tools: ToolDescr
 }
 
 /** The patch that undoes `patch` on `doc`: every value it touches, as it was. */
-export function inverseOf(doc: EditDocument, patch: EditPatch, tools: ToolDescriptor[]): EditPatch {
+export function inverseOf(doc: EditDocument, patch: EditPatch, tools: readonly ToolDescriptor[]): EditPatch {
   const inverse: EditPatch = {};
   for (const [toolId, values] of Object.entries(patch)) {
     inverse[toolId] = {};
@@ -52,7 +52,7 @@ export function composePatches(earlier: EditPatch, later: EditPatch): EditPatch 
 }
 
 /** The patch that takes `from` to `to`, over the settings the descriptors name. */
-export function diffDocuments(from: EditDocument, to: EditDocument, tools: ToolDescriptor[]): EditPatch {
+export function diffDocuments(from: EditDocument, to: EditDocument, tools: readonly ToolDescriptor[]): EditPatch {
   const patch: EditPatch = {};
   for (const tool of tools) {
     for (const spec of tool.settings) {
@@ -64,11 +64,11 @@ export function diffDocuments(from: EditDocument, to: EditDocument, tools: ToolD
 }
 
 /** Every value that differs from its default, as a patch: what a preset keeps. */
-export const changesFromDefaults = (doc: EditDocument, tools: ToolDescriptor[]): EditPatch =>
+export const changesFromDefaults = (doc: EditDocument, tools: readonly ToolDescriptor[]): EditPatch =>
   diffDocuments(emptyDocument(), doc, tools);
 
 /** Every setting of `tools` that is not at its default, put back to it. */
-export function resetPatch(doc: EditDocument, tools: ToolDescriptor[]): EditPatch {
+export function resetPatch(doc: EditDocument, tools: readonly ToolDescriptor[]): EditPatch {
   const patch: EditPatch = {};
   for (const tool of tools) {
     for (const spec of tool.settings) {

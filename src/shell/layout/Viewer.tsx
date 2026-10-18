@@ -6,13 +6,17 @@ import { useEffect, useRef, type PointerEvent } from 'react';
 
 import { text } from '../i18n';
 import { useShell, useShellStore } from '../ShellContext';
-import { viewOf } from '../store';
+import { pannedCenter, photoPointAt } from '../view';
+import { currentView } from '../viewSlice';
+
+/** Screen pixels per CSS pixel. */
+const screenScale = () => window.devicePixelRatio || 1;
 
 export function Viewer() {
   const store = useShellStore();
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ clientX: number; clientY: number; moved: boolean } | null>(null);
   const frame = useShell((s) => s.frame);
   const hasPhoto = useShell((s) => s.photo !== null);
 
@@ -20,9 +24,11 @@ export function Viewer() {
     const el = box.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
-      const dpr = window.devicePixelRatio || 1;
       const { width, height } = entry.contentRect;
-      store.getState().setViewSize(Math.round(width * dpr), Math.round(height * dpr));
+      store.getState().setViewSize({
+        width_px: Math.round(width * screenScale()),
+        height_px: Math.round(height * screenScale()),
+      });
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -30,55 +36,42 @@ export function Viewer() {
 
   useEffect(() => {
     const c = canvas.current;
-    const size = store.getState().viewSize;
+    const size = store.getState().viewSize_px;
     if (!c || !size) return;
-    c.width = size.width;
-    c.height = size.height;
+    c.width = size.width_px;
+    c.height = size.height_px;
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
     if (frame?.image) ctx.drawImage(frame.image, 0, 0, c.width, c.height);
   }, [frame, store]);
 
-  /** The photo point under a screen point, 0..1. */
-  const photoPoint = (clientX: number, clientY: number) => {
-    const s = store.getState();
-    const view = viewOf(s);
-    const r = box.current!.getBoundingClientRect();
-    if (!view || !s.photo) return { x: 0.5, y: 0.5 };
-    const dpr = window.devicePixelRatio || 1;
-    return {
-      x: view.centerX + ((clientX - r.left) * dpr - view.width / 2) / (view.zoom * s.photo.width),
-      y: view.centerY + ((clientY - r.top) * dpr - view.height / 2) / (view.zoom * s.photo.height),
-    };
-  };
-
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { x: e.clientX, y: e.clientY, moved: false };
+    drag.current = { clientX: e.clientX, clientY: e.clientY, moved: false };
   };
   const move = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     const s = store.getState();
-    if (!d || s.zoom === 'fit' || !s.photo) return;
-    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3) return;
+    const view = currentView(s);
+    if (!d || s.zoom === 'fit' || !s.photo || !view) return;
+    if (!d.moved && Math.hypot(e.clientX - d.clientX, e.clientY - d.clientY) < 3) return;
     d.moved = true;
-    const dpr = window.devicePixelRatio || 1;
-    const view = viewOf(s)!;
-    s.setCenter(
-      view.centerX - ((e.clientX - d.x) * dpr) / (view.zoom * s.photo.width),
-      view.centerY - ((e.clientY - d.y) * dpr) / (view.zoom * s.photo.height),
-    );
-    d.x = e.clientX;
-    d.y = e.clientY;
+    const scale = screenScale();
+    s.setCenter(pannedCenter(view, s.photo, (e.clientX - d.clientX) * scale, (e.clientY - d.clientY) * scale));
+    d.clientX = e.clientX;
+    d.clientY = e.clientY;
   };
   const up = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     drag.current = null;
-    if (!d || d.moved) return;
     const s = store.getState();
-    if (s.zoom === 'fit') s.setZoom(1, photoPoint(e.clientX, e.clientY));
-    else s.setZoom('fit');
+    const view = currentView(s);
+    if (!d || d.moved || !s.photo || !view) return;
+    if (s.zoom !== 'fit') return s.setZoom('fit');
+    const r = box.current!.getBoundingClientRect();
+    const scale = screenScale();
+    s.setZoom(1, photoPointAt(view, s.photo, (e.clientX - r.left) * scale, (e.clientY - r.top) * scale));
   };
 
   return (
