@@ -1432,6 +1432,19 @@ const firstThumbnail165 = [
   review165('aff9b3f2', 'first-thumbnail', 'not-applicable', 'Their culling view uses the medium thumbnail, and canvas polish: which thumbnail a view shows, not how quickly the grid gets one.', 'feature'),
 ];
 
+// first-thumbnail's watcher, registered after this review too. It relies on
+// the browsing queue as update_thumbnail_queue fills it and
+// start_thumbnail_workers empties it, on the cache's file names, and on
+// ThumbnailManager. None of these commits changes any of them.
+const FIRST_THUMBNAIL_QUEUE = 'The queue (update_thumbnail_queue, start_thumbnail_workers) and the cache\'s names (get_cache_key_hash, get_thumb_cache_dir) are unchanged.';
+const firstThumbnailWatcher165 = [
+  ...['9ba20c02', 'c4ba9ac9', '43248097', '4e45e620', '078c90a8'].map((c) =>
+    review165(c, 'first-thumbnail:src-tauri/src/file_management.rs', 'not-applicable', `${DID_165[c]} ${FIRST_THUMBNAIL_QUEUE}`)),
+  review165('b191ae05', 'first-thumbnail:src-tauri/src/file_management.rs', 'not-applicable', `The merge of 4e45e620 and 43248097, read above. ${FIRST_THUMBNAIL_QUEUE}`),
+  ...['66fa1600', '9ba20c02', '5c4b7800', 'f62a8365'].map((c) =>
+    review165(c, 'first-thumbnail:src-tauri/src/app_state.rs#ThumbnailManager', 'not-applicable', `${DID_165[c]} ThumbnailManager is unchanged.`)),
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1443,6 +1456,7 @@ export const REVIEW_165_DECISIONS = [
   ...dngStandard165,
   ...startingLook165,
   ...firstThumbnail165,
+  ...firstThumbnailWatcher165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1455,10 +1469,10 @@ export const REVIEW_165_DECISIONS = [
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
 // Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
-// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13), and 7
-// for first-thumbnail.
-if (REVIEW_165_DECISIONS.length !== 1249) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1249 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13), and 17
+// for first-thumbnail, 10 of them for its watcher.
+if (REVIEW_165_DECISIONS.length !== 1259) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1259 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
