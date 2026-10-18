@@ -152,6 +152,18 @@ struct GapArgs {
     gap: u8,
 }
 
+/// An editor layout's name. A string rather than the enum, because it comes
+/// from a browser: `EditorLayout::from_name` narrows it, Classic if unknown.
+#[derive(Deserialize)]
+struct LayoutArgs {
+    layout: String,
+}
+
+#[derive(Deserialize)]
+struct LayoutPanelsArgs {
+    panels: crate::mods::editor_layout::LayoutPanels,
+}
+
 /// A catalogue id from `mods::model_catalog`, never a path.
 #[derive(Deserialize)]
 struct IdArgs {
@@ -385,6 +397,22 @@ async fn json(
         "set_compact_slider_gap" => {
             let a: GapArgs = args_for(&name, args)?;
             commands::set_compact_slider_gap(a.gap)?;
+            Ok(serde_json::Value::Null)
+        }
+        "editor_layout" => {
+            serde_json::to_value(commands::editor_layout()?).map_err(|e| e.to_string())
+        }
+        "set_editor_layout" => {
+            let a: LayoutArgs = args_for(&name, args)?;
+            commands::set_editor_layout(&a.layout)?;
+            Ok(serde_json::Value::Null)
+        }
+        "editor_layout_panels" => {
+            serde_json::to_value(commands::editor_layout_panels()?).map_err(|e| e.to_string())
+        }
+        "set_editor_layout_panels" => {
+            let a: LayoutPanelsArgs = args_for(&name, args)?;
+            commands::set_editor_layout_panels(&a.panels)?;
             Ok(serde_json::Value::Null)
         }
         "super_resolution_preview" => {
