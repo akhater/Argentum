@@ -36,6 +36,18 @@ pub mod image_processing {
     }
 }
 
+/// `crate::mods::raw_tone::mode_of`, which `sharpen::from_json` asks for the
+/// RAW rendering: DNG Standard brings defaults for the manual sharpen, not
+/// for capture sharpening, the part the engine copies. The tests pass edits
+/// that name no rendering, for which the app's answer is DNG Standard.
+pub mod mods {
+    pub mod raw_tone {
+        pub fn mode_of(_js: &serde_json::Value) -> u32 {
+            3
+        }
+    }
+}
+
 /// `crate::app_settings`, as `sharpen::retire_presharpening_once` names it.
 /// That function needs the running app and is never called here.
 pub mod app_settings {

@@ -19,6 +19,8 @@
 //! A photo with nothing clipped comes out bit for bit as it went in, and the
 //! tool says so by returning nothing to do.
 
+use std::sync::Arc;
+
 use rawler::rawimage::{RawImage, RawImageData};
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +60,7 @@ impl Tool for DtHighlights {
             message: format!("was handed {}", input.describe()),
         })?;
         let mut out = raw.clone();
-        Ok(apply(&mut out, settings.recover).then_some(Image::Raw(out)))
+        Ok(apply(&mut out, settings.recover).then(|| Image::Raw(Arc::new(out))))
     }
 }
 

@@ -228,20 +228,20 @@ impl RtCaptureSharpen {
             *slot = Some(Passes::new(gpu));
         }
         let passes = slot.get_or_insert_with(|| Passes::new(gpu));
-        let ratios = passes.ratios(rgb, plan)?;
-        Ok(rgb
-            .pixels
-            .par_iter()
-            .zip(ratios.par_iter())
-            .map(|(p, &r)| {
+        let mut out: Vec<[f32; 3]> = Vec::with_capacity(rgb.pixels.len());
+        passes.ratios(rgb, plan, &mut |ratios| {
+            let done = out.len();
+            let pixels = &rgb.pixels[done..done + ratios.len()];
+            out.par_extend(pixels.par_iter().zip(ratios.par_iter()).map(|(p, &r)| {
                 // Exactly 1 where nothing moved: copied, not multiplied.
                 if r == 1.0 {
                     *p
                 } else {
                     [p[0] * r, p[1] * r, p[2] * r]
                 }
-            })
-            .collect())
+            }));
+        })?;
+        Ok(out)
     }
 }
 
