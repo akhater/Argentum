@@ -7,9 +7,10 @@
 //!
 //! The steps are the registered tools in order, with the develop (sensor data
 //! to linear RGB) between the last `Raw` tool and the first `SceneLinear` one,
-//! and, for a preview, a resize straight after the develop. So a preview and
-//! a full-size render share everything up to the develop, and a preview's
-//! tools run on the small picture.
+//! and, for a preview, a resize straight after the develop. A preview that
+//! half the photo still covers develops at half size. So a preview and a
+//! full-size render share the `Raw` tools, and a preview's tools run on the
+//! small picture.
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -20,7 +21,7 @@ use serde_json::Value;
 
 use crate::cache::Cache;
 use crate::contract::{EditDocument, EditPatch, Stage};
-use crate::develop::{self, DEVELOP_VERSION};
+use crate::develop::{self, DEVELOP_VERSION, Scale};
 use crate::registry::Registry;
 use crate::tool::{self, AnySettings, Context, Tool};
 use crate::{Error, GpuSlot, Image, Result, Source};
@@ -37,7 +38,7 @@ pub enum Size {
 /// One step of the last render.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Step {
-    /// The tool's id, or `develop` / `resize`.
+    /// The tool's id, or `develop` / `develop_half` / `resize`.
     pub name: &'static str,
     /// Whether it ran. A step that did not run was served from the cache, or
     /// was not needed because a later step was.
@@ -49,14 +50,18 @@ pub struct Step {
 #[derive(Clone, Copy)]
 enum Op {
     Tool(usize),
-    Develop,
-    Resize(u32, u32),
+    Develop(Scale),
+    /// To this many pixels across and down.
+    Resize(usize, usize),
 }
 
-/// The default memory the cache may hold. A full-size render of a 32 MP
-/// photo keeps about 1.4 GB: the decoded mosaic, the developed picture and
-/// each tool's result after it.
-pub const DEFAULT_CACHE_BYTES: usize = 2 << 30;
+/// The memory the cache may hold until the app sizes it from the machine's:
+/// 1.5 GB, for a 16 GB laptop. A full-size render of a 32 MP photo keeps
+/// about 1.1 GB - the developed picture and each tool's result after it - so
+/// a slider dragged at 100% finds what it needs. With it the engine's peak,
+/// measured by tests/memory.rs, is 1.75 GB for a 32 MP photo and 2.2 GB for a
+/// 61 MP one, and 0.6 and 0.8 GB while they are only fitted.
+pub const DEFAULT_CACHE_BYTES: usize = 3 << 29;
 
 pub struct Pipeline {
     registry: Arc<Registry>,
@@ -66,6 +71,9 @@ pub struct Pipeline {
     gpu: GpuSlot,
     last: Vec<Step>,
     runs: HashMap<&'static str, u32>,
+    /// The tool whose settings changed last. A slider ticks again and again,
+    /// so its input is what the cache lets go last.
+    changed: Option<usize>,
 }
 
 impl Pipeline {
@@ -93,6 +101,7 @@ impl Pipeline {
             gpu,
             last: Vec::new(),
             runs: HashMap::new(),
+            changed: None,
         })
     }
 
@@ -159,7 +168,11 @@ impl Pipeline {
 
     fn store(&mut self, i: usize, settings: Box<dyn AnySettings>) {
         let info = &self.registry.infos()[i];
-        self.hashes[i] = settings_hash(info.id, info.version, settings.as_ref());
+        let hash = settings_hash(info.id, info.version, settings.as_ref());
+        if hash != self.hashes[i] {
+            self.changed = Some(i);
+        }
+        self.hashes[i] = hash;
         self.settings[i] = settings;
     }
 
@@ -171,6 +184,11 @@ impl Pipeline {
     /// The memory the cache holds now.
     pub fn cache_bytes(&self) -> usize {
         self.cache.used_bytes()
+    }
+
+    /// Let go of every result kept for the photo keyed `source_key`.
+    pub fn forget(&mut self, source_key: u64) {
+        self.cache.forget_source(source_key);
     }
 
     /// The steps of the last render, in order.
@@ -196,7 +214,7 @@ impl Pipeline {
         size: Size,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<Arc<Image>> {
-        let ops = self.ops(size);
+        let ops = self.ops(size, source);
         let start = mix(&("source", source.key));
         let mut keys = Vec::with_capacity(ops.len());
         let mut key = start;
@@ -206,22 +224,25 @@ impl Pipeline {
         }
 
         // The last step with a result already kept: everything up to it is
-        // done, and only what follows runs.
+        // done, and only what follows runs. The results it was made from are
+        // used too, so they stay as long as it does.
         let found = (0..ops.len())
             .rev()
             .find_map(|i| self.cache.get(keys[i]).map(|image| (i, image)));
         let done = found.as_ref().map(|(i, _)| *i);
+        for &key in &keys[..done.unwrap_or(0)] {
+            self.cache.get(key);
+        }
         let (mut image, mut input_key) = match found {
             Some((i, image)) => (image, keys[i]),
-            None => match self.cache.get(start) {
-                Some(image) => (image, start),
-                None => {
-                    let image = Arc::new(Image::Raw(source.raw.clone()));
-                    self.cache.put(start, image.clone(), true);
-                    (image, start)
-                }
-            },
+            // The photo's own mosaic, shared, not copied.
+            None => (Arc::new(Image::Raw(source.raw.clone())), start),
         };
+        let changed = ops
+            .iter()
+            .position(|&(op, _)| matches!(op, Op::Tool(i) if Some(i) == self.changed));
+        self.cache
+            .keep(changed.map(|at| if at == 0 { start } else { keys[at - 1] }));
 
         self.last.clear();
         let first = done.map_or(0, |i| i + 1);
@@ -236,14 +257,18 @@ impl Pipeline {
             if cancelled() {
                 return Err(Error::Cancelled);
             }
+            self.cache
+                .make_room(self.room_bytes(op, &image, source), input_key);
             let started = Instant::now();
             let made = self.run(op, &image, source, input_key)?;
             let time = started.elapsed();
-            let fresh = made.is_some();
             if let Some(made) = made {
                 image = Arc::new(made);
             }
-            self.cache.put(keys[i], image.clone(), fresh);
+            // The photo's own mosaic, passed through, is the photo's to keep.
+            if !matches!(&*image, Image::Raw(raw) if Arc::ptr_eq(raw, &source.raw)) {
+                self.cache.put(keys[i], source.key, image.clone());
+            }
             input_key = keys[i];
             *self.runs.entry(name).or_default() += 1;
             self.last.push(Step {
@@ -255,14 +280,27 @@ impl Pipeline {
         Ok(image)
     }
 
-    /// The steps for a render at `size`.
-    fn ops(&self, size: Size) -> Vec<(Op, &'static str)> {
+    /// The steps for a render of `source` at `size`.
+    fn ops(&self, size: Size, source: &Source) -> Vec<(Op, &'static str)> {
         let tools = self.registry.infos();
         let raw = tools.iter().take_while(|t| t.stage == Stage::Raw).count();
         let mut ops: Vec<_> = (0..raw).map(|i| (Op::Tool(i), tools[i].id)).collect();
-        ops.push((Op::Develop, "develop"));
-        if let Size::Fit(w, h) = size {
-            ops.push((Op::Resize(w, h), "resize"));
+        match size {
+            Size::Full => ops.push((Op::Develop(Scale::Full), "develop")),
+            Size::Fit(max_w, max_h) => {
+                let (w_px, h_px) = source.size_px();
+                let (_, w, h) = develop::fit_px(w_px, h_px, max_w, max_h);
+                // RAWmakase's rule for its previews (src/app/preview_build.rs
+                // @ 7c3c81ab, `needs_full`): the half-size develop while half
+                // the photo still covers the size asked for - here a pixel
+                // inside it, for an odd size's rounding.
+                if w < w_px / 2 && h < h_px / 2 {
+                    ops.push((Op::Develop(Scale::Half), "develop_half"));
+                } else {
+                    ops.push((Op::Develop(Scale::Full), "develop"));
+                }
+                ops.push((Op::Resize(w, h), "resize"));
+            }
         }
         ops.extend((raw..tools.len()).map(|i| (Op::Tool(i), tools[i].id)));
         ops
@@ -272,19 +310,40 @@ impl Pipeline {
     fn op_key(&self, op: Op) -> u64 {
         match op {
             Op::Tool(i) => self.hashes[i],
-            Op::Develop => mix(&("develop", DEVELOP_VERSION)),
+            Op::Develop(Scale::Full) => mix(&("develop", DEVELOP_VERSION)),
+            Op::Develop(Scale::Half) => mix(&("develop_half", DEVELOP_VERSION)),
             Op::Resize(w, h) => mix(&("resize", w, h)),
+        }
+    }
+
+    /// About the memory `op` takes on `input`, for its result and, where it
+    /// is known, while it runs: room is made for it first. A tool makes a
+    /// picture the size of its input, or passes its input through; what else
+    /// it needs is its own. The develop holds about three of its pictures at
+    /// once - rawler's scaled mosaic, the demosaiced picture and its copy
+    /// through the camera matrix - and the half-size one, with the scaled
+    /// mosaic at full size beside it, about four.
+    fn room_bytes(&self, op: Op, input: &Image, source: &Source) -> usize {
+        let rgb_bytes = |(w, h): (usize, usize)| w * h * std::mem::size_of::<[f32; 3]>();
+        match op {
+            Op::Develop(Scale::Full) => 3 * rgb_bytes(source.size_px()),
+            Op::Develop(Scale::Half) => {
+                let (w, h) = source.size_px();
+                4 * rgb_bytes((w / 2, h / 2))
+            }
+            Op::Resize(w, h) => rgb_bytes((w, h)),
+            Op::Tool(_) => input.bytes(),
         }
     }
 
     fn run(&self, op: Op, input: &Image, source: &Source, input_key: u64) -> Result<Option<Image>> {
         match op {
-            Op::Develop => {
+            Op::Develop(scale) => {
                 let raw = input.as_raw().ok_or_else(|| Error::Tool {
                     tool: "develop",
                     message: format!("was handed {}", input.describe()),
                 })?;
-                develop::develop(raw).map(|rgb| Some(Image::Rgb(rgb)))
+                develop::develop(raw, scale).map(|rgb| Some(Image::Rgb(rgb)))
             }
             Op::Resize(w, h) => {
                 let rgb = input.as_rgb().ok_or_else(|| Error::Tool {

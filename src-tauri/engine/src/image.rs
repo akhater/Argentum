@@ -1,17 +1,17 @@
 //! What flows from one tool to the next.
 
+use std::sync::Arc;
+
 use rawler::rawimage::{RawImage, RawImageData};
 
 /// A picture at some point in the pipeline.
-// RawImage carries its metadata inline and is large; an image is always held
-// behind an Arc, so boxing it would only add an indirection.
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Image {
     /// Sensor data before demosaic, as rawler decodes it: a Bayer or X-Trans
     /// mosaic (`cpp` 1), or three colours per pixel (sRAW, linear DNG). What
-    /// `Stage::Raw` tools receive.
-    Raw(RawImage),
+    /// `Stage::Raw` tools receive. Shared, so the photo's own mosaic is never
+    /// copied to be passed along.
+    Raw(Arc<RawImage>),
     /// Demosaiced RGB, linear light. What `Stage::SceneLinear` tools receive.
     Rgb(Rgb),
 }
@@ -69,7 +69,7 @@ impl Image {
 
     pub fn as_raw(&self) -> Option<&RawImage> {
         match self {
-            Image::Raw(raw) => Some(raw),
+            Image::Raw(raw) => Some(raw.as_ref()),
             Image::Rgb(_) => None,
         }
     }

@@ -7,6 +7,7 @@ mod common;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use argentum_engine::rawler::rawimage::RawPhotometricInterpretation;
 use argentum_engine::tools::{ag_exposure_wb, dt_highlights, rt_capture_sharpen};
 use argentum_engine::{Gpu, GpuSlot, Pipeline, Size, standard};
 
@@ -103,8 +104,19 @@ fn changing_one_tool_reruns_it_and_what_follows() {
     p.render(&source, Size::Full).unwrap();
     assert!(ran(&p).is_empty(), "{:?}", ran(&p));
 
-    // A preview shares everything up to the develop.
+    // A preview that half the photo covers shares the highlights and
+    // develops at half size; a larger one resizes the full develop.
     p.render(&source, Size::Fit(128, 128)).unwrap();
+    assert_eq!(
+        ran(&p),
+        [
+            "develop_half",
+            "resize",
+            "rt_capture_sharpen",
+            "ag_exposure_wb"
+        ]
+    );
+    p.render(&source, Size::Fit(400, 400)).unwrap();
     assert_eq!(ran(&p), ["resize", "rt_capture_sharpen", "ag_exposure_wb"]);
     p.set::<ag_exposure_wb::AgExposureWb>(exposure(-1.0))
         .unwrap();
@@ -126,7 +138,7 @@ fn a_preview_is_the_size_asked_for_and_says_its_scale() {
     assert_eq!(rgb.scale(), 0.25);
     let full = p.render(&source, Size::Full).unwrap();
     assert_eq!(full.as_rgb().unwrap().width, 512);
-    assert_eq!(ran(&p), ["rt_capture_sharpen", "ag_exposure_wb"]);
+    assert_eq!(ran(&p), ["develop", "rt_capture_sharpen", "ag_exposure_wb"]);
 }
 
 /// North star 5: the cache is bounded. Least recently used results go, and
@@ -229,6 +241,21 @@ fn reruns_timed_on_a_real_raw() {
         Size::Fit(1600, 1600),
     );
 
+    // A Bayer mosaic over 3200 pixels across develops a 1600 px preview at
+    // half size; anything else resizes the full develop already kept.
+    let (w, h) = source.size_px();
+    let mosaic = raw.cpp == 1
+        && matches!(&raw.photometric, RawPhotometricInterpretation::Cfa(c) if c.cfa.width == 2);
+    let preview: &[&str] = if mosaic && w.max(h) >= 2 * 1600 + 4 {
+        &[
+            "develop_half",
+            "resize",
+            "rt_capture_sharpen",
+            "ag_exposure_wb",
+        ]
+    } else {
+        &["resize", "rt_capture_sharpen", "ag_exposure_wb"]
+    };
     let expect: [&[&str]; 7] = [
         &[
             "dt_highlights",
@@ -245,7 +272,7 @@ fn reruns_timed_on_a_real_raw() {
             "rt_capture_sharpen",
             "ag_exposure_wb",
         ],
-        &["resize", "rt_capture_sharpen", "ag_exposure_wb"],
+        preview,
         &["ag_exposure_wb"],
     ];
     for ((label, ran, _), expect) in table.iter().zip(expect) {
