@@ -1862,6 +1862,7 @@ fn generate_single_thumbnail_and_cache(
 
     let target_width_small = settings.small_thumbnail_resolution.unwrap_or(480);
     let target_width_medium = settings.medium_thumbnail_resolution.unwrap_or(1280);
+    if !force_regenerate { crate::mods::first_thumbnail::emit(app_handle, path_str, &source_path, target_width_small); } // Argentum: the camera's JPEG at once while browsing; the thumbnail below replaces it
 
     if let Ok(thumb_image) =
         generate_thumbnail_data(path_str, gpu_context, preloaded_image, app_handle)
