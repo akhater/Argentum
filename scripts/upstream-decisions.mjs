@@ -1,53 +1,69 @@
-// What we decided about each upstream change that landed on top of ours.
+// What we decided about each RapidRAW release, and before that about each commit.
 //
-// WHY THIS EXISTS, AND WHY IT IS THE ONLY REGISTER
+// ONE REVIEW PER RELEASE
 //
-// Merging used to erase the review window. The review ran from the git
-// merge-base, so the moment the merge landed the base moved and the script said
-// "nothing new" — whether or not anybody had looked. The CHANGELOG line meant to
-// force the review could be satisfied with one `sed`.
+// RapidRAW is a source Argentum takes from, reviewed once per release. Each
+// review is one entry at the end of REVIEWS, written from the template that
+// `npm run review:upstream` prints (run `git fetch upstream` first):
 //
-// So the reviewed-through point lives here, with the decisions attached to it,
-// and the CHANGELOG line is checked against this file rather than written
-// independently. There is one register, not two, which is the whole objection to
-// keeping a register at all: two of them drift, and the stale CHANGELOG line was
-// the proof.
+//   {
+//     release: 'v1.6.6',            the upstream tag reviewed up to
+//     from: '<40-char sha>',        where the previous review ended
+//     to: '<40-char sha>',          the commit that tag names
+//     on: 'YYYY-MM-DD',             the day of the review
+//     hours: 3,                     how long it took; it is meant to take under a day
+//     features: [                   one line per feature, not per commit
+//       { what, commits: ['8-char sha', ...], verdict, why, copiedInto? },
+//     ],
+//     sameAsOurs: { verdict: 'none' | 'found', why },
+//     stillLive: ['path', ...],     their files still run when previewing, exporting or masking
+//     retires: ['registry-id', ...],  optional: registry entries this review retires
+//   }
 //
-// HOW IT IS ENFORCED
+// Feature verdicts:
 //
-// check-mergeability.mjs re-derives the overlaps in the range the newest entry
-// covers — `REVIEWS[n-1].through .. REVIEWS[n].through` — from git and from
-// scripts/upstream-registry.mjs, and fails until every gated one has a decision
-// here. You cannot advance `through` without the script asking again for each
-// overlap it finds, and you cannot make an overlap go away by deleting the thing
-// that caused it: a registry entry retired in the review being written still
-// generates its requirement for that window.
+//   take    merge it as it is
+//   copy    copy it into a file of ours by hand, with its source commit;
+//           copiedInto names that file
+//   skip    not wanted: library, cloud, the interface being replaced
+//   decide  they built something we have; why says which one stays
 //
-// Only the newest entry's range is re-derived. Older ones are records of what was
-// known then; re-deriving them against today's registry would invent overlaps
-// nobody could have seen at the time.
+// check-mergeability.mjs holds each release review to this:
 //
-// VERDICTS
+//   * the reviews form one unbroken chain: each `from` is where the one before
+//     it ended, and `to` is what `release` names;
+//   * every commit in the newest range is in some feature's `commits`, so a
+//     release cannot be half read;
+//   * a commit that touches the render path or today's interface (RENDER_PATH
+//     and INTERFACE in scripts/upstream-registry.mjs) is in at least one
+//     feature that is not `take`: their changes there are read and copied,
+//     never merged;
+//   * `sameAsOurs` is `found` exactly when some feature is `decide`;
+//   * `stillLive` never grows from one release review to the next;
+//   * upstream is merged in exactly up to the newest `to`, and CHANGELOG.md
+//     names that release and commit.
+//
+// THE PER-COMMIT HISTORY
+//
+// Until 2026-10-18 the review was per commit: every upstream commit that touched
+// a file a registry entry depends on needed its own decision. The last such
+// review, RapidRAW 1.6.5, carried 1,242 of them, 84% "not-applicable". Those
+// entries stay below as history. Their decisions are still checked for shape
+// (a verdict from VERDICTS and a reason), and no new per-commit overlaps are
+// derived: re-deriving an old window against today's registry would invent
+// overlaps nobody could have seen.
 //
 //   adopt           take theirs, drop ours
 //   keep-ours       ours stands; theirs is knowingly not used here
-//   combine         both, reconciled by hand — say how
+//   combine         both, reconciled by hand - say how
 //   not-applicable  the overlap is mechanical noise; say why it cannot bite
-//
-// THE FEATURE REVIEW
-//
-// Every entry that covers a real range must carry `featureReview`. Overlap
-// detection is file-based: it finds upstream changing something we registered a
-// dependency on. It cannot find upstream building the same feature somewhere we
-// have never touched — no amount of pattern matching does that, and claiming
-// otherwise would be the more dangerous kind of wrong. So the batch is read for
-// duplicate features by a person, and that claim is written down as a sentence
-// with their reasoning in it. Nothing verifies the sentence. It is required so
-// that the claim is made rather than assumed.
-//
-// Run `npm run review:upstream` — it prints the overlap keys ready to paste.
 
 export const VERDICTS = ['adopt', 'keep-ours', 'combine', 'not-applicable'];
+export const FEATURE_VERDICTS = ['take', 'copy', 'skip', 'decide'];
+export const SAME_AS_OURS = ['none', 'found'];
+
+/** The last per-commit review (RapidRAW 1.6.5). Every review after it is per release. */
+export const PER_COMMIT_ENDS = '79c2a46b448b9a0bee0b30f8c345daad003ad694';
 
 // The v1.6.4 review has many repeated checks against the same shared shader
 // anchors. Keep each exact overlap as its own decision, while sharing the
@@ -847,24 +863,6 @@ const UNREACHED_165 = [
   ['e8834210', 'src-tauri/src/shaders/shader.wgsl', 'apply_hsl_panel', ['ai-super-resolution#apply_curve']],
   ['078c90a8', 'src-tauri/src/mask_generation.rs', 'imports, resolve_warped_image_for_masks, get_cached_or_generate_mask', ['ai-super-resolution#generate_ai_bitmap_from_base64']],
   ['cf6813f1', 'src-tauri/src/mask_generation.rs', 'generate_mask_overlay, get_cached_or_generate_mask', ['ai-super-resolution#generate_ai_bitmap_from_base64']],
-  // editor-layout-rawmakase, registered after this review: the props and the
-  // store action it relies on are ours or untouched, and these commits edit
-  // around them.
-  ['3c864270', 'src/components/panel/Editor.tsx', 'Editor', ['editor-layout-rawmakase#toolbarBelow']],
-  ['65472097', 'src/components/panel/Editor.tsx', 'Editor', ['editor-layout-rawmakase#toolbarBelow']],
-  ['0f564b59', 'src/components/panel/right/ControlsPanel.tsx', 'imports, Controls', ['editor-layout-rawmakase#showWaveform']],
-  ['2f907e36', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['editor-layout-rawmakase#showWaveform']],
-  ['9ba20c02', 'src/components/panel/right/ControlsPanel.tsx', 'Controls', ['editor-layout-rawmakase#showWaveform']],
-  ['f6220886', 'src/components/panel/right/ControlsPanel.tsx', 'imports, Controls', ['editor-layout-rawmakase#showWaveform']],
-  ['0f564b59', 'src/components/panel/right/MasksPanel.tsx', 'imports, SettingsPanel', ['editor-layout-rawmakase#showWaveform']],
-  ['2f907e36', 'src/components/panel/right/MasksPanel.tsx', 'SettingsPanel', ['editor-layout-rawmakase#showWaveform']],
-  ['48a124f5', 'src/components/panel/right/MasksPanel.tsx', 'MasksListRoot, MasksPanel', ['editor-layout-rawmakase#showWaveform']],
-  ['9671795e', 'src/components/panel/right/MasksPanel.tsx', 'MasksPanel', ['editor-layout-rawmakase#showWaveform']],
-  ['f6220886', 'src/components/panel/right/MasksPanel.tsx', 'imports, SettingsPanel', ['editor-layout-rawmakase#showWaveform']],
-  ['f62a8365', 'src/components/panel/right/MasksPanel.tsx', 'ContainerRow, DraggableGridItem, MasksListRoot, MasksPanel, SubMaskRow', ['editor-layout-rawmakase#showWaveform']],
-  ['c4ba9ac9', 'src/components/views/EditorView.tsx', 'imports, EditorView', ['editor-layout-rawmakase#besideEditor']],
-  ['d14887fd', 'src/store/useUIStore.ts', 'useUIStore, UIState', ['editor-layout-rawmakase#setPanel']],
-  ['7ce629fc', 'src/store/useUIStore.ts', 'imports', ['editor-layout-rawmakase#setPanel']],
 ];
 
 const unreached165 = UNREACHED_165.flatMap(([commit, file, where, targets]) =>
@@ -940,8 +938,6 @@ const FILE_165 = {
   'fast-dev-builds|src-tauri/Cargo.toml': ['not-applicable', 'A dependency line; their crate-type and [profile.dev.package."*"], where ours differ, are not touched. Registered after this review (26.41.13).', ['2641891c', '1e6777ed', 'b66691ba', '1732175a', '9b7e3368']],
   'fast-dev-builds|.github/workflows/build.yml': ['not-applicable', 'Android setup only; their tauri-action step, which carries our linker variable, is not touched. Registered after this review (26.41.13).', ['2641891c', 'd4429f1f', '63472b86', '1e6777ed']],
   'fast-dev-builds|package.json': ['not-applicable', 'Dependency versions only; the start script is not touched. Registered after this review (26.41.13).', ['b66691ba', '1732175a']],
-  'editor-layout-rawmakase|src/App.tsx': ['not-applicable', 'The layout import, the EditorView swap and the side panels it leaves out are ours, added after this review; the editor still stays mounted while hidden, which this does not change.', ['d14887fd', 'b66691ba', 'c4ba9ac9']],
-  'editor-layout-rawmakase|src/components/panel/SettingsPanel.tsx': ['not-applicable', 'The Layout row is placed under the Compact panels row from the existing slot; neither the slot line nor their Font row, which the Compact panels row follows, is what this commit edits. Registered after this review.', ['48a124f5', '2641891c', 'b66691ba', 'f98d68a4', 'c4ba9ac9', '3e186ce2', '290818d5', '66b800f5', 'c7c42306', '9b7e3368', '5c4b7800', '06c52a49']],
 };
 
 // One commit in a group that did more than the rest.
@@ -1031,7 +1027,6 @@ const MERGES_165 = [
     'no-cloud:src/components/panel/SettingsPanel.tsx',
     'object-label:src/components/panel/SettingsPanel.tsx#settings.processing.ai.cpu.feature1',
     'compact-sliders:src/components/panel/SettingsPanel.tsx',
-    'editor-layout-rawmakase:src/components/panel/SettingsPanel.tsx',
   ]],
   ['a1e2dda0', 'Merge of #1767 (367029d7, 7514c8f6, bbe7e986, de8d6ffe, 2f907e36, 4227dcbd, and 6 more)', [
     'import-dialogue-1714:src-tauri/src/app_settings.rs#last_import_settings',
@@ -1441,18 +1436,6 @@ const startingLook165 = [
   review165('f513a4ee', 'raw-starting-look', 'not-applicable', `${MERGES_165.find(([c]) => c === 'f513a4ee')[1]}: export presets. No starting look.`, 'feature'),
 ];
 
-// first-thumbnail, registered after this review too: none of these commits
-// changes generate_single_thumbnail_and_cache, where its one line sits.
-const firstThumbnail165 = [
-  review165('9ba20c02', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['9ba20c02']} In file_management.rs it changes generate_thumbnail_data, not generate_single_thumbnail_and_cache.`),
-  review165('c4ba9ac9', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['c4ba9ac9']} In file_management.rs it changes metadata loading and folder listing, not generate_single_thumbnail_and_cache.`),
-  review165('43248097', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'Shares the embedded-preview fallback of try_load_embedded_raw_preview with the image loader. That is the thumbnail made after the first one, unchanged by it.'),
-  review165('4e45e620', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'Adds rawler\'s embedded preview to try_load_embedded_raw_preview for RAWs kamadak-exif cannot read. That is the thumbnail made after the first one, unchanged by it.'),
-  review165('b191ae05', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'The merge of 4e45e620 and 43248097, read above.'),
-  review165('078c90a8', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['078c90a8']} In file_management.rs it changes generate_thumbnail_data, not generate_single_thumbnail_and_cache.`),
-  review165('aff9b3f2', 'first-thumbnail', 'not-applicable', 'Their culling view uses the medium thumbnail, and canvas polish: which thumbnail a view shows, not how quickly the grid gets one.', 'feature'),
-];
-
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1463,7 +1446,6 @@ export const REVIEW_165_DECISIONS = [
   ...restore165,
   ...dngStandard165,
   ...startingLook165,
-  ...firstThumbnail165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1476,10 +1458,12 @@ export const REVIEW_165_DECISIONS = [
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
 // Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
-// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13), 7 for
-// first-thumbnail, and 31 for editor-layout-rawmakase, registered after it.
-if (REVIEW_165_DECISIONS.length !== 1280) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1280 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13). That is
+// where per-commit review ended (2026-10-18). Entries registered after it, such
+// as first-thumbnail and editor-layout-rawmakase, owe no decisions against this
+// window: their files are read at the next release review.
+if (REVIEW_165_DECISIONS.length !== 1242) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1242 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
@@ -1572,12 +1556,11 @@ export const REVIEWS = [
   },
 ];
 
-/** The commit every upstream change up to which has been reviewed. */
-export const reviewedThrough = () => REVIEWS[REVIEWS.length - 1].through;
+/** Is this a per-release review (the shape used since 2026-10-18)? */
+export const isRelease = (review) => typeof review.release === 'string';
 
-/** The entry being added, and the range it must account for. */
-export const newestRange = () => ({
-  from: REVIEWS.length > 1 ? REVIEWS[REVIEWS.length - 2].through : null,
-  to: reviewedThrough(),
-  entry: REVIEWS[REVIEWS.length - 1],
-});
+/** The upstream commit everything up to which has been reviewed. */
+export const reviewedTo = (reviews = REVIEWS) => {
+  const last = reviews[reviews.length - 1];
+  return isRelease(last) ? last.to : last.through;
+};
