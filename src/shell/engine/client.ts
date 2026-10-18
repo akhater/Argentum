@@ -2,6 +2,8 @@
 // own (src-tauri/engine/src/engine.rs) and every type is the generated
 // contract's, so the real engine and the contract fake are interchangeable.
 
+import { isTauri } from '@tauri-apps/api/core';
+
 import type {
   Applied,
   EditPatch,
@@ -35,28 +37,48 @@ export interface EngineClient {
   view(photo: PhotoId, view: View): Promise<RenderTicket>;
   /**
    * The pixels a `frame` event announced, or null once a newer frame has
-   * replaced it. Not part of the contract types: how pixels cross is decided
-   * when the engine is wired in.
+   * replaced it. Not part of the contract types: inside the app they cross
+   * as bytes (engine/tauri.ts).
    */
   frame(ticket: RenderTicket): Promise<FramePixels | null>;
   /** Frame, histogram and error events. Returns the unsubscribe. */
   subscribe(listener: (event: Event) => void): () => void;
 }
 
+/** Photos on this computer. Only inside the app: a plain browser has the fake's samples. */
+export interface Library {
+  /** The RAWs in a photo's folder, sorted by name. */
+  folder(path: string): Promise<string[]>;
+  /** A file dialog for one RAW, in `from`'s folder; null when closed without one. */
+  pick(from: string | null): Promise<string | null>;
+}
+
+/** What the window has inside the app, beside the engine. */
+export interface AppConnection {
+  /** The photo the app was started with. */
+  first?: string;
+  library: Library;
+  /** Milliseconds from each change sent to its frame's pixels. Returns the unsubscribe. */
+  onTickMs(listener: (ms: number) => void): () => void;
+}
+
 export interface Connection {
   client: EngineClient;
   /** True while the contract fake stands in for the engine. */
   fake: boolean;
-  /** What the filmstrip shows until a library hands the editor its photos. */
+  /** What the filmstrip shows until a photo is opened from a folder. */
   photos: string[];
+  /** Inside the app only. */
+  app?: AppConnection;
 }
 
 /**
- * The engine for this window. It is not wired into the app yet (DEC-29), so
- * for now this is always the contract fake. Once it is, the real client goes
- * here and `?engine=fake` keeps the fake reachable for development.
+ * The engine for this window: the real one inside the app, the contract fake
+ * in a plain browser, or anywhere with `?engine=fake`.
  */
 export async function connectEngine(): Promise<Connection> {
+  const fake = new URLSearchParams(window.location.search).get('engine') === 'fake';
+  if (isTauri() && !fake) return (await import('./tauri')).connectApp();
   const [{ createFakeEngine, FAKE_PHOTOS }, { createWorkerPainter }] = await Promise.all([
     import('./fake'),
     import('./fakePaint'),

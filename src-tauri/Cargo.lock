@@ -7,6 +7,7 @@ name = "Argentum"
 version = "26.41.13"
 dependencies = [
  "anyhow",
+ "argentum-engine",
  "base64 0.23.1",
  "blake3",
  "bytemuck",
@@ -81,6 +82,7 @@ dependencies = [
  "walkdir",
  "webkit2gtk",
  "webp",
+ "webview2-com",
  "wgpu",
  "windows 0.62.2",
 ]
@@ -260,6 +262,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "argentum-engine"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "pollster",
+ "rawler",
+ "rayon",
+ "serde",
+ "serde_json",
+ "ts-rs",
+ "wgpu",
 ]
 
 [[package]]
@@ -7440,6 +7456,29 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "ts-rs"
+version = "10.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e640d9b0964e9d39df633548591090ab92f7a4567bc31d3891af23471a3365c6"
+dependencies = [
+ "lazy_static",
+ "thiserror 2.0.20",
+ "ts-rs-macros",
+]
+
+[[package]]
+name = "ts-rs-macros"
+version = "10.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e9d8656589772eeec2cf7a8264d9cda40fb28b9bc53118ceb9e8c07f8f38730"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "termcolor",
+]
 
 [[package]]
 name = "ttf-parser"

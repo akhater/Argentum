@@ -1,0 +1,50 @@
+{
+  "calls": {
+    "shell_ready": {},
+    "engine_sections": {},
+    "engine_tools": {},
+    "engine_open": {
+      "path": "C:/Photos/2026-10-09/IMG_0001.CR3"
+    },
+    "engine_apply": {
+      "photo": 1,
+      "patch": {
+        "ag_exposure_wb": {
+          "exposure": 0.5,
+          "red": 1.05
+        },
+        "rt_capture_sharpen": {
+          "radius": null
+        }
+      }
+    },
+    "engine_view": {
+      "photo": 1,
+      "view": {
+        "zoom": 0.25,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 1786,
+        "height": 1190
+      }
+    },
+    "engine_frame": {
+      "ticket": 3
+    },
+    "shell_folder": {
+      "path": "C:/Photos/2026-10-09/IMG_0001.CR3"
+    },
+    "shell_pick": {
+      "from": "C:/Photos/2026-10-09/IMG_0001.CR3"
+    }
+  },
+  "frame": {
+    "ticket": 7,
+    "width": 3,
+    "height": 2,
+    "bytes": [
+      7, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170,
+      180, 190, 200, 210, 220, 230
+    ]
+  }
+}

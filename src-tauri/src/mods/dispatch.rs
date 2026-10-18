@@ -27,11 +27,21 @@
 //!
 //! `src/argentum/ag.ts` is the matching wrapper, so callers write
 //! `ag('detect_auto_white_balance', { ... })` and never see the envelope.
+//!
+//! BYTES
+//!
+//! Every answer is JSON except `engine_frame`'s, which carries a frame's
+//! pixels (`engine_frame.rs`): as raw bytes, which Tauri hands to the page as
+//! an ArrayBuffer, or beside the answer in a WebView2 shared buffer.
 
 use crate::app_state::AppState;
 use crate::mods::auto_wb::DetectMode;
 use crate::mods::commands;
-use serde::Deserialize;
+use crate::mods::engine_bridge::bridge;
+use crate::mods::{engine_frame, shell_photos};
+use argentum_engine::contract::{EditPatch, EngineError, ErrorKind, PhotoId, RenderTicket, View};
+use serde::{Deserialize, Serialize};
+use tauri::ipc::Response;
 
 /// Pull one command's arguments out of the bag, or say which command failed.
 fn args_for<T: for<'de> Deserialize<'de>>(
@@ -157,16 +167,126 @@ struct ModelArgs {
     model: String,
 }
 
+#[derive(Deserialize)]
+struct ApplyArgs {
+    photo: PhotoId,
+    patch: EditPatch,
+}
+
+#[derive(Deserialize)]
+struct ViewArgs {
+    photo: PhotoId,
+    view: View,
+}
+
+#[derive(Deserialize)]
+struct TicketArgs {
+    ticket: RenderTicket,
+}
+
+/// The folder a file dialog opens in: the open photo's, when there is one.
+#[derive(Deserialize)]
+struct PickArgs {
+    #[serde(default)]
+    from: Option<String>,
+}
+
+/// What a refused call answers: for the engine's calls, the engine's own
+/// error as the contract writes it (`{ kind, message }`); for the rest, a
+/// message, as before.
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum Refusal {
+    Engine(EngineError),
+    Message(String),
+}
+
+impl From<String> for Refusal {
+    fn from(message: String) -> Self {
+        Refusal::Message(message)
+    }
+}
+
+impl From<argentum_engine::Error> for Refusal {
+    fn from(e: argentum_engine::Error) -> Self {
+        Refusal::Engine(e.to_contract())
+    }
+}
+
+/// A fault on this side of an engine call - arguments that do not parse, a
+/// task that did not finish - in the engine's own terms.
+fn internal(message: impl ToString) -> Refusal {
+    Refusal::Engine(EngineError {
+        kind: ErrorKind::Internal,
+        message: message.to_string(),
+    })
+}
+
 /// Every Argentum command, behind one registration.
 ///
-/// Returns JSON rather than a typed value because the arms return different
+/// Answers JSON rather than a typed value because the arms return different
 /// shapes; the wrapper on the frontend restores the type at the call site.
+/// A frame's pixels are the one answer that is not JSON.
 #[tauri::command]
 pub async fn ag(
     name: String,
     args: serde_json::Value,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Response, Refusal> {
+    let value = match name.as_str() {
+        "engine_frame" => {
+            let a: TicketArgs = args_for(&name, args).map_err(internal)?;
+            let frame = bridge(&app_handle)?.frame(a.ticket);
+            return Ok(engine_frame::deliver(&window, frame).await.into_response());
+        }
+        engine if engine.starts_with("engine_") => engine_call(engine, args, &app_handle).await?,
+        _ => json(name, args, state, app_handle, window).await?,
+    };
+    Ok(Response::new(value.to_string()))
+}
+
+/// The new interface's engine (engine_bridge.rs). Each answer is the engine's
+/// own and each refusal its EngineError, passed through as the contract
+/// writes them.
+async fn engine_call(
+    name: &str,
+    args: serde_json::Value,
+    app_handle: &tauri::AppHandle,
+) -> Result<serde_json::Value, Refusal> {
+    let photos = bridge(app_handle)?;
+    let engine = photos.engine();
+    let value = match name {
+        "engine_sections" => serde_json::to_value(engine.sections()),
+        "engine_tools" => serde_json::to_value(engine.tools()),
+        "engine_open" => {
+            let a: PathArgs = args_for(name, args).map_err(internal)?;
+            let path = std::path::PathBuf::from(a.path);
+            let opened = tokio::task::spawn_blocking(move || photos.open(&path))
+                .await
+                .map_err(internal)??;
+            serde_json::to_value(opened)
+        }
+        "engine_apply" => {
+            let a: ApplyArgs = args_for(name, args).map_err(internal)?;
+            serde_json::to_value(engine.apply(a.photo, &a.patch)?)
+        }
+        "engine_view" => {
+            let a: ViewArgs = args_for(name, args).map_err(internal)?;
+            serde_json::to_value(engine.view(a.photo, a.view)?)
+        }
+        other => return Err(internal(format!("unknown Argentum command: {other}"))),
+    };
+    value.map_err(internal)
+}
+
+async fn json(
+    name: String,
+    args: serde_json::Value,
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    window: tauri::WebviewWindow,
 ) -> Result<serde_json::Value, String> {
     match name.as_str() {
         "detect_auto_white_balance" => {
@@ -332,6 +452,31 @@ pub async fn ag(
             crate::mods::wb_legacy::save_in_turn(fresh, app_handle);
             serde_json::to_value(found).map_err(|e| e.to_string())
         }
+        // The new interface, inside the app: see shell_photos.rs.
+        "shell_ready" => {
+            // The window is built hidden and today's interface shows it; the
+            // new one has no window buttons of its own, so it gets the system's.
+            window.show().map_err(|e| e.to_string())?;
+            let _ = window.set_decorations(true);
+            let _ = window.set_focus();
+            serde_json::to_value(shell_photos::launched_with(std::env::args().skip(1)))
+                .map_err(|e| e.to_string())
+        }
+        "shell_folder" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let r = tokio::task::spawn_blocking(move || {
+                shell_photos::folder(std::path::Path::new(&a.path))
+            })
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "shell_pick" => {
+            let a: PickArgs = args_for(&name, args)?;
+            serde_json::to_value(shell_photos::pick(&app_handle, a.from).await)
+                .map_err(|e| e.to_string())
+        }
         other => Err(format!("unknown Argentum command: {other}")),
     }
 }
@@ -355,6 +500,94 @@ mod tests {
         let v = serde_json::json!({ "jsAdjustments": {}, "mode": "surfaces" });
         let a: AutoWbArgs = args_for("test", v).expect("should parse");
         assert_eq!(a.mode, DetectMode::Surfaces);
+    }
+
+    /// Every call the new interface makes, with the arguments its client sends
+    /// (src/shell/engine/wire.fixtures.json, whose own test checks the client
+    /// sends exactly these).
+    #[test]
+    fn the_shells_calls_deserialise_as_its_client_sends_them() {
+        let wire: serde_json::Value =
+            serde_json::from_str(include_str!("../../../src/shell/engine/wire.fixtures.json"))
+                .unwrap();
+        let calls = wire["calls"].as_object().unwrap();
+        assert!(calls.len() >= 8);
+        for (name, args) in calls {
+            let args = args.clone();
+            match name.as_str() {
+                "engine_sections" | "engine_tools" | "shell_ready" => {
+                    assert_eq!(args, serde_json::json!({}))
+                }
+                "engine_open" | "shell_folder" => {
+                    args_for::<PathArgs>(name, args).unwrap();
+                }
+                "engine_apply" => {
+                    let a: ApplyArgs = args_for(name, args).unwrap();
+                    assert_eq!(a.photo, PhotoId(1));
+                    // null puts a setting back to its default.
+                    assert!(
+                        a.patch
+                            .0
+                            .values()
+                            .flat_map(|t| t.values())
+                            .any(|v| v.is_null())
+                    );
+                }
+                "engine_view" => {
+                    let a: ViewArgs = args_for(name, args).unwrap();
+                    assert!(a.view.zoom > 0.0 && a.view.width > 0);
+                }
+                "engine_frame" => {
+                    args_for::<TicketArgs>(name, args).unwrap();
+                }
+                "shell_pick" => {
+                    assert!(args_for::<PickArgs>(name, args).unwrap().from.is_some());
+                    let none: PickArgs = args_for(name, serde_json::json!({})).unwrap();
+                    assert!(none.from.is_none());
+                }
+                other => panic!("{other}: the dispatcher has no arguments for it"),
+            }
+        }
+    }
+
+    /// Today's commands still answer a refusal with a bare message.
+    #[test]
+    fn a_message_refusal_is_a_plain_string() {
+        let r = Refusal::from("no such photo".to_string());
+        assert_eq!(
+            serde_json::to_value(r).unwrap(),
+            serde_json::json!("no such photo")
+        );
+        let r = internal("engine_view: bad arguments");
+        assert_eq!(
+            serde_json::to_value(r).unwrap(),
+            serde_json::json!({ "kind": "internal", "message": "engine_view: bad arguments" })
+        );
+    }
+
+    /// The engine's refusals reach the interface exactly as the contract
+    /// fixtures write them: what the fake refuses, the app refuses alike.
+    #[test]
+    fn engine_refusals_answer_as_the_contract_fixtures() {
+        let Some(path) = std::env::var("AG_RAW")
+            .ok()
+            .filter(|p| !p.trim().is_empty())
+        else {
+            eprintln!("engine_refusals_answer_as_the_contract_fixtures: SKIPPED - set AG_RAW");
+            return;
+        };
+        let fixtures: serde_json::Value =
+            serde_json::from_str(include_str!("../../../src/shell/contract.fixtures.json"))
+                .unwrap();
+        let engine = argentum_engine::Engine::new(|_| {}).unwrap();
+        let photo = engine.open(&path).unwrap().photo_id;
+        let refused = fixtures["refused"].as_array().unwrap();
+        assert!(!refused.is_empty());
+        for case in refused {
+            let patch: EditPatch = serde_json::from_value(case["patch"].clone()).unwrap();
+            let refusal = Refusal::from(engine.apply(photo, &patch).unwrap_err());
+            assert_eq!(serde_json::to_value(refusal).unwrap(), case["error"]);
+        }
     }
 
     /// A malformed bag names the command, so the error says which call broke.

@@ -12,6 +12,7 @@
     "test:checks": "node scripts/test-upstream-checks.mjs && node scripts/test-upstream-e2e.mjs",
     "test:shell": "vitest run src/shell",
     "start:tethering": "node scripts/check-identity.mjs && tauri dev -- --features tethering",
+    "start:shell": "node scripts/check-identity.mjs && node scripts/start-shell.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

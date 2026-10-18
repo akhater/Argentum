@@ -1,0 +1,21 @@
+/* The top bar's controls inside the app (AppBar.tsx), in the shell's own greys. */
+
+.ags .ags-app-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 5px;
+  color: var(--ags-secondary);
+}
+.ags .ags-app-open:hover {
+  color: var(--ags-text);
+  background: var(--ags-hover);
+}
+.ags-app-note {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ags-dim);
+  font-variant-numeric: tabular-nums;
+}

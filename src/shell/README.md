@@ -24,8 +24,9 @@ joins it when a tool declares one.
 - **Latest wins, and only the photo shown.** A frame or histogram for another
   photo, or for an older ticket than one already seen, is dropped, and so are
   pixels that arrive after a newer frame.
-- **The engine only through the client.** `engine/client.ts` is the one door.
-  Until the engine is wired into the app, the door opens on `engine/fake.ts`.
+- **The engine only through the client.** `engine/client.ts` is the one door:
+  inside the app it opens on the real engine (`engine/tauri.ts`); in a plain
+  browser, in tests or with `?engine=fake`, on `engine/fake.ts`.
 
 ## Layout of the folder
 
@@ -44,6 +45,8 @@ joins it when a tool declares one.
 | `engine/client.ts`      | `EngineClient`: tools, open, apply, view, frame pixels, events                        |
 | `engine/fake.ts`        | The contract fake: the engine's descriptors from the fixtures, its rules for patches  |
 | `engine/fakePaint*.ts`  | The fake's pixels, painted in a worker                                                |
+| `engine/tauri.ts`       | The real client, inside the app: `ag` calls, the `ag-engine` event, frame blocks      |
+| `engine/AppBar.tsx`     | Inside the app: Open, the photo it was started with, "not saved yet", tick time       |
 | `panels/model.ts`       | Descriptors to sections; value formatting                                             |
 | `panels/PanelStack.tsx` | Sections, tool blocks and setting rows, from descriptors                              |
 | `widgets/`              | `WIDGETS`, one per kind: `Slider` (float, int), `Toggle` (bool), `Choice` (choice)    |
@@ -96,9 +99,15 @@ Adding a widget kind (a curve, a colour) is one component and one entry in
 ## Running it
 
 ```bash
+npm run start:shell  # the app, straight into the shell, on the real engine
+npm run start:shell -- C:\photos\IMG_0001.CR3   # the same, opening that RAW
 npm run dev          # Vite, then open http://localhost:1420/?shell=new
 npm run test:shell   # the shell's tests
 ```
+
+Inside the app the shell edits in memory only: nothing is saved, and
+`.agdata` files are never read or written. `npm run tauri dev` starts
+today's interface as before.
 
 In a plain browser the shell runs on the contract fake. Today's app needs
 Tauri, so it does not load there; the switch keeps the two apart.
