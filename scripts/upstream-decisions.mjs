@@ -1351,6 +1351,17 @@ const restore165 = [
   review165('b4a9d1a3', 'restore', 'not-applicable', 'Hides chromatic aberration and calibration by default. Their chromatic aberration is the lens-correction TCA slider: it moves colour channels, it does not undo blur. Nothing upstream corrects lens softness.', 'feature'),
 ];
 
+// Browse, registered after the merge: the thumbnail commits in this range are
+// where the code it copies came from, and the one touching its dependency
+// leaves that function alone.
+const browse165 = [
+  review165('4e45e620', 'browse', 'not-applicable', 'Adds extract_embedded_preview, rawler\'s embedded preview for RAWs kamadak-exif cannot read. Browse copied it from v1.6.5, after this commit, as its fallback (rr_full_image); it reads CR3 and RAF previews itself first and takes orientation from the container, not from rawler, which copies the whole file into memory.', 'feature'),
+  review165('43248097', 'browse', 'not-applicable', 'Routes their thumbnail fallback through safe_embedded_preview_fallback. Browse copied largest_tiff_jpeg_preview as it stands after this commit; its thumbnails do not go through their loader.', 'feature'),
+  review165('b191ae05', 'browse', 'not-applicable', 'The merge of 4e45e620 and 43248097 (RAF embedded thumbnails), read above.', 'feature'),
+  review165('aff9b3f2', 'browse', 'not-applicable', 'Their culling view uses the medium thumbnail, and canvas polish. Their library, not Browse.', 'feature'),
+  review165('c11c7a5c', 'browse:src-tauri/src/exif_processing.rs#get_primary_sidecar_path', 'not-applicable', 'Reads a Nikon lens from the maker note; get_primary_sidecar_path is not touched, so where a sidecar is looked for does not change.'),
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1359,6 +1370,7 @@ export const REVIEW_165_DECISIONS = [
   ...hints165,
   ...sharpening165,
   ...restore165,
+  ...browse165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1369,10 +1381,10 @@ export const REVIEW_165_DECISIONS = [
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
-// sharpening, 11 of them for a mask's own Sharpen (26.41.11), and 19 for
-// Restore, 6 of them for capture before an enlargement.
-if (REVIEW_165_DECISIONS.length !== 1164) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1164 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
+// Restore, 6 of them for capture before an enlargement, and 5 for Browse.
+if (REVIEW_165_DECISIONS.length !== 1169) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1169 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
