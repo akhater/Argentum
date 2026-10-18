@@ -131,10 +131,11 @@ export const CREDITS: CreditGroup[] = [
         name: 'RAWmakase',
         href: 'https://github.com/pch/rawmakase',
         what:
-          'The layout of Argentum’s new editor interface follows RAWmakase 0.3’s Develop view: ' +
-          'the slim tool rail, the panel stack with histogram and navigator on top, the toolbar ' +
-          'under the photo, the filmstrip, and the Presets, Snapshots and History tabs. Layout ' +
-          'and sizes only; the code is Argentum’s. MIT licence.',
+          'The RAWmakase layout of the editor (Settings > General > Layout) follows RAWmakase ' +
+          '0.3’s Develop view: the slim tool rail, the adjustments with the Navigator and ' +
+          'Histogram on top, the Presets and History tabs beside them, the toolbar under the ' +
+          'photo and the filmstrip along the bottom. Layout and sizes only, built from ' +
+          'Argentum’s own panels; the code is Argentum’s. MIT licence.',
       },
     ],
   },
