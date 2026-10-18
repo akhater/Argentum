@@ -149,6 +149,24 @@ against the 1.6.5 review.
   `side_tabs.rs`, `toolbar.rs`, `widgets.rs`, `theme.rs` and
   `library/filmstrip.rs`: layout, sizes and greys, no code. Tests with
   Vitest: `npm run test:shell`.
+- **RapidRAW is reviewed once per release, and `check:merge` takes a second.**
+  The checks follow Argentum's move to an architecture of its own
+  (`docs/ARCHITECTURE.md`).
+  - `npm run review:upstream` prints the review of their newest release since
+    the last one reviewed: their shader diff first, their render-path changes
+    to read, their changes to files our registry entries depend on, and one
+    line per feature (from their pull requests) to give a verdict - take, copy,
+    skip or decide - with the register entry to paste. Every commit of the
+    release must be in a feature, a render-path change is never "take", and the
+    list of their files still used when previewing, exporting or masking
+    (`stillLive`) may not grow. The per-commit decisions recorded up to 1.6.5
+    stay as history.
+  - The render path - `gpu_processing.rs`, `lib.rs`, `image_processing.rs` - is
+    ours to change: no line budget, no anchor count.
+  - A ratchet replaces the line budgets: our lines in each other file of
+    theirs are recorded in `scripts/upstream-ratchet.json` and may only go
+    down.
+  - One git process per question instead of about 390: 45-76 s to about 1 s.
 
 ## 26.41.12 — 2026-10-11
 

@@ -46,7 +46,7 @@
 //
 // Until 2026-10-18 the review was per commit: every upstream commit that touched
 // a file a registry entry depends on needed its own decision. The last such
-// review, RapidRAW 1.6.5, carried 1,242 of them, 84% "not-applicable". Those
+// review, RapidRAW 1.6.5, carried 1,249 of them, 84% "not-applicable". Those
 // entries stay below as history. Their decisions are still checked for shape
 // (a verdict from VERDICTS and a reason), and no new per-commit overlaps are
 // derived: re-deriving an old window against today's registry would invent
