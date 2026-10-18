@@ -4,7 +4,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 
 use rawler::decoders::RawDecodeParams;
-use rawler::rawimage::RawImage;
+use rawler::rawimage::{RawImage, RawImageData};
 use rawler::rawsource::RawSource;
 
 use crate::{Error, Result, develop};
@@ -44,5 +44,13 @@ impl Source {
     /// developing it.
     pub fn size_px(&self) -> (usize, usize) {
         develop::developed_size_px(&self.raw)
+    }
+
+    /// The decoded sensor data's size in memory, in bytes.
+    pub fn bytes(&self) -> usize {
+        match &self.raw.data {
+            RawImageData::Integer(v) => std::mem::size_of_val(v.as_slice()),
+            RawImageData::Float(v) => std::mem::size_of_val(v.as_slice()),
+        }
     }
 }
