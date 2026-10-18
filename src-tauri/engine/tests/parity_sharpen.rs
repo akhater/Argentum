@@ -14,6 +14,7 @@ mod common;
 
 use std::sync::Arc;
 
+use argentum_engine::tools::ag_dng_standard::{self, AgDngStandard};
 use argentum_engine::tools::rt_capture_sharpen::{self, RtCaptureSharpen};
 use argentum_engine::{Context, Gpu, GpuSlot, Image, Pipeline, Rgb, Size, Source, Tool};
 use argentum_engine_reference::image_processing::GpuContext;
@@ -21,11 +22,19 @@ use argentum_engine_reference::sharpen as today;
 use argentum_engine_reference::sharpen_gpu as today_gpu;
 use half::f16;
 
-/// The developed picture, before any sharpening, as the tool receives it.
+/// The developed picture, before any sharpening, as the tool receives it:
+/// the tools after it at the photo's own defaults, which change nothing, and
+/// DNG Standard off.
 fn developed(source: &Source) -> Rgb {
     let mut p = Pipeline::standard().unwrap();
+    p.set_edit(&p.registry().defaults_for(source)).unwrap();
     p.set::<RtCaptureSharpen>(rt_capture_sharpen::Settings {
         capture: false,
+        ..Default::default()
+    })
+    .unwrap();
+    p.set::<AgDngStandard>(ag_dng_standard::Settings {
+        enabled: false,
         ..Default::default()
     })
     .unwrap();

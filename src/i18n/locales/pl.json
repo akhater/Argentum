@@ -132,7 +132,7 @@
       "roughness": "Szorstkość",
       "roundness": "Zaokrąglenie",
       "size": "Rozmiar",
-      "vignette": "Winieta"
+      "vignette": "Winieta po kadrowaniu"
     }
   },
   "contextMenus": {
@@ -1315,7 +1315,7 @@
         "sharpness": "Ostrość",
         "tone": "Tony",
         "transformRotation": "Przekształcanie i Obrót",
-        "vignette": "Winieta",
+        "vignette": "Winieta po kadrowaniu",
         "whiteBalance": "Balans bieli"
       },
       "includedAdjustments": "Uwzględnione ustawienia",

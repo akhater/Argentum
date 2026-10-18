@@ -83,9 +83,16 @@ interface EditorProps {
   onContextMenu(event: any): void;
   onImageSelect?(path: string, event?: any): void;
   transformWrapperRef: any;
+  toolbarBelow?: boolean;
 }
 
-export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, transformWrapperRef }: EditorProps) {
+export default function Editor({
+  onBackToLibrary,
+  onContextMenu,
+  onImageSelect,
+  transformWrapperRef,
+  toolbarBelow = false,
+}: EditorProps) {
   const appSettings = useSettingsStore((s) => s.appSettings);
   const osPlatform = useSettingsStore((s) => s.osPlatform);
   const isFullScreen = useUIStore((s) => s.isFullScreen);
@@ -2279,6 +2286,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
       <div
         className={clsx(
           'shrink-0 relative z-10',
+          toolbarBelow && 'order-last',
           !isInstantTransition && 'transition-all duration-300 ease-in-out',
           isFullScreen ? 'max-h-0 opacity-0 m-0' : 'max-h-25 opacity-100',
           toolbarOverflowVisible ? 'overflow-visible' : 'overflow-hidden',
@@ -2302,6 +2310,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
           adjustmentsHistory={adjustmentsHistory}
           adjustmentsHistoryIndex={adjustmentsHistoryIndex}
           goToAdjustmentsHistoryIndex={goToHistoryIndex}
+          opensUpward={toolbarBelow}
         />
       </div>
 

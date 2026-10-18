@@ -52,19 +52,19 @@ fn edit_is_the_photos_edit_with_every_accepted_patch() {
     engine
         .apply(
             opened.photo_id,
-            &patch(serde_json::json!({ "ag_exposure_wb": { "exposure": 0.5 } })),
+            &patch(serde_json::json!({ "ag_exposure": { "exposure_ev": 0.5 } })),
         )
         .unwrap();
     assert!(
         engine
             .apply(
                 opened.photo_id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "nope": 1 } }))
+                &patch(serde_json::json!({ "ag_exposure": { "nope": 1 } }))
             )
             .is_err()
     );
     let edit = engine.edit(opened.photo_id).unwrap();
-    assert_eq!(edit.tools["ag_exposure_wb"].settings["exposure"], 0.5);
+    assert_eq!(edit.tools["ag_exposure"].settings["exposure_ev"], 0.5);
 }
 
 #[test]
@@ -79,11 +79,11 @@ fn a_closed_photo_is_gone_and_hands_back_its_edit() {
     engine
         .apply(
             opened.photo_id,
-            &patch(serde_json::json!({ "ag_exposure_wb": { "exposure": 1.0 } })),
+            &patch(serde_json::json!({ "ag_exposure": { "exposure_ev": 1.0 } })),
         )
         .unwrap();
     let kept = engine.close(opened.photo_id).unwrap();
-    assert_eq!(kept.tools["ag_exposure_wb"].settings["exposure"], 1.0);
+    assert_eq!(kept.tools["ag_exposure"].settings["exposure_ev"], 1.0);
 
     assert!(matches!(
         engine.edit(opened.photo_id),
@@ -105,10 +105,15 @@ fn a_closed_photo_is_gone_and_hands_back_its_edit() {
 
 #[test]
 fn reopened_with_its_edit_it_renders_the_same() {
+    // Frames are cut and encoded by the pixel pass, on the GPU.
+    if common::gpu("reopened_with_its_edit_it_renders_the_same").is_none() {
+        return;
+    }
     let (engine, rx) = engine();
     let first = engine.insert(common::source(256, 192));
     let changes = patch(serde_json::json!({
-        "ag_exposure_wb": { "exposure": 0.7, "red": 1.2 },
+        "ag_exposure": { "exposure_ev": 0.7 },
+        "rr_white_balance": { "temperature_k": 4800, "tint": 12 },
         "rt_capture_sharpen": { "capture": false }
     }));
     engine.apply(first.photo_id, &changes).unwrap();
@@ -126,7 +131,7 @@ fn reopened_with_its_edit_it_renders_the_same() {
 fn an_edit_that_cannot_be_read_opens_nothing() {
     let (engine, _rx) = engine();
     let mut edit = Pipeline::standard().unwrap().edit();
-    edit.tools.get_mut("ag_exposure_wb").unwrap().v = 99;
+    edit.tools.get_mut("ag_exposure").unwrap().v = 99;
     assert!(matches!(
         engine.insert_with(common::source(64, 48), &edit),
         Err(Error::BadEdit(_))

@@ -1,14 +1,13 @@
 //! A rendered view: what part of the photo it shows, where it sits in the
 //! view, its sRGB pixels and its histogram, and the block it crosses to the
-//! interface as.
-
-use std::sync::OnceLock;
+//! interface as. The pixels themselves come from the pixel pass
+//! (`src/pixels/`), which reads the columns and rows picked here.
 
 use rayon::prelude::*;
 
+use crate::Size;
 use crate::contract::{FRAME_HEADER_BYTES, HISTOGRAM_BINS, Placement, RenderTicket, View};
 use crate::develop::fit_px;
-use crate::{Rgb, Size};
 
 /// One rendered view: sRGB, 8 bits per channel, RGBA, row-major,
 /// `placement.width_px` x `placement.height_px`.
@@ -119,56 +118,35 @@ pub fn placement(view: &View, photo_width_px: u32, photo_height_px: u32) -> Plac
     layout(view, (photo_width_px, photo_height_px)).placement
 }
 
-/// The view's part of `rgb`, encoded for the screen.
-pub(crate) fn cut(rgb: &Rgb, layout: &Layout, ticket: RenderTicket) -> Frame {
-    let Placement {
-        width_px,
-        height_px,
-        ..
-    } = layout.placement;
-    let per_screen = layout.per_screen;
-    let sample = |o: u32, origin: f64, size: usize| {
-        ((origin + (o as f64 + 0.5) * per_screen) as usize).min(size - 1)
-    };
-    let rgba: Vec<u8> = (0..height_px)
-        .into_par_iter()
-        .flat_map_iter(|oy| {
-            let sy = sample(oy, layout.y0, rgb.height);
-            (0..width_px).flat_map(move |ox| {
-                let p = rgb.pixels[sy * rgb.width + sample(ox, layout.x0, rgb.width)];
-                [encode(p[0]), encode(p[1]), encode(p[2]), 255]
-            })
-        })
-        .collect();
-    Frame {
-        ticket,
-        placement: layout.placement,
-        rgba,
+impl Layout {
+    /// For each column of the frame, the column of a render `render_width`
+    /// pixels wide it shows: the cut, and past 100% each render pixel
+    /// repeated. The pixel pass reads these.
+    pub(crate) fn columns(&self, render_width: usize) -> Vec<u32> {
+        picks(
+            self.placement.width_px,
+            self.x0,
+            self.per_screen,
+            render_width,
+        )
+    }
+
+    /// The same for each row.
+    pub(crate) fn rows(&self, render_height: usize) -> Vec<u32> {
+        picks(
+            self.placement.height_px,
+            self.y0,
+            self.per_screen,
+            render_height,
+        )
     }
 }
 
-/// Linear light to an 8-bit sRGB value, clipped at white. A plain display
-/// encode until display tools take over.
-///
-/// From a table of 65536 steps rather than a `powf` per channel, which was
-/// most of a slider tick: a step is at most a twentieth of an output level,
-/// in the shadows where the curve is steepest.
-fn encode(v: f32) -> u8 {
-    static TABLE: OnceLock<Vec<u8>> = OnceLock::new();
-    let table = TABLE.get_or_init(|| {
-        (0..=u16::MAX)
-            .map(|i| {
-                let v = i as f32 / u16::MAX as f32;
-                let s = if v <= 0.003_130_8 {
-                    v * 12.92
-                } else {
-                    1.055 * v.powf(1.0 / 2.4) - 0.055
-                };
-                (s * 255.0).round() as u8
-            })
-            .collect()
-    });
-    table[(v.clamp(0.0, 1.0) * u16::MAX as f32).round() as usize]
+/// The render pixel under the middle of each of `frame_px` frame pixels.
+fn picks(frame_px: u32, origin: f64, per_screen: f64, render_px: usize) -> Vec<u32> {
+    (0..frame_px)
+        .map(|o| ((origin + (o as f64 + 0.5) * per_screen) as usize).min(render_px - 1) as u32)
+        .collect()
 }
 
 /// `HISTOGRAM_BINS` bins of the frame's luminance (Rec. 709 weights on the
@@ -180,7 +158,7 @@ pub(crate) fn histogram(frame: &Frame) -> Vec<u32> {
         .fold(
             || vec![0u32; HISTOGRAM_BINS],
             |mut bins, p| {
-                let y = 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32;
+                let y = crate::colour::luma([p[0], p[1], p[2]].map(f32::from));
                 bins[(y.round() as usize).min(HISTOGRAM_BINS - 1)] += 1;
                 bins
             },
@@ -210,19 +188,6 @@ pub(crate) fn fitted(size_px: (u32, u32), max_w_px: u32, max_h_px: u32) -> View 
 mod tests {
     use super::*;
 
-    fn picture(w: usize, h: usize) -> Rgb {
-        Rgb::new(
-            w,
-            h,
-            (0..w * h)
-                .map(|i| {
-                    let v = (i % w) as f32 / w as f32;
-                    [v, v, v]
-                })
-                .collect(),
-        )
-    }
-
     fn view(zoom: f32, center: (f32, f32), size: (u32, u32)) -> View {
         View {
             zoom,
@@ -236,12 +201,10 @@ mod tests {
     #[test]
     fn below_100_percent_the_view_is_a_cut_of_the_render() {
         // A 800 x 600 photo at 50% is a 400 x 300 render.
-        let rgb = picture(400, 300);
         let layout = layout(&view(0.5, (0.5, 0.5), (100, 50)), (800, 600));
         assert_eq!(layout.size, Size::Fit(400, 300));
-        let f = cut(&rgb, &layout, RenderTicket(1));
         assert_eq!(
-            f.placement,
+            layout.placement,
             Placement {
                 x_px: 0,
                 y_px: 0,
@@ -250,29 +213,28 @@ mod tests {
             }
         );
         // The middle of the render, pixel for pixel.
-        assert_eq!(f.rgba[0], encode(150.0 / 400.0));
+        assert_eq!(layout.columns(400), (150..250).collect::<Vec<u32>>());
+        assert_eq!(layout.rows(300), (125..175).collect::<Vec<u32>>());
     }
 
     #[test]
     fn past_100_percent_pixels_repeat() {
-        let rgb = picture(400, 300);
         let layout = layout(&view(4.0, (0.0, 0.0), (40, 40)), (400, 300));
-        let f = cut(&rgb, &layout, RenderTicket(1));
-        assert_eq!((f.placement.width_px, f.placement.height_px), (40, 40));
+        assert_eq!(
+            (layout.placement.width_px, layout.placement.height_px),
+            (40, 40)
+        );
         // Held at the corner, ten render pixels across, each four wide.
-        assert_eq!(f.rgba[0], f.rgba[3 * 4]);
-        assert_ne!(f.rgba[0], f.rgba[4 * 4]);
+        let columns = layout.columns(400);
+        assert_eq!(columns[..8], [0, 0, 0, 0, 1, 1, 1, 1]);
+        assert_eq!(columns[39], 9);
     }
 
     #[test]
     fn a_photo_smaller_than_the_view_is_centred_in_it() {
-        let f = cut(
-            &picture(40, 30),
-            &layout(&view(1.0, (0.5, 0.5), (800, 600)), (40, 30)),
-            RenderTicket(1),
-        );
+        let layout = layout(&view(1.0, (0.5, 0.5), (800, 600)), (40, 30));
         assert_eq!(
-            f.placement,
+            layout.placement,
             Placement {
                 x_px: 380,
                 y_px: 285,
@@ -280,7 +242,24 @@ mod tests {
                 height_px: 30
             }
         );
-        assert_eq!(histogram(&f).iter().sum::<u32>(), 1200);
+        assert_eq!(layout.columns(40), (0..40).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn the_histogram_counts_every_pixel_by_its_luminance() {
+        let f = Frame {
+            ticket: RenderTicket(1),
+            placement: Placement {
+                x_px: 0,
+                y_px: 0,
+                width_px: 3,
+                height_px: 1,
+            },
+            rgba: vec![0, 0, 0, 255, 255, 255, 255, 255, 118, 118, 118, 255],
+        };
+        let bins = histogram(&f);
+        assert_eq!(bins.iter().sum::<u32>(), 3);
+        assert_eq!((bins[0], bins[118], bins[255]), (1, 1, 1));
     }
 
     #[test]
@@ -316,28 +295,5 @@ mod tests {
         assert_eq!(&block[4..8], &2u32.to_le_bytes());
         assert_eq!(&block[8..12], &1u32.to_le_bytes());
         assert_eq!(&block[12..], &frame.rgba[..]);
-    }
-
-    #[test]
-    fn the_encode_is_srgb() {
-        assert_eq!(encode(0.0), 0);
-        assert_eq!(encode(1.0), 255);
-        assert_eq!(encode(4.0), 255);
-        assert_eq!(encode(0.18), 118);
-        // The table against the formula, across the range.
-        for i in 0..=200_000 {
-            let v = i as f32 / 200_000.0;
-            let s = if v <= 0.003_130_8 {
-                v * 12.92
-            } else {
-                1.055 * v.powf(1.0 / 2.4) - 0.055
-            };
-            let exact = s * 255.0;
-            assert!(
-                (encode(v) as f32 - exact).abs() <= 0.55,
-                "{v}: {} vs {exact}",
-                encode(v)
-            );
-        }
     }
 }

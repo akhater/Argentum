@@ -25,17 +25,12 @@
  *
  * Rebrand lines (`.agdata`, "Argentum" inside their own sentences) are counted
  * separately and ignored here: they happened once and do not grow.
+ *
+ * The render path and today's interface (RENDER_PATH and INTERFACE in
+ * upstream-registry.mjs) are ours to change and have no anchor count. An entry
+ * for one of those files carries only `requires`.
  */
 export const ANCHORS = [
-  {
-    file: 'src-tauri/src/lib.rs',
-    hooks: 5,
-    what:
-      '`mod mods`, the cache-version check, the single `ag` command, the display '
-      + 'conversion for the screen the window is on, and the refresh when the window '
-      + 'moves to another screen',
-    instead: 'add a match arm to mods/dispatch.rs — commands cost nothing here',
-  },
   {
     file: 'src-tauri/src/file_management.rs',
     hooks: 1,
@@ -70,24 +65,10 @@ export const ANCHORS = [
     instead: 'add a step to mods/decode.rs',
   },
   {
-    // One import, and it has to stay one. Everything the export render does
-    // differently is reachable from the Precision value it carries: the storage
-    // format, the shader text, the pipeline constant that silences the dither,
-    // the bytes per pixel of the readback. A second hook here would mean some of
-    // that decision had been written into their file instead of ours.
+    // The render path (RENDER_PATH in upstream-registry.mjs) is ours to change,
+    // so this file has no hook count. The wiring check stays: it is what notices
+    // a change that silently stops sharpening from reaching their passes.
     file: 'src-tauri/src/gpu_processing.rs',
-    // Two since 2026-10-10, by AK's decision (DEC in the brain): the input
-    // stage. Precision decides how a render is *stored*; it was never the
-    // place for whole-image passes on the input, and routing sharpening
-    // through it would have hidden a second feature behind the first one's
-    // name. Every later multi-pass tool goes inside mods/input_stage.rs.
-    hooks: 2,
-    what:
-      'the import of Precision, which the processor carries and reads from; and the input stage, '
-      + 'one call to mods::input_stage::run before their passes',
-    instead:
-      'a storage decision goes in mods/export_precision.rs; a whole-image pass on the input goes '
-      + 'inside mods/input_stage.rs',
     requires: [
       {
         // The use of the result mentions nothing of ours, so a merge that
@@ -124,12 +105,6 @@ export const ANCHORS = [
         why: 'the export has to go through ours or a TIFF silently loses its metadata again',
       },
     ],
-  },
-  {
-    file: 'src-tauri/src/image_processing.rs',
-    hooks: 4,
-    what: 'the CPU preview encode interception, and the clipping view mode',
-    instead: 'change mods/preview_encode.rs, or mods/clipping.rs',
   },
   {
     // One import, as in export_processing.rs. Their two shape masks each hand
@@ -181,49 +156,17 @@ export const ANCHORS = [
     ],
   },
   {
-    file: 'src/App.tsx',
-    hooks: 2,
-    what: 'the single <Argentum /> mount',
-    instead: 'add a portal in src/argentum/Argentum.tsx',
-  },
-  // UI markers. One per panel, never one per feature: everything Argentum shows
-  // in that panel portals into the same marker.
-  {
-    file: 'src/components/panel/right/MetadataPanel.tsx',
-    hooks: 1,
-    what: 'the data-argentum="camera-details" marker',
-    instead: 'portal into [data-argentum="camera-details"] from Argentum.tsx',
-  },
-  {
-    // Two, and two is the ceiling: a panel has an inline slot (in a heading
-    // row, for buttons) and a block slot (below the controls, for a section).
-    // Those are positions, not features — every Argentum colour control mounts
-    // into one of them. A third would mean a feature bought its own, which is
-    // the growth this whole file exists to prevent.
-    file: 'src/components/adjustments/Color.tsx',
-    hooks: 2,
-    what: 'the color-tools (inline) and camera-profile (block) markers',
-    instead: 'portal into one of the two existing markers from Argentum.tsx',
-  },
-  {
-    // One marker, and their file renders it only while TIFF is the chosen
-    // format — so the control appears and disappears without Argentum reading
-    // any state of theirs, and without a second hook to tell it when to show.
-    // Upstream's own version of this feature (#1466) instead puts the setting on
-    // ExportSettings and threads it through six of their files; this is the same
-    // feature for one line.
-    file: 'src/components/panel/right/ExportPanel.tsx',
-    hooks: 2,
-    // Counting the hooks proves they are not too many. It does not prove they
-    // still *work*: the three lines below are what make the size estimate
-    // follow the bit-depth control, and deleting any one of them silently
-    // restores a bug that every test here passed through. AK found it by using
-    // the app; nothing else did.
+    // Today's interface is ours to change in place (INTERFACE in
+    // upstream-registry.mjs), so this file has no hook count. The wiring check
+    // stays: the three lines below make the size estimate follow the bit-depth
+    // control, and deleting any one of them silently restores a bug that every
+    // test here once passed through.
     //
     // Each pattern names only an identifier of ours, so an upstream rename of
     // their state, their effect or their debounce cannot fail this. The only
     // thing that can is the wiring going away, which is the event worth failing
     // for.
+    file: 'src/components/panel/right/ExportPanel.tsx',
     requires: [
       {
         pattern: /from\s+['"][^'"]*argentum\/exportDepth['"]/,
@@ -246,55 +189,12 @@ export const ANCHORS = [
         // list and of nothing else in that file.
       },
     ],
-    what:
-      'the data-argentum="export-precision" marker rendered only for TIFF, and the '
-      + 'useTiffDepth import that lets their size estimate see the depth change',
-    instead:
-      'portal into the marker from Argentum.tsx — every future export control mounts '
-      + 'there. The second hook is not a second feature and does not go up again: '
-      + 'estimatedSize is useState inside their component and the debounced estimator '
-      + 'is a useMemo beside it, so an effect dependency is the only way in. Any later '
-      + 'control publishes into src/argentum/exportDepth.ts and rides the same one.',
-  },
-  {
-    // Taken 2026-10-10, from zero, by AK's decision: our sharpening replaces
-    // their two sliders inside their own Sharpening section, so it folds,
-    // hides and reorders with their Sections menu and keeps their title. A
-    // block slot in Details, as Color has one: the next Details control of
-    // ours (a denoiser) mounts beside it, not into a second marker.
-    file: 'src/components/adjustments/Details.tsx',
-    hooks: 1,
-    what:
-      'the data-argentum="sharpening" marker, first in their Sharpening section, flagged data-mask '
-      + 'in a mask, where a mask\'s own Sharpen mounts',
-    instead: 'portal into [data-argentum="sharpening"] from Argentum.tsx',
-  },
-  {
-    file: 'src/components/panel/SettingsPanel.tsx',
-    hooks: 1,
-    what: 'the slot Argentum fills on the About, My Gear and General pages',
-    instead: 'add a section to src/argentum/AboutPanel.tsx, or a card of its own placed from '
-      + 'that slot, as AiModelsPlacement.tsx does under their Generative AI card',
   },
   // Behaviour, not UI. A portal can add a control; it cannot change what
   // happens when the user clicks one of theirs. These replace the body of an
   // existing handler, so they are one-time replacements rather than additions —
   // if one of these ever needs a *second* hook, the injection is in the wrong
   // place and should become an event our code listens for.
-  {
-    // Was 2, for our white balance picker. RapidRAW 1.6.5's area picker replaced
-    // it (review 79c2a46b) and both lines went with it. Down, never back up.
-    file: 'src/components/panel/editor/ImageCanvas.tsx',
-    hooks: 0,
-    what: 'nothing: their white balance picker is the one in use',
-    instead: 'portal from src/argentum/Argentum.tsx; the RGB readout finds the photo through photoBox.ts',
-  },
-  {
-    file: 'src/components/panel/right/CropPanel.tsx',
-    hooks: 1,
-    what: 'lens auto-detection running on load, not only on click',
-    instead: 'change src/argentum/useAutoDetectOnLoad.ts',
-  },
   {
     file: 'src-tauri/src/exif_processing.rs',
     hooks: 1,

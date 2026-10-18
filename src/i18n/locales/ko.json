@@ -132,7 +132,7 @@
       "roughness": "거칠기",
       "roundness": "둥글기",
       "size": "크기",
-      "vignette": "비네트"
+      "vignette": "자르기 후 비네트"
     }
   },
   "contextMenus": {
@@ -1261,7 +1261,7 @@
         "sharpness": "선명도",
         "tone": "톤",
         "transformRotation": "변형 및 회전",
-        "vignette": "비네트",
+        "vignette": "자르기 후 비네트",
         "whiteBalance": "화이트 밸런스"
       },
       "includedAdjustments": "포함된 조정값",

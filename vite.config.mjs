@@ -21,7 +21,7 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      ignored: ['**/src-tauri/**'],
+      ignored: ['**/src-tauri/**', '**/.claude/**'], // Argentum: agents' worktrees live under .claude/
     },
   },
 

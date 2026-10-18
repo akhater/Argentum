@@ -6,7 +6,7 @@ mod common;
 
 use argentum_engine::rawler::imgop::{Dim2, Point, Rect};
 use argentum_engine::rawler::rawimage::RawPhotometricInterpretation;
-use argentum_engine::tools::rt_capture_sharpen;
+use argentum_engine::tools::{ag_dng_standard, rt_capture_sharpen};
 use argentum_engine::{Pipeline, Rgb, Size, Source};
 
 fn ran(p: &Pipeline) -> Vec<&'static str> {
@@ -92,9 +92,18 @@ fn a_half_size_preview_is_the_full_develop_made_small() {
         let (mut full_s, mut half_s) = (f64::MAX, f64::MAX);
         let mut pictures = None;
         for _ in 0..RUNS {
+            // The develop alone: white balance at the photo's own, which
+            // changes nothing, and no sharpening or DNG Standard after it.
             let mut p = Pipeline::standard().unwrap();
+            let defaults = p.registry().defaults_for(&source);
+            p.set_edit(&defaults).unwrap();
             p.set::<rt_capture_sharpen::RtCaptureSharpen>(rt_capture_sharpen::Settings {
                 capture: false,
+                ..Default::default()
+            })
+            .unwrap();
+            p.set::<ag_dng_standard::AgDngStandard>(ag_dng_standard::Settings {
+                enabled: false,
                 ..Default::default()
             })
             .unwrap();

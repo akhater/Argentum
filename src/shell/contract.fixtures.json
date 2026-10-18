@@ -149,58 +149,188 @@
       ]
     },
     {
-      "id": "ag_exposure_wb",
+      "id": "ag_exposure",
       "origin": "ag",
-      "label": "tools.ag_exposure_wb.label",
+      "label": "tools.ag_exposure.label",
       "section": "basic",
       "order": 2,
       "stage": "scene",
       "version": 1,
       "settings": [
         {
-          "key": "exposure",
-          "label": "tools.ag_exposure_wb.exposure",
+          "key": "exposure_ev",
+          "label": "tools.ag_exposure.exposure_ev",
           "kind": "float",
           "default": 0.0,
-          "min": -10.0,
-          "max": 10.0,
+          "min": -5.0,
+          "max": 5.0,
           "step": 0.01,
           "unit": "EV",
           "scale": "linear",
           "advanced": false
-        },
+        }
+      ]
+    },
+    {
+      "id": "rr_white_balance",
+      "origin": "rr",
+      "label": "tools.rr_white_balance.label",
+      "section": "basic",
+      "order": 3,
+      "stage": "scene",
+      "version": 1,
+      "settings": [
         {
-          "key": "red",
-          "label": "tools.ag_exposure_wb.red",
+          "key": "temperature_k",
+          "label": "tools.rr_white_balance.temperature_k",
           "kind": "float",
-          "default": 1.0,
-          "min": 0.05,
-          "max": 20.0,
-          "step": 0.001,
+          "default": 6503.707029390634,
+          "min": 2000.0,
+          "max": 50000.0,
+          "step": 10.0,
+          "unit": "K",
           "scale": "log",
           "advanced": false
         },
         {
-          "key": "green",
-          "label": "tools.ag_exposure_wb.green",
+          "key": "tint",
+          "label": "tools.rr_white_balance.tint",
           "kind": "float",
-          "default": 1.0,
-          "min": 0.05,
-          "max": 20.0,
-          "step": 0.001,
-          "scale": "log",
+          "default": 9.769979251235142,
+          "min": -150.0,
+          "max": 150.0,
+          "step": 1.0,
+          "scale": "linear",
+          "advanced": false
+        }
+      ]
+    },
+    {
+      "id": "rr_basic_tone",
+      "origin": "rr",
+      "label": "tools.rr_basic_tone.label",
+      "section": "basic",
+      "order": 4,
+      "stage": "scene",
+      "version": 1,
+      "settings": [
+        {
+          "key": "contrast",
+          "label": "tools.rr_basic_tone.contrast",
+          "kind": "float",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
           "advanced": false
         },
         {
-          "key": "blue",
-          "label": "tools.ag_exposure_wb.blue",
+          "key": "highlights",
+          "label": "tools.rr_basic_tone.highlights",
           "kind": "float",
-          "default": 1.0,
-          "min": 0.05,
-          "max": 20.0,
-          "step": 0.001,
-          "scale": "log",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
           "advanced": false
+        },
+        {
+          "key": "shadows",
+          "label": "tools.rr_basic_tone.shadows",
+          "kind": "float",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
+          "advanced": false
+        },
+        {
+          "key": "whites",
+          "label": "tools.rr_basic_tone.whites",
+          "kind": "float",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
+          "advanced": false
+        },
+        {
+          "key": "blacks",
+          "label": "tools.rr_basic_tone.blacks",
+          "kind": "float",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
+          "advanced": false
+        }
+      ]
+    },
+    {
+      "id": "rr_presence",
+      "origin": "rr",
+      "label": "tools.rr_presence.label",
+      "section": "basic",
+      "order": 5,
+      "stage": "scene",
+      "version": 1,
+      "settings": [
+        {
+          "key": "vibrance",
+          "label": "tools.rr_presence.vibrance",
+          "kind": "float",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
+          "advanced": false
+        },
+        {
+          "key": "saturation",
+          "label": "tools.rr_presence.saturation",
+          "kind": "float",
+          "default": 0.0,
+          "min": -100.0,
+          "max": 100.0,
+          "step": 1.0,
+          "scale": "linear",
+          "advanced": false
+        }
+      ]
+    },
+    {
+      "id": "ag_dng_standard",
+      "origin": "ag",
+      "label": "tools.ag_dng_standard.label",
+      "section": "tone",
+      "order": 6,
+      "stage": "scene",
+      "version": 1,
+      "settings": [
+        {
+          "key": "enabled",
+          "label": "tools.ag_dng_standard.enabled",
+          "kind": "bool",
+          "default": true,
+          "advanced": false
+        },
+        {
+          "key": "baseline_exposure_ev",
+          "label": "tools.ag_dng_standard.baseline_exposure_ev",
+          "kind": "float",
+          "default": 0.3,
+          "min": -3.0,
+          "max": 3.0,
+          "step": 0.01,
+          "unit": "EV",
+          "scale": "linear",
+          "advanced": true
         }
       ]
     }
@@ -208,19 +338,47 @@
   "edit": {
     "version": 1,
     "tools": {
-      "ag_exposure_wb": {
+      "ag_dng_standard": {
         "v": 1,
         "settings": {
-          "blue": 1.0,
-          "exposure": 0.0,
-          "green": 1.0,
-          "red": 1.0
+          "baseline_exposure_ev": 0.3,
+          "enabled": true
+        }
+      },
+      "ag_exposure": {
+        "v": 1,
+        "settings": {
+          "exposure_ev": 0.0
         }
       },
       "dt_highlights": {
         "v": 1,
         "settings": {
           "recover": true
+        }
+      },
+      "rr_basic_tone": {
+        "v": 1,
+        "settings": {
+          "blacks": 0.0,
+          "contrast": 0.0,
+          "highlights": 0.0,
+          "shadows": 0.0,
+          "whites": 0.0
+        }
+      },
+      "rr_presence": {
+        "v": 1,
+        "settings": {
+          "saturation": 0.0,
+          "vibrance": 0.0
+        }
+      },
+      "rr_white_balance": {
+        "v": 1,
+        "settings": {
+          "temperature_k": 6503.707029390634,
+          "tint": 9.769979251235142
         }
       },
       "rt_capture_sharpen": {
@@ -240,9 +398,12 @@
     }
   },
   "patch": {
-    "ag_exposure_wb": {
-      "exposure": 0.5,
-      "red": 1.05
+    "ag_exposure": {
+      "exposure_ev": 0.5
+    },
+    "rr_white_balance": {
+      "temperature_k": 5000,
+      "tint": 10
     },
     "rt_capture_sharpen": {
       "radius": null
@@ -253,19 +414,47 @@
     "edit": {
       "version": 1,
       "tools": {
-        "ag_exposure_wb": {
+        "ag_dng_standard": {
           "v": 1,
           "settings": {
-            "blue": 1.0,
-            "exposure": 0.5,
-            "green": 1.0,
-            "red": 1.05
+            "baseline_exposure_ev": 0.3,
+            "enabled": true
+          }
+        },
+        "ag_exposure": {
+          "v": 1,
+          "settings": {
+            "exposure_ev": 0.5
           }
         },
         "dt_highlights": {
           "v": 1,
           "settings": {
             "recover": true
+          }
+        },
+        "rr_basic_tone": {
+          "v": 1,
+          "settings": {
+            "blacks": 0.0,
+            "contrast": 0.0,
+            "highlights": 0.0,
+            "shadows": 0.0,
+            "whites": 0.0
+          }
+        },
+        "rr_presence": {
+          "v": 1,
+          "settings": {
+            "saturation": 0.0,
+            "vibrance": 0.0
+          }
+        },
+        "rr_white_balance": {
+          "v": 1,
+          "settings": {
+            "temperature_k": 5000.0,
+            "tint": 10.0
           }
         },
         "rt_capture_sharpen": {
@@ -288,27 +477,57 @@
   "patched": [
     {
       "patch": {
-        "ag_exposure_wb": {
-          "exposure": 0.5,
-          "red": 1.05
+        "ag_exposure": {
+          "exposure_ev": 0.5
+        },
+        "rr_basic_tone": {
+          "contrast": 20
         }
       },
       "edit": {
         "version": 1,
         "tools": {
-          "ag_exposure_wb": {
+          "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "blue": 1.0,
-              "exposure": 0.5,
-              "green": 1.0,
-              "red": 1.05
+              "baseline_exposure_ev": 0.3,
+              "enabled": true
+            }
+          },
+          "ag_exposure": {
+            "v": 1,
+            "settings": {
+              "exposure_ev": 0.5
             }
           },
           "dt_highlights": {
             "v": 1,
             "settings": {
               "recover": true
+            }
+          },
+          "rr_basic_tone": {
+            "v": 1,
+            "settings": {
+              "blacks": 0.0,
+              "contrast": 20.0,
+              "highlights": 0.0,
+              "shadows": 0.0,
+              "whites": 0.0
+            }
+          },
+          "rr_presence": {
+            "v": 1,
+            "settings": {
+              "saturation": 0.0,
+              "vibrance": 0.0
+            }
+          },
+          "rr_white_balance": {
+            "v": 1,
+            "settings": {
+              "temperature_k": 6503.707029390634,
+              "tint": 9.769979251235142
             }
           },
           "rt_capture_sharpen": {
@@ -330,26 +549,54 @@
     },
     {
       "patch": {
-        "ag_exposure_wb": {
-          "exposure": 1
+        "ag_exposure": {
+          "exposure_ev": 1
         }
       },
       "edit": {
         "version": 1,
         "tools": {
-          "ag_exposure_wb": {
+          "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "blue": 1.0,
-              "exposure": 1.0,
-              "green": 1.0,
-              "red": 1.0
+              "baseline_exposure_ev": 0.3,
+              "enabled": true
+            }
+          },
+          "ag_exposure": {
+            "v": 1,
+            "settings": {
+              "exposure_ev": 1.0
             }
           },
           "dt_highlights": {
             "v": 1,
             "settings": {
               "recover": true
+            }
+          },
+          "rr_basic_tone": {
+            "v": 1,
+            "settings": {
+              "blacks": 0.0,
+              "contrast": 0.0,
+              "highlights": 0.0,
+              "shadows": 0.0,
+              "whites": 0.0
+            }
+          },
+          "rr_presence": {
+            "v": 1,
+            "settings": {
+              "saturation": 0.0,
+              "vibrance": 0.0
+            }
+          },
+          "rr_white_balance": {
+            "v": 1,
+            "settings": {
+              "temperature_k": 6503.707029390634,
+              "tint": 9.769979251235142
             }
           },
           "rt_capture_sharpen": {
@@ -371,8 +618,8 @@
     },
     {
       "patch": {
-        "ag_exposure_wb": {
-          "exposure": -20
+        "ag_exposure": {
+          "exposure_ev": -20
         },
         "rt_capture_sharpen": {
           "iterations": 500,
@@ -382,19 +629,47 @@
       "edit": {
         "version": 1,
         "tools": {
-          "ag_exposure_wb": {
+          "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "blue": 1.0,
-              "exposure": -10.0,
-              "green": 1.0,
-              "red": 1.0
+              "baseline_exposure_ev": 0.3,
+              "enabled": true
+            }
+          },
+          "ag_exposure": {
+            "v": 1,
+            "settings": {
+              "exposure_ev": -5.0
             }
           },
           "dt_highlights": {
             "v": 1,
             "settings": {
               "recover": true
+            }
+          },
+          "rr_basic_tone": {
+            "v": 1,
+            "settings": {
+              "blacks": 0.0,
+              "contrast": 0.0,
+              "highlights": 0.0,
+              "shadows": 0.0,
+              "whites": 0.0
+            }
+          },
+          "rr_presence": {
+            "v": 1,
+            "settings": {
+              "saturation": 0.0,
+              "vibrance": 0.0
+            }
+          },
+          "rr_white_balance": {
+            "v": 1,
+            "settings": {
+              "temperature_k": 6503.707029390634,
+              "tint": 9.769979251235142
             }
           },
           "rt_capture_sharpen": {
@@ -416,27 +691,55 @@
     },
     {
       "patch": {
-        "ag_exposure_wb": {
-          "blue": 2,
-          "exposure": null
+        "rr_basic_tone": {
+          "contrast": null,
+          "shadows": 30
         }
       },
       "edit": {
         "version": 1,
         "tools": {
-          "ag_exposure_wb": {
+          "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "blue": 2.0,
-              "exposure": 0.0,
-              "green": 1.0,
-              "red": 1.0
+              "baseline_exposure_ev": 0.3,
+              "enabled": true
+            }
+          },
+          "ag_exposure": {
+            "v": 1,
+            "settings": {
+              "exposure_ev": 0.0
             }
           },
           "dt_highlights": {
             "v": 1,
             "settings": {
               "recover": true
+            }
+          },
+          "rr_basic_tone": {
+            "v": 1,
+            "settings": {
+              "blacks": 0.0,
+              "contrast": 0.0,
+              "highlights": 0.0,
+              "shadows": 30.0,
+              "whites": 0.0
+            }
+          },
+          "rr_presence": {
+            "v": 1,
+            "settings": {
+              "saturation": 0.0,
+              "vibrance": 0.0
+            }
+          },
+          "rr_white_balance": {
+            "v": 1,
+            "settings": {
+              "temperature_k": 6503.707029390634,
+              "tint": 9.769979251235142
             }
           },
           "rt_capture_sharpen": {
@@ -471,24 +774,24 @@
     },
     {
       "patch": {
-        "ag_exposure_wb": {
+        "ag_exposure": {
           "contrast": 1
         }
       },
       "error": {
         "kind": "unknownSetting",
-        "message": "ag_exposure_wb has no setting contrast"
+        "message": "ag_exposure has no setting contrast"
       }
     },
     {
       "patch": {
-        "ag_exposure_wb": {
-          "exposure": "bright"
+        "ag_exposure": {
+          "exposure_ev": "bright"
         }
       },
       "error": {
         "kind": "badValue",
-        "message": "ag_exposure_wb: invalid type: string \"bright\", expected f32"
+        "message": "ag_exposure: invalid type: string \"bright\", expected f32"
       }
     },
     {
@@ -515,8 +818,8 @@
     },
     {
       "patch": {
-        "ag_exposure_wb": {
-          "exposure": 1
+        "ag_exposure": {
+          "exposure_ev": 1
         },
         "dt_highlights": {
           "recover": "yes"
@@ -535,19 +838,47 @@
     "edit": {
       "version": 1,
       "tools": {
-        "ag_exposure_wb": {
+        "ag_dng_standard": {
           "v": 1,
           "settings": {
-            "blue": 1.0,
-            "exposure": 0.0,
-            "green": 1.0,
-            "red": 1.0
+            "baseline_exposure_ev": 0.3,
+            "enabled": true
+          }
+        },
+        "ag_exposure": {
+          "v": 1,
+          "settings": {
+            "exposure_ev": 0.0
           }
         },
         "dt_highlights": {
           "v": 1,
           "settings": {
             "recover": true
+          }
+        },
+        "rr_basic_tone": {
+          "v": 1,
+          "settings": {
+            "blacks": 0.0,
+            "contrast": 0.0,
+            "highlights": 0.0,
+            "shadows": 0.0,
+            "whites": 0.0
+          }
+        },
+        "rr_presence": {
+          "v": 1,
+          "settings": {
+            "saturation": 0.0,
+            "vibrance": 0.0
+          }
+        },
+        "rr_white_balance": {
+          "v": 1,
+          "settings": {
+            "temperature_k": 6503.707029390634,
+            "tint": 9.769979251235142
           }
         },
         "rt_capture_sharpen": {

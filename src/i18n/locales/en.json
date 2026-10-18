@@ -132,7 +132,7 @@
       "roughness": "Roughness",
       "roundness": "Roundness",
       "size": "Size",
-      "vignette": "Vignette"
+      "vignette": "Post-Crop Vignette"
     }
   },
   "contextMenus": {
@@ -1263,7 +1263,7 @@
         "sharpness": "Sharpness",
         "tone": "Tone",
         "transformRotation": "Transform & Rotation",
-        "vignette": "Vignette",
+        "vignette": "Post-Crop Vignette",
         "whiteBalance": "White Balance"
       },
       "includedAdjustments": "Included Adjustments",
@@ -1921,7 +1921,7 @@
         "negpy": "For the inspiration behind the negative conversion logic.",
         "nind": "For providing AI models that power the AI noise reduction capabilities in RapidRAW.",
         "rawler": "For the excellent Rust crate that provides the foundation for RAW file processing in this project.",
-        "rawmakase": "For the Lightroom Classic-style layout that Argentum's new editor interface follows: the tool rail, the panel stack, the filmstrip and the presets, snapshots and history tabs.",
+        "rawmakase": "For the Lightroom Classic-style layout the editor offers as its RAWmakase layout: the tool rail, the panel stack, the filmstrip and the presets and history tabs.",
         "sam2": "For providing the foundation model used for the AI subject detection capabilities.",
         "spektrafilm": "For the spectrally-based film emulation LUTs by Andrea Volpato, used to power RapidRAW's built-in film emulations. Licensed CC BY-SA 4.0.",
         "u2net": "For providing the robust architecture used for the AI sky and foreground detection capabilities.",

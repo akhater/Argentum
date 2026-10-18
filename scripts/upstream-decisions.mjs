@@ -1,53 +1,69 @@
-// What we decided about each upstream change that landed on top of ours.
+// What we decided about each RapidRAW release, and before that about each commit.
 //
-// WHY THIS EXISTS, AND WHY IT IS THE ONLY REGISTER
+// ONE REVIEW PER RELEASE
 //
-// Merging used to erase the review window. The review ran from the git
-// merge-base, so the moment the merge landed the base moved and the script said
-// "nothing new" — whether or not anybody had looked. The CHANGELOG line meant to
-// force the review could be satisfied with one `sed`.
+// RapidRAW is a source Argentum takes from, reviewed once per release. Each
+// review is one entry at the end of REVIEWS, written from the template that
+// `npm run review:upstream` prints (run `git fetch upstream` first):
 //
-// So the reviewed-through point lives here, with the decisions attached to it,
-// and the CHANGELOG line is checked against this file rather than written
-// independently. There is one register, not two, which is the whole objection to
-// keeping a register at all: two of them drift, and the stale CHANGELOG line was
-// the proof.
+//   {
+//     release: 'v1.6.6',            the upstream tag reviewed up to
+//     from: '<40-char sha>',        where the previous review ended
+//     to: '<40-char sha>',          the commit that tag names
+//     on: 'YYYY-MM-DD',             the day of the review
+//     hours: 3,                     how long it took; it is meant to take under a day
+//     features: [                   one line per feature, not per commit
+//       { what, commits: ['8-char sha', ...], verdict, why, copiedInto? },
+//     ],
+//     sameAsOurs: { verdict: 'none' | 'found', why },
+//     stillLive: ['path', ...],     their files still run when previewing, exporting or masking
+//     retires: ['registry-id', ...],  optional: registry entries this review retires
+//   }
 //
-// HOW IT IS ENFORCED
+// Feature verdicts:
 //
-// check-mergeability.mjs re-derives the overlaps in the range the newest entry
-// covers — `REVIEWS[n-1].through .. REVIEWS[n].through` — from git and from
-// scripts/upstream-registry.mjs, and fails until every gated one has a decision
-// here. You cannot advance `through` without the script asking again for each
-// overlap it finds, and you cannot make an overlap go away by deleting the thing
-// that caused it: a registry entry retired in the review being written still
-// generates its requirement for that window.
+//   take    merge it as it is
+//   copy    copy it into a file of ours by hand, with its source commit;
+//           copiedInto names that file
+//   skip    not wanted: library, cloud, the interface being replaced
+//   decide  they built something we have; why says which one stays
 //
-// Only the newest entry's range is re-derived. Older ones are records of what was
-// known then; re-deriving them against today's registry would invent overlaps
-// nobody could have seen at the time.
+// check-mergeability.mjs holds each release review to this:
 //
-// VERDICTS
+//   * the reviews form one unbroken chain: each `from` is where the one before
+//     it ended, and `to` is what `release` names;
+//   * every commit in the newest range is in some feature's `commits`, so a
+//     release cannot be half read;
+//   * a commit that touches the render path or today's interface (RENDER_PATH
+//     and INTERFACE in scripts/upstream-registry.mjs) is in at least one
+//     feature that is not `take`: their changes there are read and copied,
+//     never merged;
+//   * `sameAsOurs` is `found` exactly when some feature is `decide`;
+//   * `stillLive` never grows from one release review to the next;
+//   * upstream is merged in exactly up to the newest `to`, and CHANGELOG.md
+//     names that release and commit.
+//
+// THE PER-COMMIT HISTORY
+//
+// Until 2026-10-18 the review was per commit: every upstream commit that touched
+// a file a registry entry depends on needed its own decision. The last such
+// review, RapidRAW 1.6.5, carried 1,242 of them, 84% "not-applicable". Those
+// entries stay below as history. Their decisions are still checked for shape
+// (a verdict from VERDICTS and a reason), and no new per-commit overlaps are
+// derived: re-deriving an old window against today's registry would invent
+// overlaps nobody could have seen.
 //
 //   adopt           take theirs, drop ours
 //   keep-ours       ours stands; theirs is knowingly not used here
-//   combine         both, reconciled by hand — say how
+//   combine         both, reconciled by hand - say how
 //   not-applicable  the overlap is mechanical noise; say why it cannot bite
-//
-// THE FEATURE REVIEW
-//
-// Every entry that covers a real range must carry `featureReview`. Overlap
-// detection is file-based: it finds upstream changing something we registered a
-// dependency on. It cannot find upstream building the same feature somewhere we
-// have never touched — no amount of pattern matching does that, and claiming
-// otherwise would be the more dangerous kind of wrong. So the batch is read for
-// duplicate features by a person, and that claim is written down as a sentence
-// with their reasoning in it. Nothing verifies the sentence. It is required so
-// that the claim is made rather than assumed.
-//
-// Run `npm run review:upstream` — it prints the overlap keys ready to paste.
 
 export const VERDICTS = ['adopt', 'keep-ours', 'combine', 'not-applicable'];
+export const FEATURE_VERDICTS = ['take', 'copy', 'skip', 'decide'];
+export const SAME_AS_OURS = ['none', 'found'];
+
+/** The last per-commit review (RapidRAW 1.6.5). Every review after it is per release. */
+export const PER_COMMIT_ENDS = '79c2a46b448b9a0bee0b30f8c345daad003ad694';
 
 // The v1.6.4 review has many repeated checks against the same shared shader
 // anchors. Keep each exact overlap as its own decision, while sharing the
@@ -1420,31 +1436,6 @@ const startingLook165 = [
   review165('f513a4ee', 'raw-starting-look', 'not-applicable', `${MERGES_165.find(([c]) => c === 'f513a4ee')[1]}: export presets. No starting look.`, 'feature'),
 ];
 
-// first-thumbnail, registered after this review too: none of these commits
-// changes generate_single_thumbnail_and_cache, where its one line sits.
-const firstThumbnail165 = [
-  review165('9ba20c02', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['9ba20c02']} In file_management.rs it changes generate_thumbnail_data, not generate_single_thumbnail_and_cache.`),
-  review165('c4ba9ac9', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['c4ba9ac9']} In file_management.rs it changes metadata loading and folder listing, not generate_single_thumbnail_and_cache.`),
-  review165('43248097', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'Shares the embedded-preview fallback of try_load_embedded_raw_preview with the image loader. That is the thumbnail made after the first one, unchanged by it.'),
-  review165('4e45e620', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'Adds rawler\'s embedded preview to try_load_embedded_raw_preview for RAWs kamadak-exif cannot read. That is the thumbnail made after the first one, unchanged by it.'),
-  review165('b191ae05', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', 'The merge of 4e45e620 and 43248097, read above.'),
-  review165('078c90a8', 'first-thumbnail:src-tauri/src/file_management.rs#generate_single_thumbnail_and_cache', 'not-applicable', `${DID_165['078c90a8']} In file_management.rs it changes generate_thumbnail_data, not generate_single_thumbnail_and_cache.`),
-  review165('aff9b3f2', 'first-thumbnail', 'not-applicable', 'Their culling view uses the medium thumbnail, and canvas polish: which thumbnail a view shows, not how quickly the grid gets one.', 'feature'),
-];
-
-// first-thumbnail's watcher, registered after this review too. It relies on
-// the browsing queue as update_thumbnail_queue fills it and
-// start_thumbnail_workers empties it, on the cache's file names, and on
-// ThumbnailManager. None of these commits changes any of them.
-const FIRST_THUMBNAIL_QUEUE = 'The queue (update_thumbnail_queue, start_thumbnail_workers) and the cache\'s names (get_cache_key_hash, get_thumb_cache_dir) are unchanged.';
-const firstThumbnailWatcher165 = [
-  ...['9ba20c02', 'c4ba9ac9', '43248097', '4e45e620', '078c90a8'].map((c) =>
-    review165(c, 'first-thumbnail:src-tauri/src/file_management.rs', 'not-applicable', `${DID_165[c]} ${FIRST_THUMBNAIL_QUEUE}`)),
-  review165('b191ae05', 'first-thumbnail:src-tauri/src/file_management.rs', 'not-applicable', `The merge of 4e45e620 and 43248097, read above. ${FIRST_THUMBNAIL_QUEUE}`),
-  ...['66fa1600', '9ba20c02', '5c4b7800', 'f62a8365'].map((c) =>
-    review165(c, 'first-thumbnail:src-tauri/src/app_state.rs#ThumbnailManager', 'not-applicable', `${DID_165[c]} ThumbnailManager is unchanged.`)),
-];
-
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1455,8 +1446,6 @@ export const REVIEW_165_DECISIONS = [
   ...restore165,
   ...dngStandard165,
   ...startingLook165,
-  ...firstThumbnail165,
-  ...firstThumbnailWatcher165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1469,10 +1458,12 @@ export const REVIEW_165_DECISIONS = [
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
 // Restore, 6 of them for capture before an enlargement, 29 for DNG Standard,
-// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13), and 17
-// for first-thumbnail, 10 of them for its watcher.
-if (REVIEW_165_DECISIONS.length !== 1259) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1259 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// 38 for the RAW starting look and 11 for fast-dev-builds (26.41.13). That is
+// where per-commit review ended (2026-10-18). Entries registered after it, such
+// as first-thumbnail and editor-layout-rawmakase, owe no decisions against this
+// window: their files are read at the next release review.
+if (REVIEW_165_DECISIONS.length !== 1242) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1242 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
@@ -1565,12 +1556,11 @@ export const REVIEWS = [
   },
 ];
 
-/** The commit every upstream change up to which has been reviewed. */
-export const reviewedThrough = () => REVIEWS[REVIEWS.length - 1].through;
+/** Is this a per-release review (the shape used since 2026-10-18)? */
+export const isRelease = (review) => typeof review.release === 'string';
 
-/** The entry being added, and the range it must account for. */
-export const newestRange = () => ({
-  from: REVIEWS.length > 1 ? REVIEWS[REVIEWS.length - 2].through : null,
-  to: reviewedThrough(),
-  entry: REVIEWS[REVIEWS.length - 1],
-});
+/** The upstream commit everything up to which has been reviewed. */
+export const reviewedTo = (reviews = REVIEWS) => {
+  const last = reviews[reviews.length - 1];
+  return isRelease(last) ? last.to : last.through;
+};

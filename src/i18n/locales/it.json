@@ -132,7 +132,7 @@
       "roughness": "Ruvidezza",
       "roundness": "Rotondità",
       "size": "Dimensione",
-      "vignette": "Vignettatura"
+      "vignette": "Vignettatura post-ritaglio"
     }
   },
   "contextMenus": {
@@ -1289,7 +1289,7 @@
         "sharpness": "Nitidezza",
         "tone": "Tono",
         "transformRotation": "Trasformazione e Rotazione",
-        "vignette": "Vignettatura",
+        "vignette": "Vignettatura post-ritaglio",
         "whiteBalance": "Bilanciamento del Bianco"
       },
       "includedAdjustments": "Regolazioni Incluse",

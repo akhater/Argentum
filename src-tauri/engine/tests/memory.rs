@@ -10,9 +10,9 @@ mod common;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
+use argentum_engine::Engine;
 use argentum_engine::contract::{EditPatch, Event, RenderTicket, View};
 use argentum_engine::pipeline::DEFAULT_CACHE_BYTES;
-use argentum_engine::{Engine, Gpu};
 
 /// What the process may hold at its peak past the cache's budget, in
 /// full-size pictures (12 bytes a pixel): the result being made and the
@@ -41,7 +41,10 @@ fn memory_stays_within_the_budget_and_is_given_back() {
         );
         return;
     }
-    let sharpening = Gpu::new().is_ok();
+    // Frames are made on the GPU.
+    if common::gpu("memory_stays_within_the_budget_and_is_given_back").is_none() {
+        return;
+    }
     let (tx, rx) = channel();
     let engine = Engine::new(move |e| {
         let _ = tx.send(e);
@@ -69,11 +72,6 @@ fn memory_stays_within_the_budget_and_is_given_back() {
         gb(picture),
         gb(budget)
     );
-    if !sharpening {
-        eprintln!("  no GPU: capture sharpening off");
-        let off = patch(serde_json::json!({ "rt_capture_sharpen": { "capture": false } }));
-        engine.apply(id, &off).unwrap();
-    }
 
     // Fitted, then at 100%, in two window sizes, with a slider dragged at
     // each: what the app does with a photo.
@@ -97,7 +95,7 @@ fn memory_stays_within_the_budget_and_is_given_back() {
         let mut ticks = Vec::new();
         for i in 1..=6 {
             let tick =
-                patch(serde_json::json!({ "ag_exposure_wb": { "exposure": i as f32 * 0.1 } }));
+                patch(serde_json::json!({ "ag_exposure": { "exposure_ev": i as f32 * 0.1 } }));
             let started = Instant::now();
             until_framed(&rx, engine.apply(id, &tick).unwrap().ticket);
             ticks.push(started.elapsed());

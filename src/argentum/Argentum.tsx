@@ -48,6 +48,8 @@ import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
 import CompactSlidersSetting from './CompactSlidersSetting';
 import { useCompactSliders } from './compactSliders';
+import EditorLayoutSetting from './layout/EditorLayoutSetting';
+import { useEditorLayout } from './layout/editorLayout';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
@@ -108,6 +110,12 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // Read once at startup; the layout itself is a stylesheet keyed on <html>.
   useEffect(() => {
     useCompactSliders.getState().load();
+  }, []);
+
+  // The editor's layout, Classic or RAWmakase, chosen in Settings > General.
+  // Read once at startup; App.tsx arranges the editor by it.
+  useEffect(() => {
+    useEditorLayout.getState().load();
   }, []);
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
@@ -188,6 +196,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
           <AiModelsPlacement slot={general as HTMLElement} />
           <NoCloudTile slot={general as HTMLElement} />
           <CompactSlidersSetting slot={general as HTMLElement} />
+          <EditorLayoutSetting slot={general as HTMLElement} />
         </>
       )}
       <RgbReadout />

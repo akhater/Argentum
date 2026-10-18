@@ -132,7 +132,7 @@
       "roughness": "Rauheit",
       "roundness": "Rundheit",
       "size": "Größe",
-      "vignette": "Vignettierung"
+      "vignette": "Vignettierung nach Zuschnitt"
     }
   },
   "contextMenus": {
@@ -1263,7 +1263,7 @@
         "sharpness": "Schärfe",
         "tone": "Tonwerte",
         "transformRotation": "Transformieren & Drehen",
-        "vignette": "Vignettierung",
+        "vignette": "Vignettierung nach Zuschnitt",
         "whiteBalance": "Weißabgleich"
       },
       "includedAdjustments": "Einbezogene Anpassungen",

@@ -66,6 +66,9 @@ function CompactSlidersRow() {
   );
 }
 
+/** Marks this row's container, for the Layout row to go straight under it. */
+export const COMPACT_SLIDERS_ROW = 'data-ag-compact-sliders';
+
 export default function CompactSlidersSetting({ slot }: { slot: HTMLElement }) {
   const { t } = useTranslation();
   const [host, setHost] = useState<HTMLElement | null>(null);
@@ -75,6 +78,7 @@ export default function CompactSlidersSetting({ slot }: { slot: HTMLElement }) {
     if (!container) return;
     const font = t('settings.general.font');
     const own = document.createElement('div');
+    own.setAttribute(COMPACT_SLIDERS_ROW, '');
 
     const place = () => {
       // Their General page is the element just before the slot, while it is

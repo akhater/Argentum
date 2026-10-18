@@ -66,6 +66,9 @@ struct Photo {
     source: Arc<Source>,
     size_px: (u32, u32),
     edit: EditDocument,
+    /// What `null` in a patch puts a setting back to: the defaults the tools
+    /// gave this photo when it opened.
+    defaults: EditDocument,
     view: View,
 }
 
@@ -138,11 +141,13 @@ impl Engine {
         Ok(self.insert(Source::open(path)?))
     }
 
-    /// A photo decoded elsewhere, opened with every tool at its defaults.
+    /// A photo decoded elsewhere, opened with every tool at the defaults it
+    /// gives this photo.
     pub fn insert(&self, source: Source) -> Opened {
         let (w_px, h_px) = source.size_px();
         let size_px = (w_px as u32, h_px as u32);
-        let edit = self.registry.default_edit();
+        let defaults = self.registry.defaults_for(&source);
+        let edit = defaults.clone();
         let mut state = self.state();
         let id = PhotoId(state.next_photo);
         state.next_photo += 1;
@@ -152,6 +157,7 @@ impl Engine {
                 source: Arc::new(source),
                 size_px,
                 edit: edit.clone(),
+                defaults,
                 view: fitted(size_px, FIRST_VIEW_PX, FIRST_VIEW_PX),
             },
         );
@@ -168,7 +174,8 @@ impl Engine {
     /// type, refuses the whole patch and nothing renders.
     pub fn apply(&self, photo: PhotoId, patch: &EditPatch) -> Result<Applied> {
         let mut state = self.state();
-        let edit = self.registry.merge(&state.photo(photo)?.edit, patch)?;
+        let p = state.photo(photo)?;
+        let edit = self.registry.merge(&p.edit, patch, &p.defaults)?;
         state.photo_mut(photo)?.edit = edit.clone();
         let ticket = self.queue(&mut state, photo)?;
         Ok(Applied { ticket, edit })
@@ -202,9 +209,20 @@ impl Engine {
         self.insert_with(Source::open(path)?, edit)
     }
 
-    /// A photo decoded elsewhere, opened with `edit`.
+    /// A photo decoded elsewhere, opened with `edit`. A tool the edit does
+    /// not name starts where it would for this photo (`defaults_for`).
     pub fn insert_with(&self, source: Source, edit: &EditDocument) -> Result<Opened> {
-        let edit = self.registry.merge(edit, &EditPatch::default())?;
+        let defaults = self.registry.defaults_for(&source);
+        let mut whole = edit.clone();
+        for (id, tool) in &defaults.tools {
+            whole
+                .tools
+                .entry(id.clone())
+                .or_insert_with(|| tool.clone());
+        }
+        let edit = self
+            .registry
+            .merge(&whole, &EditPatch::default(), &defaults)?;
         let mut opened = self.insert(source);
         self.state().photo_mut(opened.photo_id)?.edit = edit.clone();
         opened.edit = edit;
@@ -374,12 +392,7 @@ fn render(
 ) -> Result<(Frame, Vec<u32>)> {
     pipeline.set_edit(&job.edit)?;
     let layout = frame::layout(&job.view, job.size_px);
-    let image = pipeline.render_unless(&job.source, layout.size, overtaken)?;
-    let rgb = image.as_rgb().ok_or_else(|| Error::Tool {
-        tool: "engine",
-        message: format!("the pipeline ended with {}", image.describe()),
-    })?;
-    let frame = frame::cut(rgb, &layout, job.ticket);
+    let frame = pipeline.render_frame(&job.source, &layout, job.ticket, overtaken)?;
     let bins = frame::histogram(&frame);
     Ok((frame, bins))
 }

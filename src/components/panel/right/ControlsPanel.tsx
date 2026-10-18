@@ -30,7 +30,7 @@ import { useUIStore } from '../../../store/useUIStore';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 import { useWaveformControls } from '../../../hooks/useWaveformControls';
 
-export default function Controls() {
+export default function Controls({ showWaveform = true }: { showWaveform?: boolean }) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
   const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, handleWaveformResize } =
@@ -238,6 +238,7 @@ export default function Controls() {
           <button
             className={clsx(
               'p-2 rounded-full transition-colors',
+              !showWaveform && 'hidden',
               isWaveformVisible ? 'bg-surface hover:bg-card-active' : 'hover:bg-surface',
             )}
             onClick={onToggleWaveform}
@@ -257,7 +258,7 @@ export default function Controls() {
       </div>
 
       <AnimatePresence initial={false}>
-        {isWaveformVisible && (
+        {showWaveform && isWaveformVisible && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: waveformHeight || 256, opacity: 1 }}

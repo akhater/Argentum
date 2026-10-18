@@ -29,7 +29,13 @@ impl Gpu {
             required_features: wgpu::Features::empty(),
             required_limits: adapter.limits(),
             experimental_features: wgpu::ExperimentalFeatures::default(),
-            memory_hints: wgpu::MemoryHints::Performance,
+            // Memory in blocks of 8 to 64 MB rather than 128 to 256 (host:
+            // 4 to 32 rather than 64 to 128). On an integrated GPU the
+            // blocks are the process's memory, and each kind of resource
+            // the pixel pass adds opened a block of its own: 0.17 GB at the
+            // peak while a photo is only fitted. A picture larger than a
+            // block has memory of its own either way.
+            memory_hints: wgpu::MemoryHints::MemoryUsage,
             trace: wgpu::Trace::Off,
         }))
         .map_err(|e| Error::NoGpu(e.to_string()))?;

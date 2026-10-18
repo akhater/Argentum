@@ -1,15 +1,16 @@
 name: Upstream
 
-# The mergeability and overlap checks, as a required check.
+# The mergeability checks and the release-review register, as a required check.
 #
-# They ran only on `npm start` before, which meant they ran on one machine when
-# one person happened to build. Worse, without an upstream remote the checker
-# exits 0 and says so quietly — correct on a contributor's fresh clone, useless
-# as a gate. So this job creates the prerequisites and the checker fails, rather
-# than skips, when CI is set and they are missing.
+# Without an upstream remote the checker skips and says so quietly - correct on
+# a contributor's fresh clone, useless as a gate. So this job creates the
+# prerequisites, and the checker fails, rather than skips, when CI is set and
+# they are missing.
 #
-# fetch-depth: 0 is not optional. merge-base needs the whole history, and the
-# review register names commits that a shallow clone does not have.
+# fetch-depth: 0 is not optional. merge-base needs the whole history, the
+# register names commits a shallow clone does not have, and the ratchet is
+# compared with the baseline on origin/main. Their release tags are fetched
+# too: each release review names the tag it reviewed up to.
 
 on:
   push:
@@ -33,10 +34,10 @@ jobs:
       - name: Fetch upstream
         run: |
           git remote add upstream https://github.com/CyberTimon/RapidRAW.git
-          git fetch --no-tags upstream +refs/heads/main:refs/remotes/upstream/main
+          git fetch --no-tags upstream +refs/heads/main:refs/remotes/upstream/main 'refs/tags/v*:refs/tags/v*'
 
       - name: Test the checks themselves
         run: npm run test:checks
 
-      - name: Mergeability, removals, anchors and overlap review
+      - name: Ratchet, coverage, anchors, integrity and release review
         run: node scripts/check-mergeability.mjs
