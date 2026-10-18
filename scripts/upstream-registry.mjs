@@ -11,27 +11,26 @@
 //
 // So the counts are informational and this file is the gate. Each entry names an
 // Argentum feature, a borrowed fix or a deliberate behaviour change, what of
-// upstream's it depends on, and what proves it still works. An upstream commit
-// touching a registered dependency needs a recorded decision in
-// scripts/upstream-decisions.mjs before the merge can be called reviewed.
+// upstream's it depends on, and what proves it still works. Any file of theirs
+// we change must be claimed by an entry here, and once per RapidRAW release
+// `npm run review:upstream` shows which of their changes land on these files.
 //
 // WHAT THIS CANNOT DO
 //
 // It cannot tell you that upstream has independently built the same feature in
 // files we have never touched. `keywords` is a hint over commit subjects, not
 // detection, and a subject that says "improve colour handling" will match
-// nothing. That is why every review entry must also carry a featureReview block
-// stating, in a person's words, that the incoming batch was read for duplicates.
+// nothing. That is why every release review carries a `sameAsOurs` block
+// stating, in a person's words, that the release was read for duplicates.
 // Nothing verifies that sentence. It is there so the claim is made explicitly
 // and by someone, rather than assumed by a regular expression.
 //
 // RETIRING AN ENTRY
 //
 // Entries are never deleted. Set `retired: { recordedIn, why }` where recordedIn
-// is the `through` sha of the review that decided it. An entry retired in the
-// review being written now still generates its review requirement for that
-// window — retiring it is the decision under review, not a way to avoid one.
-// Only a retirement recorded in an earlier review stops the requirement.
+// names the review that decided it: the `release` of a release review, which
+// lists the id in its `retires`, or, for the per-commit reviews before
+// 2026-10-18, the `through` sha with a `retire:<id>` decision.
 //
 // `how` values:
 //   shadows   their code is left in place and not called; ours runs instead
@@ -48,6 +47,77 @@
 
 export const HOW = ['shadows', 'replaces', 'calls', 'extends', 'retypes', 'borrows', 'rebrands'];
 export const KINDS = ['feature', 'borrowed-fix', 'behaviour-change'];
+
+/** Paths that are ours. Anything under these is unlimited. */
+export const OURS = [
+  'src-tauri/src/mods/',
+  'src-tauri/src/shaders/modules.wgsl',
+  'src-tauri/src/shaders/ag_display.wgsl',
+  'src-tauri/src/shaders/sharpen.wgsl',
+  // The engine library: a crate of our own beside the app, not part of it.
+  'src-tauri/engine/',
+  'src/argentum/',
+  // The new editor interface, and the contract types generated for it.
+  'src/shell/',
+  'scripts/',
+  'docs/',
+  'CLAUDE.md',
+  'CHANGELOG.md',
+  'CREDITS.md',
+  'README.md',
+  'setup.ps1',
+  // Branding: regenerated wholesale from our own source art, never merged.
+  'src-tauri/icons/',
+  // Ours by adoption - it now carries both rule sets, and upstream changes to
+  // it are additive lines we simply keep.
+  '.gitignore',
+  // Ours by creation: upstream has no such workflow. Their three are still
+  // theirs, and what we removed from each is claimed in the registry.
+  '.github/workflows/upstream.yml',
+  // Ours by creation too: upstream has no cargo config. It holds the dev
+  // linker (registry entry fast-dev-builds).
+  '.cargo/config.toml',
+];
+
+/**
+ * Files that carry the fork's identity rather than its features.
+ *
+ * The name, the bundle id, the crate. These say "this is Argentum, not
+ * RapidRAW" — they were written once, they will fight an upstream merge once,
+ * and no feature will ever add to them. Counting them would make the numbers
+ * meaningless.
+ */
+export const IDENTITY = [
+  'package.json',
+  // Generated from package.json, as Cargo.lock is from Cargo.toml: it moves
+  // when a dependency does, and that is not a feature either.
+  'package-lock.json',
+  'src-tauri/Cargo.toml',
+  'src-tauri/Cargo.lock',
+  'src-tauri/tauri.conf.json',
+  'src-tauri/.identity',
+  'src-tauri/src/main.rs',
+];
+
+export const isOurs = (file) => OURS.some((prefix) => file.startsWith(prefix));
+
+/**
+ * The render path: files that came from RapidRAW and are now Argentum's own.
+ *
+ * Since 2026-10-18 the code that renders the preview and the export is ours to
+ * change, a piece at a time, on the way into the engine. These files carry no
+ * line budget, no ratchet and no anchor count. Upstream's changes to them are
+ * listed at each release review for reading and copied in by hand when wanted;
+ * they are never merged. Entries below may still name them, as a record of what
+ * each feature touches.
+ */
+export const RENDER_PATH = [
+  'src-tauri/src/gpu_processing.rs',
+  'src-tauri/src/lib.rs',
+  'src-tauri/src/image_processing.rs',
+];
+
+export const isRenderPath = (file) => RENDER_PATH.includes(file);
 
 export const REGISTRY = [
   {
@@ -1758,6 +1828,12 @@ export const REGISTRY = [
 ];
 
 /**
+ * The name a retirement uses for a review: a release review's `release`, or a
+ * per-commit review's `through` sha.
+ */
+export const reviewName = (review) => review.release ?? review.through;
+
+/**
  * Entries whose review requirement is live for the window closing at `through`.
  *
  * The first version compared `recordedIn` against the *previous* review's sha,
@@ -1770,16 +1846,15 @@ export const REGISTRY = [
  * retired it. At the retiring review it is still live, because retiring it is
  * the decision under review; after it, never again.
  *
- * `through` of null means the window being prepared but not yet recorded — the
- * one `npm run review:upstream` is printing. Every recorded retirement is behind
- * it, so retired entries are out.
+ * `through` of null means the window being prepared but not yet recorded. Every
+ * recorded retirement is behind it, so retired entries are out.
  *
  * An unrecognised `recordedIn` keeps the entry live. It is not this function's
  * job to decide whether a retirement is real; validateRetirements says so, and
  * the safe reading in the meantime is that nothing has been retired.
  */
 export function activeFor(entries, reviews, through) {
-  const order = new Map(reviews.map((r, i) => [r.through, i]));
+  const order = new Map(reviews.map((r, i) => [reviewName(r), i]));
   const window = through === null || through === undefined
     ? reviews.length
     : order.get(through);
@@ -1794,25 +1869,25 @@ export function activeFor(entries, reviews, through) {
 
 /**
  * Retirements that do not hold up: an unknown review, no reasoning, or no
- * decision in that review recording why.
+ * record of it in that review.
  *
- * A retirement is how an entry stops generating review requirements, so it is
- * the obvious thing to fake. It has to name a review that exists and carry a
- * `retire:<id>` decision in that same review, with a verdict and a reason, like
- * any other decision.
+ * A retirement is how an entry stops being checked, so it is the obvious thing
+ * to fake. It has to name a review that exists, and that review has to say so:
+ * a release review lists the id in `retires`; a per-commit review, from before
+ * 2026-10-18, carries a `retire:<id>` decision with a verdict and a reason.
  */
 export function validateRetirements(entries, reviews) {
-  const byThrough = new Map(reviews.map((r) => [r.through, r]));
+  const byName = new Map(reviews.map((r) => [reviewName(r), r]));
   const problems = [];
   for (const entry of entries) {
     if (!entry.retired) continue;
     const { recordedIn, why } = entry.retired;
-    const review = byThrough.get(recordedIn);
+    const review = byName.get(recordedIn);
     if (!review) {
       problems.push({
         id: entry.id,
         detail: `retired: { recordedIn: '${String(recordedIn).slice(0, 12)}' } names no review in REVIEWS`,
-        fix: 'recordedIn is the `through` sha of the review that decided the retirement.',
+        fix: 'recordedIn is the `release` of the review that decided the retirement.',
       });
       continue;
     }
@@ -1823,6 +1898,17 @@ export function validateRetirements(entries, reviews) {
         fix: 'Say what happened to it: upstream merged the fix, the feature was dropped, it moved.',
       });
     }
+    if (review.release) {
+      if (!(review.retires ?? []).includes(entry.id)) {
+        problems.push({
+          id: entry.id,
+          detail: `is retired in ${review.release}, and that review does not list it in retires`,
+          fix: `Add '${entry.id}' to retires in the ${review.release} review. `
+            + 'Retiring an entry is a decision and is recorded like one.',
+        });
+      }
+      continue;
+    }
     const decision = (review.decisions ?? []).find((d) => d.overlap === `retire:${entry.id}`);
     if (!decision) {
       problems.push({
@@ -1830,6 +1916,18 @@ export function validateRetirements(entries, reviews) {
         detail: `is retired in ${String(recordedIn).slice(0, 8)}, and that review records no retire:${entry.id} decision`,
         fix: `Add { overlap: 'retire:${entry.id}', verdict, why } to that review. `
           + 'Retiring an entry is a decision and is recorded like one.',
+      });
+    }
+  }
+  // The other direction: a review naming an entry it did not retire.
+  for (const review of reviews) {
+    for (const id of review.retires ?? []) {
+      const entry = entries.find((e) => e.id === id);
+      if (entry?.retired?.recordedIn === review.release) continue;
+      problems.push({
+        id,
+        detail: `is listed in the retires of ${review.release}, and the registry does not retire it there`,
+        fix: `Set retired: { recordedIn: '${review.release}', why } on ${id}, or take it out of retires.`,
       });
     }
   }
@@ -1846,26 +1944,21 @@ export function validateRetirements(entries, reviews) {
  * no second register to drift, and no way to edit the record of what we used to
  * depend on without rewriting history.
  *
- * The walk is over one small file's revisions. If that ever gets slow, the fix
- * is not to look at fewer of them.
+ * Every id that ever existed was added by some commit, so it appears as an added
+ * line in that commit's patch. One `git log -p` reads them all; the first
+ * version ran `git show` once per revision of this file, seventy and counting.
+ * `-m` diffs each merge against its parents too: two entries in this file's
+ * history arrived in a merge and nowhere else.
  */
 export function historicalIds(run, path = 'scripts/upstream-registry.mjs') {
-  let revisions = [];
+  let out = '';
   try {
-    revisions = run(`git log --format=%H -- ${path}`).trim().split('\n').filter(Boolean);
+    out = run(['log', '-m', '--format=', '-p', '--unified=0', '--no-renames', '--', path]);
   } catch {
     return null;
   }
   const ids = new Set();
-  for (const sha of revisions) {
-    let text = '';
-    try {
-      text = run(`git show ${sha}:${path}`, true);
-    } catch {
-      continue;
-    }
-    for (const m of text.matchAll(/^\s{4}id: '([A-Za-z0-9-]+)',$/gm)) ids.add(m[1]);
-  }
+  for (const m of out.matchAll(/^\+\s{4}id: '([A-Za-z0-9-]+)',\r?$/gm)) ids.add(m[1]);
   return ids;
 }
 
@@ -1887,7 +1980,12 @@ export function dependencyIndex(entries) {
   /** Is this file of theirs claimed by anything? */
   const claims = (file) => byFile.has(file)
     || patterns.some(({ dep }) => dep.pattern.test(file));
-  return { byFile, patterns, prs, claims };
+  /** The ids of the entries that name this file, directly or by pattern. */
+  const claimants = (file) => [...new Set([
+    ...(byFile.get(file) ?? []).map(({ entry }) => entry.id),
+    ...patterns.filter(({ dep }) => dep.pattern.test(file)).map(({ entry }) => entry.id),
+  ])];
+  return { byFile, patterns, prs, claims, claimants };
 }
 
 /** Upstream code we leave in place and step around. */

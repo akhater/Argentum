@@ -1,185 +1,59 @@
-// HARD RULE: our code lives in our own files.
+// THE RULE: Argentum's code goes in Argentum's files, and our lines in
+// RapidRAW's files only go down.
 //
-// A fork dies when your changes and upstream's land in the same lines of the
-// same files. Every update becomes an argument, you stop updating, and now
-// you're maintaining a whole photo editor alone.
+// Argentum began as a fork of RapidRAW and is becoming its own application: new
+// tools go into the engine (src-tauri/engine/), the render path is ours to
+// change, and RapidRAW is a source reviewed once per release rather than a base
+// merged forever. This script holds that line instead of trusting anyone to
+// remember it. It runs in CI as a required check (.github/workflows/upstream.yml)
+// and with `npm run check:merge`, and it fails the build when:
 //
-// So there is a budget on how much of upstream's code we're allowed to touch,
-// and this script enforces it instead of trusting anyone to remember. It runs
-// in CI as a required check (.github/workflows/upstream.yml) and with
-// `npm run check:merge`, and it fails the build when the budget is blown.
-// Not on `npm start`: at ~45 s it was the longest wait before every dev window.
+//   * a file of theirs outside the render path holds more of our lines than
+//     scripts/upstream-ratchet.json allows (the ratchet; it only goes down);
+//   * a file of theirs we changed is claimed by no registry entry (coverage);
+//   * the registry and the tree disagree, an entry was deleted, or a retirement
+//     does not hold up (integrity);
+//   * a file of theirs calls into our code more often than its anchor allows,
+//     or lost the wiring its anchor exists for;
+//   * upstream is merged in further than the release reviews reach, or the
+//     newest release review breaks a rule (scripts/upstream-decisions.mjs);
+//   * something of theirs we step around is gone from the release we merged.
 //
-// If you need more than the budget in one of their files, that is the signal to
-// move the code into a file of ours and leave a single call behind.
+// The render path (RENDER_PATH in scripts/upstream-registry.mjs) is exempt from
+// the ratchet, the anchor counts and the coverage rule: it is ours to change.
 //
-// Run standalone:  node scripts/check-mergeability.mjs
+// Every question is asked of git once, by a streamed command
+// (scripts/upstream-git.mjs). The run used to start about 390 git processes and
+// take 37-74 s; it now starts about ten.
+//
+// Run standalone:  node scripts/check-mergeability.mjs [--verbose]
 
-import { execSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { ANCHORS } from './upstream-anchors.mjs';
+import { borrowMarkers } from './upstream-borrows.mjs';
+import { REVIEWS, isRelease, reviewedTo } from './upstream-decisions.mjs';
 import { accountDiff } from './upstream-diff.mjs';
-import { borrowMarkers, borrowStatus, detectOverlaps } from './upstream-overlaps.mjs';
+import { commitsIn, gitIn, readBlobs, tags } from './upstream-git.mjs';
+import { BASELINE, compareRatchet, formatBaseline, parseBaseline } from './upstream-ratchet.mjs';
 import {
-  REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, shadowsOf,
-  validateRetirements,
+  IDENTITY, OURS, REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, isOurs,
+  isRenderPath, shadowsOf, validateRetirements,
 } from './upstream-registry.mjs';
-import { REVIEWS, VERDICTS, newestRange, reviewedThrough } from './upstream-decisions.mjs';
+import { validateReviews } from './upstream-releases.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const started = Date.now();
+const verbose = process.argv.includes('--verbose');
 
-/** Paths that are ours. Anything under these is unlimited. */
-const OURS = [
-  'src-tauri/src/mods/',
-  'src-tauri/src/shaders/modules.wgsl',
-  'src-tauri/src/shaders/ag_display.wgsl',
-  'src-tauri/src/shaders/sharpen.wgsl',
-  // The engine library: a crate of our own beside the app, not part of it.
-  'src-tauri/engine/',
-  'src/argentum/',
-  // The new editor interface, and the contract types generated for it.
-  'src/shell/',
-  'scripts/',
-  'docs/',
-  'CLAUDE.md',
-  'CHANGELOG.md',
-  'CREDITS.md',
-  'README.md',
-  'setup.ps1',
-  // Branding: regenerated wholesale from our own source art, never merged.
-  'src-tauri/icons/',
-  // Ours by adoption - it now carries both rule sets, and upstream changes to
-  // it are additive lines we simply keep.
-  '.gitignore',
-  // Ours by creation: upstream has no such workflow. Their three are still
-  // theirs, and the Android matrix entry we removed from each is recorded in
-  // EXCEPTIONS below.
-  '.github/workflows/upstream.yml',
-  // Ours by creation too: upstream has no cargo config. It holds the dev
-  // linker (registry entry fast-dev-builds).
-  '.cargo/config.toml',
-];
-
-/**
- * Per-file budgets for upstream code, in added lines.
- *
- * These are deliberately tight. Registering a command or calling a harvested
- * shader function costs one or two lines; anything more means the logic
- * belongs on our side of the line.
- */
-const BUDGETS = [
-  // Module + command registration, one line each per feature.
-  { pattern: /^src-tauri\/src\/lib\.rs$/, limit: 12 },
-  // One call line per harvested tool, plus the odd struct field.
-  { pattern: /^src-tauri\/src\/shaders\/shader\.wgsl$/, limit: 25 },
-  { pattern: /^src-tauri\/src\/image_processing\.rs$/, limit: 40 },
-  { pattern: /^src-tauri\/src\/gpu_processing\.rs$/, limit: 10 },
-  // One <OurComponent /> per panel.
-  { pattern: /^src\/components\/.*\.tsx$/, limit: 6 },
-  // Locales are the awkward case: i18next only looks in its own files, and the
-  // one-time rebrand already spends ~10 lines of this. Budget covers that plus
-  // a modest number of feature strings.
-  //
-  // When this starts failing, do NOT just raise it — give Argentum its own
-  // i18n namespace under src/argentum/locales/ and merge it at init. That
-  // takes our locale footprint in their files to zero, permanently.
-  { pattern: /^src\/i18n\/locales\/.*\.json$/, limit: 40 },
-  // Anything else of theirs we haven't thought about.
-  { pattern: /.*/, limit: 8 },
-];
-
-/**
- * Trespasses we approved on purpose, with the reason and the day we agreed it.
- *
- * These are NOT a bigger budget. They're a list — printed on every run, so the
- * cost stays visible instead of quietly becoming the new normal. Each one is a
- * place a future upstream merge may fight us, and we chose it anyway.
- *
- * Adding to this list requires a real reason: the change genuinely cannot live
- * on our side of the line. "It was easier" is not a reason.
- */
-const EXCEPTIONS = [
-  {
-    file: 'src-tauri/src/lib.rs',
-    allow: 14,
-    date: '2026-09-11',
-    why: 'Twelve lines of structure — `mod mods`, startup, the single command, '
-      + 'and the photo each render names — plus one on 2026-09-11: the display '
-      + 'conversion for the screen the window is on. The native preview handed '
-      + 'sRGB numbers straight to the panel, which is right only if the panel is '
-      + 'sRGB; on a wide-gamut display every photo was shown over-saturated. '
-      + 'This is where the transform reaches the GPU, so it is where the screen '
-      + 'has to be named. A second line refreshes that conversion when the window '
-      + 'moves: the frontend only sends a transform when its own idea of one '
-      + 'changes, which does not include which monitor the window is on.',
-  },
-  {
-    file: 'src-tauri/src/file_management.rs',
-    allow: 31,
-    // The removal bookkeeping that briefly lived here is in
-    // scripts/upstream-registry.mjs now, under sidecar-agdata. It was never the
-    // right place: a count of deleted lines cannot say whether behaviour was
-    // preserved, and here it said "31 replaced, nothing missing" about a rename
-    // that deliberately orphans every file RapidRAW has ever written.
-    date: '2026-09-10',
-    why: 'Sidecar rename .rrdata -> .agdata (30 lines, agreed 2026-09-08). An '
-      + 'extension permeates their code by nature; no amount of moving logic to '
-      + 'mods/ avoids it. Taken so RapidRAW cannot open an Argentum edit and '
-      + 'silently render it wrong once our colour maths diverges. '
-      + 'One more line on 2026-09-10: the photo argument on the render call. '
-      + 'Rendering has to know which photo it is holding, because the camera '
-      + 'profile correction is derived from the matrix that photo was decoded '
-      + 'with. It is an argument rather than something inferred so the compiler '
-      + 'asks the question at every call site — an earlier version guessed from '
-      + 'thread history and was silently wrong wherever a render reused pixels '
-      + 'somebody else had decoded.',
-  },
-  {
-    file: 'src-tauri/src/exif_processing.rs',
-    allow: 10,
-    date: '2026-09-08',
-    // Corrected 2026-09-13. This said "one call into mods::sidecar so legacy
-    // .rrdata files are still read and nothing already edited is orphaned".
-    // There is no mods::sidecar, there never was, and nothing reads a legacy
-    // sidecar: read_rrexif_sidecar keeps its name and reads .agexif. The
-    // orphaning is real and intended, and is registered as such.
-    why: 'The .rrdata -> .agdata and .rrexif -> .agexif rename, plus one call '
-      + 'into mods::makernote_lens, which fills the lens model from the '
-      + 'manufacturer note when the standard tag is empty.',
-  },
-  {
-    file: 'src/components/panel/SettingsPanel.tsx',
-    allow: 6,
-    date: '2026-09-13',
-    why: 'The lens section moved out to src/argentum/MyGear.tsx, which is the '
-      + 'architecture working: the panel is ours and their file keeps a tag.',
-  },
-];
-
-
-import { ANCHORS } from './upstream-anchors.mjs';
-
-
-/**
- * Files that carry the fork's identity rather than its features.
- *
- * The name, the bundle id, the crate. These say "this is Argentum, not
- * RapidRAW" — they were written once, they will fight an upstream merge once,
- * and no feature will ever add to them. Counting them as anchors would make the
- * number meaningless.
- */
-const IDENTITY = [
-  'package.json',
-  'src-tauri/Cargo.toml',
-  // Generated from Cargo.toml, which is identity. It changes when the crate is
-  // renamed and when a dependency moves, and neither is a feature.
-  'src-tauri/Cargo.lock',
-  'src-tauri/tauri.conf.json',
-  'src-tauri/.identity',
-  'src-tauri/src/main.rs',
-];
+let gitCalls = 0;
+const gitRaw = gitIn(root);
+const git = (args, options) => {
+  gitCalls += 1;
+  return gitRaw(args, options);
+};
 
 /**
  * Does this added line reach into Argentum's code?
@@ -198,39 +72,15 @@ const isHook = (line) => {
   return /\bmods::|^\s*mod mods;|\bag_[a-z0-9_]*\(|argentum\/|'\.\/argentum|data-argentum|<Argentum\b|\bArgentum from\b/.test(line);
 };
 
-const anchorFor = (file) => ANCHORS.find((a) => a.file === file);
-
-const isOurs = (file) => OURS.some((prefix) => file.startsWith(prefix));
-const exceptionFor = (file) => EXCEPTIONS.find((e) => e.file === file);
-const budgetFor = (file) => {
-  // `allow` is optional: an exception that only records removed lines leaves the
-  // added-line budget where it was.
-  const exception = exceptionFor(file);
-  return exception?.allow ?? BUDGETS.find((b) => b.pattern.test(file)).limit;
-};
-
-// stderr is captured rather than inherited: every probe here is allowed to
-// fail, and git's "fatal: Not a valid object name" is noise above our own
-// message saying the same thing in a useful way.
-const git = (cmd, big = false) =>
-  execSync(cmd, {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: (big ? 96 : 8) * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+const short = (sha) => String(sha).slice(0, 8);
 
 /**
  * Prerequisites.
  *
  * Everything below is measured against upstream/main. Without that ref there is
- * nothing to compare against and this script used to exit 0 — the right answer
- * on a contributor's fresh clone, and the wrong one in CI, where a vacuous pass
- * is indistinguishable from a real one and the check is a required one.
- *
- * So: skip locally, fail in CI. The workflow is responsible for adding the
- * remote and fetching enough history; if it stops doing so, the build says so
- * instead of going green.
+ * nothing to compare against: skip on a contributor's fresh clone, fail in CI,
+ * where a vacuous pass is indistinguishable from a real one and the check is a
+ * required one. The workflow adds the remote and fetches full history.
  */
 const inCI = process.env.CI === 'true' || process.env.CI === '1';
 const prerequisite = (detail, fix) => {
@@ -253,7 +103,7 @@ if (!existsSync(join(root, '.git'))) {
 
 let shallow = 'false';
 try {
-  shallow = git('git rev-parse --is-shallow-repository').trim();
+  shallow = git(['rev-parse', '--is-shallow-repository']).trim();
 } catch { /* old git: assume full */ }
 if (shallow === 'true') {
   prerequisite(
@@ -264,7 +114,7 @@ if (shallow === 'true') {
 
 let base = '';
 try {
-  base = git('git merge-base HEAD upstream/main').trim();
+  base = git(['merge-base', 'HEAD', 'upstream/main']).trim();
 } catch {
   prerequisite(
     'no upstream/main ref',
@@ -275,85 +125,168 @@ if (!base) {
   prerequisite('merge-base with upstream/main is empty', 'Fetch upstream: git fetch upstream');
 }
 
+const errors = [];
+const warnings = [];
+const notes = [];
 
-// SHADOWED, SIDECAR_KEYS and the borrow markers moved to
-// scripts/upstream-overlaps.mjs on 2026-09-13. Both this script and
-// upstream-review.mjs need them, both kept their own copy, and the copies had
-// already drifted: one of them knew what we use instead of each shadowed
-// symbol and the other did not.
-
-// One pass over the real diff. Deliberately NOT `-w`: git merge does not
-// ignore whitespace, so a number that does is not the number to look at. It
-// reported Color.tsx as 4 lines where git sees 17 added and 13 deleted.
+// --- One pass over the real diff ---------------------------------------------
 //
-// The accounting itself is in scripts/upstream-diff.mjs so it can be tested
-// against throwaway repositories. Inline and untestable, it missed deleted
-// files entirely: `+++ /dev/null` did not match its header pattern, so removing
-// a whole upstream component changed this script's output by nothing at all.
-const diff = execSync(`git diff ${base} -- .`, {
-  cwd: root,
-  encoding: 'utf8',
-  maxBuffer: 96 * 1024 * 1024,
+// Deliberately NOT `-w`: git merge does not ignore whitespace, so a number that
+// does is not the number to look at. Our own paths are left out by git itself;
+// the accounting (scripts/upstream-diff.mjs) is tested against throwaway
+// repositories.
+const excluded = [...OURS, ...IDENTITY].map((p) => `:(exclude)${p}`);
+const stats = accountDiff(git(['diff', base, '--', '.', ...excluded]), {
+  isOurs, skip: IDENTITY, isHook,
 });
 
-const stats = accountDiff(diff, { isOurs, skip: IDENTITY, isHook });
-
-const warnings = [];
-const errors = [];
 const touched = [];
-
 for (const [file, st] of stats) {
   // Borrowed lines are upstream's own fix carried early. They are not our
   // divergence: when upstream merges the pull request they become identical to
-  // their copy, so they are not charged against the file's budget.
-  const ours = st.added - st.borrowed;
-  touched.push({
-    file,
-    added: ours,
-    borrowed: st.borrowed,
-    deleted: st.deleted,
-    removed: st.removed,
-    replaced: st.replaced,
-    borrowedRemoved: st.borrowedRemoved,
-    limit: budgetFor(file),
-    prs: [...st.prs],
+  // their copy, so they count for nothing.
+  touched.push({ file, ...st, added: st.added - st.borrowed, render: isRenderPath(file) });
+}
+const theirs = touched.filter((t) => !t.render);
+const renderPath = touched.filter((t) => t.render);
+
+// --- Gate: every file of theirs we touch must be claimed ---------------------
+//
+// Line counts do not prove behaviour was preserved. `get_all_adjustments_from_json`
+// gained a fifth parameter and five call sites across four of their files were
+// rewritten one line for one: nothing added, nothing removed, and the whole
+// export path depending on a signature upstream owns. So if we changed a file
+// of theirs, some entry in scripts/upstream-registry.mjs must name it.
+const index = dependencyIndex(REGISTRY);
+for (const t of theirs) {
+  if (t.added === 0 && t.deleted === 0 && t.borrowed === 0) continue;
+  if (index.claims(t.file)) continue;
+  errors.push({
+    file: t.file,
+    detail: 'we changed this file of theirs and no registry entry claims it',
+    fix: 'Name it in the dependsOn of whichever feature needs it, in '
+      + 'scripts/upstream-registry.mjs, with a how and a note. If nothing needs '
+      + 'it, revert the change.',
   });
 }
 
-// --- Gate: every file of theirs we touch must be claimed --------------------
+// --- Gate: the ratchet ---------------------------------------------------------
 //
-// Line counts do not prove behaviour was preserved, and the counter-example is
-// sitting in this repository. `get_all_adjustments_from_json` gained a fifth
-// parameter and five call sites across four of their files were rewritten one
-// line for one. By any arithmetic nothing was added and nothing was removed, and
-// the whole export path now depends on a signature upstream owns.
-//
-// So the counts are warnings, and this is the gate: if we changed a file of
-// theirs, some entry in scripts/upstream-registry.mjs must name it as a
-// dependency. Otherwise nobody has said what we are relying on, and no upstream
-// change to it will ever be reviewed.
-{
-  const index = dependencyIndex(REGISTRY);
-  for (const t of touched) {
-    if (t.added === 0 && t.deleted === 0 && t.borrowed === 0) continue;
-    if (index.claims(t.file) || exceptionFor(t.file)) continue;
+// Our lines in each file of theirs outside the render path, against the
+// committed baseline. Up fails; down is written back (scripts/upstream-ratchet.mjs).
+const current = new Map(theirs.filter((t) => t.added > 0).map((t) => [t.file, t.added]));
+const baselinePath = join(root, BASELINE);
+const baseline = existsSync(baselinePath)
+  ? parseBaseline(readFileSync(baselinePath, 'utf8'))
+  : null;
+
+let previous = null;
+try {
+  const startedFrom = git(['merge-base', 'HEAD', 'origin/main']).trim();
+  previous = parseBaseline(readBlobs(git, [`${startedFrom}:${BASELINE}`]).get(`${startedFrom}:${BASELINE}`));
+} catch {
+  warnings.push(`no origin/main to compare ${BASELINE} with, so a number raised by hand would go unnoticed in this run`);
+}
+
+let lowerTo = null;
+if (baseline === null) {
+  if (inCI) {
+    errors.push({
+      file: BASELINE,
+      detail: 'the ratchet baseline is missing',
+      fix: 'Run npm run check:merge locally, which writes it from the tree, and commit it.',
+    });
+  } else {
+    lowerTo = current;
+    notes.push(`${BASELINE} was missing; written from the tree`);
+  }
+} else {
+  const { rises, lowered, raised } = compareRatchet(current, baseline, previous);
+  for (const r of rises) {
+    errors.push({
+      file: r.file,
+      detail: r.allowed === 0
+        ? `${r.now} of our lines in a file of theirs that had none`
+        : `${r.now} of our lines, up from ${r.allowed}`,
+      fix: 'Our lines in their files only go down. Move the new code into a file of ours '
+        + '(the engine, mods/, src/argentum/) and leave at most the line that was there.',
+    });
+  }
+  for (const r of raised) {
+    errors.push({
+      file: BASELINE,
+      detail: `${r.file} is allowed ${r.to}, and was allowed ${r.from} on main`,
+      fix: 'The baseline is only ever lowered. Put the number back.',
+    });
+  }
+  if (lowered.length > 0) {
+    if (inCI) {
+      errors.push({
+        file: BASELINE,
+        detail: `${lowered.length} file${lowered.length === 1 ? ' is' : 's are'} below the baseline: `
+          + lowered.map((l) => `${l.file} ${l.from} -> ${l.to}`).join(', '),
+        fix: 'Run npm run check:merge locally, which lowers the numbers, and commit the file.',
+      });
+    } else {
+      lowerTo = new Map([...baseline].map(([file, n]) => [file, Math.min(n, current.get(file) ?? 0)]));
+      for (const l of lowered) notes.push(`ratchet: ${l.file} ${l.from} -> ${l.to}`);
+    }
+  }
+}
+
+// --- Gate: anchors -------------------------------------------------------------
+const anchorFor = (file) => ANCHORS.find((a) => a.file === file);
+for (const t of theirs) {
+  if (t.hooks.length === 0) continue;
+  const anchor = anchorFor(t.file);
+  const allowed = anchor?.hooks ?? 0;
+  if (t.hooks.length > allowed) {
     errors.push({
       file: t.file,
-      detail: 'we changed this file of theirs and no registry entry claims it',
-      fix: 'Name it in the dependsOn of whichever feature needs it, in '
-        + 'scripts/upstream-registry.mjs, with a how and a note. If nothing needs '
-        + 'it, revert the change.',
+      detail: `${t.hooks.length} calls into our code, the anchor allows ${allowed}`,
+      fix: anchor?.hooks
+        ? `${anchor.what} — do this instead: ${anchor.instead}`
+        : 'This file has no anchor at all, and should have none.',
+      lines: t.hooks,
     });
   }
 }
 
-// --- Gate: registry integrity ----------------------------------------------
+// --- Gate: the wiring an anchor exists for -------------------------------------
 //
-// The requirement to review a borrowed fix must not be erasable by deleting the
-// marker that creates it. Detection reads the working tree; a merge that removed
-// `// upstream #1307` would, without this, remove the reason anyone had to think
-// about it. So the tree and the registry have to agree, and retiring an entry is
-// a decision recorded in a review rather than an edit that quietly happens.
+// An anchor says how many lines of theirs may mention us. It says nothing about
+// whether those lines still do their job: an import and a hook can survive while
+// the one dependency entry that makes them work is dropped as unused. Only our
+// own identifiers are asserted, so upstream may rename anything of theirs.
+//
+// A tree without the file is not a tree that lost the wiring (the fixture
+// repositories in the e2e tests hold two files). A typo in `anchor.file` is
+// caught from the other side: test-upstream-checks.mjs reads every guarded path
+// unguarded.
+for (const anchor of ANCHORS) {
+  if (!anchor.requires) continue;
+  const full = join(root, anchor.file);
+  if (!existsSync(full)) continue;
+  const text = readFileSync(full, 'utf8');
+  for (const need of anchor.requires) {
+    if (!need.pattern.test(text)) {
+      errors.push({
+        file: anchor.file,
+        detail: `lost the wiring its anchor exists for: ${need.why}`,
+        fix:
+          `Restore the line matching ${need.pattern}. If it is genuinely no longer `
+          + 'needed, remove it from `requires` in the same commit and say why in the '
+          + 'registry entry.',
+      });
+    }
+  }
+}
+
+// --- Gate: registry integrity ----------------------------------------------------
+//
+// The tree and the registry have to agree about borrowed fixes, so that deleting
+// a `// upstream #1307` marker cannot quietly delete the reason anyone had to
+// think about it.
 {
   const marks = borrowMarkers(git);
   const registered = borrowsOf(REGISTRY);
@@ -367,43 +300,20 @@ for (const [file, st] of stats) {
   }
   const live = new Set(activeFor(REGISTRY, REVIEWS, null).map((e) => e.id));
   for (const { entry, file, pr } of registered) {
-    // Retired and behind us: the marker is expected to be gone.
     if (entry.retired && !live.has(entry.id)) continue;
     if (marks.pairs.some((m) => m.file === file && m.pr === pr)) continue;
     errors.push({
       file: 'scripts/upstream-registry.mjs',
       detail: `${entry.id} claims a // upstream #${pr} marker in ${file}, and there is none`,
       fix: 'If upstream merged it and the block is gone, retire the entry with '
-        + 'retired: { recordedIn, why } in the review that decided it - which keeps '
-        + 'its review requirement for that window, where it belongs.',
+        + 'retired: { recordedIn, why } in the release review that says so.',
     });
   }
 }
 
-// --- Warning: what the line counts say --------------------------------------
-//
-// Informational, deliberately. A removal is a signal worth printing and never
-// again a gate on its own: a line replaced in place can change everything, and a
-// line removed can change nothing.
-for (const t of touched) {
-  if (t.removed > 0) {
-    warnings.push(
-      `${t.file}: ${t.removed} of their lines removed unreplaced, ${t.replaced} replaced `
-      + '- see the registry entry that claims this file for what it means',
-    );
-  }
-}
-
-// --- Gate: the inventory is append-only -------------------------------------
-//
-// Retiring an entry keeps its requirement in sight. Deleting the entry and its
-// markers in the same commit did not: with nothing in the tree and nothing in
-// the registry there was nothing left to disagree about, and the requirement
-// stopped existing. The thing under review could delete its own review.
-//
-// So every id this file has ever held, read back out of our own history, must
-// still be here. git is the previous inventory - there is no second register to
-// drift, and no way to edit what we used to depend on without rewriting history.
+// The inventory is append-only. Deleting an entry and its markers in one commit
+// leaves nothing to disagree about, so every id this file has ever held, read
+// back out of our own history, must still be here.
 {
   const ever = historicalIds(git);
   if (ever === null) {
@@ -417,17 +327,14 @@ for (const t of touched) {
         file: 'scripts/upstream-registry.mjs',
         detail: `${id} was in the inventory and has been deleted from it`,
         fix: 'Entries are never deleted. Put it back and retire it with '
-          + 'retired: { recordedIn, why }, plus a retire: decision in that review.',
+          + 'retired: { recordedIn, why }, listed in that release review\'s retires.',
       });
     }
   }
 }
 
-// --- Gate: retirements must hold up ----------------------------------------
-//
-// A retirement is how an entry stops generating requirements, so it is the
-// obvious thing to fake. It names a review that exists, and that review records
-// the decision, with a reason, like any other.
+// A retirement is how an entry stops being checked, so it is the obvious thing
+// to fake: it names a review that exists, and that review records it.
 for (const problem of validateRetirements(REGISTRY, REVIEWS)) {
   errors.push({
     file: 'scripts/upstream-registry.mjs',
@@ -436,276 +343,133 @@ for (const problem of validateRetirements(REGISTRY, REVIEWS)) {
   });
 }
 
-// --- Gate: anchors ----------------------------------------------------------
-for (const [file, st] of stats) {
-  if (st.hooks.length === 0) continue;
-  const anchor = anchorFor(file);
-  const allowed = anchor ? anchor.hooks : 0;
-  if (st.hooks.length > allowed) {
-    errors.push({
-      file,
-      detail: `${st.hooks.length} calls into our code, the anchor allows ${allowed}`,
-      fix: anchor
-        ? `${anchor.what} — do this instead: ${anchor.instead}`
-        : 'This file has no anchor at all, and should have none.',
-      lines: st.hooks,
-    });
-  }
-}
-
-// --- Gate: the wiring an anchor exists for -----------------------------------
+// --- Gate: the release reviews ---------------------------------------------------
 //
-// An anchor says how many lines of theirs may mention us. It says nothing about
-// whether those lines still do their job. `ExportPanel.tsx` is the case that
-// taught us the difference: its import and hook could survive while the one
-// dependency entry that makes the estimate re-run was dropped as unused, and
-// every gate here would have stayed green.
-//
-// Asserting only our own identifiers is what keeps this from being brittle.
-// Upstream may rename anything of theirs.
-for (const anchor of ANCHORS) {
-  if (!anchor.requires) continue;
-
-  // A tree without the file is not a tree that lost the wiring. The fixture
-  // repositories in the e2e tests hold two files and a registry, and upstream
-  // genuinely deleting one of theirs breaks the import at build time long before
-  // this gate would have an opinion. Caught by those tests, which went 0/7 the
-  // moment this said otherwise.
-  //
-  // The case this skip could hide is a typo in `anchor.file`, which would make
-  // the gate pass forever on a path that does not exist. That is closed from the
-  // other side: `every required pattern matches the file it guards` in
-  // test-upstream-checks.mjs reads the path unguarded, so a wrong one throws and
-  // fails `npm run test:checks`, which CI runs.
-  const full = join(root, anchor.file);
-  if (!existsSync(full)) continue;
-
-  const text = readFileSync(full, 'utf8');
-  for (const need of anchor.requires) {
-    if (!need.pattern.test(text)) {
-      errors.push({
-        file: anchor.file,
-        detail: `lost the wiring its anchor exists for: ${need.why}`,
-        fix:
-          `Restore the line matching ${need.pattern}. If upstream has genuinely `
-          + 'made it unnecessary, remove it from `requires` in the same commit '
-          + 'and say why in the registry entry.',
-      });
-    }
-  }
-}
-
-// --- Gate: overlap review ---------------------------------------------------
-//
-// The question git cannot answer is whether upstream has now built, moved or
-// renamed the thing we built around. Those changes conflict with nothing.
-//
-// The first version of this gate asked only that CHANGELOG.md name the current
-// merge-base, on the theory that having to rewrite the line would make somebody
-// look. It would not: the line can be corrected with one `sed`, and the review
-// script it pointed at started from the merge-base, so after the merge it said
-// "nothing new" whether or not anybody had looked. Merging erased the window.
-//
-// So the reviewed-through point and the decisions live together in
-// scripts/upstream-decisions.mjs, the overlaps are re-derived here from git and
-// the registry, and the sha cannot advance until each one has a decision beside
-// it. CHANGELOG.md is checked against the register rather than written
-// independently - one register, which was the whole objection to having one.
-const short = (sha) => sha.slice(0, 8);
-{
-  const declared = reviewedThrough();
-  let through = '';
+// `git merge` answers "do these texts collide". It cannot answer whether
+// upstream has built, moved or renamed the thing we built around; those changes
+// conflict with nothing. So upstream is merged once per release, after a review
+// recorded in scripts/upstream-decisions.mjs, and the merge cannot run ahead of
+// the reviews.
+const allTags = tags(git);
+const newest = REVIEWS[REVIEWS.length - 1];
+let rangeCommits = null;
+if (isRelease(newest)) {
   try {
-    through = git(`git rev-parse --verify ${declared}`).trim();
+    rangeCommits = commitsIn(git, newest.from, newest.to);
   } catch {
     errors.push({
       file: 'scripts/upstream-decisions.mjs',
-      detail: `REVIEWS records through ${short(declared)}, which is not a commit here`,
-      fix: 'Fetch upstream, or correct the sha. In CI this means fetch-depth: 0.',
+      detail: `cannot read ${short(newest.from)}..${short(newest.to)}, the newest release review's range`,
+      fix: 'git fetch upstream. In CI this means fetch-depth: 0 and the upstream fetch step.',
     });
   }
+}
+{
+  const found = validateReviews(REVIEWS, {
+    tags: allTags,
+    commits: rangeCommits,
+    exists: (path) => existsSync(join(root, path)),
+    isOurs,
+    isRenderPath,
+  });
+  for (const p of found.errors) errors.push({ file: 'scripts/upstream-decisions.mjs', ...p });
+  for (const w of found.warnings) warnings.push(`scripts/upstream-decisions.mjs: ${w.detail}`);
+}
 
-  if (through && through !== base) {
-    errors.push({
-      file: 'scripts/upstream-decisions.mjs',
-      detail: `reviewed through ${short(through)}, but upstream is merged in up to ${short(base)}`,
-      fix: 'npm run review:upstream - then add a REVIEWS entry whose through is the new sha, carrying a decision for every overlap it lists.',
-    });
-  }
+const reviewed = reviewedTo();
+const tagFor = (sha) => [...allTags].find(([name, at]) => at === sha && /^v\d/.test(name))?.[0];
+if (reviewed !== base) {
+  errors.push({
+    file: 'scripts/upstream-decisions.mjs',
+    detail: `reviewed up to ${short(reviewed)}, and upstream is merged in up to ${short(base)}`
+      + (tagFor(base) ? ` (${tagFor(base)})` : ' (not a release)'),
+    fix: 'Upstream is merged once per release, after its review: npm run review:upstream, '
+      + 'then add the release review its template prints. Merge the release tag, not their main.',
+  });
+}
 
-  // Only the newest entry's range is re-derived. Older entries are records of
-  // what was known then; re-deriving them against today's registry would invent
-  // overlaps nobody could have seen.
-  const { from, to, entry } = newestRange();
-  if (from) {
-    // The inventory as it stood BEFORE this window. An entry retired during the
-    // window still owes its review: retiring it is the decision under review.
-    const entries = activeFor(REGISTRY, REVIEWS, to);
-    let overlaps = [];
-    try {
-      overlaps = detectOverlaps(git, from, to, { entries, index: dependencyIndex(entries) });
-    } catch {
-      errors.push({
-        file: 'scripts/upstream-decisions.mjs',
-        detail: `cannot re-derive the overlaps for ${short(from)}..${short(to)}`,
-        fix: 'The history for that range is missing. Fetch upstream with full depth.',
-      });
-    }
-    const decisions = entry.decisions ?? [];
-    const recorded = new Map(decisions.map((d) => [d.overlap, d]));
-
-    for (const o of overlaps.filter((x) => x.gated)) {
-      const decision = recorded.get(o.key);
-      if (!decision) {
-        errors.push({
-          file: 'scripts/upstream-decisions.mjs',
-          detail: `no decision for ${o.key}`,
-          lines: [`${o.commit}  ${o.subject}`, o.detail],
-          fix: 'Read it, decide, and add { overlap, verdict, why } to the newest REVIEWS entry.',
-        });
-        continue;
-      }
-      if (!VERDICTS.includes(decision.verdict)) {
-        errors.push({
-          file: 'scripts/upstream-decisions.mjs',
-          detail: `${o.key} has verdict "${decision.verdict}"`,
-          fix: `One of: ${VERDICTS.join(', ')}.`,
-        });
-      }
-      if (!decision.why || decision.why.trim().length < 20) {
-        errors.push({
-          file: 'scripts/upstream-decisions.mjs',
-          detail: `${o.key} has no reasoning`,
-          fix: 'A verdict with no why is a rubber stamp. Say what you read and what you concluded.',
-        });
-      }
-    }
-
-    // The part no detector can do. File matching finds upstream changing
-    // something we registered; it cannot find upstream building the same feature
-    // somewhere we have never touched. This is the human claim, and nothing here
-    // verifies it beyond insisting that it was made.
-    const fr = entry.featureReview;
-    if (!fr || !fr.why || fr.why.trim().length < 40) {
-      errors.push({
-        file: 'scripts/upstream-decisions.mjs',
-        detail: 'the newest review has no featureReview',
-        fix: 'Read the batch for features upstream may have built independently of our '
-          + 'files, and record featureReview: { verdict, why } saying what you looked at '
-          + 'and what you concluded. No detector does this part.',
-      });
-    } else if (!['none', 'overlap-found'].includes(fr.verdict)) {
-      errors.push({
-        file: 'scripts/upstream-decisions.mjs',
-        detail: `featureReview verdict "${fr.verdict}" is not none or overlap-found`,
-        fix: 'none: nothing upstream duplicates a feature of ours. overlap-found: it does, and the decisions above say what happened.',
-      });
-    }
-
-    for (const d of decisions) {
-      if (!overlaps.some((o) => o.key === d.overlap)) {
-        warnings.push(
-          `scripts/upstream-decisions.mjs: decision for ${d.overlap} matches no overlap in `
-          + `${short(from)}..${short(to)} - the registry moved under it`,
-        );
-      }
-    }
-  }
-
-  // CHANGELOG.md is documentation of the register, checked against it.
+// CHANGELOG.md is documentation of the register, checked against it.
+{
   const changelog = join(root, 'CHANGELOG.md');
   if (existsSync(changelog)) {
-    const recorded = readFileSync(changelog, 'utf8').match(
-      /Based on RapidRAW[^@]*@\s*`([0-9a-f]{7,40})`/,
-    );
+    const text = readFileSync(changelog, 'utf8');
+    const recorded = text.match(/Based on RapidRAW\s*`v?([^`]+)`\s*@\s*`([0-9a-f]{7,40})`/);
+    const version = isRelease(newest) ? newest.release.replace(/^v/, '') : null;
     if (!recorded) {
       errors.push({
         file: 'CHANGELOG.md',
-        detail: 'no "Based on RapidRAW ... @ `sha`" line found',
-        fix: 'Record the upstream commit this fork is reviewed up to.',
+        detail: 'no "Based on RapidRAW `x.y.z` @ `sha`" line found',
+        fix: 'Record the upstream release this fork is reviewed and merged up to.',
       });
-    } else if (through && !through.startsWith(recorded[1])) {
+    } else if (!reviewed.startsWith(recorded[2]) || (version && recorded[1] !== version)) {
       errors.push({
         file: 'CHANGELOG.md',
-        detail: `says ${recorded[1]}, the review register says ${short(through)}`,
+        detail: `says ${recorded[1]} @ ${recorded[2]}, the review register says `
+          + `${version ?? '?'} @ ${short(reviewed)}`,
         fix: 'The register is the source. Make this line agree with it.',
       });
     }
   }
 }
 
-// --- Warning: upstream commits nobody has merged yet ------------------------
+// --- Gate: what we step around must still be there ------------------------------
 //
-// Overlaps in commits we have NOT merged are a reading list, not a failure.
-// Failing on them would break every build every time upstream pushes something
-// unrelated, and a check that fires on other people's schedule is a check that
-// gets switched off - which is the exact end this whole file exists to avoid.
-try {
-  const head = git('git rev-parse upstream/main').trim();
-  if (head !== base) {
-    // The window nobody has recorded yet: every retirement on the books is
-    // behind it, so retired entries are out.
-    const entries = activeFor(REGISTRY, REVIEWS, null);
-    const ahead = detectOverlaps(git, base, head, { entries, index: dependencyIndex(entries) })
-      .filter((o) => o.gated);
-    if (ahead.length > 0) {
-      const one = ahead.length === 1;
-      warnings.push(
-        `${ahead.length} unmerged upstream change${one ? '' : 's'} `
-        + `${one ? 'lands' : 'land'} on code of ours - npm run review:upstream`,
-      );
+// A shadow is their code left in place while ours runs instead. If the release
+// we merged no longer has the symbol, our hook may be bypassing nothing. Their
+// main is looked at too, as an early warning for the next release. The render
+// path is ours, so nothing of theirs is shadowed in it.
+{
+  const shadows = shadowsOf(REGISTRY).filter((s) => !isRenderPath(s.file));
+  const specs = [...new Set(shadows.flatMap((s) => [`${base}:${s.file}`, `upstream/main:${s.file}`]))];
+  const blobs = readBlobs(git, specs);
+  for (const { entry, file, symbol } of shadows) {
+    const merged = blobs.get(`${base}:${file}`);
+    const next = blobs.get(`upstream/main:${file}`);
+    if (merged === null) {
+      errors.push({
+        file,
+        detail: `${entry.id} steps around ${symbol} here, and the release we merged no longer has this file`,
+        fix: 'Our hook may now be bypassing nothing. Find what replaced it.',
+      });
+    } else if (!merged.includes(symbol)) {
+      errors.push({
+        file,
+        detail: `${symbol} is gone from the release we merged, and ${entry.id} steps around it`,
+        fix: 'A rename is exactly the change that would otherwise slip through - check the hook still bypasses what we think it does.',
+      });
+    } else if (next === null || !next.includes(symbol)) {
+      warnings.push(`${file}: ${symbol}, which ${entry.id} steps around, is gone from upstream/main - the next release review needs to look`);
     }
+  }
+}
+
+// --- Warnings: is upstream current, and is a release waiting? ---------------------
+try {
+  const when = Number(git(['log', '-1', '--format=%ct', 'upstream/main']).trim());
+  const days = Math.floor((Date.now() / 1000 - when) / 86400);
+  if (days > 14) {
+    warnings.push(`upstream/main is ${days} days old, so a new release would go unnoticed. Run: git fetch upstream`);
   }
 } catch { /* no upstream ref: handled above */ }
 
-// --- Gate: shadowed upstream code must still exist --------------------------
-for (const { entry, file, symbol } of shadowsOf(REGISTRY)) {
-  let upstreamCopy = '';
-  try {
-    upstreamCopy = git(`git show upstream/main:${file}`, true);
-  } catch {
-    errors.push({
-      file,
-      detail: `${entry.id} steps around ${symbol} here, but upstream no longer has this file`,
-      fix: 'Our hook may now be bypassing nothing. Find what replaced it.',
-    });
-    continue;
+const versionOf = (name) => name.slice(1).split('.').map(Number);
+const newer = (a, b) => {
+  const [x, y] = [versionOf(a), versionOf(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
   }
-  if (!upstreamCopy.includes(symbol)) {
-    errors.push({
-      file,
-      detail: `${symbol} is gone from upstream, and ${entry.id} steps around it`,
-      fix: 'A rename is exactly the change that would otherwise slip through - check the hook still bypasses what we think it does.',
-    });
-  }
+  return false;
+};
+const releaseTags = [...allTags.keys()].filter((n) => /^v\d+(\.\d+)*$/.test(n));
+const reviewedName = isRelease(newest) ? newest.release : tagFor(reviewed);
+const waiting = reviewedName ? releaseTags.filter((n) => newer(n, reviewedName)) : [];
+if (waiting.length > 0) {
+  warnings.push(`RapidRAW ${waiting.sort((a, b) => (newer(a, b) ? 1 : -1)).join(', ')} `
+    + `${waiting.length === 1 ? 'is' : 'are'} out and not reviewed - npm run review:upstream`);
 }
 
-
-// --- Warning: the budget ----------------------------------------------------
-//
-// Demoted from a gate on 2026-09-13. It counts additions only, so it cannot see
-// the deletions that actually conflict, and it charges a line in a file upstream
-// touches once a year the same as one it touches weekly. Kept as a warning
-// because it is still the only thing that notices logic quietly growing inside
-// one of their functions, which the anchor rule cannot see.
-for (const t of touched) {
-  if (t.added > t.limit) {
-    warnings.push(`${t.file}: ${t.added} of our lines added, the budget is ${t.limit}`);
-  }
-}
-
-// --- Warning: is upstream/main even current? --------------------------------
-try {
-  const when = execSync('git log -1 --format=%ct upstream/main', { cwd: root, encoding: 'utf8' }).trim();
-  const days = Math.floor((Date.now() / 1000 - Number(when)) / 86400);
-  if (days > 14) {
-    warnings.push(`upstream/main is ${days} days old — this check passes vacuously against a stale ref. Run: git fetch upstream`);
-  }
-} catch {
-  /* no upstream ref: handled above */
-}
-
-// --- Report -----------------------------------------------------------------
+// --- Report -----------------------------------------------------------------------
+const seconds = ((Date.now() - started) / 1000).toFixed(1);
 if (errors.length > 0) {
   console.error('\n  UPSTREAM CHECK FAILED\n');
   for (const e of errors) {
@@ -714,41 +478,40 @@ if (errors.length > 0) {
     if (e.lines) for (const l of e.lines) console.error(`        + ${l}`);
     console.error(`      ${e.fix}\n`);
   }
-  console.error('  See CLAUDE.md, "The one architectural rule".\n');
+  if (lowerTo) console.error('  (The ratchet will be lowered once everything above passes.)\n');
+  console.error('  See docs/ARCHITECTURE.md, "Staying mergeable".');
+  console.error(`  check:merge ${seconds} s, ${gitCalls} git calls\n`);
   process.exit(1);
 }
 
-const used = touched.filter((t) => t.added > 0 || t.deleted > 0 || t.borrowed > 0);
-if (used.length > 0) {
-  const added = used.reduce((n, t) => n + t.added, 0);
-  const removed = used.reduce((n, t) => n + t.removed, 0);
-  const replaced = used.reduce((n, t) => n + t.replaced, 0);
-  const hooked = [...stats.values()].filter((st) => st.hooks.length > 0);
-  const hooks = hooked.reduce((n, st) => n + st.hooks.length, 0);
-  console.log(`  upstream: ${used.length} files touched, ${added} of our lines added`);
-  console.log(`  their lines: ${removed} removed unreplaced, ${replaced} replaced in place - counts, not evidence`);
-  console.log(`  anchors: ${hooks} calls into our code across ${hooked.length} of their files — a new feature should add none`);
-
-  const borrowed = used.filter((t) => t.borrowed > 0);
-  if (borrowed.length > 0) {
-    console.log(`  borrowed from upstream, pending their merge (${borrowed.length}):`);
-    for (const b of borrowed) {
-      console.log(`    ${b.file}  ${b.borrowed} lines, ${b.prs.map((n) => `#${n}`).join(', ')}`);
-    }
-  }
-
-  const active = EXCEPTIONS.filter((e) => used.some((t) => t.file === e.file));
-  if (active.length > 0) {
-    console.log(`  approved exceptions (${active.length}):`);
-    for (const e of active) {
-      const t = used.find((x) => x.file === e.file);
-      const parts = [];
-      if (e.allow !== undefined) parts.push(`${t?.added ?? 0}/${e.allow} added`);
-      if (e.allowDeleted !== undefined) parts.push(`${t?.removed ?? 0}/${e.allowDeleted} removed`);
-      console.log(`    ${e.file}  ${parts.join(', ')}, agreed ${e.date}`);
-    }
-  }
+if (lowerTo) {
+  writeFileSync(baselinePath, formatBaseline(lowerTo));
+  notes.push(`${BASELINE} updated - commit it`);
 }
 
+const sum = (list, key) => list.reduce((n, t) => n + t[key], 0);
+const used = theirs.filter((t) => t.added > 0 || t.deleted > 0 || t.borrowed > 0);
+const hooked = theirs.filter((t) => t.hooks.length > 0);
+console.log(`  upstream: merged and reviewed up to ${reviewedName ?? short(reviewed)} (${short(reviewed)})`);
+console.log(`  their files: ${used.length} touched outside the render path, ${sum(used, 'added')} of our lines, `
+  + 'none above the ratchet');
+console.log(`  render path: ${sum(renderPath, 'added')} of our lines in ${renderPath.length} files - ours to change, not counted`);
+console.log(`  anchors: ${hooked.reduce((n, t) => n + t.hooks.length, 0)} calls into our code across ${hooked.length} of their files`);
+console.log(`  their lines: ${sum(used, 'removed')} removed unreplaced, ${sum(used, 'replaced')} replaced in place - counts, not evidence`
+  + (verbose ? '' : ' (--verbose lists them)'));
+if (verbose) {
+  for (const t of used.filter((x) => x.removed > 0)) {
+    console.log(`    ${t.file}: ${t.removed} removed unreplaced, ${t.replaced} replaced`);
+  }
+}
+const borrowed = used.filter((t) => t.borrowed > 0);
+if (borrowed.length > 0) {
+  console.log(`  borrowed from upstream, pending their merge (${borrowed.length}):`);
+  for (const b of borrowed) {
+    console.log(`    ${b.file}  ${b.borrowed} lines, ${[...b.prs].map((n) => `#${n}`).join(', ')}`);
+  }
+}
+for (const n of notes) console.log(`  ${n}`);
 for (const w of warnings) console.log(`  warning: ${w}`);
+console.log(`  check:merge ${seconds} s, ${gitCalls} git calls`);
 process.exit(0);

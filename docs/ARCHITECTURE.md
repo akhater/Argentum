@@ -1,25 +1,48 @@
 # Architecture
 
-The whole design has one goal: **be able to pull RapidRAW's updates forever
-without a fight.**
+Argentum began as a fork of RapidRAW. It is becoming an application of its
+own, one piece at a time, and it keeps working at every step:
+
+> **New code goes in the engine. The render path is ours. RapidRAW is a source
+> we take from, reviewed once per release - not a base we merge forever.**
 
 ---
 
-## The problem this solves
+## Why the fork rule changed
 
-A fork dies when your changes and upstream's changes land in the same lines of
-the same files. Every update becomes an argument. Eventually you stop updating,
-and now you're maintaining a whole photo editor alone.
+A fork dies when your changes and upstream's land in the same lines of the
+same files. Every update becomes an argument, you stop updating, and you are
+maintaining a whole photo editor alone. For its first months Argentum answered
+that with one rule: our code in our own files, as few lines as possible in
+theirs, and every upstream commit that touched something we depend on reviewed
+on its own.
 
-## The rule that prevents it
+By October 2026 the rule no longer held. Our lines were in 66 of RapidRAW's
+files, about 2,000 of them, and the review of RapidRAW 1.6.5 recorded 1,242
+per-commit decisions, 84% of them "not applicable". The effort went into
+saying that unrelated commits were unrelated, while the code that renders a
+photo, where Argentum differs most, was the code we were least free to change.
 
-> **Our code goes in our own files. We touch their files as little as physically possible — ideally one line per tool.**
+So the line moved:
 
-Files upstream has never heard of can never conflict.
+| Where | Rule |
+|---|---|
+| `src-tauri/engine/` | New tools: one file in `tools/`, one line in `registry.rs` (see its README) |
+| `src-tauri/src/mods/`, `shaders/modules.wgsl`, `src/argentum/` | Ours, as before, until moved into the engine |
+| The render path: `gpu_processing.rs`, `lib.rs`, `image_processing.rs` | Ours to change. RapidRAW's changes here are read at each release and copied in by hand when wanted, never merged |
+| Their other files | Still merged, once per release. Our lines in them may only go down |
+
+Nothing of theirs is deleted while something still uses it. Once nothing does,
+it is deleted and noted in that release's review. RapidRAW stops being merged
+at all when none of their files runs while previewing, exporting or masking,
+none of their panels is shown, and the sidecar format is ours.
 
 ---
 
 ## How that works for shaders
+
+This is how the tools in today's pipeline reach the GPU. New tools go into the
+engine instead (`src-tauri/engine/README.md`).
 
 RapidRAW's image engine is one file, `src-tauri/src/shaders/shader.wgsl`.
 Every tool is a function; `main()` calls them in order.
@@ -31,7 +54,7 @@ Instead: the shader is pulled in with Rust's `include_str!`, so we can glue
 two files together at build time.
 
 ```rust
-// gpu_processing.rs — changed once, ever
+// gpu_processing.rs — on the render path, ours
 source: wgpu::ShaderSource::Wgsl(
     concat!(
         include_str!("shaders/modules.wgsl"),   // ours
@@ -59,24 +82,27 @@ edits nearby.
 ## Layout
 
 ```
-src-tauri/src/
-  shaders/
-    shader.wgsl          THEIRS  — one call line added per tool
-    modules.wgsl         OURS    — all harvested math lives here
-  mods/                  OURS    — our Rust code
-    catalog.rs             the offline photo index
-    paths.rs               where the data folder lives
-    color.rs               conversion between their color space and darktable's
-  image_processing.rs    THEIRS  — settings fields added per tool
-  gpu_processing.rs      THEIRS  — changed once, for the concat above
+src-tauri/
+  engine/                OURS    — the processing engine: a tool registry, one file per tool
+  src/
+    shaders/
+      shader.wgsl        THEIRS  — one call line per stage
+      modules.wgsl       OURS    — harvested math for the current pipeline
+    mods/                OURS    — our Rust code, until it moves into the engine
+    gpu_processing.rs    RENDER PATH — came from RapidRAW, ours to change
+    image_processing.rs  RENDER PATH
+    lib.rs               RENDER PATH
+    *.rs                 THEIRS  — merged once per release
 
 src/
-  components/adjustments/
-    *.tsx                THEIRS  — a slider added per tool
+  argentum/              OURS
+  components/            THEIRS  — markers and mount points for our panels
 ```
 
-**Rule of thumb:** if a file is ours, put anything in it. If a file is theirs,
-you should be adding a handful of lines, not restructuring.
+**Rule of thumb:** a file of ours takes anything. A file on the render path is
+ours to change, a piece at a time. A file of theirs takes no new lines: what a
+feature needs goes into a file of ours, and the line count in theirs only goes
+down.
 
 ---
 
@@ -145,11 +171,8 @@ feature must not need it to.
 
 | Their file | Anchor | A new feature instead |
 |---|---|---|
-| `lib.rs` | `mod mods`, the cache check, one `ag` command | add a match arm in `mods/dispatch.rs` |
-| `shader.wgsl` | one call to `ag_stage_scene_linear`, one to `ag_stage_display` | add your tool inside one of those functions in `modules.wgsl` |
-| `gpu_processing.rs` | the `Precision` import, and one call to `mods::input_stage::run` | a whole-image GPU pass on the input (sharpening, a denoiser) goes inside `mods/input_stage.rs` |
+| `shader.wgsl` | one call each to `ag_stage_scene_linear`, `ag_stage_tone` and `ag_stage_display` | add your tool inside one of those functions in `modules.wgsl` |
 | `raw_processing.rs` | one call to `mods::decode::on_raw_decoded` | add a step in `mods/decode.rs` |
-| `image_processing.rs` | the CPU preview encode interception | change `mods/preview_encode.rs` |
 | `App.tsx` | one `<Argentum />` | add a portal in `argentum/Argentum.tsx` |
 | `Color.tsx`, `MetadataPanel.tsx`, `Details.tsx` | `data-argentum` markers | portal into the existing marker |
 | 13 locale files | nothing | add a string to `argentum/locales/en.json` |
@@ -160,7 +183,9 @@ rebrand (`.agdata`, "Argentum" inside a sentence they already had). The rebrand
 happened once and does not grow, so it is not counted.
 
 Add a hook to one of their files and the build fails, naming the anchor and what
-to do instead.
+to do instead. The render path (`gpu_processing.rs`, `lib.rs`,
+`image_processing.rs`) has no anchors: it is ours to change. New tools need no
+anchor at all, because they go into the engine.
 
 ### The one category that is not free
 
@@ -243,8 +268,8 @@ the build until someone decides. Three ways out, in order of preference:
 1. Put the picker in a panel we already have a marker in, and have it *create*
    the mask rather than live inside the mask UI. No new anchor.
 2. One new marker in `MasksPanel.tsx`, as a one-time mount point in the same
-   category as `color-tools` — an approved exception with a date, like the three
-   that exist.
+   category as `color-tools`. The ratchet counts it as a line of ours in their
+   file, so it has to be paid for by removing one elsewhere in that file.
 3. Our own window. No anchor at all and the worst place for it to be.
 
 Decide that before writing any of the model code, because it decides where the
@@ -259,68 +284,94 @@ catalogue index is the obvious place and does not exist yet.
 
 ## Staying mergeable
 
+RapidRAW is merged once per release, after a review of that release. Between
+releases nothing of theirs is merged.
+
 ```bash
-git remote add upstream https://github.com/CyberTimon/RapidRAW.git
+git fetch upstream
 ```
 
 ```bash
-git fetch upstream && git merge upstream/main
+npm run review:upstream
 ```
 
-If a conflict appears, it will almost always be in `shader.wgsl` or
-`image_processing.rs`, and it will be our added lines sitting next to their
-changed ones. Keep both. That's the whole resolution.
+The review covers the range from the last reviewed release to their newest
+release tag, in the order it is read:
 
-**If you ever find yourself doing a real merge, something drifted from the rule
-above.** Move that code into a file of ours instead.
+1. **Their shader changes first**, as a diff: the most valuable changes and the
+   easiest to copy.
+2. **Their render-path changes**, to read. What is wanted is copied into our
+   render path by hand, with the source commit in a comment; nothing there is
+   merged.
+3. **Their changes to files our registry entries depend on**
+   (`scripts/upstream-registry.mjs`), with the entries that rely on each one.
+4. **One line per feature**, grouped from their pull requests, with a verdict
+   to fill in: **take** (merge it as it is), **copy** (into a file of ours,
+   naming it), **skip** (not wanted: their library, cloud, or an interface
+   being replaced), or **decide** (they built something we already have).
+
+It ends with the register entry to paste into
+`scripts/upstream-decisions.mjs` and the merge commands. The review is meant
+to take under a day, and the entry records how long it took.
+
+### What `npm run check:merge` holds
+
+It runs in CI as a required check, and on demand. It takes about a second:
+each question is asked of git once, by one streamed command.
+
+- **The ratchet.** For every file of theirs outside the render path, the number
+  of lines we have added to it is recorded in `scripts/upstream-ratchet.json`.
+  A file above its number fails the build. A file below it lowers the number:
+  the check writes it locally, and CI fails until it is committed. The file is
+  also compared with the one on `main`, so a number raised by hand fails too.
+- **Coverage.** A file of theirs that we changed must be claimed by a registry
+  entry saying what depends on it and what proves it works.
+- **Integrity.** Registry entries are retired, never deleted, and a retirement
+  names the release review that decided it. Borrowed upstream fixes carry
+  `// upstream #NNNN` markers that the registry must agree with.
+- **Anchors.** Calls from their files into ours stay at a fixed count, and the
+  wiring an anchor exists for is still there.
+- **Shadows.** Code of theirs we leave in place and step around must still
+  exist in the release we merged. Its disappearance from their main is a
+  warning for the next review.
+- **The release reviews.** One unbroken chain of reviews; upstream merged in
+  exactly up to the newest one; every commit of that release in some feature;
+  every change of theirs to the render path marked copy, skip or decide, never
+  take; `sameAsOurs` saying whether they built something we have; and
+  `stillLive`, the list of their files still used when previewing, exporting
+  or masking, never longer than at the review before.
+
+The reviews before 2026-10-18 were per commit. They stay in the register as
+history and are still checked for shape, but no new per-commit overlaps are
+derived.
 
 ### A clean merge is not the same as a safe one
 
-This is the part that took a mistake to learn. On 2026-09-13 ten upstream
-commits merged with no conflict in application code, and that was written up as
-proof the architecture works. It was not proof of anything.
+On 2026-09-13 ten upstream commits merged with no conflict in application
+code, and that was written up as proof the architecture works. It was not
+proof of anything.
 
-`git merge` answers one question: *do these texts collide?* It cannot answer the
-one a fork lives on: *has upstream now built, moved or renamed the thing we
-built around?* Those changes conflict with nothing. Had upstream shipped their
-own auto white balance that week, git would have merged it in silence and
-Argentum would have had two of them — or theirs would quietly have won.
-
-Three kinds of change merge cleanly and still break us:
+`git merge` answers one question: *do these texts collide?* It cannot answer
+the one that matters: *has upstream now built, moved or renamed the thing we
+built around?* Those changes conflict with nothing:
 
 - **Upstream fixes a function we shadow.** We left it in place and stopped
-  calling it, exactly as the rule says. Their fix lands in code that never runs.
-- **Upstream edits a file we carry one of their own fixes in.** Nothing marks
-  it: they need not mention the pull request number, and in RapidRAW most
-  commits are the maintainer's own and mention nothing. `8737fc4e` rewrote the
-  cache hashing that one of our borrowed blocks sits inside.
+  calling it. Their fix lands in code that never runs.
+- **Upstream edits a file we carry one of their own fixes in.** Most RapidRAW
+  commits are the maintainer's own and name no pull request, so nothing marks
+  it.
 - **Upstream changes a key we re-typed.** `showClipping` is 0..4 here and still
   a boolean in their `Waveform.tsx`. The day they write `=== true`, our control
   reads as off and nothing errors.
+- **Upstream builds the feature we built**, in files we have never touched.
+  Nothing detects that: not a diff, not a file match, not a pattern over commit
+  subjects.
 
-A fourth merges cleanly and breaks nothing, which is worse: **upstream builds
-the feature we built**, in files we have never touched. Nothing detects that.
-Not a diff, not a file match, not a regular expression over commit subjects —
-a commit called "improve colour handling" matches nothing and could be our
-entire white balance module arriving from the other direction.
-
-So there are two halves, and only one of them is mechanical.
-
-`scripts/upstream-registry.mjs` is the inventory: every feature, borrowed fix
-and deliberate behaviour change, with the upstream files, symbols and keys it
-rests on, and what proves it works. Overlaps are derived from that and from git,
-keyed to the exact upstream commit, and `scripts/upstream-decisions.mjs` records
-a verdict and a reason for each. `npm run check:merge` re-derives them and fails
-until the decisions are there.
-
-The other half is a sentence. Every review entry carries a `featureReview`
-saying that a person read the incoming batch for things we already have, and
-what they concluded. Nothing verifies it. It is required so that the claim is
-made explicitly by someone rather than implied by a green check — which is the
-same mistake, one level up, as reading a clean merge as proof of safety.
-
-Neither half checks that the reasoning is any good. They make sure the question
-was asked, which is the part that was being skipped.
+The registry and the review's third section cover the first three. The last
+one is a sentence: every release review carries `sameAsOurs`, saying what the
+release was read for and what was concluded, with a `decide` line for each
+duplicate found. Nothing verifies that sentence. It is required so that the
+claim is made explicitly by someone rather than implied by a green check.
 
 ### Review the interface separately from the processing
 

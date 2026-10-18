@@ -1,53 +1,68 @@
-// What we decided about each upstream change that landed on top of ours.
+// What we decided about each RapidRAW release, and before that about each commit.
 //
-// WHY THIS EXISTS, AND WHY IT IS THE ONLY REGISTER
+// ONE REVIEW PER RELEASE
 //
-// Merging used to erase the review window. The review ran from the git
-// merge-base, so the moment the merge landed the base moved and the script said
-// "nothing new" — whether or not anybody had looked. The CHANGELOG line meant to
-// force the review could be satisfied with one `sed`.
+// RapidRAW is a source Argentum takes from, reviewed once per release. Each
+// review is one entry at the end of REVIEWS, written from the template that
+// `npm run review:upstream` prints (run `git fetch upstream` first):
 //
-// So the reviewed-through point lives here, with the decisions attached to it,
-// and the CHANGELOG line is checked against this file rather than written
-// independently. There is one register, not two, which is the whole objection to
-// keeping a register at all: two of them drift, and the stale CHANGELOG line was
-// the proof.
+//   {
+//     release: 'v1.6.6',            the upstream tag reviewed up to
+//     from: '<40-char sha>',        where the previous review ended
+//     to: '<40-char sha>',          the commit that tag names
+//     on: 'YYYY-MM-DD',             the day of the review
+//     hours: 3,                     how long it took; it is meant to take under a day
+//     features: [                   one line per feature, not per commit
+//       { what, commits: ['8-char sha', ...], verdict, why, copiedInto? },
+//     ],
+//     sameAsOurs: { verdict: 'none' | 'found', why },
+//     stillLive: ['path', ...],     their files still run when previewing, exporting or masking
+//     retires: ['registry-id', ...],  optional: registry entries this review retires
+//   }
 //
-// HOW IT IS ENFORCED
+// Feature verdicts:
 //
-// check-mergeability.mjs re-derives the overlaps in the range the newest entry
-// covers — `REVIEWS[n-1].through .. REVIEWS[n].through` — from git and from
-// scripts/upstream-registry.mjs, and fails until every gated one has a decision
-// here. You cannot advance `through` without the script asking again for each
-// overlap it finds, and you cannot make an overlap go away by deleting the thing
-// that caused it: a registry entry retired in the review being written still
-// generates its requirement for that window.
+//   take    merge it as it is
+//   copy    copy it into a file of ours by hand, with its source commit;
+//           copiedInto names that file
+//   skip    not wanted: library, cloud, the interface being replaced
+//   decide  they built something we have; why says which one stays
 //
-// Only the newest entry's range is re-derived. Older ones are records of what was
-// known then; re-deriving them against today's registry would invent overlaps
-// nobody could have seen at the time.
+// check-mergeability.mjs holds each release review to this:
 //
-// VERDICTS
+//   * the reviews form one unbroken chain: each `from` is where the one before
+//     it ended, and `to` is what `release` names;
+//   * every commit in the newest range is in some feature's `commits`, so a
+//     release cannot be half read;
+//   * a commit that touches the render path (RENDER_PATH in
+//     scripts/upstream-registry.mjs) is in at least one feature that is not
+//     `take`: their render-path changes are read and copied, never merged;
+//   * `sameAsOurs` is `found` exactly when some feature is `decide`;
+//   * `stillLive` never grows from one release review to the next;
+//   * upstream is merged in exactly up to the newest `to`, and CHANGELOG.md
+//     names that release and commit.
+//
+// THE PER-COMMIT HISTORY
+//
+// Until 2026-10-18 the review was per commit: every upstream commit that touched
+// a file a registry entry depends on needed its own decision. The last such
+// review, RapidRAW 1.6.5, carried 1,242 of them, 84% "not-applicable". Those
+// entries stay below as history. Their decisions are still checked for shape
+// (a verdict from VERDICTS and a reason), and no new per-commit overlaps are
+// derived: re-deriving an old window against today's registry would invent
+// overlaps nobody could have seen.
 //
 //   adopt           take theirs, drop ours
 //   keep-ours       ours stands; theirs is knowingly not used here
-//   combine         both, reconciled by hand — say how
+//   combine         both, reconciled by hand - say how
 //   not-applicable  the overlap is mechanical noise; say why it cannot bite
-//
-// THE FEATURE REVIEW
-//
-// Every entry that covers a real range must carry `featureReview`. Overlap
-// detection is file-based: it finds upstream changing something we registered a
-// dependency on. It cannot find upstream building the same feature somewhere we
-// have never touched — no amount of pattern matching does that, and claiming
-// otherwise would be the more dangerous kind of wrong. So the batch is read for
-// duplicate features by a person, and that claim is written down as a sentence
-// with their reasoning in it. Nothing verifies the sentence. It is required so
-// that the claim is made rather than assumed.
-//
-// Run `npm run review:upstream` — it prints the overlap keys ready to paste.
 
 export const VERDICTS = ['adopt', 'keep-ours', 'combine', 'not-applicable'];
+export const FEATURE_VERDICTS = ['take', 'copy', 'skip', 'decide'];
+export const SAME_AS_OURS = ['none', 'found'];
+
+/** The last per-commit review (RapidRAW 1.6.5). Every review after it is per release. */
+export const PER_COMMIT_ENDS = '79c2a46b448b9a0bee0b30f8c345daad003ad694';
 
 // The v1.6.4 review has many repeated checks against the same shared shader
 // anchors. Keep each exact overlap as its own decision, while sharing the
@@ -1537,12 +1552,11 @@ export const REVIEWS = [
   },
 ];
 
-/** The commit every upstream change up to which has been reviewed. */
-export const reviewedThrough = () => REVIEWS[REVIEWS.length - 1].through;
+/** Is this a per-release review (the shape used since 2026-10-18)? */
+export const isRelease = (review) => typeof review.release === 'string';
 
-/** The entry being added, and the range it must account for. */
-export const newestRange = () => ({
-  from: REVIEWS.length > 1 ? REVIEWS[REVIEWS.length - 2].through : null,
-  to: reviewedThrough(),
-  entry: REVIEWS[REVIEWS.length - 1],
-});
+/** The upstream commit everything up to which has been reviewed. */
+export const reviewedTo = (reviews = REVIEWS) => {
+  const last = reviews[reviews.length - 1];
+  return isRelease(last) ? last.to : last.through;
+};

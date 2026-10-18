@@ -25,17 +25,12 @@
  *
  * Rebrand lines (`.agdata`, "Argentum" inside their own sentences) are counted
  * separately and ignored here: they happened once and do not grow.
+ *
+ * The render path (RENDER_PATH in upstream-registry.mjs: gpu_processing.rs,
+ * lib.rs, image_processing.rs) is ours to change and has no anchor count. An
+ * entry for one of those files carries only `requires`.
  */
 export const ANCHORS = [
-  {
-    file: 'src-tauri/src/lib.rs',
-    hooks: 5,
-    what:
-      '`mod mods`, the cache-version check, the single `ag` command, the display '
-      + 'conversion for the screen the window is on, and the refresh when the window '
-      + 'moves to another screen',
-    instead: 'add a match arm to mods/dispatch.rs — commands cost nothing here',
-  },
   {
     file: 'src-tauri/src/shaders/display.wgsl',
     hooks: 1,
@@ -61,24 +56,10 @@ export const ANCHORS = [
     instead: 'add a step to mods/decode.rs',
   },
   {
-    // One import, and it has to stay one. Everything the export render does
-    // differently is reachable from the Precision value it carries: the storage
-    // format, the shader text, the pipeline constant that silences the dither,
-    // the bytes per pixel of the readback. A second hook here would mean some of
-    // that decision had been written into their file instead of ours.
+    // The render path (RENDER_PATH in upstream-registry.mjs) is ours to change,
+    // so this file has no hook count. The wiring check stays: it is what notices
+    // a change that silently stops sharpening from reaching their passes.
     file: 'src-tauri/src/gpu_processing.rs',
-    // Two since 2026-10-10, by AK's decision (DEC in the brain): the input
-    // stage. Precision decides how a render is *stored*; it was never the
-    // place for whole-image passes on the input, and routing sharpening
-    // through it would have hidden a second feature behind the first one's
-    // name. Every later multi-pass tool goes inside mods/input_stage.rs.
-    hooks: 2,
-    what:
-      'the import of Precision, which the processor carries and reads from; and the input stage, '
-      + 'one call to mods::input_stage::run before their passes',
-    instead:
-      'a storage decision goes in mods/export_precision.rs; a whole-image pass on the input goes '
-      + 'inside mods/input_stage.rs',
     requires: [
       {
         // The use of the result mentions nothing of ours, so a merge that
@@ -115,12 +96,6 @@ export const ANCHORS = [
         why: 'the export has to go through ours or a TIFF silently loses its metadata again',
       },
     ],
-  },
-  {
-    file: 'src-tauri/src/image_processing.rs',
-    hooks: 4,
-    what: 'the CPU preview encode interception, and the clipping view mode',
-    instead: 'change mods/preview_encode.rs, or mods/clipping.rs',
   },
   {
     // One import, as in export_processing.rs. Their two shape masks each hand
