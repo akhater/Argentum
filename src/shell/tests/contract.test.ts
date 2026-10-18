@@ -1,0 +1,116 @@
+// The shell and its fake against the engine's own contract fixtures
+// (src/shell/contract.fixtures.json, generated from contract.rs): the fake
+// takes and refuses exactly what the engine does.
+
+import { describe, expect, it } from 'vitest';
+
+import fixtures from '../contract.fixtures.json';
+import {
+  HISTOGRAM_BINS,
+  type Applied,
+  type EditDocument,
+  type EditPatch,
+  type EngineError,
+  type Event,
+  type Placement,
+  type View,
+} from '../contract';
+import { createFakeEngine } from '../engine/fake';
+import { frameLayout } from '../engine/fakeLayout';
+import { openShell, settle } from './helpers';
+
+// JSON imports are typed by their contents; these are the contract's shapes.
+const patched = fixtures.patched as unknown as { patch: EditPatch; edit: EditDocument }[];
+const refused = fixtures.refused as unknown as { patch: EditPatch; error: EngineError }[];
+const placements = fixtures.placements as unknown as {
+  view: View;
+  photoWidthPx: number;
+  photoHeightPx: number;
+  placement: Placement;
+}[];
+
+/** A fake with one photo open, at the defaults. */
+async function opened() {
+  const engine = createFakeEngine();
+  const { photoId } = await engine.open('samples/A.CR3');
+  return { engine, photoId };
+}
+
+describe('the contract fixtures', () => {
+  it('are the sections and tools the fake describes', async () => {
+    expect(await createFakeEngine().sections()).toEqual(fixtures.sections);
+    expect(await createFakeEngine().tools()).toEqual(fixtures.tools);
+  });
+
+  it('give the edit a photo opens with', async () => {
+    const { engine, photoId } = await opened();
+    expect(engine.editOf(photoId)).toEqual(fixtures.opened.edit);
+    expect(fixtures.opened.edit).toEqual(fixtures.edit);
+  });
+
+  it('apply: the edit back is the engine’s, defaults filled', async () => {
+    const { engine, photoId } = await opened();
+    const applied: Applied = await engine.apply(photoId, fixtures.patch as EditPatch);
+    expect(applied.edit).toEqual((fixtures.applied as Applied).edit);
+  });
+
+  it('patched: the fake clamps and fills in exactly as the engine', async () => {
+    expect(patched.length).toBeGreaterThan(0);
+    for (const { patch, edit } of patched) {
+      const { engine, photoId } = await opened();
+      expect((await engine.apply(photoId, patch)).edit, JSON.stringify(patch)).toEqual(edit);
+    }
+  });
+
+  it('refused: the fake refuses exactly what the engine refuses, as a whole, with its kind', async () => {
+    expect(refused.length).toBeGreaterThan(0);
+    for (const { patch, error } of refused) {
+      const { engine, photoId } = await opened();
+      const refusal = await engine.apply(photoId, patch).then(
+        () => null,
+        (e: EngineError) => e,
+      );
+      expect(refusal?.kind, JSON.stringify(patch)).toBe(error.kind);
+      expect(engine.editOf(photoId), JSON.stringify(patch)).toEqual(fixtures.edit);
+    }
+  });
+
+  it('placements: the fake lays a frame out exactly as the engine', () => {
+    expect(placements.length).toBeGreaterThan(0);
+    for (const { view, photoWidthPx, photoHeightPx, placement } of placements) {
+      const photo = { width: photoWidthPx, height: photoHeightPx };
+      expect(frameLayout(view, photo).placement, JSON.stringify(view)).toEqual(placement);
+    }
+  });
+
+  it('frames: the fake announces the engine’s placement and sends pixels of exactly that size', async () => {
+    const { engine, photoId } = await opened();
+    const frames: Extract<Event, { event: 'frame' }>[] = [];
+    engine.subscribe((e) => {
+      if (e.event === 'frame') frames.push(e);
+    });
+    const view: View = { zoom: 0.1, centerX: 0.5, centerY: 0.5, width: 1600, height: 1200 };
+    const ticket = await engine.view(photoId, view);
+    await settle();
+    const frame = frames.find((f) => f.ticket === ticket)!;
+    const photo = await engine.open('samples/A.CR3');
+    expect(frame.placement).toEqual(frameLayout(view, photo).placement);
+    const pixels = (await engine.frame(ticket))!;
+    expect([pixels.width, pixels.height]).toEqual([frame.placement.widthPx, frame.placement.heightPx]);
+  });
+
+  it('events are read in the shapes the engine sends', async () => {
+    const { store } = await openShell();
+    const [frame, histogram, error] = fixtures.events as Event[];
+    expect(frame.event).toBe('frame');
+    const ticket = store.getState().latestTicket;
+    const photoId = store.getState().photo!.photoId;
+    store.getState().receive({ ...(histogram as Extract<Event, { event: 'histogram' }>), ticket: ticket + 1, photoId });
+    expect(store.getState().histogram).toHaveLength(HISTOGRAM_BINS);
+    store.getState().receive(error);
+    expect(store.getState().error).toEqual({ kind: 'noGpu', message: 'no GPU: no adapter' });
+    store.getState().fail(new Error('lost'));
+    expect(store.getState().error).toEqual({ kind: 'internal', message: 'lost' });
+    await settle();
+  });
+});

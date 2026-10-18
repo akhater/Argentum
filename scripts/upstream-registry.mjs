@@ -1652,6 +1652,28 @@ export const REGISTRY = [
     keywords: /prettier|format|lint/i,
   },
   {
+    id: 'new-shell-switch',
+    kind: 'feature',
+    what:
+      'The new editor interface (DEC-29), opt-in: `?shell=new` opens src/shell/ instead of their App. '
+      + 'Panels are built from the engine\'s tool descriptors; it reaches the engine only through '
+      + 'src/shell/engine/client.ts, today the contract fake. Anything else opens their App as before.',
+    ours: ['src/shell/'],
+    dependsOn: [
+      { file: 'src/main.tsx', how: 'calls',
+        note:
+          'Their `import App from \'./App\'` now imports from ./shell/switch, one line for one. The '
+          + 'switch loads their App with a dynamic import unless the shell is asked for, because their '
+          + 'App reaches for Tauri while its modules load. If they rename or move App.tsx, or render '
+          + 'something other than <App /> from main.tsx, the switch is what breaks.' },
+    ],
+    tests: [
+      'npm run test:shell (src/shell/tests)',
+      'Manual: the app opens as before without ?shell=new; with it, the shell opens on the contract fake.',
+    ],
+    keywords: /main\.tsx|createRoot/i,
+  },
+  {
     id: 'fast-dev-builds',
     kind: 'behaviour-change',
     what:

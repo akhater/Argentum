@@ -1,0 +1,83 @@
+// How descriptors become panels: sections in the order the engine gives them,
+// tools by their order within each. This is the whole of it, and it knows no
+// tool and no section by name.
+
+import type { EditDocument, Section, SectionDescriptor, SettingSpec, SettingValue, ToolDescriptor } from '../contract';
+import { text } from '../i18n';
+import { clamp } from '../view';
+
+export interface PanelSection {
+  readonly id: Section;
+  /** i18n key. */
+  readonly label: string;
+  readonly tools: readonly ToolDescriptor[];
+}
+
+/**
+ * The sections that have tools, in the engine's order, each with its tools by
+ * `order`. A tool naming a section the engine did not list still shows, after
+ * the listed ones, so no tool can go missing.
+ */
+export function buildSections(
+  sections: readonly SectionDescriptor[],
+  tools: readonly ToolDescriptor[],
+): PanelSection[] {
+  const sorted = [...tools].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+  const unlisted = [...new Set(sorted.map((t) => t.section))].filter((id) => !sections.some((s) => s.id === id));
+  return [...sections, ...unlisted.map((id) => ({ id, label: id }))]
+    .map((s) => ({ id: s.id, label: s.label, tools: sorted.filter((t) => t.section === s.id) }))
+    .filter((s) => s.tools.length > 0);
+}
+
+/** Whether a setting means anything now: its `enabledWhen` holds, or it has none. */
+export function isEnabled(doc: EditDocument, tool: ToolDescriptor, spec: SettingSpec): boolean {
+  const when = spec.enabledWhen;
+  if (!when) return true;
+  const value = doc.tools[tool.id]?.settings[when.key] ?? tool.settings.find((s) => s.key === when.key)?.default;
+  return value === when.equals;
+}
+
+/** A number setting's range: its own, or 0..1 when the descriptor gives none. */
+export const rangeOf = (spec: SettingSpec) => ({ min: spec.min ?? 0, max: spec.max ?? 1 });
+
+const isLog = (spec: SettingSpec, min: number, max: number) => spec.scale === 'log' && min > 0 && max > min;
+
+/** Where a value sits along its slider, 0..1: evenly, or by ratio for a log setting. */
+export function railPosition(spec: SettingSpec, value: number): number {
+  const { min, max } = rangeOf(spec);
+  if (max <= min) return 0;
+  const v = clamp(value, min, max);
+  if (isLog(spec, min, max)) return Math.log(v / min) / Math.log(max / min);
+  return (v - min) / (max - min);
+}
+
+/** The value at a point along its slider, 0..1: the inverse of railPosition. */
+export function railValue(spec: SettingSpec, position: number): number {
+  const { min, max } = rangeOf(spec);
+  const p = clamp(position, 0, 1);
+  if (isLog(spec, min, max)) return min * Math.pow(max / min, p);
+  return min + p * (max - min);
+}
+
+export const mainSettings = (tool: ToolDescriptor) => tool.settings.filter((s) => !s.advanced);
+export const advancedSettings = (tool: ToolDescriptor) => tool.settings.filter((s) => s.advanced);
+
+/** Decimals a number is shown with: from its step, or two. */
+export function decimalsOf(spec: SettingSpec): number {
+  if (spec.kind === 'int') return 0;
+  if (spec.step === undefined) return 2;
+  const s = String(spec.step);
+  return s.includes('.') ? s.split('.')[1].length : 0;
+}
+
+/** A value as the panel and the history show it. */
+export function formatValue(spec: SettingSpec, value: SettingValue): string {
+  if (typeof value === 'boolean') return text(value ? 'shell.on' : 'shell.off');
+  if (typeof value === 'string') {
+    const choice = spec.choices?.find((c) => c.value === value);
+    return choice ? text(choice.label) : value;
+  }
+  const n = value.toFixed(decimalsOf(spec));
+  const signed = spec.min !== undefined && spec.min < 0 && value > 0 ? `+${n}` : n;
+  return spec.unit ? `${signed} ${spec.unit}` : signed;
+}
