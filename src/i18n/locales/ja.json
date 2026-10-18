@@ -132,7 +132,7 @@
       "roughness": "粗さ",
       "roundness": "丸み",
       "size": "サイズ",
-      "vignette": "周辺光量補正"
+      "vignette": "切り抜き後の周辺光量補正"
     }
   },
   "contextMenus": {
@@ -1261,7 +1261,7 @@
         "sharpness": "シャープネス",
         "tone": "トーン",
         "transformRotation": "変形と回転",
-        "vignette": "周辺光量補正",
+        "vignette": "切り抜き後の周辺光量補正",
         "whiteBalance": "ホワイトバランス"
       },
       "includedAdjustments": "対象の補正項目",

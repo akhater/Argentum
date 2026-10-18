@@ -132,7 +132,7 @@
       "roughness": "Rugositat",
       "roundness": "Rodonesa",
       "size": "Mida",
-      "vignette": "Vinyetatge"
+      "vignette": "Vinyetatge post-retall"
     }
   },
   "contextMenus": {
@@ -1265,7 +1265,7 @@
         "sharpness": "Nitidesa",
         "tone": "Tons",
         "transformRotation": "Transformació i Rotació",
-        "vignette": "Vinyetatge",
+        "vignette": "Vinyetatge post-retall",
         "whiteBalance": "Balanç de blancs"
       },
       "includedAdjustments": "Ajustaments inclosos",

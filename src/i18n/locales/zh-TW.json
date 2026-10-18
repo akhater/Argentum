@@ -132,7 +132,7 @@
       "roughness": "粗糙度",
       "roundness": "圓度",
       "size": "大小",
-      "vignette": "暗角"
+      "vignette": "裁剪後暗角"
     }
   },
   "contextMenus": {
@@ -1261,7 +1261,7 @@
         "sharpness": "銳度",
         "tone": "色調",
         "transformRotation": "變換與旋轉",
-        "vignette": "暗角",
+        "vignette": "裁剪後暗角",
         "whiteBalance": "白平衡"
       },
       "includedAdjustments": "包含的調整",

@@ -132,7 +132,7 @@
       "roughness": "Шероховатость",
       "roundness": "Округлость",
       "size": "Размер",
-      "vignette": "Виньетирование"
+      "vignette": "Виньетирование после обрезки"
     }
   },
   "contextMenus": {
@@ -1315,7 +1315,7 @@
         "sharpness": "Резкость",
         "tone": "Тональность",
         "transformRotation": "Трансформация и поворот",
-        "vignette": "Виньетка",
+        "vignette": "Виньетирование после обрезки",
         "whiteBalance": "Баланс белого"
       },
       "includedAdjustments": "Включаемые настройки",
