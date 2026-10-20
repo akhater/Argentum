@@ -34,18 +34,20 @@ fn the_as_shot_light_is_the_apps() {
         let bytes = std::fs::read(&path).unwrap();
         let source = Source::decode(&bytes).unwrap();
         let ours = rr_white_balance::as_shot(&source.raw);
-        let app = app_raw::read_as_shot_white_balance(&bytes);
+        // Where there is no reading, the app's is D65 and ours is none, which
+        // a photo then starts at as D65.
+        let shot = ours.unwrap_or_else(WhiteBalance::reference);
+        let app = app_raw::read_as_shot(&bytes).map(|a| a.white_balance);
         let name = path.file_name().unwrap().to_string_lossy();
         eprintln!("  {name:<52} ours {ours:?}, the app's {app:?}");
         assert_eq!(
-            ours.map(|w| (w.temperature.to_bits(), w.tint.to_bits())),
+            Some((shot.temperature.to_bits(), shot.tint.to_bits())),
             app.map(|w| (w.temperature.to_bits(), w.tint.to_bits())),
             "{name}"
         );
         // And it is where a photo starts.
         let edit = argentum_engine::standard().defaults_for(&source);
         let start = &edit.tools["rr_white_balance"].settings;
-        let shot = ours.unwrap_or_else(WhiteBalance::reference);
         assert_eq!(
             start["temperature_k"].as_f64(),
             Some(shot.temperature.clamp(2000.0, 50000.0))

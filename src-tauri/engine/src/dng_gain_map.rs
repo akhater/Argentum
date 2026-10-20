@@ -143,7 +143,7 @@ impl Image {
             .enumerate()
             .skip(top + map.top)
             .take(bottom - map.top)
-            .filter(|(stored_row, _)| (stored_row - top - map.top) % map.pitch[0] == 0)
+            .filter(|(stored_row, _)| (stored_row - top - map.top).is_multiple_of(map.pitch[0]))
             .for_each(|(stored_row, line)| {
                 let row = stored_row - top;
                 for col in (map.left..right).step_by(map.pitch[1]) {

@@ -133,28 +133,24 @@ fn the_picture_is_the_apps_within_its_spline() {
     let Some(gpu) = common::gpu("the_picture_is_the_apps_within_its_spline") else {
         return;
     };
+    // Their shader reads the photo's 16 points from `adjustments`, as `Point`s
+    // of x, y and two pads.
     let shader = AppShader::new(
         gpu.clone(),
-        r#"
-        var points: array<Point, 16>;
-        for (var k = 0u; k < 16u; k = k + 1u) {
-            let q = ag_test_params[k];
-            points[k] = Point(q.x, q.y, 0.0, 0.0);
-        }
-        return vec4<f32>(ag_dng_standard(v.xyz, points, 16u), 0.0);
-        "#,
+        "return vec4<f32>(ag_dng_standard(v.xyz, 16u), 0.0);",
     );
     let rgb = common::colours();
     let inputs = common::elements(&rgb);
     eprintln!();
     for ev in [-0.5, 0.0, 0.3, 0.85] {
-        let params: Vec<[f32; 4]> = app::curve_points(ev)
+        let points: Vec<u8> = app::curve_points(ev)
             .iter()
-            .map(|p| [p.x, p.y, 0.0, 0.0])
+            .flat_map(|p| [p.x, p.y, 0.0, 0.0])
+            .flat_map(f32::to_le_bytes)
             .collect();
         let theirs = shader.run(&Job {
             inputs: &inputs,
-            params: &params,
+            adjustments: &[(&["global", "raw_tone_curve"][..], points)],
             ..Default::default()
         });
         let ours = ours(&gpu, ev, &rgb);
