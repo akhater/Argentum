@@ -353,37 +353,24 @@ struct AgGrade {
 /// Lightroom block.
 @group(0) @binding(15) var<storage, read> ag_grade_curves: array<f32>;
 
-/// Gains per channel in each slot of `ag_grade_curves`.
-const RM_GRADE_BINS = 64u;
-
 // from RAWmakase crates/rawmakase-engine/src/develop/gpu/develop.wgsl @ 5a2414b4
 // (v0.4.1, MIT), `grade`, with its curves in slot `slot`. Each channel of
 // linear ProPhoto RGB is scaled by its gain at its own value, sampled at
 // x^(1/2.2). The engine's rm_color_grade.rs `apply` is its CPU twin.
-//
-// Changed from theirs: their loop over the channels wrote `out[c]`, and FXC,
-// the HLSL compiler DirectX 12 uses, cannot write a vector through an index
-// known only when it runs. It unrolled that loop and then could not unroll
-// the per-mask loop in ag_stage_grade, so the shader failed to build on
-// DirectX 12. Here each channel is a call and the vector is built from the
-// three; the arithmetic and its order are theirs.
-fn rm_grade_channel(v: f32, c: u32, base: u32) -> f32 {
-    let f = pow(clamp(v, 0.0, 1.0), 1.0 / 2.2) * f32(RM_GRADE_BINS - 1u);
-    let i = min(u32(f), RM_GRADE_BINS - 2u);
-    let t = f - f32(i);
-    let g = ag_grade_curves[base + i * 3u + c] * (1.0 - t)
-        + ag_grade_curves[base + (i + 1u) * 3u + c] * t;
-    return v * g;
-}
-
 fn rm_grade(rgb: vec3<f32>, slot: u32) -> vec3<f32> {
-    let base = slot * RM_GRADE_BINS * 3u;
+    let bins = 64u;
+    let base = slot * bins * 3u;
     let q = AG_SRGB_TO_PROPHOTO * rgb;
-    return AG_PROPHOTO_TO_SRGB * vec3<f32>(
-        rm_grade_channel(q.x, 0u, base),
-        rm_grade_channel(q.y, 1u, base),
-        rm_grade_channel(q.z, 2u, base),
-    );
+    var out: vec3<f32>;
+    for (var c = 0u; c < 3u; c++) {
+        let f = pow(clamp(q[c], 0.0, 1.0), 1.0 / 2.2) * f32(bins - 1u);
+        let i = min(u32(f), bins - 2u);
+        let t = f - f32(i);
+        let g = ag_grade_curves[base + i * 3u + c] * (1.0 - t)
+            + ag_grade_curves[base + (i + 1u) * 3u + c] * t;
+        out[c] = q[c] * g;
+    }
+    return AG_PROPHOTO_TO_SRGB * out;
 }
 
 /// Grading stage: `srgb` is display-encoded, as the Curves panel leaves it.
