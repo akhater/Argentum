@@ -225,7 +225,9 @@ mod tests {
                 Some(c) => json!({ "lensBuiltin": true, "lensBuiltinParams": c }),
                 None => json!({ "lensBuiltin": false }),
             };
+            let started = std::time::Instant::now();
             let warped = crate::image_processing::apply_geometry_warp(&linear, &edit);
+            eprintln!("{name}: warped in {:?}", started.elapsed());
             let rgb = warped.to_rgb32f();
             let (w, h) = rgb.dimensions();
             let mean = |x0: u32, y0: u32| -> [f32; 3] {

@@ -2432,17 +2432,21 @@ export const REGISTRY = [
           + 'flipped those keep the old geometry until another geometry change. Render path.' },
       { file: 'src/components/panel/right/CropPanel.tsx', how: 'extends',
         note: 'The switch above Auto/Manual; the lensfun choice greyed while it is on; the Distortion, '
-          + 'Chromatic Aberration and Vignetting rows read the camera\'s tables then; both resets put '
-          + 'the switch back to the photo\'s default. Today\'s interface.' },
+          + 'Chromatic Aberration and Vignetting rows read the camera\'s tables then (Vignetting also '
+          + 'for a DNG gain map); both resets put the switch back to the photo\'s default. Today\'s '
+          + 'interface.' },
     ],
     tests: [
       'src-tauri/engine/src/rm_lens_builtin.rs #[cfg(test)]: the Fujifilm reader on a synthetic RAF, '
         + 'the Sony reader on synthetic ARWs (the ZV-1\'s padded tables, malformed counts), '
         + 'the DNG opcodes (RAWmakase\'s test, and a DNG with its vignetting in OpcodeList3), '
+        + 'OpcodeList3 gain maps (RAWmakase\'s test, a DNG\'s map over its active area, each '
+        + 'channel\'s gain where it samples, edits without a map), '
         + 'interpolation, fill scale and Sony\'s camera-frame fill, amounts, the inverse map; '
         + 'a_real_files_tables (ignored) prints a real file\'s tables.',
       'src-tauri/src/mods/lens_builtin.rs #[cfg(test)]: only a switched-on edit with tables applies it, '
-        + 'the panel\'s amounts, the hash fold.',
+        + 'the panel\'s amounts, the hash fold; gain_map_sheet (ignored) renders a drone DNG without '
+        + 'and with its gain map.',
     ],
     keywords: /lens|distortion|vignett|chromatic|fringe|fujifilm|raf|built.?in/i,
   },
