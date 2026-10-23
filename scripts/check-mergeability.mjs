@@ -46,6 +46,7 @@ import { commitsIn, gitIn, readBlobs, tags } from './upstream-git.mjs';
 import { tableWarning } from './rawmakase-cameras.mjs';
 import { chartWarning } from './rawmakase-gray-chart.mjs';
 import { curvesWarning } from './rawmakase-grade-curves.mjs';
+import { reviewWarning } from './rawmakase-reviews.mjs';
 import { BASELINE, compareRatchet, formatBaseline, parseBaseline } from './upstream-ratchet.mjs';
 import {
   IDENTITY, OURS, REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, isOurs,
@@ -61,6 +62,7 @@ const verbose = process.argv.includes('--verbose');
 const rawmakase = tableWarning(root).catch((error) => `camera table not checked against RAWmakase: ${error.message}`);
 const rawmakaseChart = chartWarning(root).catch((error) => `B&W chart not checked against RAWmakase: ${error.message}`);
 const rawmakaseCurves = curvesWarning(root).catch((error) => `colour grading curves not checked against RAWmakase: ${error.message}`);
+const rawmakaseReview = reviewWarning().catch((error) => `RAWmakase's releases not checked against its review: ${error.message}`);
 
 let gitCalls = 0;
 const gitRaw = gitIn(root);
@@ -487,8 +489,8 @@ if (waiting.length > 0) {
     + `${waiting.length === 1 ? 'is' : 'are'} out and not reviewed - npm run review:upstream`);
 }
 
-// --- Warning: has RAWmakase released past a table copied from it? -----------------
-for (const table of await Promise.all([rawmakase, rawmakaseChart, rawmakaseCurves])) if (table) warnings.push(table);
+// --- Warning: has RAWmakase released past its review, or a table copied from it? ---
+for (const table of await Promise.all([rawmakaseReview, rawmakase, rawmakaseChart, rawmakaseCurves])) if (table) warnings.push(table);
 
 // --- Report -----------------------------------------------------------------------
 const seconds = ((Date.now() - started) / 1000).toFixed(1);

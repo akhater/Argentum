@@ -157,8 +157,15 @@ export async function fetchCameras(sha) {
   return response.text();
 }
 
-/** RAWmakase's release tags (vX.Y.Z), oldest first, each with its commit. */
-export async function releases() {
+let listed;
+
+/** RAWmakase's release tags (vX.Y.Z), oldest first, each with its commit; listed once per run. */
+export function releases() {
+  listed ??= listReleases();
+  return listed;
+}
+
+async function listReleases() {
   const { stdout } = await promisify(execFile)('git', ['ls-remote', '--tags', `${REPO}.git`], {
     timeout: 15000,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },

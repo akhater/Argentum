@@ -144,6 +144,15 @@ Newest first.
   `src/argentum/historyOnRelease.ts` replaces the store's `pushHistory` at import; no RapidRAW
   file changes.
 
+### Internal
+
+- **RAWmakase is reviewed once per release too.** `scripts/rawmakase-reviews.mjs` holds one
+  entry per release read, with a verdict per feature (copy, skip or decide), and `npm run
+  check:merge` warns when RAWmakase has a release past the last review. The first review covers
+  v0.4.2 and v0.4.3 (`290858a4`). The B&W chart and the colour grading curves now name v0.4.3;
+  their sources did not change, so no value did. The camera table stays at v0.4.0 until its own
+  update. The four RAWmakase checks share one `git ls-remote`.
+
 ## 26.43.2 — 2026-10-21
 
 ### Added
