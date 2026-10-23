@@ -8,6 +8,24 @@ Newest first.
 
 ### Fixed
 
+- **Drone DNGs lose their dark corners.** DJI and Hasselblad drones record their lens shading as
+  GainMaps in the DNG's OpcodeList3: a gain per colour on a grid over the demosaiced image, which
+  Lightroom applies. The camera's own correction (Crop > Lens Correction) read that list's warp and
+  radial vignetting but not its gain maps, so a Hasselblad L1D-20c (DJI Mavic 2 Pro) photo, which
+  has no radial vignetting, kept corners about 2.5 times darker than its centre and cooler, and a
+  DJI Mini 2 photo kept a faint cyan cast toward its corners. The gain map is now part of that
+  correction: applied with the vignetting at the Vignetting amount, each colour read where it
+  samples the photo, or at the corrected position when the DNG applies the map after its warp. A
+  DNG whose only correction is a gain map now shows the Vignetting row. Maps the correction cannot
+  hold are left out on their own, keeping the file's warp and vignetting. On a raw.pixls.us
+  L1D-20c photo, the top-left sky against the top edge's middle went from 0.70 (red, green and
+  blue alike) to 1.05 / 0.97 / 0.94. A drone DNG's edit carries its grid: 32 kB for the L1D-20c's
+  32 x 32, 79 kB for the Mini 2's 49 x 65. From RAWmakase @ `f0899e0` (v0.4.2, PR #561, MIT):
+  `GainGrid` in `crates/rawmakase-model/src/optics/mod.rs`, `gain_grid` and its test in
+  `crates/rawmakase-model/src/dng.rs`, and how `LensWarp::sample` in
+  `crates/rawmakase-engine/src/develop/pipeline/fields.rs` applies the map; in
+  `src-tauri/engine/src/rm_lens_builtin.rs`, with the GainMap's parameters read by
+  `dng_gain_map.rs` for both lists.
 - **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
   above the 32-bit signed range beside the Lighting Optimizer setting, and rawler's `get_i32`
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
