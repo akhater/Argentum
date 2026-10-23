@@ -13,7 +13,9 @@
 //! MIT; DNG Specification 1.7.1.0, chapter 7): the list's layout, the
 //! GainMap's parameters, which maps are skipped, and the bilinear gain
 //! between its points. Only GainMap is taken, and only from OpcodeList2: it
-//! is what phones write. The file's other opcodes (bad pixels, tables,
+//! is what phones write. OpcodeList3's, which drones write for the
+//! demosaiced image, are the lens correction's (`rm_lens_builtin.rs`), read
+//! with `gain_map` below. The file's other opcodes (bad pixels, tables,
 //! polynomials, per-line deltas) and OpcodeList1 wait for a file that needs
 //! them; each would be one more arm in `parse` and one more function here.
 //!
@@ -34,26 +36,26 @@ use crate::dng_opcodes::{self, Params};
 
 /// The latest DNG version whose opcodes are understood (1.7.1.0).
 const VERSION: u32 = 0x0107_0100;
-/// The GainMap opcode's ID.
-const GAIN_MAP: u32 = 9;
 
 /// One GainMap: the part of the image it applies to (bottom and right
-/// exclusive, every `pitch` rows and columns), and `points` (vertical,
-/// horizontal) gains starting at `origin`, `spacing` apart, in fractions of
-/// the image's height and width.
+/// exclusive, every `pitch` rows and columns, `planes` image planes from
+/// `plane`), and `points` (vertical, horizontal) of `map_planes` gains each,
+/// starting at `origin`, `spacing` apart, in fractions of the image's height
+/// and width. OpcodeList3's are read here too, by `rm_lens_builtin.rs`.
 #[derive(Debug, Clone, PartialEq)]
-struct GainMap {
-    top: usize,
-    left: usize,
-    bottom: usize,
-    right: usize,
-    plane: u32,
-    pitch: [usize; 2],
-    points: [usize; 2],
-    spacing: [f64; 2],
-    origin: [f64; 2],
-    planes: usize,
-    gains: Vec<f32>,
+pub(crate) struct GainMap {
+    pub(crate) top: usize,
+    pub(crate) left: usize,
+    pub(crate) bottom: usize,
+    pub(crate) right: usize,
+    pub(crate) plane: u32,
+    pub(crate) planes: u32,
+    pub(crate) pitch: [usize; 2],
+    pub(crate) points: [usize; 2],
+    pub(crate) spacing: [f64; 2],
+    pub(crate) origin: [f64; 2],
+    pub(crate) map_planes: usize,
+    pub(crate) gains: Vec<f32>,
 }
 
 /// Applies the DNG's GainMap opcodes to its decoded mosaic, and says how
@@ -174,7 +176,7 @@ impl GainMap {
         let (c0, c1, th) = at(h, 1);
         let g = |r: usize, c: usize| {
             self.gains
-                .get((r * self.points[1] + c) * self.planes)
+                .get((r * self.points[1] + c) * self.map_planes)
                 .copied()
                 .unwrap_or(1.0)
         };
@@ -189,7 +191,7 @@ impl GainMap {
 fn parse(list: &[u8]) -> Option<Vec<GainMap>> {
     let mut out = Vec::new();
     for op in dng_opcodes::opcodes(list)? {
-        if op.id == GAIN_MAP && op.version <= VERSION {
+        if op.id == dng_opcodes::GAIN_MAP && op.version <= VERSION {
             out.extend(gain_map(op.params)?);
         }
     }
@@ -198,18 +200,18 @@ fn parse(list: &[u8]) -> Option<Vec<GainMap>> {
 
 /// A GainMap's parameters: `None` when they do not parse, `Some(None)` for a
 /// map that changes nothing (every gain 1, as Samsung's phones write).
-fn gain_map(data: &[u8]) -> Option<Option<GainMap>> {
+pub(crate) fn gain_map(data: &[u8]) -> Option<Option<GainMap>> {
     let mut p = Params { data, at: 0 };
     let (top, left, bottom, right) = (p.usize()?, p.usize()?, p.usize()?, p.usize()?);
-    let (plane, _planes) = (p.u32()?, p.u32()?);
+    let (plane, planes) = (p.u32()?, p.u32()?);
     let pitch = [p.usize()?, p.usize()?];
     let points = [p.usize()?, p.usize()?];
     let spacing = [p.f64()?, p.f64()?];
     let origin = [p.f64()?, p.f64()?];
-    let planes = p.usize()?;
+    let map_planes = p.usize()?;
     let n = points[0]
         .checked_mul(points[1])?
-        .checked_mul(planes)
+        .checked_mul(map_planes)
         .filter(|&n| n > 0)?;
     // A count cannot ask for more than the parameters hold.
     if n.checked_mul(4)? > data.len().saturating_sub(p.at) {
@@ -229,11 +231,12 @@ fn gain_map(data: &[u8]) -> Option<Option<GainMap>> {
         bottom,
         right,
         plane,
+        planes,
         pitch,
         points,
         spacing,
         origin,
-        planes,
+        map_planes,
         gains,
     }))
 }

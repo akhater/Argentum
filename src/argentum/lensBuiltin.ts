@@ -44,6 +44,8 @@ export interface LensCorrection {
   vignetting: Radial | null;
   distortion: Radial | null;
   chromatic: [Radial, Radial] | null;
+  /** A DNG's OpcodeList3 gain map (`GainGrid`), absent when it has none. */
+  gain_map?: object;
 }
 
 /** What `lens_builtin` answers. */

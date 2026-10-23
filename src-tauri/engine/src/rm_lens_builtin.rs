@@ -15,12 +15,24 @@
 //! far as the photo's edge needs, which keeps the camera's crop.
 //!
 //! A DNG records the corrections Lightroom applies as opcodes:
-//! FixVignetteRadial (a gain over radius) and WarpRectilinear (a radial
-//! remap per colour plane). Cameras that write DNGs (Leica, DJI's drones,
-//! phones) and Lightroom's own DNGs carry them. On, as Lightroom applies
-//! them.
+//! FixVignetteRadial (a gain over radius), WarpRectilinear (a radial remap
+//! per colour plane) and, in OpcodeList3, GainMaps (a gain per colour on a
+//! grid over the demosaiced image, which DJI and Hasselblad drones write
+//! for their lens shading: up to 2.8 in the corners, different per colour).
+//! Cameras that write DNGs (Leica, DJI's drones, phones) and Lightroom's own
+//! DNGs carry them. On, as Lightroom applies them.
 //!
 //! FROM RAWMAKASE
+//!
+//! RAWmakase `v0.4.2` @ f0899e0 (PR #561, MIT), OpcodeList3's GainMaps:
+//! - `crates/rawmakase-model/src/optics/mod.rs`: `GainGrid`, as written, and
+//!   `LensCorrection::gain_map`.
+//! - `crates/rawmakase-model/src/dng.rs`: `gain_grid` (which maps are read,
+//!   each plane's gains, whether the list warps before them) and its test.
+//! - `crates/rawmakase-engine/src/develop/pipeline/fields.rs`: `GainField`
+//!   and `LensWarp::sample`: the map at the Vignetting amount, with the
+//!   vignetting, each channel reading it where it samples, or at the
+//!   corrected position for a map after the warp.
 //!
 //! RAWmakase `v0.4.0` @ a8c5d6d7 (MIT):
 //! - `crates/rawmakase-model/src/optics/mod.rs`: `Radial`, `LensCorrection`,
@@ -62,7 +74,20 @@
 //! - A DNG's `source` is "DNG", the word the switch shows, where RAWmakase
 //!   writes "DNG opcodes".
 //! - A DNG's radius is over its raw image; the developed image here is its
-//!   DefaultCrop, a few pixels smaller on the files seen.
+//!   DefaultCrop, a few pixels smaller on the files seen. The same holds for
+//!   a gain map's positions, which are over the active area.
+//! - A GainMap's parameters are read by `dng_gain_map.rs`, which reads
+//!   OpcodeList2's, and `gain_grid` checks them as RAWmakase's does. A map
+//!   of gains 1 is skipped there, before the checks RAWmakase makes of the
+//!   maps together; it changes nothing either way. A list that does not
+//!   parse is not read at all, where RAWmakase reads it up to that opcode.
+//! - The map is read at offsets from the image centre, as the rest of
+//!   `LensMap`, where RAWmakase reads it at pixel centres; in the app's warp
+//!   the two are half a pixel apart.
+//! - RAWmakase also measures the photo for its tone stage with the map
+//!   applied (`pipeline::measurement_source`). Not taken: today's app's Auto
+//!   measures the photo as decoded, before any lens correction, and this
+//!   leaves it so.
 
 use std::io::Cursor;
 
@@ -132,6 +157,89 @@ impl Radial {
     }
 }
 
+/// A gain per colour channel sampled on a grid over part of the image: a
+/// DNG GainMap opcode of OpcodeList3, which applies to the demosaiced image
+/// (DJI and Hasselblad drones' and the Sigma fp's lens shading). It covers
+/// `area` (top, left, bottom, right in fractions of the image's height and
+/// width; no gain outside it). Points are `points` = [rows, columns],
+/// starting at `origin` and `spacing` apart, in fractions of the image's
+/// height and width, as the DNG SDK reads them; each holds `planes` gains,
+/// one per channel (red, green, blue) or one for all three. Between points
+/// the gain is bilinear, beyond the outermost ones that of the nearest.
+/// `after_warp`: the opcode list warps the image before it, so it applies at
+/// the corrected position rather than the source's.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GainGrid {
+    #[serde(default = "GainGrid::whole")]
+    pub area: [f32; 4],
+    #[serde(default)]
+    pub after_warp: bool,
+    pub points: [usize; 2],
+    pub origin: [f32; 2],
+    pub spacing: [f32; 2],
+    pub planes: usize,
+    pub gains: Vec<f32>,
+}
+impl Default for GainGrid {
+    fn default() -> Self {
+        Self {
+            area: Self::whole(),
+            after_warp: false,
+            points: [1, 1],
+            origin: [0.; 2],
+            spacing: [1.; 2],
+            planes: 1,
+            gains: vec![1.],
+        }
+    }
+}
+impl GainGrid {
+    fn whole() -> [f32; 4] {
+        [0., 0., 1., 1.]
+    }
+    fn valid(&self) -> bool {
+        let [rows, columns] = self.points;
+        let [top, left, bottom, right] = self.area;
+        (0. ..1.).contains(&top)
+            && (0. ..1.).contains(&left)
+            && top < bottom
+            && left < right
+            && bottom <= 1.
+            && right <= 1.
+            && (1..=256).contains(&rows)
+            && (1..=256).contains(&columns)
+            && matches!(self.planes, 1 | 3)
+            && self.gains.len() == rows * columns * self.planes
+            && self.origin.iter().all(|v| v.is_finite())
+            && self.spacing.iter().all(|v| v.is_finite() && *v > 0.)
+            && self.gains.iter().all(|g| (0.2..=8.).contains(g))
+    }
+    /// The gain of each channel at `v`, `h`: fractions of the image's height and width.
+    pub fn gain(&self, v: f32, h: f32) -> [f32; 3] {
+        let [top, left, bottom, right] = self.area;
+        if !(top..bottom).contains(&v) || !(left..right).contains(&h) {
+            return [1.; 3];
+        }
+        let at = |x: f32, axis: usize| {
+            let n = self.points[axis];
+            let f = ((x - self.origin[axis]) / self.spacing[axis]).clamp(0., (n - 1) as f32);
+            let i = (f as usize).min(n.saturating_sub(2));
+            (i, (i + 1).min(n - 1), f - i as f32)
+        };
+        let (r0, r1, tv) = at(v, 0);
+        let (c0, c1, th) = at(h, 1);
+        let g =
+            |r: usize, c: usize, p: usize| self.gains[(r * self.points[1] + c) * self.planes + p];
+        std::array::from_fn(|c| {
+            let p = c.min(self.planes - 1);
+            let top = g(r0, c0, p) + (g(r0, c1, p) - g(r0, c0, p)) * th;
+            let bottom = g(r1, c0, p) + (g(r1, c1, p) - g(r1, c0, p)) * th;
+            top + (bottom - top) * tv
+        })
+    }
+}
+
 /// Built-in lens correction for one photo.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -148,6 +256,10 @@ pub struct LensCorrection {
     pub distortion: Option<Radial>,
     /// Additional source radius scale for red and blue relative to green (1 = none).
     pub chromatic: Option<[Radial; 2]>,
+    /// Gain per channel over the image, before distortion, as a DNG's OpcodeList3
+    /// GainMap applies it (1 = none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gain_map: Option<GainGrid>,
 }
 
 /// How much of each part to apply, 1 = all of it: the app's Lens Correction
@@ -172,13 +284,17 @@ impl LensCorrection {
     pub const SONY_BUILTIN: &'static str = "Sony built-in";
 
     pub fn is_empty(&self) -> bool {
-        self.vignetting.is_none() && self.distortion.is_none() && self.chromatic.is_none()
+        self.vignetting.is_none()
+            && self.distortion.is_none()
+            && self.chromatic.is_none()
+            && self.gain_map.is_none()
     }
 
     pub fn validate(&self) -> bool {
         self.vignetting.iter().all(Radial::valid)
             && self.distortion.iter().all(Radial::valid)
             && self.chromatic.iter().flatten().all(Radial::valid)
+            && self.gain_map.iter().all(GainGrid::valid)
     }
 
     /// Source radius scale for red, green and blue at output radius `r`.
@@ -273,6 +389,8 @@ impl LensCorrection {
 pub struct LensMap<'a> {
     pub lens: &'a LensCorrection,
     pub amounts: Amounts,
+    /// The image's width and height, in pixels.
+    pub size_px: [f32; 2],
     /// Half the image diagonal, in pixels: radius 1.
     pub half: f32,
     /// The scale that keeps corrected samples inside the image.
@@ -284,6 +402,7 @@ impl<'a> LensMap<'a> {
         Self {
             lens,
             amounts,
+            size_px: [width, height],
             half: width.hypot(height) * 0.5,
             fill: Self::fill(lens, width, height, amounts),
         }
@@ -317,10 +436,42 @@ impl<'a> LensMap<'a> {
         [dx * scale[1], dy * scale[1]]
     }
 
-    /// The vignetting gain for the image pixel at offset (`dx`, `dy`).
-    pub fn gain(&self, dx: f32, dy: f32) -> f32 {
-        self.lens
-            .vignetting_gain(dx.hypot(dy) / self.half, self.amounts.vignetting)
+    /// The gain of each channel for the image pixel green samples at offset
+    /// `green`, red and blue sampling at `ca` (their scale against green's)
+    /// times it, for output offset `out` at the fill's scale (`scales`' first
+    /// value). The vignetting's gain is green's pixel's. A DNG's gain map
+    /// goes on at the Vignetting amount: before the warp each channel reads
+    /// it where that channel samples, after it at `out`, the corrected
+    /// position (RAWmakase's `LensWarp::sample`).
+    pub fn gains(&self, out: [f32; 2], green: [f32; 2], ca: [f32; 2]) -> [f32; 3] {
+        let [dx, dy] = green;
+        let amount = self.amounts.vignetting;
+        let vignetting = self.lens.vignetting_gain(dx.hypot(dy) / self.half, amount);
+        let Some(grid) = self.lens.gain_map.as_ref().filter(|_| amount != 0.) else {
+            return [vignetting; 3];
+        };
+        let [w, h] = self.size_px;
+        let at = |[x, y]: [f32; 2]| grid.gain(0.5 + y / h, 0.5 + x / w);
+        let map = if grid.after_warp {
+            at(out)
+        } else if ca == [1., 1.] {
+            at(green)
+        } else {
+            let [r, b] = ca;
+            [
+                at([dx * r, dy * r])[0],
+                at(green)[1],
+                at([dx * b, dy * b])[2],
+            ]
+        };
+        map.map(|g| {
+            let g = if amount == 1. {
+                g
+            } else {
+                g.max(0.).powf(amount)
+            };
+            vignetting * g
+        })
     }
 
     /// The output offset whose green samples image offset (`dx`, `dy`): the
@@ -421,6 +572,7 @@ fn fuji(file: &[u8]) -> Option<LensCorrection> {
         vignetting,
         distortion,
         chromatic,
+        gain_map: None,
     })
 }
 
@@ -480,11 +632,12 @@ fn sony(file: &[u8]) -> Option<LensCorrection> {
         vignetting,
         distortion,
         chromatic,
+        gain_map: None,
     })
 }
 
-/// A DNG's FixVignetteRadial and WarpRectilinear; `None` for a file that is
-/// not a DNG or has neither.
+/// A DNG's FixVignetteRadial, WarpRectilinear and OpcodeList3 GainMaps;
+/// `None` for a file that is not a DNG or has none of them.
 fn dng(file: &[u8]) -> Option<LensCorrection> {
     let first = |tag: DngTag, id: u32| -> Option<Vec<u8>> {
         let list = crate::dng_opcodes::list(file, tag)?;
@@ -500,14 +653,107 @@ fn dng(file: &[u8]) -> Option<LensCorrection> {
     let (distortion, chromatic) = first(DngTag::OpcodeList3, WARP_RECTILINEAR)
         .and_then(|p| warp(&p))
         .unwrap_or((None, None));
+    // OpcodeList3 applies to the demosaiced image: the active area (or the
+    // whole stored image), whose size its GainMaps must cover.
+    let gain_map = crate::dng_opcodes::list(file, DngTag::OpcodeList3)
+        .zip(crate::dng_opcodes::image_size(file, DngTag::OpcodeList3))
+        .and_then(|(list, size)| gain_grid(&list, size));
     let lens = LensCorrection {
         source: "DNG".into(),
         default_on: true,
         vignetting,
         distortion,
         chromatic,
+        gain_map,
     };
     (!lens.is_empty()).then_some(lens)
+}
+
+/// OpcodeList3's GainMaps as one gain per channel, on an image of `size`
+/// [height, width]. Each must cover a rectangle inside the image, every row
+/// and column, with planes among the three channels, each plane at most
+/// once; maps for separate planes must share one grid and area, and a warp
+/// may come before them or after them, not between. Anything else is not
+/// read, and the photo renders as before.
+fn gain_grid(list: &[u8], [height, width]: [u32; 2]) -> Option<GainGrid> {
+    let ops = crate::dng_opcodes::opcodes(list)?;
+    let ids: Vec<u32> = ops.iter().map(|op| op.id).collect();
+    let gain_map = crate::dng_opcodes::GAIN_MAP;
+    let after_warp = ids
+        .iter()
+        .position(|id| *id == WARP_RECTILINEAR)
+        .zip(ids.iter().position(|id| *id == gain_map))
+        .is_some_and(|(warp, gain)| warp < gain);
+    if ids
+        .iter()
+        .skip_while(|id| **id != gain_map)
+        .skip_while(|id| **id == gain_map)
+        .any(|id| *id == gain_map)
+    {
+        return None;
+    }
+    let mut grid: Option<GainGrid> = None;
+    let mut per_plane: [Option<Vec<f32>>; 3] = Default::default();
+    for op in ops.iter().filter(|op| op.id == gain_map) {
+        // A map of gains 1 changes nothing.
+        let Some(map) = crate::dng_gain_map::gain_map(op.params)? else {
+            continue;
+        };
+        let (plane, planes) = (map.plane, map.planes);
+        let [rows, columns] = map.points;
+        if map.top >= map.bottom
+            || map.left >= map.right
+            || map.bottom > height as usize
+            || map.right > width as usize
+            || map.pitch != [1, 1]
+            || planes == 0
+            || plane >= 3
+            || planes > 3 - plane
+            || map.map_planes > planes as usize
+            || !(1..=256).contains(&rows)
+            || !(1..=256).contains(&columns)
+        {
+            return None;
+        }
+        let shape = GainGrid {
+            area: [
+                map.top as f32 / height as f32,
+                map.left as f32 / width as f32,
+                map.bottom as f32 / height as f32,
+                map.right as f32 / width as f32,
+            ],
+            after_warp,
+            points: map.points,
+            origin: map.origin.map(|v| v as f32),
+            spacing: map.spacing.map(|v| v as f32),
+            planes: 1,
+            gains: Vec::new(),
+        };
+        if grid.as_ref().is_some_and(|g| *g != shape) {
+            return None;
+        }
+        grid = Some(shape);
+        for c in plane..plane + planes {
+            // The DNG SDK reads the map's plane of the image plane itself, the last
+            // one for planes beyond the map's.
+            let m = (c as usize).min(map.map_planes - 1);
+            // Two maps on one plane multiply sample by sample, which a single grid
+            // holds only where their points coincide: not read.
+            if per_plane[c as usize].is_some() {
+                return None;
+            }
+            per_plane[c as usize] = Some(map.gains.chunks(map.map_planes).map(|g| g[m]).collect());
+        }
+    }
+    let mut grid = grid?;
+    let points = grid.points[0] * grid.points[1];
+    let one = vec![1.; points];
+    let planes: [&Vec<f32>; 3] = std::array::from_fn(|c| per_plane[c].as_ref().unwrap_or(&one));
+    grid.planes = 3;
+    grid.gains = (0..points).flat_map(|i| planes.map(|p| p[i])).collect();
+    // A map the lens correction does not hold is left out on its own: the file's
+    // warp and vignetting still apply.
+    (grid.valid() && grid.gains.iter().any(|g| (g - 1.).abs() > 1e-4)).then_some(grid)
 }
 
 fn doubles(p: &[u8]) -> Vec<f64> {
@@ -792,6 +1038,198 @@ mod tests {
         assert!(vignette(&be(&[0.2, 0., 0., 0., 0., 0.3, 0.5])).is_none());
     }
 
+    /// A GainMap opcode's parameters: `area` (top, left, bottom, right), its planes,
+    /// a `rows` × `columns` map over the whole area and `map_planes` gains per point.
+    /// RAWmakase's, as written.
+    fn gain_map(
+        area: [u32; 4],
+        plane: u32,
+        planes: u32,
+        map_planes: u32,
+        gains: &[f32],
+    ) -> Vec<u8> {
+        let (rows, columns) = (2u32, 3u32);
+        let mut p: Vec<u8> = area
+            .into_iter()
+            .chain([plane, planes, 1, 1, rows, columns])
+            .flat_map(u32::to_be_bytes)
+            .collect();
+        p.extend(be(&[1., 0.5, 0., 0.]));
+        p.extend(map_planes.to_be_bytes());
+        p.extend(gains.iter().flat_map(|g| g.to_be_bytes()));
+        p
+    }
+
+    /// RAWmakase's test (`dng.rs` @ f0899e0), its lists built by `opcode_list`.
+    #[test]
+    fn reads_opcode_list3_gain_maps_per_channel() {
+        let lists = opcode_list;
+        let area = [0, 0, 300, 400];
+        // One map for all three planes, as DJI and Hasselblad drones write it, before
+        // the warp.
+        let rgb: Vec<f32> = (0..6)
+            .flat_map(|i| [1. + i as f32 * 0.1, 1., 1.5])
+            .collect();
+        let warp = {
+            let mut w = 1u32.to_be_bytes().to_vec();
+            w.extend(be(&[1., 0.01, 0., 0., 0., 0., 0.5, 0.5]));
+            w
+        };
+        let list = lists(&[(9, gain_map(area, 0, 3, 3, &rgb)), (1, warp.clone())]);
+        let grid = gain_grid(&list, [300, 400]).unwrap();
+        assert_eq!((grid.points, grid.planes), ([2, 3], 3));
+        assert_eq!(grid.gain(0., 0.), [1., 1., 1.5]);
+        // Towards the last point, and halfway along the first row: bilinear.
+        let [r, ..] = grid.gain(0.9999, 0.9999);
+        assert!((r - 1.5).abs() < 1e-3);
+        let [r, ..] = grid.gain(0., 0.25);
+        assert!((r - 1.05).abs() < 1e-6);
+        // Outside the image, nothing.
+        assert_eq!(grid.gain(1., 0.5), [1.; 3]);
+        // A map per plane, and a plane without one keeps its level.
+        let list = lists(&[
+            (9, gain_map(area, 0, 1, 1, &[2.; 6])),
+            (9, gain_map(area, 2, 1, 1, &[3.; 6])),
+        ]);
+        assert_eq!(
+            gain_grid(&list, [300, 400]).unwrap().gain(0.5, 0.5),
+            [2., 1., 3.]
+        );
+        // A map of one plane for all three.
+        let list = lists(&[(9, gain_map(area, 0, 3, 1, &[2.; 6]))]);
+        assert_eq!(
+            gain_grid(&list, [300, 400]).unwrap().gain(0.5, 0.5),
+            [2.; 3]
+        );
+        // Planes from 1: each reads the map's plane of its own index, as the DNG SDK
+        // does, the map's last for planes beyond it.
+        let two: Vec<f32> = (0..6).flat_map(|_| [2., 3.]).collect();
+        let list = lists(&[(9, gain_map(area, 1, 2, 2, &two))]);
+        assert_eq!(
+            gain_grid(&list, [300, 400]).unwrap().gain(0.5, 0.5),
+            [1., 3., 3.]
+        );
+        // A map of part of the image, after the warp (the Sigma fp's): no gain outside
+        // its area, and its points over the area.
+        let list = lists(&[
+            (1, warp.clone()),
+            (9, gain_map([30, 40, 270, 360], 0, 3, 3, &rgb)),
+        ]);
+        let grid = gain_grid(&list, [300, 400]).unwrap();
+        assert!(grid.after_warp);
+        assert_eq!(grid.gain(0.05, 0.5), [1.; 3]);
+        // Inside it, the points are over the whole image, as without an area.
+        assert_eq!(grid.gain(0.5, 0.5), [1.25, 1., 1.5]);
+        assert!(
+            !gain_grid(&lists(&[(9, gain_map(area, 0, 3, 3, &rgb))]), [300, 400])
+                .unwrap()
+                .after_warp
+        );
+        // Grids beyond 256 points a side, however large, are not read.
+        let mut huge = gain_map(area, 0, 3, 3, &[2.; 18]);
+        huge[32..40].copy_from_slice(&[u32::MAX.to_be_bytes(), u32::MAX.to_be_bytes()].concat());
+        assert!(gain_grid(&lists(&[(9, huge)]), [300, 400]).is_none());
+        // Planes beyond the image's three, however large, are not read.
+        assert!(
+            gain_grid(
+                &lists(&[(9, gain_map(area, u32::MAX, 2, 1, &[2.; 6]))]),
+                [300, 400]
+            )
+            .is_none()
+        );
+        // Maps beyond the image, with a warp between them, or of gains 1, are not read.
+        for (list, size) in [
+            (lists(&[(9, gain_map(area, 0, 3, 3, &rgb))]), [290, 400]),
+            (
+                lists(&[
+                    (9, gain_map(area, 0, 1, 1, &[2.; 6])),
+                    (1, warp.clone()),
+                    (9, gain_map(area, 1, 1, 1, &[2.; 6])),
+                ]),
+                [300, 400],
+            ),
+            (lists(&[(9, gain_map(area, 0, 3, 1, &[1.; 6]))]), [300, 400]),
+            // Two maps on one plane, and gains a lens correction does not hold.
+            (
+                lists(&[
+                    (9, gain_map(area, 0, 1, 1, &[2.; 6])),
+                    (9, gain_map(area, 0, 1, 1, &[3.; 6])),
+                ]),
+                [300, 400],
+            ),
+            (lists(&[(9, gain_map(area, 0, 3, 1, &[9.; 6]))]), [300, 400]),
+        ] {
+            assert!(gain_grid(&list, size).is_none());
+        }
+    }
+
+    /// A 2 × 3 grid over the whole image whose red gain grows to the right.
+    fn red_to_the_right(after_warp: bool) -> LensCorrection {
+        LensCorrection {
+            vignetting: Radial::new(vec![0., 1.], vec![1., 2.]),
+            gain_map: Some(GainGrid {
+                after_warp,
+                points: [2, 3],
+                spacing: [1., 0.5],
+                planes: 3,
+                gains: [1., 1.5, 2., 1., 1.5, 2.]
+                    .into_iter()
+                    .flat_map(|r| [r, 1.25, 1.])
+                    .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn each_channel_reads_the_map_where_it_samples_with_the_vignetting() {
+        let lens = red_to_the_right(false);
+        let map = LensMap::new(&lens, 400., 300., Amounts::FULL);
+        // At the centre: the map's middle column, no vignetting.
+        assert_eq!(map.gains([0.; 2], [0.; 2], [1., 1.]), [1.5, 1.25, 1.]);
+        // Halfway to the right edge, red sampling 10% further out: its gain is
+        // read there, and the vignetting at green's radius goes on all three.
+        let v = lens.vignetting_gain(100. / 250., 1.);
+        let [r, g, b] = map.gains([0.; 2], [100., 0.], [1.1, 1.]);
+        assert!((r - v * 1.775).abs() < 1e-5, "{r}");
+        assert!((g - v * 1.25).abs() < 1e-5 && (b - v).abs() < 1e-5);
+        // At half the Vignetting amount, each gain is its square root.
+        let half = Amounts {
+            vignetting: 0.5,
+            ..Amounts::FULL
+        };
+        let [r, ..] = LensMap::new(&lens, 400., 300., half).gains([0.; 2], [0.; 2], [1., 1.]);
+        assert!((r - 1.5f32.sqrt()).abs() < 1e-6);
+        // Off, none of it.
+        let off = Amounts {
+            vignetting: 0.,
+            ..Amounts::FULL
+        };
+        let none = LensMap::new(&lens, 400., 300., off);
+        assert_eq!(none.gains([0.; 2], [100., 0.], [1.1, 1.]), [1.; 3]);
+        // A map after the warp reads the corrected position, not the sample's.
+        let after = red_to_the_right(true);
+        let map = LensMap::new(&after, 400., 300., Amounts::FULL);
+        let [r, ..] = map.gains([0.; 2], [100., 0.], [1.1, 1.]);
+        assert!(
+            (r - lens.vignetting_gain(0.4, 1.) * 1.5).abs() < 1e-5,
+            "{r}"
+        );
+    }
+
+    #[test]
+    fn a_correction_without_a_gain_map_reads_and_writes_as_before() {
+        let before = r#"{"source":"DNG","default_on":true,"vignetting":null,"distortion":{"knots":[0.0,1.0],"values":[1.0,0.98]},"chromatic":null}"#;
+        let c: LensCorrection = serde_json::from_str(before).unwrap();
+        assert!(c.gain_map.is_none());
+        assert_eq!(serde_json::to_string(&c).unwrap(), before);
+        let with = red_to_the_right(false);
+        let back: LensCorrection =
+            serde_json::from_str(&serde_json::to_string(&with).unwrap()).unwrap();
+        assert_eq!(back, with);
+    }
+
     #[test]
     fn reads_a_dngs_opcodes_with_the_vignetting_in_either_list() {
         let vig = be(&[0.2599, 0.3424, 0.0630, 0.0346, -0.0300, 0.5, 0.5]);
@@ -826,6 +1264,42 @@ mod tests {
             vec![(51022, 7, 4, vec![0; 4])],
         ]);
         assert!(read(&not_dng).is_none());
+    }
+
+    #[test]
+    fn reads_a_drone_dngs_gain_map_over_its_active_area() {
+        let rgb: Vec<f32> = (0..6).flat_map(|_| [2., 1.5, 1.8]).collect();
+        let list3 = opcode_list(&[(9, gain_map([0, 0, 300, 400], 0, 3, 3, &rgb))]);
+        let longs = |v: &[u32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+        // ImageWidth, ImageLength and, when given, ActiveArea.
+        let dng = |width: u32, height: u32, active: Option<[u32; 4]>| {
+            let mut raw = vec![
+                (254, 4, 1, vec![0; 4]),
+                (256, 4, 1, longs(&[width])),
+                (257, 4, 1, longs(&[height])),
+            ];
+            raw.extend(active.map(|a| (50829, 4, 4, longs(&a))));
+            raw.push((51022, 7, list3.len() as u32, list3.clone()));
+            tiff(&[
+                vec![
+                    (SUB_IFDS, 4, 1, vec![0; 4]),
+                    (50706, 1, 4, vec![1, 4, 0, 0]),
+                ],
+                raw,
+            ])
+        };
+        for (name, file) in [
+            ("active area", dng(440, 320, Some([10, 20, 310, 420]))),
+            ("whole image", dng(400, 300, None)),
+        ] {
+            let c = read(&file).expect(name);
+            assert_eq!(c.source, "DNG");
+            assert!(c.vignetting.is_none() && c.distortion.is_none());
+            let grid = c.gain_map.as_ref().expect(name);
+            assert_eq!(grid.gain(0.5, 0.5), [2., 1.5, 1.8], "{name}");
+        }
+        // A map larger than the image is not read, and leaves nothing.
+        assert!(read(&dng(400, 290, None)).is_none());
     }
 
     fn shorts(v: &[i16]) -> Vec<u8> {
@@ -1032,6 +1506,18 @@ mod tests {
                 "  CA red/blue at r 1: {:.5} {:.5}",
                 red.eval(1.),
                 blue.eval(1.)
+            );
+        }
+        if let Some(g) = &c.gain_map {
+            eprintln!(
+                "  gain map {:?} points over {:?}, after the warp {}",
+                g.points, g.area, g.after_warp
+            );
+            eprintln!(
+                "  its gains at the centre {:.3?}, top left {:.3?}, bottom right {:.3?}",
+                g.gain(0.5, 0.5),
+                g.gain(0.005, 0.005),
+                g.gain(0.995, 0.995)
             );
         }
         let map = LensMap::new(&c, 6000., 4000., Amounts::FULL);

@@ -178,6 +178,103 @@ mod tests {
         );
     }
 
+    /// A drone DNG (`AG_RAW`) developed, warped and rendered as the app does,
+    /// with its built-in correction off, on without OpcodeList3's gain map
+    /// (as before the map was read) and on: `AG_OUT/<which>.jpg`, 1200 wide,
+    /// and `<which>-corner.jpg`, the bottom left 480 x 320 pixels at 200%.
+    /// Prints each one's corners against the middle of their edge, per
+    /// channel, in linear light before the tone.
+    #[test]
+    #[ignore = "reads a local DNG named by AG_RAW; run by hand"]
+    fn gain_map_sheet() {
+        use image::{DynamicImage, GenericImageView, imageops::FilterType};
+        let path = std::env::var("AG_RAW").expect("AG_RAW");
+        let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("AG_OUT"));
+        std::fs::create_dir_all(&out).unwrap();
+        let bytes = std::fs::read(&path).expect("read");
+        let as_shot = crate::raw_processing::read_as_shot(&bytes)
+            .unwrap_or_else(crate::as_shot::AsShot::reference);
+        let linear = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "default".to_string(),
+            None,
+            Some(&path),
+        )
+        .expect("decodes");
+        let full = argentum_engine::rm_lens_builtin::read(&bytes).expect("a correction");
+        assert!(full.gain_map.is_some(), "no gain map");
+        let before = LensCorrection {
+            gain_map: None,
+            ..full.clone()
+        };
+        let ctx = crate::mods::dng_standard::gpu::device().expect("no wgpu adapter");
+        let save = |image: &DynamicImage, name: &str| {
+            let file = std::fs::File::create(out.join(format!("{name}.jpg"))).expect("create");
+            image::codecs::jpeg::JpegEncoder::new_with_quality(file, 95)
+                .encode_image(&DynamicImage::ImageRgb8(image.to_rgb8()))
+                .expect("write jpeg");
+        };
+        for (name, lens) in [
+            ("off", None),
+            ("before", Some(before)),
+            ("after", Some(full)),
+        ] {
+            let edit = match &lens {
+                Some(c) => json!({ "lensBuiltin": true, "lensBuiltinParams": c }),
+                None => json!({ "lensBuiltin": false }),
+            };
+            let warped = crate::image_processing::apply_geometry_warp(&linear, &edit);
+            let rgb = warped.to_rgb32f();
+            let (w, h) = rgb.dimensions();
+            let mean = |x0: u32, y0: u32| -> [f32; 3] {
+                let mut sum = [0f64; 3];
+                for y in y0..y0 + 64 {
+                    for x in x0..x0 + 64 {
+                        let p = rgb.get_pixel(x, y);
+                        (0..3).for_each(|c| sum[c] += f64::from(p[c]));
+                    }
+                }
+                sum.map(|s| (s / 4096.) as f32)
+            };
+            // Against the middle of the same edge, so a sky is weighed against sky.
+            let corners = [(16, 16), (w - 80, 16), (16, h - 80), (w - 80, h - 80)].map(|(x, y)| {
+                let middle = mean(w / 2 - 32, y);
+                std::array::from_fn::<f32, 3, _>(|c| mean(x, y)[c] / middle[c])
+            });
+            eprintln!("{name}: corner / its edge's middle, RGB, TL TR BL BR: {corners:.2?}");
+            let adjustments = crate::image_processing::get_all_adjustments_from_json(
+                &edit,
+                true,
+                as_shot,
+                Default::default(),
+                Some(&path),
+            );
+            let rendered = crate::mods::export_precision::render_high_precision(
+                &ctx,
+                &warped,
+                crate::gpu_processing::RenderRequest {
+                    adjustments,
+                    mask_bitmaps: &[],
+                    lut: None,
+                    roi: None,
+                },
+            )
+            .expect("renders");
+            let (rw, rh) = rendered.dimensions();
+            save(
+                &rendered.resize(1200, 1200 * rh / rw, FilterType::Triangle),
+                name,
+            );
+            let corner = rendered.crop_imm(0, rh - 320, 480, 320);
+            save(
+                &corner.resize_exact(960, 640, FilterType::Nearest),
+                &format!("{name}-corner"),
+            );
+        }
+    }
+
     #[test]
     fn its_keys_change_the_geometry_hash() {
         let on = json!({ "lensBuiltin": true, "lensBuiltinParams": correction() });

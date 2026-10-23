@@ -755,7 +755,7 @@ export default function CropPanel() {
     : Math.abs((adjustments.lensDistortionParams?.tca_vr || 1) - 1) > 1e-5 ||
       Math.abs((adjustments.lensDistortionParams?.tca_vb || 1) - 1) > 1e-5;
   const hasVignetting = builtin
-    ? builtin.vignetting != null
+    ? builtin.vignetting != null || builtin.gain_map != null
     : Math.abs(adjustments.lensDistortionParams?.vig_k1 || 0) > 1e-6 ||
       Math.abs(adjustments.lensDistortionParams?.vig_k2 || 0) > 1e-6 ||
       Math.abs(adjustments.lensDistortionParams?.vig_k3 || 0) > 1e-6;

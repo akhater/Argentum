@@ -9,25 +9,66 @@
 //! flags, parameter size and parameters.
 
 use rawler::formats::tiff::reader::TiffReader;
-use rawler::formats::tiff::{GenericTiffReader, Value};
+use rawler::formats::tiff::{GenericTiffReader, IFD, Value};
 use rawler::tags::{DngTag, TiffCommonTag};
+
+/// The GainMap opcode's ID: OpcodeList2's are the mosaic's
+/// (`dng_gain_map.rs`), OpcodeList3's the demosaiced image's
+/// (`rm_lens_builtin.rs`).
+pub(crate) const GAIN_MAP: u32 = 9;
 
 /// The opcode list `tag` of a DNG's raw image, as stored. `None` for a file
 /// that is not a DNG or has no such list.
 pub(crate) fn list(file: &[u8], tag: DngTag) -> Option<Vec<u8>> {
+    let tiff = dng(file)?;
+    match &raw_ifd(&tiff, tag)?.get_entry(tag)?.value {
+        Value::Undefined(bytes) | Value::Byte(bytes) => Some(bytes.clone()),
+        _ => None,
+    }
+}
+
+/// The size, [height, width] in pixels, of the image the raw image's opcode
+/// list `tag` applies to: its active area, or the whole stored image, as
+/// RAWmakase reads it (`crates/rawmakase-model/src/dng.rs` @ f0899e0, MIT).
+pub(crate) fn image_size(file: &[u8], tag: DngTag) -> Option<[u32; 2]> {
+    let tiff = dng(file)?;
+    let ifd = raw_ifd(&tiff, tag)?;
+    let numbers = |tag: u16| -> Option<Vec<u32>> {
+        let v = &ifd.get_entry(tag)?.value;
+        (0..v.count())
+            .map(|i| v.get_u32(i).ok().flatten())
+            .collect()
+    };
+    match numbers(DngTag::ActiveArea as u16).as_deref() {
+        Some(&[top, left, bottom, right]) if bottom > top && right > left => {
+            Some([bottom - top, right - left])
+        }
+        _ => {
+            let dim = |tag: TiffCommonTag| Some(*numbers(tag as u16)?.first()?);
+            Some([
+                dim(TiffCommonTag::ImageLength)?,
+                dim(TiffCommonTag::ImageWidth)?,
+            ])
+        }
+    }
+}
+
+/// The file as a TIFF, when it is a DNG.
+fn dng(file: &[u8]) -> Option<GenericTiffReader> {
     if file.len() < 8 || !(file.starts_with(b"II") || file.starts_with(b"MM")) {
         return None;
     }
     let tiff = GenericTiffReader::new_with_buffer(file, 0, 0, None).ok()?;
     tiff.root_ifd().get_entry(DngTag::DNGVersion)?;
-    let raw_ifd = tiff.find_ifds_with_tag(tag).into_iter().find(|ifd| {
+    Some(tiff)
+}
+
+/// The raw image's directory holding `tag`, not a reduced copy's.
+fn raw_ifd(tiff: &GenericTiffReader, tag: DngTag) -> Option<&IFD> {
+    tiff.find_ifds_with_tag(tag).into_iter().find(|ifd| {
         ifd.get_entry(TiffCommonTag::NewSubFileType)
             .is_none_or(|e| e.force_u32(0) & 1 == 0)
-    })?;
-    match &raw_ifd.get_entry(tag)?.value {
-        Value::Undefined(bytes) | Value::Byte(bytes) => Some(bytes.clone()),
-        _ => None,
-    }
+    })
 }
 
 /// One opcode of a list.

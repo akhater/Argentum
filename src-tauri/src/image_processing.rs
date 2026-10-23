@@ -903,7 +903,8 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
 
     // Argentum: the camera's built-in correction (mods/lens_builtin.rs), where
     // lensfun's would be: distortion, then red and blue against green while
-    // sampling, then the vignetting gain at the pixel sampled.
+    // sampling, then the vignetting gain at the pixel sampled, with a DNG's
+    // gain map per channel where each channel sampled.
     let builtin = params
         .lens_builtin
         .as_ref()
@@ -974,11 +975,13 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
 
                     // Argentum: built-in distortion, and red and blue's scale against green.
                     let mut builtin_vr_vb = (1.0, 1.0);
+                    let mut builtin_out = [0.0; 2];
                     if let Some(map) = &builtin {
                         let ([dx, dy], s) = map.scales(src_x - cx, src_y - cy);
                         src_x = cx + dx * s[1];
                         src_y = cy + dy * s[1];
                         builtin_vr_vb = (s[0] / s[1], s[2] / s[1]);
+                        builtin_out = [dx, dy];
                     }
 
                     if k_distortion.abs() > 1e-5 {
@@ -1001,10 +1004,11 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                     }
 
                     if let Some(map) = &builtin {
-                        let gain = map.gain(src_x - cx, src_y - cy);
-                        pixel[0] *= gain;
-                        pixel[1] *= gain;
-                        pixel[2] *= gain;
+                        let (vr, vb) = builtin_vr_vb;
+                        let gain = map.gains(builtin_out, [src_x - cx, src_y - cy], [vr, vb]);
+                        pixel[0] *= gain[0];
+                        pixel[1] *= gain[1];
+                        pixel[2] *= gain[2];
                     }
 
                     if has_vignetting {
