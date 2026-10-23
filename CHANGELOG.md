@@ -4,7 +4,17 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
-## 26.43.3 — 2026-10-21
+## 26.43.4 — 2026-10-23
+
+### Fixed
+
+- **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
+  above the 32-bit signed range beside the Lighting Optimizer setting, and rawler's `get_i32`
+  panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
+  optimizer as off. Only the value used is read now, with `get_i64`, in
+  `mods/highlight_protection.rs`; a test covers a maker note with `u32::MAX` beside it.
+
+## 26.43.3 — 2026-10-23
 
 ### Added
 

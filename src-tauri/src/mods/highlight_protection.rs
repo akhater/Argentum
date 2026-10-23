@@ -92,23 +92,26 @@ fn mode_of(make: &str, ev: f32) -> Option<Mode> {
 
 /// The stops RapidRAW's reader counts for Canon's Auto Lighting Optimizer.
 fn canon_auto_lighting_optimizer_ev(format: FormatHint, bytes: &[u8]) -> f32 {
-    let from = |makernote: &IFD| match integers(makernote, CANON_LIGHTING_OPT).get(2) {
-        Some(0) => 0.5,
-        Some(1) => 0.33,
-        Some(2) => 0.66,
-        _ => 0.0,
-    };
     catch_unwind(AssertUnwindSafe(|| match format {
-        FormatHint::CR2 => tiff_makernote(bytes).map(|makernote| from(&makernote)),
+        FormatHint::CR2 => tiff_makernote(bytes).map(|makernote| lighting_optimizer_ev(&makernote)),
         FormatHint::CR3 => Bmff::new_buf(bytes)
             .ok()
             .and_then(|bmff| bmff.filebox.moov.cr3desc)
-            .map(|desc| from(desc.cmt3.tiff.root_ifd())),
+            .map(|desc| lighting_optimizer_ev(desc.cmt3.tiff.root_ifd())),
         _ => None,
     }))
     .ok()
     .flatten()
     .unwrap_or(0.0)
+}
+
+fn lighting_optimizer_ev(makernote: &IFD) -> f32 {
+    match integer(makernote, CANON_LIGHTING_OPT, 2) {
+        Some(0) => 0.5,
+        Some(1) => 0.33,
+        Some(2) => 0.66,
+        _ => 0.0,
+    }
 }
 
 fn tiff_makernote(bytes: &[u8]) -> Option<IFD> {
@@ -121,19 +124,17 @@ fn tiff_makernote(bytes: &[u8]) -> Option<IFD> {
         .ok()?
 }
 
-fn integers(ifd: &IFD, tag: u16) -> Vec<i32> {
-    ifd.get_entry(tag)
-        .map(|entry| {
-            (0..entry.value.count())
-                .map_while(|index| entry.value.get_i32(index).ok().flatten())
-                .collect()
-        })
-        .unwrap_or_default()
+/// One value of a tag, as i64, which holds every TIFF integer: rawler's
+/// `get_i32` panics on a value above `i32::MAX` instead of failing, and
+/// Canon's LightingOpt carries such values beside the one read here.
+fn integer(ifd: &IFD, tag: u16, index: usize) -> Option<i64> {
+    ifd.get_entry(tag)?.value.get_i64(index).ok().flatten()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rawler::formats::tiff::{Entry, Value};
 
     #[test]
     fn each_maker_names_its_mode() {
@@ -162,6 +163,20 @@ mod tests {
     fn nothing_held_back_names_nothing() {
         assert_eq!(mode_of("Canon", 0.0), None);
         assert_eq!(mode_of("Sony", 1.0), None);
+    }
+
+    #[test]
+    fn a_value_too_big_for_i32_does_not_hide_the_lighting_optimizer() {
+        let mut makernote = IFD::default();
+        makernote.entries.insert(
+            CANON_LIGHTING_OPT,
+            Entry {
+                tag: CANON_LIGHTING_OPT,
+                value: Value::Long(vec![u32::MAX, 0, 1, 0]),
+                embedded: None,
+            },
+        );
+        assert_eq!(lighting_optimizer_ev(&makernote), 0.33);
     }
 
     #[test]

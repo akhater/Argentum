@@ -32,6 +32,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.43.3',
+    date: '2026-10-23',
+    notes: [
+      'Each photo keeps its History: switch to another photo or restart Argentum and come back, '
+      + 'and undo and redo still work. A slider drag is now one History step.',
+      'Looks suggests LUTs for the open photo, learned from the LUTs you put on photos. Nothing '
+      + 'is downloaded, and it can be switched off or forgotten from its menu.',
+      'Looks: select several of your looks to move or delete them at once; folders are listed A to Z; '
+      + 'moving between looks no longer flashes the photo.',
+      'Film-simulation LUTs: a Linear rendering under Profile > Rendering, the base such LUTs are '
+      + 'made for, and the film looks that come with the app now get the colours they expect.',
+      'Holding Ctrl while dragging Whites or Blacks now also shows what a look hides.',
+      'Object selects what is inside a box again, with no click first.',
+      'Blown highlights are found on Canon files that state their white level too high.',
+    ],
+  },
+  {
     version: '26.43.2',
     date: '2026-10-21',
     notes: [
