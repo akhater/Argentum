@@ -200,6 +200,7 @@ function upstreamAndFork() {
     'rawmakase-cameras.mjs',
     'rawmakase-gray-chart.mjs',
     'rawmakase-grade-curves.mjs',
+    'rawmakase-reviews.mjs',
     'upstream-anchors.mjs',
     'upstream-borrows.mjs',
     'upstream-diff.mjs',
