@@ -11,7 +11,7 @@
 # Generated - never edit the rows by hand. scripts/rawmakase-cameras.mjs writes
 # them from one RAWmakase release, named on the next line, and holds the list of
 # any values of ours that differ from it, each with its reason.
-# Source: RAWmakase data/cameras.toml @ 151fdf86ecbdf917fe85f3cccdcd29848c4118d7 (v0.4.6), 280 bodies across 10 makes, 0 exceptions
+# Source: RAWmakase data/cameras.toml @ 4c91c7d8902534f99445f2dfb68a12105b05a3f2 (v0.4.10), 280 bodies across 10 makes, 0 exceptions
 #
 # Each value is the BaselineExposure Camera Raw gives an unedited photo with
 # Adobe Standard. The first version of this table carried RAWmakase's adjustment
