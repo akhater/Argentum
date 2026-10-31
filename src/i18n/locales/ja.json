@@ -245,7 +245,6 @@
       "copyHere_one": "画像をここにコピー",
       "copyHere_other": "{{count}} 枚の画像をここにコピー",
       "deleteFolder": "フォルダを削除",
-      "importImages": "画像をインポート",
       "moveHere_one": "画像をここに移動",
       "moveHere_other": "{{count}} 枚の画像をここに移動",
       "newFolder": "新規フォルダ",
@@ -1118,11 +1117,6 @@
         "title": "表示オプション"
       }
     },
-    "import": {
-      "complete": "インポート完了！",
-      "failed": "インポートに失敗しました！",
-      "progress": "インポート中... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "iCloudに保存されています — 未ダウンロード",
       "collapseFolder": "フォルダを折りたたむ",
@@ -1183,7 +1177,6 @@
     },
     "status": {
       "downloading": "{{status}}をダウンロード中...",
-      "importing": "画像をインポート中... ({{current}}/{{total}})",
       "indexing": "画像をインデックス中... ({{current}}/{{total}})",
       "moment": "これにはしばらく時間がかかる場合があります。",
       "processing": "画像を処理中..."
@@ -1419,25 +1412,6 @@
       "speedNotice": "露出数や画像サイズによって、数分かかる場合があります。",
       "start": "開始",
       "title": "HDRに統合"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "各画像に自動編集を適用",
-      "applyPreset": "各画像にプリセットを適用",
-      "cancel": "キャンセル",
-      "dateFormat": "日付形式",
-      "dateFormatPlaceholder": "例: YYYY/MM-DD",
-      "deleteAfterImport": "インポート完了後に元のファイルを削除",
-      "deleteWarning": "ファイルはシステムのゴミ箱に移動されます。",
-      "editsOnImport": "インポート時の編集",
-      "editsOnImportHint": "EXIFからレンズを特定できる場合、自動編集にレンズ補正も含まれます。一致しない画像は補正されません。",
-      "fileNaming": "ファイル名の命名",
-      "folderOrganization": "フォルダ構成",
-      "organizeByDate": "日付ごとにサブフォルダに整理する",
-      "presetNone": "なし",
-      "sourceFiles": "ソースファイル",
-      "startImport": "インポートを開始",
-      "title": "インポート設定",
-      "notUniqueWarning": "{original_filename}、{original_filename_number}、{sequence} のいずれも含まれない場合、ファイル名が重複することがあります。重複したファイルはインポートされません。"
     },
     "lensCorrection": {
       "amount": "適用量",

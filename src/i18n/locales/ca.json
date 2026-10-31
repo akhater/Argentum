@@ -245,7 +245,6 @@
       "copyHere_one": "Copiar imatge aquí",
       "copyHere_other": "Copiar {{count}} imatges aquí",
       "deleteFolder": "Eliminar carpeta",
-      "importImages": "Importar imatges",
       "moveHere_one": "Moure imatge aquí",
       "moveHere_other": "Moure {{count}} imatges aquí",
       "newFolder": "Nova carpeta",
@@ -1123,11 +1122,6 @@
         "title": "Opcions de visualització"
       }
     },
-    "import": {
-      "complete": "Importació completada!",
-      "failed": "Importació fallida!",
-      "progress": "S'està important... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Emmagatzemat a iCloud — no baixat",
       "collapseFolder": "Contraure carpeta",
@@ -1190,7 +1184,6 @@
     },
     "status": {
       "downloading": "S'està baixant {{status}}...",
-      "importing": "S'estan important les imatges... ({{current}}/{{total}})",
       "indexing": "S'estan indexant les imatges... ({{current}}/{{total}})",
       "moment": "Això pot trigar un moment.",
       "processing": "S'estan processant les imatges..."
@@ -1426,25 +1419,6 @@
       "speedNotice": "Això pot trigar uns minuts depenent del nombre i la mida de les vostres exposicions.",
       "start": "Iniciar",
       "title": "Fusionar a HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Aplicar ajustaments automàtics a cada imatge",
-      "applyPreset": "Aplicar un predefinit a cada imatge",
-      "cancel": "Cancel·lar",
-      "dateFormat": "Format de data",
-      "dateFormatPlaceholder": "p. ex., AAAA/MM-DD",
-      "deleteAfterImport": "Eliminar els originals després d'una importació correcta",
-      "deleteWarning": "Els fitxers es mouran a la paperera del sistema.",
-      "editsOnImport": "Edicions en importar",
-      "editsOnImportHint": "Els ajustaments automàtics inclouen la correcció de l'objectiu quan es pot identificar a partir de les dades EXIF; les imatges sense coincidència no es corregeixen.",
-      "fileNaming": "Nomenclatura de fitxers",
-      "folderOrganization": "Organització de carpetes",
-      "organizeByDate": "Organitzar en subcarpetes per data",
-      "presetNone": "Cap",
-      "sourceFiles": "Fitxers d'origen",
-      "startImport": "Iniciar importació",
-      "title": "Configuració d'importació",
-      "notUniqueWarning": "Sense {original_filename}, {original_filename_number} o {sequence}, diversos fitxers poden rebre el mateix nom. Aquests fitxers no s'importen."
     },
     "lensCorrection": {
       "amount": "Quantitat",

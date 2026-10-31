@@ -47,13 +47,7 @@ export default function LibraryView({
     })),
   );
 
-  const {
-    rootPaths,
-    currentFolderPath,
-    libraryActivePath,
-    multiSelectedPaths,
-    imageRatings,
-  } = useLibraryStore(
+  const { rootPaths, currentFolderPath, libraryActivePath, multiSelectedPaths, imageRatings } = useLibraryStore(
     useShallow((state) => ({
       rootPaths: state.rootPaths,
       currentFolderPath: state.currentFolderPath,
@@ -70,10 +64,9 @@ export default function LibraryView({
     })),
   );
 
-  const { aiModelDownloadStatus, importState, indexingProgress, isIndexing } = useProcessStore(
+  const { aiModelDownloadStatus, indexingProgress, isIndexing } = useProcessStore(
     useShallow((state) => ({
       aiModelDownloadStatus: state.aiModelDownloadStatus,
-      importState: state.importState,
       indexingProgress: state.indexingProgress,
       isIndexing: state.isIndexing,
     })),
@@ -98,7 +91,6 @@ export default function LibraryView({
             groupBadgeInfo={groupBadgeInfo}
             imageList={sortedImageList}
             imageRatings={imageRatings}
-            importState={importState}
             indexingProgress={indexingProgress}
             isIndexing={isIndexing}
             libraryViewMode={libraryViewMode}

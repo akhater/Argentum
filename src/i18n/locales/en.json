@@ -246,7 +246,6 @@
       "copyHere_one": "Copy image here",
       "copyHere_other": "Copy {{count}} images here",
       "deleteFolder": "Delete Folder",
-      "importImages": "Import Images",
       "moveHere_one": "Move image here",
       "moveHere_other": "Move {{count}} images here",
       "newFolder": "New Folder",
@@ -1122,11 +1121,6 @@
         "title": "View Options"
       }
     },
-    "import": {
-      "complete": "Import Complete!",
-      "failed": "Import Failed!",
-      "progress": "Importing... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Stored in iCloud — not downloaded",
       "collapseFolder": "Collapse Folder",
@@ -1187,7 +1181,6 @@
     },
     "status": {
       "downloading": "Downloading {{status}}...",
-      "importing": "Importing images... ({{current}}/{{total}})",
       "indexing": "Indexing images... ({{current}}/{{total}})",
       "moment": "This may take a moment.",
       "processing": "Processing images..."
@@ -1424,25 +1417,6 @@
       "speedNotice": "This may take a few minutes depending on the number and size of your exposures.",
       "start": "Start",
       "title": "Merge to HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Apply automatic edits to every image",
-      "applyPreset": "Apply a preset to every image",
-      "cancel": "Cancel",
-      "dateFormat": "Date Format",
-      "dateFormatPlaceholder": "e.g., YYYY/MM-DD",
-      "deleteAfterImport": "Delete originals after successful import",
-      "deleteWarning": "Files will be moved to the system trash.",
-      "editsOnImport": "Edits on Import",
-      "editsOnImportHint": "Automatic edits include lens correction when the lens can be identified from EXIF; images without a match are left uncorrected.",
-      "fileNaming": "File Naming",
-      "folderOrganization": "Folder Organization",
-      "organizeByDate": "Organize into subfolders by date",
-      "presetNone": "None",
-      "sourceFiles": "Source Files",
-      "startImport": "Start Import",
-      "title": "Import Settings",
-      "notUniqueWarning": "Without {original_filename}, {original_filename_number} or {sequence}, files may get the same name. Those files are not imported."
     },
     "lensCorrection": {
       "amount": "Amount",

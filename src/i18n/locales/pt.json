@@ -247,7 +247,6 @@
       "copyHere_one": "Copiar imagem para cá",
       "copyHere_other": "Copiar {{count}} imagens para cá",
       "deleteFolder": "Excluir Pasta",
-      "importImages": "Importar Imagens",
       "moveHere_many": "Mover {{count}} imagens para cá",
       "moveHere_one": "Mover imagem para cá",
       "moveHere_other": "Mover {{count}} imagens para cá",
@@ -1146,11 +1145,6 @@
         "title": "Opções de Visualização"
       }
     },
-    "import": {
-      "complete": "Importação Concluída!",
-      "failed": "Falha na Importação!",
-      "progress": "Importando... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Armazenado no iCloud — não baixado",
       "collapseFolder": "Recolher Pasta",
@@ -1214,7 +1208,6 @@
     },
     "status": {
       "downloading": "Baixando {{status}}...",
-      "importing": "Importando imagens... ({{current}}/{{total}})",
       "indexing": "Indexando imagens... ({{current}}/{{total}})",
       "moment": "Isso pode levar um momento.",
       "processing": "Processando imagens..."
@@ -1454,25 +1447,6 @@
       "speedNotice": "Isso pode levar alguns minutos, dependendo do número e tamanho das suas exposições.",
       "start": "Iniciar",
       "title": "Mesclar para HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Aplicar edições automáticas a cada imagem",
-      "applyPreset": "Aplicar uma predefinição a cada imagem",
-      "cancel": "Cancelar",
-      "dateFormat": "Formato de Data",
-      "dateFormatPlaceholder": "ex.: AAAA/MM-DD",
-      "deleteAfterImport": "Excluir originais após importação bem-sucedida",
-      "deleteWarning": "Os arquivos serão movidos para a lixeira do sistema.",
-      "editsOnImport": "Edições na importação",
-      "editsOnImportHint": "As edições automáticas incluem a correção da lente quando ela pode ser identificada pelos dados EXIF; imagens sem correspondência não são corrigidas.",
-      "fileNaming": "Nomeação de Arquivos",
-      "folderOrganization": "Organização de Pastas",
-      "organizeByDate": "Organizar em subpastas por data",
-      "presetNone": "Nenhuma",
-      "sourceFiles": "Arquivos de Origem",
-      "startImport": "Iniciar Importação",
-      "title": "Configurações de Importação",
-      "notUniqueWarning": "Sem {original_filename}, {original_filename_number} ou {sequence}, vários arquivos podem receber o mesmo nome. Esses arquivos não são importados."
     },
     "lensCorrection": {
       "amount": "Quantidade",

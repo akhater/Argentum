@@ -72,7 +72,6 @@ export enum Invokes {
   HandleImportPresetsFromFile = 'handle_import_presets_from_file',
   HandleImportPresetsFromFiles = 'handle_import_presets_from_files',
   HandleImportLegacyPresetsFromFile = 'handle_import_legacy_presets_from_file',
-  ImportFiles = 'import_files',
   InvokeGenerativeReplaseWithMaskDef = 'invoke_generative_replace_with_mask_def',
   IsTetheringSupported = 'is_tethering_supported',
   IsRaw9Available = 'is_raw9_available',
@@ -254,7 +253,6 @@ export interface AppSettings {
   grouping?: GroupingMode;
   groupPreferredType?: GroupPreference; // legacy
   alwaysDecodeRawThumbnails?: boolean;
-  lastImportSettings?: ImportSettings;
   workspace?: WorkspaceState;
 }
 
@@ -372,16 +370,6 @@ export interface Preset {
   includeMasks?: boolean;
   includeCropTransform?: boolean;
   presetType?: 'tool' | 'style';
-}
-
-export interface ImportSettings {
-  filenameTemplate: string;
-  organizeByDate: boolean;
-  dateFolderFormat: string;
-  deleteAfterImport: boolean;
-  applyAutoAdjustments?: boolean;
-  presetId?: string | null;
-  presetAdjustments?: Partial<Adjustments> | null;
 }
 
 export interface Progress {

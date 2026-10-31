@@ -143,6 +143,12 @@ pub const DROPPED: &[Dropped] = &[
         reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
         pr: "#276",
     },
+    Dropped {
+        file: SETTINGS,
+        path: "/lastImportSettings",
+        reason: "the Import dialog stored it; Import is gone, Shoebox does the importing",
+        pr: "#296",
+    },
 ];
 
 /// Lists held in a `HashSet`, written in no fixed order: compared as sets.

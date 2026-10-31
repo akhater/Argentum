@@ -240,7 +240,6 @@
       "copyHere_one": "Afbeelding hier kopiëren",
       "copyHere_other": "{{count}} afbeeldingen hier kopiëren",
       "deleteFolder": "Map verwijderen",
-      "importImages": "Afbeeldingen importeren",
       "moveHere_one": "Afbeelding hier naartoe verplaatsen",
       "moveHere_other": "{{count}} afbeeldingen hier naartoe verplaatsen",
       "newFolder": "Nieuwe map",
@@ -1108,11 +1107,6 @@
         "title": "Weergaveopties"
       }
     },
-    "import": {
-      "complete": "Import voltooid!",
-      "failed": "Import mislukt!",
-      "progress": "Importeren... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Opgeslagen in iCloud — niet gedownload",
       "collapseFolder": "Map inklappen",
@@ -1163,7 +1157,6 @@
     },
     "status": {
       "downloading": "Downloaden {{status}}...",
-      "importing": "Afbeeldingen importeren... ({{current}}/{{total}})",
       "indexing": "Afbeeldingen indexeren... ({{current}}/{{total}})",
       "moment": "Dit kan even duren.",
       "processing": "Afbeeldingen verwerken..."
@@ -1399,25 +1392,6 @@
       "speedNotice": "Dit kan enkele minuten duren afhankelijk van het aantal en de grootte van uw belichtingen.",
       "start": "Starten",
       "title": "Samenvoegen naar HDR"
-    },
-    "importSettings": {
-      "cancel": "Annuleren",
-      "dateFormat": "Datumnotatie",
-      "dateFormatPlaceholder": "bijv. YYYY/MM-DD",
-      "deleteAfterImport": "Originelen verwijderen na succesvolle import",
-      "deleteWarning": "Bestanden worden verplaatst naar de systeemprullenbak.",
-      "fileNaming": "Bestandsnaamgeving",
-      "folderOrganization": "Maporganisatie",
-      "organizeByDate": "Ordenen in submappen op datum",
-      "sourceFiles": "Bronbestanden",
-      "startImport": "Import starten",
-      "title": "Importinstellingen",
-      "applyAutoAdjustments": "Automatische bewerkingen op elke foto toepassen",
-      "applyPreset": "Een voorinstelling op elke foto toepassen",
-      "editsOnImport": "Bewerkingen bij importeren",
-      "editsOnImportHint": "Automatische bewerkingen omvatten lenscorrectie wanneer de lens uit de EXIF-gegevens kan worden herkend; foto's zonder overeenkomst blijven ongecorrigeerd.",
-      "presetNone": "Geen",
-      "notUniqueWarning": "Zonder {original_filename}, {original_filename_number} of {sequence} kunnen bestanden dezelfde naam krijgen. Die bestanden worden niet geïmporteerd."
     },
     "lensCorrection": {
       "amount": "Hoeveelheid",

@@ -147,7 +147,7 @@
       "@typescript-eslint/no-explicit-any": 2
     },
     "src/components/modals/AppModals.tsx": {
-      "@typescript-eslint/no-explicit-any": 2,
+      "@typescript-eslint/no-explicit-any": 1,
       "@typescript-eslint/no-unused-vars": 2
     },
     "src/components/modals/CollageModal.tsx": {
@@ -168,9 +168,6 @@
     "src/components/modals/DenoiseModal.tsx": {
       "@typescript-eslint/no-explicit-any": 1,
       "react-hooks/exhaustive-deps": 1
-    },
-    "src/components/modals/ImportSettingsModal.tsx": {
-      "@typescript-eslint/no-explicit-any": 4
     },
     "src/components/modals/NegativeConversionModal.tsx": {
       "@typescript-eslint/no-explicit-any": 2
@@ -295,7 +292,7 @@
       "@typescript-eslint/no-explicit-any": 9
     },
     "src/hooks/useFileOperations.ts": {
-      "@typescript-eslint/no-explicit-any": 4,
+      "@typescript-eslint/no-explicit-any": 2,
       "no-useless-assignment": 2
     },
     "src/hooks/useImageLoader.ts": {
@@ -320,7 +317,7 @@
       "no-useless-assignment": 1
     },
     "src/hooks/useTauriListeners.ts": {
-      "@typescript-eslint/no-explicit-any": 34
+      "@typescript-eslint/no-explicit-any": 30
     },
     "src/store/useCloudStore.ts": {
       "@typescript-eslint/no-explicit-any": 1
@@ -386,7 +383,6 @@
     "src/components/panel/SettingsPanel.tsx",
     "src/components/panel/editor/Waveform.tsx",
     "src/components/panel/editor/overlays/CompositionOverlays.tsx",
-    "src/components/views/LibraryView.tsx",
     "src/utils/CollageVariants.tsx",
     "src/utils/frontendLogBridge.ts",
     "src/utils/maskUtils.ts"

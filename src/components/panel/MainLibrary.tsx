@@ -12,7 +12,6 @@ import {
   LibraryDisplayMode,
 } from '../ui/AppProperties';
 import { GroupBadgeInfo, GroupId } from '../../utils/imageGrouping';
-import { ImportState, Status } from '../ui/ExportImportProperties';
 import Text from '../ui/Text';
 import { TextColors, TextVariants } from '../../types/typography';
 import { useLibraryStore } from '../../store/useLibraryStore';
@@ -43,7 +42,6 @@ interface MainLibraryProps {
   groupBadgeInfo: Map<GroupId, GroupBadgeInfo> | null;
   imageList: Array<ImageFile>;
   imageRatings: Record<string, number>;
-  importState: ImportState;
   indexingProgress: Progress;
   isIndexing: boolean;
   libraryViewMode: LibraryViewMode;
@@ -101,7 +99,7 @@ export default function MainLibrary(props: MainLibraryProps) {
             thumbnailSizeOptions={translatedThumbnailSizeOptions}
           />
         )
-      ) : props.isIndexing || props.aiModelDownloadStatus || props.importState.status === Status.Importing ? (
+      ) : props.isIndexing || props.aiModelDownloadStatus ? (
         <div className="flex-1 flex flex-col items-center justify-center" onContextMenu={props.onEmptyAreaContextMenu}>
           <Loader2 className="h-12 w-12 text-secondary animate-spin mb-4" />
           <Text variant={TextVariants.heading} color={TextColors.secondary}>
@@ -112,14 +110,7 @@ export default function MainLibrary(props: MainLibraryProps) {
                     current: props.indexingProgress.current,
                     total: props.indexingProgress.total,
                   })
-                : props.importState.status === Status.Importing &&
-                    props.importState?.progress?.total &&
-                    props.importState.progress.total > 0
-                  ? t('library.status.importing', {
-                      current: props.importState.progress?.current,
-                      total: props.importState.progress?.total,
-                    })
-                  : t('library.status.processing')}
+                : t('library.status.processing')}
           </Text>
           <Text className="mt-2">{t('library.status.moment')}</Text>
         </div>

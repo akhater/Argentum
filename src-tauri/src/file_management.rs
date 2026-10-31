@@ -332,19 +332,6 @@ fn assign_group_ids(files: &mut [ImageFile]) {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportSettings {
-    pub filename_template: String,
-    pub organize_by_date: bool,
-    pub date_folder_format: String,
-    pub delete_after_import: bool,
-    #[serde(default)]
-    pub apply_auto_adjustments: bool,
-    #[serde(default)]
-    pub preset_adjustments: Option<Value>,
-}
-
 /// The extension of a photo's edit file: `IMG.CR2.agdata`.
 pub const SIDECAR_EXTENSION: &str = "agdata";
 
@@ -2776,98 +2763,20 @@ fn merge_adjustment_values(
     }
 }
 
-/// Apply auto analysis and/or a preset to a single image's sidecar. When `apply_auto` is set the
-/// automatic lens correction is folded in as well (`lensCorrectionMode = "auto"`); images whose
-/// lens cannot be resolved from EXIF simply keep no lens params and are left uncorrected.
-///
-/// Returns the decoded base image when this function had to load one, so callers can reuse it for
-/// thumbnail regeneration.
-pub fn apply_import_edits_to_sidecar(
-    source_path: &Path,
-    sidecar_path: &Path,
-    apply_auto: bool,
-    preset_adjustments: Option<&Value>,
-    settings: &AppSettings,
-    lens_db: Option<&crate::lens_correction::LensDatabase>,
-    preloaded_image: Option<&DynamicImage>,
-) -> Result<Option<DynamicImage>, String> {
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-
-    let mut existing_metadata = crate::exif_processing::load_sidecar(sidecar_path);
-    if existing_metadata.adjustments.is_null() {
-        existing_metadata.adjustments = serde_json::json!({});
-    }
-
-    let mut owned_image: Option<DynamicImage> = None;
-    let auto_from: Option<&DynamicImage> = if apply_auto {
-        Some(match preloaded_image {
-            Some(img) => img,
-            None => {
-                let source_path_str = source_path.to_string_lossy().to_string();
-                let file_bytes = fs::read(source_path).map_err(|e| e.to_string())?;
-                let img = image_loader::load_base_image_from_bytes(
-                    &file_bytes,
-                    &source_path_str,
-                    true,
-                    settings,
-                    None,
-                )
-                .map_err(|e| e.to_string())?;
-                owned_image.insert(img)
-            }
-        })
-    } else {
-        None
-    };
-
-    let exif = existing_metadata.exif.clone();
-    fold_import_edits(
-        &mut existing_metadata.adjustments,
-        auto_from,
-        source_path,
-        preset_adjustments,
-        lens_db,
-        exif.as_ref(),
-    );
-
-    if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata)
-        && let Err(e) = crate::mods::atomic_write::write_atomic(sidecar_path, json_string)
-    {
-        log::warn!("Could not save {}: {}", sidecar_path.display(), e);
-    }
-
-    if enable_xmp_sync {
-        sync_metadata_to_xmp(source_path, &existing_metadata, create_xmp_if_missing);
-    }
-
-    Ok(owned_image)
-}
-
-/// The edit an import or Auto adjust leaves: the auto analysis of `auto_from` when there is one,
 /// then the preset, then automatic lens correction when auto ran or the preset asks for it.
-fn fold_import_edits(
+/// The edit Auto adjust leaves: the auto analysis of `image`, then automatic lens correction.
+fn fold_auto_edits(
     adjustments: &mut Value,
-    auto_from: Option<&DynamicImage>,
+    image: &DynamicImage,
     source_path: &Path,
-    preset_adjustments: Option<&Value>,
     lens_db: Option<&crate::lens_correction::LensDatabase>,
-    fallback_exif: Option<&HashMap<String, String>>,
 ) {
-    if let Some(image) = auto_from {
-        let auto_json = auto_results_to_json(&perform_auto_analysis(image));
-        if let (Some(target), Some(incoming)) = (adjustments.as_object_mut(), auto_json.as_object()) {
-            merge_adjustment_values(target, incoming);
-        }
-    }
-
-    if let Some(preset) = preset_adjustments
-        && let (Some(target), Some(incoming)) = (adjustments.as_object_mut(), preset.as_object())
-    {
+    let auto_json = auto_results_to_json(&perform_auto_analysis(image));
+    if let (Some(target), Some(incoming)) = (adjustments.as_object_mut(), auto_json.as_object()) {
         merge_adjustment_values(target, incoming);
     }
 
-    if auto_from.is_some() && let Some(map) = adjustments.as_object_mut() {
+    if let Some(map) = adjustments.as_object_mut() {
         map.insert("lensCorrectionMode".to_string(), serde_json::json!("auto"));
         for key in ["lensDistortionEnabled", "lensTcaEnabled", "lensVignetteEnabled"] {
             map.entry(key.to_string()).or_insert(serde_json::json!(true));
@@ -2875,7 +2784,7 @@ fn fold_import_edits(
     }
 
     if adjustments.get("lensCorrectionMode").and_then(|v| v.as_str()) == Some("auto") {
-        let exif = crate::exif_processing::read_rrexif_sidecar(source_path).or_else(|| fallback_exif.cloned());
+        let exif = crate::exif_processing::read_rrexif_sidecar(source_path);
         resolve_lens_params_in_adjustments(adjustments, &exif, lens_db);
     }
 }
@@ -3002,7 +2911,7 @@ pub async fn apply_auto_adjustments_to_paths(
         "auto adjustments",
         true,
         move |image, source_path, adjustments| {
-            fold_import_edits(adjustments, Some(image), Path::new(source_path), None, lens_db.as_deref(), None)
+            fold_auto_edits(adjustments, image, Path::new(source_path), lens_db.as_deref())
         },
     )
     .await
@@ -3618,251 +3527,6 @@ pub fn get_cached_or_generate_thumbnail_image(
     } else {
         generate_thumbnail_data(path_str, gpu_context, None, app_handle)
     }
-}
-
-/// Carry an imported photo's EXIF cache and XMP beside `dest_file_path`,
-/// then, with `delete_after_import`, remove the photo and its files from the
-/// source. An XMP that does not arrive stops the import before anything is
-/// removed: it may hold another app's edits.
-pub(crate) fn finish_import(
-    source_path: &Path,
-    source_sidecar: &Path,
-    dest_file_path: &Path,
-    delete_after_import: bool,
-) -> Result<(), String> {
-    let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
-    source_rrexif_name.push(".agexif");
-    let source_rrexif = source_path.with_file_name(source_rrexif_name);
-    let source_xmp = resolve_xmp_path(source_path);
-
-    if source_rrexif.exists() {
-        let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
-        dest_rrexif_name.push(".agexif");
-        let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
-        let _ = fs::copy(&source_rrexif, &dest_rrexif);
-    }
-
-    if let Some(source_xmp) = &source_xmp {
-        let dest_xmp = dest_file_path.with_extension("xmp");
-        fs::copy(source_xmp, &dest_xmp)
-            .map_err(|e| format!("Could not copy {}: {}", source_xmp.display(), e))?;
-    }
-
-    if delete_after_import {
-        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-        {
-            if let Err(trash_error) = trash::delete(source_path) {
-                log::warn!(
-                    "Failed to trash source file {}: {}. Deleting permanently.",
-                    source_path.display(),
-                    trash_error
-                );
-                fs::remove_file(source_path).map_err(|e| e.to_string())?;
-            }
-            if source_sidecar.exists()
-                && let Err(trash_error) = trash::delete(source_sidecar)
-            {
-                log::warn!(
-                    "Failed to trash source sidecar {}: {}. Deleting permanently.",
-                    source_sidecar.display(),
-                    trash_error
-                );
-                fs::remove_file(source_sidecar).map_err(|e| e.to_string())?;
-            }
-            if source_rrexif.exists()
-                && let Err(trash_error) = trash::delete(&source_rrexif)
-            {
-                log::warn!(
-                    "Failed to trash source EXIF sidecar {}: {}. Deleting permanently.",
-                    source_rrexif.display(),
-                    trash_error
-                );
-                fs::remove_file(&source_rrexif).map_err(|e| e.to_string())?;
-            }
-            if let Some(source_xmp) = &source_xmp
-                && source_xmp.exists()
-                && let Err(trash_error) = trash::delete(source_xmp)
-            {
-                log::warn!(
-                    "Failed to trash source XMP sidecar {}: {}. Deleting permanently.",
-                    source_xmp.display(),
-                    trash_error
-                );
-                fs::remove_file(source_xmp).map_err(|e| e.to_string())?;
-            }
-        }
-
-        #[cfg(not(any(
-            target_os = "windows",
-            target_os = "macos",
-            target_os = "linux"
-        )))]
-        {
-            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-            if source_sidecar.exists() {
-                fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-            }
-            if source_rrexif.exists() {
-                let _ = fs::remove_file(&source_rrexif);
-            }
-            if let Some(source_xmp) = &source_xmp
-                && source_xmp.exists()
-            {
-                let _ = fs::remove_file(source_xmp);
-            }
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn import_files(
-    source_paths: Vec<String>,
-    destination_folder: String,
-    settings: ImportSettings,
-    app_handle: AppHandle,
-) -> Result<(), String> {
-    let total_files = source_paths.len();
-    let _ = app_handle.emit("import-start", serde_json::json!({ "total": total_files }));
-
-    tauri::async_runtime::spawn_blocking(move || {
-        let apply_edits = settings.apply_auto_adjustments || settings.preset_adjustments.is_some();
-        let app_settings = load_settings(app_handle.clone()).unwrap_or_default();
-        let lens_db = app_handle
-            .state::<AppState>()
-            .lens_db
-            .lock()
-            .unwrap()
-            .clone();
-        let mut imported_dest_paths: Vec<PathBuf> = Vec::new();
-
-        for (i, source_path_str) in source_paths.iter().enumerate() {
-            let _ = app_handle.emit(
-                "import-progress",
-                serde_json::json!({ "current": i, "total": total_files, "path": source_path_str }),
-            );
-
-            let import_result: Result<Option<PathBuf>, String> = (|| {
-                let (source_path, source_sidecar) = parse_virtual_path(source_path_str);
-                if !source_path.exists() {
-                    return Err(format!("Source file not found: {}", source_path_str));
-                }
-
-                let file_date = exif_processing::get_creation_date_from_path(&source_path);
-
-                let mut final_dest_folder = PathBuf::from(&destination_folder);
-                if settings.organize_by_date {
-                    let date_format_str = settings
-                        .date_folder_format
-                        .replace("YYYY", "%Y")
-                        .replace("MM", "%m")
-                        .replace("DD", "%d");
-                    let subfolder = file_date.format(&date_format_str).to_string();
-                    final_dest_folder.push(subfolder);
-                }
-
-                fs::create_dir_all(&final_dest_folder)
-                    .map_err(|e| format!("Failed to create destination folder: {}", e))?;
-
-                let new_stem = generate_filename_from_template(
-                    &settings.filename_template,
-                    &source_path,
-                    i + 1,
-                    total_files,
-                    &file_date,
-                );
-                let extension = source_path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
-                let new_filename = format!("{}.{}", new_stem, extension);
-                let dest_file_path = final_dest_folder.join(new_filename);
-
-                if dest_file_path.exists() {
-                    return Err(format!(
-                        "File already exists at destination: {}",
-                        dest_file_path.display()
-                    ));
-                }
-
-                fs::copy(&source_path, &dest_file_path).map_err(|e| e.to_string())?;
-                if source_sidecar.exists()
-                    && let Some(dest_str) = dest_file_path.to_str()
-                {
-                    let (_, dest_sidecar) = parse_virtual_path(dest_str);
-                    fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
-                }
-
-                finish_import(&source_path, &source_sidecar, &dest_file_path, settings.delete_after_import)?;
-
-                Ok(Some(dest_file_path))
-            })();
-
-            match import_result {
-                Ok(Some(dest_file_path)) => {
-                    imported_dest_paths.push(dest_file_path);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    eprintln!("Failed to import {}: {}", source_path_str, e);
-                    let _ = app_handle.emit("import-error", e);
-                    return;
-                }
-            }
-        }
-
-        // Capture the camera rating / color label / keywords from a sidecar or embedded XMP
-        // into the .agdata sidecar right away, so it cannot be shadowed later by a skeleton
-        // .xmp (created by AI tagging or the first edit) that starts at rating 0.
-        if app_settings.enable_xmp_sync.unwrap_or(false) {
-            imported_dest_paths.par_iter().for_each(|dest_file_path| {
-                let dest_str = dest_file_path.to_string_lossy().to_string();
-                let (_, sidecar_path) = parse_virtual_path(&dest_str);
-                let mut meta = crate::exif_processing::load_sidecar(&sidecar_path);
-                if sync_metadata_from_xmp(dest_file_path, &mut meta, true)
-                    && let Ok(json) = serde_json::to_string_pretty(&meta)
-                    && let Err(e) = crate::mods::atomic_write::write_atomic(&sidecar_path, json)
-                {
-                    log::warn!("Could not save {}: {}", sidecar_path.display(), e);
-                }
-            });
-        }
-
-        if apply_edits && !imported_dest_paths.is_empty() {
-            let _ = app_handle.emit(
-                "import-progress",
-                serde_json::json!({ "current": total_files, "total": total_files, "path": "Applying edits" }),
-            );
-            let preset_adjustments = settings.preset_adjustments.as_ref();
-            imported_dest_paths.par_iter().for_each(|dest_file_path| {
-                let dest_str = dest_file_path.to_string_lossy().to_string();
-                let (_, sidecar_path) = parse_virtual_path(&dest_str);
-                if let Err(e) = apply_import_edits_to_sidecar(
-                    dest_file_path,
-                    &sidecar_path,
-                    settings.apply_auto_adjustments,
-                    preset_adjustments,
-                    &app_settings,
-                    lens_db.as_deref(),
-                    None,
-                ) {
-                    eprintln!(
-                        "Failed to apply import edits to {}: {}",
-                        dest_file_path.display(),
-                        e
-                    );
-                }
-            });
-        }
-
-        let _ = app_handle.emit(
-            "import-progress",
-            serde_json::json!({ "current": total_files, "total": total_files, "path": "" }),
-        );
-        let _ = app_handle.emit("import-complete", ());
-    });
-
-    Ok(())
 }
 
 pub fn generate_filename_from_template(

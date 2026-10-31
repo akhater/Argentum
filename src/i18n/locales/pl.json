@@ -249,7 +249,6 @@
       "copyHere_one": "Skopiuj obraz tutaj",
       "copyHere_other": "Skopiuj {{count}} obrazów tutaj",
       "deleteFolder": "Usuń folder",
-      "importImages": "Importuj obrazy",
       "moveHere_few": "Przenieś {{count}} obrazy tutaj",
       "moveHere_many": "Przenieś {{count}} obrazów tutaj",
       "moveHere_one": "Przenieś obraz tutaj",
@@ -1171,11 +1170,6 @@
         "title": "Opcje widoku"
       }
     },
-    "import": {
-      "complete": "Import zakończony!",
-      "failed": "Import nie powiódł się!",
-      "progress": "Importowanie... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Przechowywane w iCloud — niepobrane",
       "collapseFolder": "Zwiń folder",
@@ -1242,7 +1236,6 @@
     },
     "status": {
       "downloading": "Pobieranie {{status}}...",
-      "importing": "Importowanie obrazów... ({{current}}/{{total}})",
       "indexing": "Indeksowanie obrazów... ({{current}}/{{total}})",
       "moment": "Może to chwilę potrwać.",
       "processing": "Przetwarzanie obrazów..."
@@ -1486,25 +1479,6 @@
       "speedNotice": "To może potrwać kilka minut w zależności od liczby i rozmiaru Twoich ujęć.",
       "start": "Start",
       "title": "Scal do HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Zastosuj automatyczne edycje do każdego obrazu",
-      "applyPreset": "Zastosuj ustawienie wstępne do każdego obrazu",
-      "cancel": "Anuluj",
-      "dateFormat": "Format daty",
-      "dateFormatPlaceholder": "np. RRRR/MM-DD",
-      "deleteAfterImport": "Usuń oryginały po pomyślnym imporcie",
-      "deleteWarning": "Pliki zostaną przeniesione do systemowego kosza.",
-      "editsOnImport": "Edycje podczas importowania",
-      "editsOnImportHint": "Automatyczne edycje obejmują korekcję obiektywu, gdy można go rozpoznać na podstawie danych EXIF; obrazy bez dopasowania pozostają bez korekcji.",
-      "fileNaming": "Nazewnictwo plików",
-      "folderOrganization": "Organizacja folderów",
-      "organizeByDate": "Organizuj w podfolderach według daty",
-      "presetNone": "Brak",
-      "sourceFiles": "Pliki źródłowe",
-      "startImport": "Rozpocznij import",
-      "title": "Ustawienia importu",
-      "notUniqueWarning": "Bez {original_filename}, {original_filename_number} lub {sequence} pliki mogą otrzymać tę samą nazwę. Takie pliki nie zostaną zaimportowane."
     },
     "lensCorrection": {
       "amount": "Ilość",

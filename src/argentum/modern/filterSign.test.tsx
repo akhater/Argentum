@@ -14,7 +14,6 @@ import {
   ThumbnailAspectRatio,
   ThumbnailSize,
 } from '../../components/ui/AppProperties';
-import { Status } from '../../components/ui/ExportImportProperties';
 import MainLibrary from '../../components/panel/MainLibrary';
 import { AG_NS } from '../locales';
 import en from '../locales/en.json';
@@ -53,7 +52,6 @@ const emptyGrid = () =>
       groupBadgeInfo={null}
       imageList={[]}
       imageRatings={{}}
-      importState={{ errorMessage: '', path: '', progress: { current: 0, total: 0 }, status: Status.Idle }}
       indexingProgress={{ current: 0, total: 0 }}
       isIndexing={false}
       libraryViewMode={LibraryViewMode.Flat}

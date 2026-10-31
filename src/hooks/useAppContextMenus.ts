@@ -78,7 +78,6 @@ export interface UseAppContextMenusProps {
   handleImageSelect: (path: string) => void;
   handleBackToLibrary: () => void;
   handleRenameFiles: (paths: string[]) => void;
-  handleImportClick: (path: string) => void;
   handleLibraryRefresh: () => Promise<void>;
   refreshAllFolderTrees: () => Promise<void>;
   refreshImageList: () => Promise<void>;
@@ -1028,11 +1027,6 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             },
           ],
         },
-        {
-          icon: FolderInput,
-          label: t('contextMenus.folders.importImages'),
-          onClick: () => props.handleImportClick(targetPath),
-        },
         { type: OPTION_SEPARATOR },
         {
           icon: Folder,
@@ -1399,12 +1393,6 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
         { label: t('contextMenus.library.refreshView'), icon: RefreshCw, onClick: props.handleLibraryRefresh },
         { type: OPTION_SEPARATOR },
         pasteOption,
-        {
-          icon: FolderInput,
-          label: t('contextMenus.folders.importImages'),
-          onClick: () => props.handleImportClick(currentFolderPath as string),
-          disabled: !currentFolderPath || isAlbumView,
-        },
         { type: OPTION_SEPARATOR },
         {
           icon: Trash2,

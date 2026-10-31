@@ -245,7 +245,6 @@
       "copyHere_one": "复制图像至此",
       "copyHere_other": "复制 {{count}} 张图像至此",
       "deleteFolder": "删除文件夹",
-      "importImages": "导入图像",
       "moveHere_one": "移动图像至此",
       "moveHere_other": "移动 {{count}} 张图像至此",
       "newFolder": "新建文件夹",
@@ -1118,11 +1117,6 @@
         "title": "视图选项"
       }
     },
-    "import": {
-      "complete": "导入完成！",
-      "failed": "导入失败！",
-      "progress": "导入中...（{{current}}/{{total}}）"
-    },
     "items": {
       "cloudPlaceholder": "存储在 iCloud 中 — 未下载",
       "collapseFolder": "折叠文件夹",
@@ -1183,7 +1177,6 @@
     },
     "status": {
       "downloading": "下载中 {{status}}...",
-      "importing": "导入图像中...（{{current}}/{{total}}）",
       "indexing": "索引图像中...（{{current}}/{{total}}）",
       "moment": "这可能需要一些时间。",
       "processing": "处理图像中..."
@@ -1419,25 +1412,6 @@
       "speedNotice": "这可能需要几分钟，具体取决于曝光图像的数量和大小。",
       "start": "开始",
       "title": "合并为 HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "对每张图像应用自动编辑",
-      "applyPreset": "对每张图像应用预设",
-      "cancel": "取消",
-      "dateFormat": "日期格式",
-      "dateFormatPlaceholder": "例如，YYYY/MM-DD",
-      "deleteAfterImport": "成功导入后删除原始文件",
-      "deleteWarning": "文件将被移至系统回收站。",
-      "editsOnImport": "导入时编辑",
-      "editsOnImportHint": "如果可以从 EXIF 识别镜头，自动编辑会包含镜头校正；无法匹配的图像不会进行校正。",
-      "fileNaming": "文件命名",
-      "folderOrganization": "文件夹组织",
-      "organizeByDate": "按日期组织到子文件夹",
-      "presetNone": "无",
-      "sourceFiles": "源文件",
-      "startImport": "开始导入",
-      "title": "导入设置",
-      "notUniqueWarning": "如果不包含 {original_filename}、{original_filename_number} 或 {sequence}，文件可能会重名。重名的文件不会被导入。"
     },
     "lensCorrection": {
       "amount": "数量",

@@ -312,8 +312,6 @@ function App() {
     handleRenameFolder,
     handleSaveRename,
     handleRenameFiles,
-    handleStartImport,
-    handleImportClick,
     handlePasteFiles,
   } = useFileOperations(
     handleLibraryRefresh,
@@ -347,7 +345,6 @@ function App() {
     handleBackToLibrary,
     handleLibraryRefresh,
     handleRenameFiles,
-    handleImportClick,
     refreshAllFolderTrees,
     refreshImageList: handleLibraryRefresh,
     executeDelete,
@@ -356,8 +353,6 @@ function App() {
   });
 
   useTauriListeners({
-    refreshAllFolderTrees,
-    handleSelectSubfolder,
     refreshImageList: handleLibraryRefresh,
     markGenerated,
   });
@@ -788,7 +783,6 @@ function App() {
           handleCreateFolder={handleCreateFolder}
           handleRenameFolder={handleRenameFolder}
           handleSaveRename={handleSaveRename}
-          handleStartImport={handleStartImport}
           handleSetFlag={handleSetFlag}
           handleRate={handleRate}
           executeDelete={executeDelete}

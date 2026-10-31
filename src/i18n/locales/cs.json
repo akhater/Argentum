@@ -244,7 +244,6 @@
       "copyHere_one": "Zkopírujte snímek sem",
       "copyHere_other": "Zkopírujte {{count}} snímků sem",
       "deleteFolder": "Smazat složku",
-      "importImages": "Import snímků",
       "moveHere_one": "Přesunout snímek sem",
       "moveHere_other": "Přesunout {{count}} snímků sem",
       "newFolder": "Nová složka",
@@ -1124,11 +1123,6 @@
         "title": "Možnosti zobrazení"
       }
     },
-    "import": {
-      "complete": "Import dokončen!",
-      "failed": "Import se nezdařil!",
-      "progress": "Probíhá import... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Uloženo na iCloudu — nestaženo",
       "collapseFolder": "Sbalit složku",
@@ -1189,7 +1183,6 @@
     },
     "status": {
       "downloading": "Stahování {{status}}...",
-      "importing": "Import snímků... ({{current}}/{{total}})",
       "indexing": "Indexují se snímky... ({{current}}/{{total}})",
       "moment": "Může to chvíli trvat.",
       "processing": "Zpracování snímků..."
@@ -1425,25 +1418,6 @@
       "speedNotice": "To může trvat několik minut v závislosti na počtu a velikosti vašich expozic.",
       "start": "Start",
       "title": "Sloučit do HDR"
-    },
-    "importSettings": {
-      "cancel": "Zrušit",
-      "dateFormat": "Formát data",
-      "dateFormatPlaceholder": "např. RRRR/MM-DD",
-      "deleteAfterImport": "Po úspěšném importu smazat originály",
-      "deleteWarning": "Soubory budou přesunuty do koše systému.",
-      "fileNaming": "Pojmenování souborů",
-      "folderOrganization": "Organizace složek",
-      "organizeByDate": "Uspořádejte do podsložek podle data",
-      "sourceFiles": "Zdrojové soubory",
-      "startImport": "Spustit import",
-      "title": "Nastavení importu",
-      "applyAutoAdjustments": "Použít automatické úpravy na každý snímek",
-      "applyPreset": "Použít předvolbu na každý snímek",
-      "editsOnImport": "Úpravy při importu",
-      "editsOnImportHint": "Automatické úpravy zahrnují korekci objektivu, pokud jej lze určit z EXIF; snímky bez shody zůstanou bez korekce.",
-      "presetNone": "Žádná",
-      "notUniqueWarning": "Bez {original_filename}, {original_filename_number} nebo {sequence} mohou soubory dostat stejný název. Takové soubory se neimportují."
     },
     "lensCorrection": {
       "amount": "Míra",

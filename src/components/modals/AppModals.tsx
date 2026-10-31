@@ -16,7 +16,6 @@ import CreateFolderModal from './CreateFolderModal';
 import RenameFolderModal from './RenameFolderModal';
 import RenameFileModal from './RenameFileModal';
 import ConfirmModal from './ConfirmModal';
-import ImportSettingsModal from './ImportSettingsModal';
 import CullingModal from './CullingModal';
 import CollageModal from './CollageModal';
 import { AppSettings, Invokes, ImageFlag, AlbumItem, Album, AlbumGroup } from '../ui/AppProperties';
@@ -38,7 +37,6 @@ export interface AppModalsProps {
   handleCreateFolder: (folderName: string) => Promise<void>;
   handleRenameFolder: (newName: string) => Promise<void>;
   handleSaveRename: (nameTemplate: string) => Promise<void>;
-  handleStartImport: (settings: any) => Promise<void>;
   handleSetFlag: (flag: ImageFlag | null, paths?: string[]) => void;
   handleRate: (rating: number, paths?: string[]) => void;
   executeDelete: (paths: string[], options: any) => Promise<void>;
@@ -60,11 +58,9 @@ export default function AppModals(props: AppModalsProps) {
     isCreateFolderModalOpen,
     isRenameFolderModalOpen,
     isRenameFileModalOpen,
-    isImportModalOpen,
     isCopyPasteSettingsModalOpen,
     folderActionTarget,
     renameTargetPaths,
-    importSourcePaths,
     isCreateAlbumModalOpen,
     isCreateAlbumGroupModalOpen,
     isRenameAlbumModalOpen,
@@ -83,11 +79,9 @@ export default function AppModals(props: AppModalsProps) {
       isCreateFolderModalOpen: state.isCreateFolderModalOpen,
       isRenameFolderModalOpen: state.isRenameFolderModalOpen,
       isRenameFileModalOpen: state.isRenameFileModalOpen,
-      isImportModalOpen: state.isImportModalOpen,
       isCopyPasteSettingsModalOpen: state.isCopyPasteSettingsModalOpen,
       folderActionTarget: state.folderActionTarget,
       renameTargetPaths: state.renameTargetPaths,
-      importSourcePaths: state.importSourcePaths,
       isCreateAlbumModalOpen: state.isCreateAlbumModalOpen,
       isCreateAlbumGroupModalOpen: state.isCreateAlbumGroupModalOpen,
       isRenameAlbumModalOpen: state.isRenameAlbumModalOpen,
@@ -318,13 +312,6 @@ export default function AppModals(props: AppModalsProps) {
         onSave={props.handleSaveRename}
       />
       <ConfirmModal {...confirmModalState} onClose={closeConfirmModal} />
-      <ImportSettingsModal
-        fileCount={importSourcePaths.length}
-        initialSettings={appSettings?.lastImportSettings}
-        isOpen={isImportModalOpen}
-        onClose={() => setUI({ isImportModalOpen: false })}
-        onSave={props.handleStartImport}
-      />
       <CullingModal
         isOpen={cullingModalState.isOpen}
         onClose={() =>

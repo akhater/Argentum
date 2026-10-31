@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import { useLibraryStore } from '../store/useLibraryStore';
@@ -9,7 +8,6 @@ import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { ImageFlag, Invokes } from '../components/ui/AppProperties';
-import { Status } from '../components/ui/ExportImportProperties';
 import { activePathAfterDelete, isInFolder, pathAfterFolderRename, shownAfterRename } from '../argentum/fileOps';
 import { ag } from '../argentum/ag';
 import { useModernFolders } from '../argentum/modern/folders';
@@ -291,91 +289,6 @@ export function useFileOperations(
     }
   }, []);
 
-  const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
-    if (sourcePaths.length === 0 || !destinationFolder) return;
-
-    try {
-      await invoke(Invokes.ImportFiles, { destinationFolder, settings, sourcePaths });
-    } catch (err) {
-      console.error('Failed to start import:', err);
-      useProcessStore
-        .getState()
-        .setImportState({ status: Status.Error, errorMessage: `Failed to start import: ${err}` });
-    }
-  }, []);
-
-  const handleStartImport = useCallback(
-    async (settings: any) => {
-      const { importTargetFolder, importSourcePaths } = useUIStore.getState();
-      if (!importTargetFolder) return;
-
-      const { appSettings, handleSettingsChange } = useSettingsStore.getState();
-      if (appSettings) {
-        const { presetAdjustments: _drop, ...persistable } = settings;
-        handleSettingsChange({ ...appSettings, lastImportSettings: persistable });
-      }
-
-      await startImportFiles(importSourcePaths, importTargetFolder, settings);
-    },
-    [startImportFiles],
-  );
-
-  const handleImportClick = useCallback(async (targetPath: string) => {
-    const { supportedTypes } = useSettingsStore.getState();
-    const { setUI } = useUIStore.getState();
-
-    try {
-      const nonRaw = supportedTypes?.nonRaw || [];
-      const raw = supportedTypes?.raw || [];
-
-      const expandExtensions = (exts: string[]) => {
-        return Array.from(new Set(exts.flatMap((ext) => [ext.toLowerCase(), ext.toUpperCase()])));
-      };
-
-      const processedNonRaw = expandExtensions(nonRaw);
-      const processedRaw = expandExtensions(raw);
-      const allImageExtensions = [...processedNonRaw, ...processedRaw];
-
-      const typeFilters = [
-        { name: 'All Supported Images', extensions: allImageExtensions },
-        { name: 'RAW Images', extensions: processedRaw },
-        { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
-        { name: 'All Files', extensions: ['*'] },
-      ];
-
-      const selected = await open({
-        filters: typeFilters,
-        multiple: true,
-        title: 'Select files to import',
-      });
-
-      if (Array.isArray(selected) && selected.length > 0) {
-        const invalidExtensions = new Set<string>();
-        const allowedExtensions = new Set(allImageExtensions.map((e) => e.toLowerCase()));
-
-        const validFiles = selected.filter((path) => {
-          const ext = path.split('.').pop()?.toLowerCase() || 'unknown';
-
-          if (!allowedExtensions.has(ext)) {
-            invalidExtensions.add(`.${ext}`);
-            return false;
-          }
-          return true;
-        });
-
-        if (invalidExtensions.size > 0) {
-          const extList = Array.from(invalidExtensions).join(', ');
-          toast.error(`Unsupported file format(s) detected: ${extList}`);
-          return;
-        }
-
-        setUI({ importSourcePaths: validFiles, importTargetFolder: targetPath, isImportModalOpen: true });
-      }
-    } catch (err) {
-      console.error('Failed to open file dialog for import:', err);
-    }
-  }, []);
-
   const handlePasteFiles = useCallback(
     async (mode = 'copy') => {
       const { copiedFilePaths, setProcess } = useProcessStore.getState();
@@ -408,9 +321,6 @@ export function useFileOperations(
     handleRenameFolder,
     handleSaveRename,
     handleRenameFiles,
-    handleStartImport,
-    startImportFiles,
-    handleImportClick,
     handlePasteFiles,
   };
 }

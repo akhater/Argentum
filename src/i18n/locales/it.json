@@ -247,7 +247,6 @@
       "copyHere_one": "Copia immagine qui",
       "copyHere_other": "Copia {{count}} immagini qui",
       "deleteFolder": "Elimina Cartella",
-      "importImages": "Importa Immagini",
       "moveHere_many": "Sposta {{count}} immagini qui",
       "moveHere_one": "Sposta immagine qui",
       "moveHere_other": "Sposta {{count}} immagini qui",
@@ -1148,11 +1147,6 @@
         "title": "Opzioni di Visualizzazione"
       }
     },
-    "import": {
-      "complete": "Importazione Completata!",
-      "failed": "Importazione Fallita!",
-      "progress": "Importazione in corso... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Archiviato in iCloud — non scaricato",
       "collapseFolder": "Comprimi Cartella",
@@ -1216,7 +1210,6 @@
     },
     "status": {
       "downloading": "Download in corso {{status}}...",
-      "importing": "Importazione immagini... ({{current}}/{{total}})",
       "indexing": "Indicizzazione immagini... ({{current}}/{{total}})",
       "moment": "Questa operazione potrebbe richiedere un momento.",
       "processing": "Elaborazione immagini..."
@@ -1456,25 +1449,6 @@
       "speedNotice": "L'operazione potrebbe richiedere alcuni minuti a seconda del numero e delle dimensioni delle tue esposizioni.",
       "start": "Avvia",
       "title": "Unisci in HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Applica regolazioni automatiche a ogni immagine",
-      "applyPreset": "Applica una preimpostazione a ogni immagine",
-      "cancel": "Annulla",
-      "dateFormat": "Formato Data",
-      "dateFormatPlaceholder": "es. YYYY/MM-DD",
-      "deleteAfterImport": "Elimina originali dopo importazione completata",
-      "deleteWarning": "I file verranno spostati nel cestino di sistema.",
-      "editsOnImport": "Modifiche all'importazione",
-      "editsOnImportHint": "Le modifiche automatiche includono la correzione dell'obiettivo quando è possibile identificarlo dai dati EXIF; le immagini senza corrispondenza non vengono corrette.",
-      "fileNaming": "Nomenclatura File",
-      "folderOrganization": "Organizzazione Cartelle",
-      "organizeByDate": "Organizza in sottocartelle per data",
-      "presetNone": "Nessuno",
-      "sourceFiles": "File Sorgente",
-      "startImport": "Inizia Importazione",
-      "title": "Impostazioni di Importazione",
-      "notUniqueWarning": "Senza {original_filename}, {original_filename_number} o {sequence}, più file possono ricevere lo stesso nome. Questi file non vengono importati."
     },
     "lensCorrection": {
       "amount": "Quantità",

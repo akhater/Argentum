@@ -109,10 +109,7 @@ export interface UIState {
   isRenameFolderModalOpen: boolean;
   isRenameFileModalOpen: boolean;
   renameTargetPaths: Array<string>;
-  isImportModalOpen: boolean;
   isCopyPasteSettingsModalOpen: boolean;
-  importTargetFolder: string | null;
-  importSourcePaths: Array<string>;
   folderActionTarget: string | null;
 
   isCreateAlbumModalOpen: boolean;
@@ -161,10 +158,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isRenameFolderModalOpen: false,
   isRenameFileModalOpen: false,
   renameTargetPaths: [],
-  isImportModalOpen: false,
   isCopyPasteSettingsModalOpen: false,
-  importTargetFolder: null,
-  importSourcePaths: [],
   folderActionTarget: null,
   isCreateAlbumModalOpen: false,
   isCreateAlbumGroupModalOpen: false,

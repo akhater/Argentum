@@ -245,7 +245,6 @@
       "copyHere_one": "Bild hierher kopieren",
       "copyHere_other": "{{count}} Bilder hierher kopieren",
       "deleteFolder": "Ordner löschen",
-      "importImages": "Bilder importieren",
       "moveHere_one": "Bild hierher verschieben",
       "moveHere_other": "{{count}} Bilder hierher verschieben",
       "newFolder": "Neuer Ordner",
@@ -1121,11 +1120,6 @@
         "title": "Ansichtsoptionen"
       }
     },
-    "import": {
-      "complete": "Import abgeschlossen!",
-      "failed": "Import fehlgeschlagen!",
-      "progress": "Wird importiert... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "In iCloud gespeichert — nicht heruntergeladen",
       "collapseFolder": "Ordner zuklappen",
@@ -1186,7 +1180,6 @@
     },
     "status": {
       "downloading": "Wird heruntergeladen {{status}}...",
-      "importing": "Bilder werden importiert... ({{current}}/{{total}})",
       "indexing": "Bilder werden indiziert... ({{current}}/{{total}})",
       "moment": "Das kann einen Moment dauern.",
       "processing": "Bilder werden verarbeitet..."
@@ -1422,25 +1415,6 @@
       "speedNotice": "Dies kann je nach Anzahl und Größe Ihrer Belichtungen einige Minuten dauern.",
       "start": "Start",
       "title": "Zu HDR zusammenfügen"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Automatische Bearbeitung auf jedes Bild anwenden",
-      "applyPreset": "Preset auf jedes Bild anwenden",
-      "cancel": "Abbrechen",
-      "dateFormat": "Datumsformat",
-      "dateFormatPlaceholder": "z. B., YYYY/MM-DD",
-      "deleteAfterImport": "Originale nach erfolgreichem Import löschen",
-      "deleteWarning": "Dateien werden in den Systempapierkorb verschoben.",
-      "editsOnImport": "Bearbeitung beim Import",
-      "editsOnImportHint": "Die automatische Bearbeitung enthält die Objektivkorrektur, sofern das Objektiv aus den EXIF-Daten erkannt wird; Bilder ohne Treffer bleiben unkorrigiert.",
-      "fileNaming": "Dateibenennung",
-      "folderOrganization": "Ordnerorganisation",
-      "organizeByDate": "In Unterordner nach Datum organisieren",
-      "presetNone": "Keins",
-      "sourceFiles": "Quelldateien",
-      "startImport": "Import starten",
-      "title": "Importeinstellungen",
-      "notUniqueWarning": "Ohne {original_filename}, {original_filename_number} oder {sequence} können Dateien denselben Namen erhalten. Diese Dateien werden nicht importiert."
     },
     "lensCorrection": {
       "amount": "Betrag",

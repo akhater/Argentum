@@ -781,11 +781,6 @@ const SETTINGS_JSON: &str = r##"{
   "libraryDisplayMode": "list",
   "grouping": "raw",
   "alwaysDecodeRawThumbnails": true,
-  "lastImportSettings": {
-    "filenameTemplate": "{original_filename}_{date}", "organizeByDate": true,
-    "dateFolderFormat": "YYYY/MM-DD", "deleteAfterImport": false, "applyAutoAdjustments": true,
-    "presetId": null, "presetAdjustments": null
-  },
   "customAspectRatios": [{ "width": 5.0, "height": 7.0 }],
   "adjustmentLayout": {
     "sectionOrder": ["color", "basic", "curves", "details", "effects"],

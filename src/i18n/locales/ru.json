@@ -249,7 +249,6 @@
       "copyHere_one": "Копировать {{count}} изображение сюда",
       "copyHere_other": "Копировать {{count}} изображений сюда",
       "deleteFolder": "Удалить папку",
-      "importImages": "Импортировать изображения",
       "moveHere_few": "Переместить {{count}} изображений сюда",
       "moveHere_many": "Переместить {{count}} изображений сюда",
       "moveHere_one": "Переместить {{count}} изображение сюда",
@@ -1171,11 +1170,6 @@
         "title": "Вид"
       }
     },
-    "import": {
-      "complete": "Импорт завершен!",
-      "failed": "Импорт не удался!",
-      "progress": "Импорт... ({{current}}/{{total}})"
-    },
     "items": {
       "cloudPlaceholder": "Хранится в iCloud — не загружено",
       "collapseFolder": "Свернуть папку",
@@ -1242,7 +1236,6 @@
     },
     "status": {
       "downloading": "Загрузка {{status}}...",
-      "importing": "Импорт изображений... ({{current}}/{{total}})",
       "indexing": "Индексация изображений... ({{current}}/{{total}})",
       "moment": "Это может занять некоторое время.",
       "processing": "Обработка изображений..."
@@ -1486,25 +1479,6 @@
       "speedNotice": "Это может занять несколько минут в зависимости от количества и разрешения ваших снимков.",
       "start": "Начать",
       "title": "Объединение в HDR"
-    },
-    "importSettings": {
-      "applyAutoAdjustments": "Применять автоматические правки к каждому изображению",
-      "applyPreset": "Применять пресет к каждому изображению",
-      "cancel": "Отмена",
-      "dateFormat": "Формат даты",
-      "dateFormatPlaceholder": "например, YYYY/MM-DD",
-      "deleteAfterImport": "Удалять исходные файлы после успешного импорта",
-      "deleteWarning": "Файлы будут перемещены в системную корзину.",
-      "editsOnImport": "Правки при импорте",
-      "editsOnImportHint": "Автоматические правки включают коррекцию объектива, если его можно определить по EXIF; изображения без совпадения остаются без коррекции.",
-      "fileNaming": "Именование файлов",
-      "folderOrganization": "Структура папок",
-      "organizeByDate": "Распределять по подпапкам на основе даты",
-      "presetNone": "Нет",
-      "sourceFiles": "Исходные файлы",
-      "startImport": "Начать импорт",
-      "title": "Параметры импорта",
-      "notUniqueWarning": "Без {original_filename}, {original_filename_number} или {sequence} файлы могут получить одинаковые имена. Такие файлы не импортируются."
     },
     "lensCorrection": {
       "amount": "Интенсивность",
