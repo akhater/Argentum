@@ -57,11 +57,11 @@ A release is a merge commit on `main`, published in this order.
    tag. Creating the release starts `.github/workflows/release.yml`, which builds
    the installers and attaches them. Its last job then opens the notes with a
    **Download** table (Windows, Windows on ARM, Mac with Apple Silicon, Mac with
-   Intel: a direct link to each file; Linux: which file to pick) and three
-   lines: the Windows SmartScreen step, the macOS one-time steps, and what the
-   `_tethering` files are (`scripts/release-downloads.mjs`). If a build failed,
-   that job does not run; once the files are attached, run
-   `node scripts/release-downloads.mjs <version>` by hand.
+   Intel: a direct link to each file; Linux: which file to pick) and two
+   lines: the Windows SmartScreen step and the macOS one-time steps
+   (`scripts/release-downloads.mjs`). If a build failed, that job does not run;
+   once the files are attached, run `node scripts/release-downloads.mjs
+   <version>` by hand.
    Another job compares each installer with the same file of the previous
    release (`scripts/installer-size.mjs`) and fails when one grew by more than
    3%: add a line starting `Installer size:` to the notes saying why, then re-run

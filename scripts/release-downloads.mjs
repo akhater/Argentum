@@ -1,9 +1,9 @@
 // The Download table a release's notes open with, written from the files
 // actually attached to it. Ours.
 //
-// A release page lists about 30 files. The table names the one to pick for
-// each computer, with a direct link, then three lines: the Windows SmartScreen
-// step, the macOS one-time steps, and what the `_tethering` files are.
+// A release page lists about 20 files. The table names the one to pick for
+// each computer, with a direct link, then two lines: the Windows SmartScreen
+// step and the macOS one-time steps.
 // 26.43.4's notes were written this way by hand; release.yml now runs this
 // script once every installer is uploaded, so each release gets it.
 //
@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 
 export const REPO = 'akhater/Argentum';
 
-/** Each computer, and the attached file it gets: the plain installer, never `_tethering`. */
+/** Each computer, and the attached file it gets. Exact, so an older release's `_tethering` files never match. */
 export const ROWS = [
   ['Windows', /^01_Argentum_v.+_windows_x64\.exe$/],
   ['Windows on ARM', /^01_Argentum_v.+_windows-11-arm_arm64\.exe$/],
@@ -28,7 +28,6 @@ const LINUX =
 const NOTES = [
   '- **Windows:** the installer is not signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info**, then **Run anyway**.',
   `- **Mac:** the app is not notarized yet; do [the two one-time steps](https://github.com/${REPO}#macos-two-one-time-steps) after copying it to Applications.`,
-  '- Files with `_tethering` add shooting from a USB camera on macOS and Linux and need libgphoto2 installed. Everyone else wants the plain file. The other files are the same app in other packages.',
 ];
 
 /** The Download section for release `tag` with these attached file names. Throws when a row has no file. */

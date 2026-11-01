@@ -65,9 +65,8 @@ Nothing else to install. The AI models are not shipped in the installer, so it
 stays small: each one is downloaded the first time a feature needs it, or all at
 once from *Settings → AI and models*.
 
-Files whose names contain `_tethering` are the same app with camera tethering
-added; see [Tethering](#tethering-macos-and-linux). Everyone else wants the plain
-one.
+No download includes camera tethering; see
+[Tethering](#tethering-macos-and-linux).
 
 *(Building from source is further down, and only needed if you want to change
 the code.)*
@@ -134,11 +133,11 @@ sudo chown -R "$(whoami)" "/path/to/your/photos"
 ### Tethering (macOS and Linux)
 
 Tethering, RapidRAW's feature for shooting with a camera on USB straight into the
-app (live view, camera controls, captures saved into the open folder), comes as
-separate `_tethering` downloads. It is built on
-[libgphoto2](http://gphoto.org/proj/libgphoto2/support.php), and those builds do
-not start unless libgphoto2 is installed: `brew install libgphoto2` on macOS, your
-distribution's libgphoto2 package on Linux. A Camera section then appears in the
+app (live view, camera controls, captures saved into the open folder), is
+available only when [building from source](#building-from-source) with
+`--features tethering`; no download includes it. It is built on
+[libgphoto2](http://gphoto.org/proj/libgphoto2/support.php), and such a build does
+not start unless libgphoto2 is installed. A Camera section then appears in the
 left column. There is no tethering on Windows.
 
 ---
@@ -214,8 +213,8 @@ left column. There is no tethering on Windows.
   downloaded or installed by itself.
 
 RapidRAW's own features (its AI tools, Relight, Fog, panorama, HDR, focus
-stacking, negative conversion, healing, export, and tethering in the tethering
-builds) are all still here; RapidRAW Cloud, their paid service, is not. Full
+stacking, negative conversion, healing, export, and tethering in a build from
+source) are all still here; RapidRAW Cloud, their paid service, is not. Full
 detail, with the source file and commit for every harvested tool, is in
 [CHANGELOG.md](CHANGELOG.md). What is planned is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -297,7 +296,9 @@ Run a development window that reloads as you edit:
 npm run tauri dev
 ```
 
-With tethering (macOS and Linux, libgphoto2 installed first):
+With tethering (macOS and Linux). Install libgphoto2 first: `brew install
+libgphoto2 pkg-config` on macOS, `sudo apt-get install -y libgphoto2-dev` on
+Ubuntu.
 
 ```bash
 npm run start:tethering
@@ -307,6 +308,12 @@ Build an installer for the machine you are on:
 
 ```bash
 npm run tauri build
+```
+
+The same with tethering, which no download includes:
+
+```bash
+npm run tauri build -- --features tethering
 ```
 
 ---

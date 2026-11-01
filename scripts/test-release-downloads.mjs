@@ -1,7 +1,8 @@
 // Tests for scripts/release-downloads.mjs.
 //
 // The one that matters: from 26.43.4's attached files, the script writes the
-// Download section its release page opens with, as it was written by hand.
+// Download section its release page opens with, as it was written by hand,
+// less the line about the `_tethering` files releases no longer have.
 //
 // Run:  npm run test:checks   (or node scripts/test-release-downloads.mjs)
 
@@ -57,12 +58,18 @@ const ASSETS = [
   '03_tethering_Argentum_v26.43.4_ubuntu-24.04_x86_64.rpm',
 ];
 
-/** The Download section 26.43.4's notes open with, as written by hand. */
+/** The Download section 26.43.4's notes open with, as written by hand, without its `_tethering` line. */
 const SECTION_26_43_4 =
-  '## Download\n\n| Your computer | File |\n|---|---|\n| Windows | [01_Argentum_v26.43.4_windows_x64.exe](https://github.com/akhater/Argentum/releases/download/26.43.4/01_Argentum_v26.43.4_windows_x64.exe) |\n| Windows on ARM | [01_Argentum_v26.43.4_windows-11-arm_arm64.exe](https://github.com/akhater/Argentum/releases/download/26.43.4/01_Argentum_v26.43.4_windows-11-arm_arm64.exe) |\n| Mac with Apple Silicon (M1 and later) | [02_Argentum_v26.43.4_macos-14_aarch64.dmg](https://github.com/akhater/Argentum/releases/download/26.43.4/02_Argentum_v26.43.4_macos-14_aarch64.dmg) |\n| Mac with Intel | [02_Argentum_v26.43.4_macos-15-intel_x64.dmg](https://github.com/akhater/Argentum/releases/download/26.43.4/02_Argentum_v26.43.4_macos-15-intel_x64.dmg) |\n| Linux | the `.AppImage`, `.deb` or `.rpm` named for your Ubuntu version, x64 (`amd64`, `x86_64`) or ARM (`arm64`, `aarch64`) |\n\n- **Windows:** the installer is not signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info**, then **Run anyway**.\n- **Mac:** the app is not notarized yet; do [the two one-time steps](https://github.com/akhater/Argentum#macos-two-one-time-steps) after copying it to Applications.\n- Files with `_tethering` add shooting from a USB camera on macOS and Linux and need libgphoto2 installed. Everyone else wants the plain file. The other files are the same app in other packages.';
+  '## Download\n\n| Your computer | File |\n|---|---|\n| Windows | [01_Argentum_v26.43.4_windows_x64.exe](https://github.com/akhater/Argentum/releases/download/26.43.4/01_Argentum_v26.43.4_windows_x64.exe) |\n| Windows on ARM | [01_Argentum_v26.43.4_windows-11-arm_arm64.exe](https://github.com/akhater/Argentum/releases/download/26.43.4/01_Argentum_v26.43.4_windows-11-arm_arm64.exe) |\n| Mac with Apple Silicon (M1 and later) | [02_Argentum_v26.43.4_macos-14_aarch64.dmg](https://github.com/akhater/Argentum/releases/download/26.43.4/02_Argentum_v26.43.4_macos-14_aarch64.dmg) |\n| Mac with Intel | [02_Argentum_v26.43.4_macos-15-intel_x64.dmg](https://github.com/akhater/Argentum/releases/download/26.43.4/02_Argentum_v26.43.4_macos-15-intel_x64.dmg) |\n| Linux | the `.AppImage`, `.deb` or `.rpm` named for your Ubuntu version, x64 (`amd64`, `x86_64`) or ARM (`arm64`, `aarch64`) |\n\n- **Windows:** the installer is not signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info**, then **Run anyway**.\n- **Mac:** the app is not notarized yet; do [the two one-time steps](https://github.com/akhater/Argentum#macos-two-one-time-steps) after copying it to Applications.';
 
 test("26.43.4's files give 26.43.4's Download section", () => {
   assert.equal(downloadSection('26.43.4', ASSETS), SECTION_26_43_4);
+});
+
+test("an older release's `_tethering` files are never linked, and a release without them reads the same", () => {
+  assert.equal(downloadSection('26.43.4', [...ASSETS].reverse()), SECTION_26_43_4);
+  const plain = ASSETS.filter((name) => !name.includes('_tethering'));
+  assert.equal(downloadSection('26.43.4', plain), SECTION_26_43_4);
 });
 
 test('an Apple Silicon file is found whichever macOS version built it', () => {

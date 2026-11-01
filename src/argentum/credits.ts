@@ -293,7 +293,7 @@ export const CREDITS: CreditGroup[] = [
       {
         name: 'libgphoto2',
         href: 'https://github.com/gphoto/libgphoto2',
-        what: 'Camera communication for tethering, in the tethering builds for macOS and Linux.',
+        what: 'Camera communication for tethering, only in builds from source for macOS and Linux.',
       },
     ],
   },

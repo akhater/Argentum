@@ -9,9 +9,6 @@ on:
       target:
         required: true
         type: string
-      build-args:
-        required: false
-        type: string
       release-id:
         required: false
         type: string
@@ -51,7 +48,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: ${{ inputs.platform }}-${{ contains(inputs.build-args, 'tethering') && 'tethering' || 'standard' }}
+          key: ${{ inputs.platform }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -74,16 +71,6 @@ jobs:
             librsvg2-dev \
             patchelf \
             pkg-config
-
-      - name: Install libgphoto2 for Tethering (Linux)
-        if: runner.os == 'Linux' && contains(inputs.build-args, 'tethering')
-        run: |
-          sudo apt-get install -y libgphoto2-dev
-
-      - name: Install libgphoto2 for Tethering (macOS)
-        if: runner.os == 'macOS' && contains(inputs.build-args, 'tethering')
-        run: |
-          brew install libgphoto2 pkg-config
 
       - name: Install frontend dependencies
         run: npm ci
@@ -115,7 +102,7 @@ jobs:
           # Argentum: shipped builds keep MSVC's linker; rust-lld (.cargo/config.toml) is for dev.
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
         with:
-          args: --verbose ${{ inputs.build-args }} ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }}
+          args: --verbose ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }}
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           releaseId: ${{ inputs.release-id }}
           retryAttempts: 3
@@ -136,7 +123,7 @@ jobs:
         if: ${{ !startsWith(inputs.platform, 'windows') && inputs.release-id == '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.asset-prefix }}_${{ inputs.platform }}${{ inputs.target && format('_{0}', inputs.target) || '' }}${{ contains(inputs.build-args, 'tethering') && '_tethering' || '' }}_artifacts
+          name: ${{ inputs.asset-prefix }}_${{ inputs.platform }}${{ inputs.target && format('_{0}', inputs.target) || '' }}_artifacts
           path: |
             src-tauri/target/${{ inputs.target || 'release' }}/**/*.rpm
             src-tauri/target/${{ inputs.target || 'release' }}/**/*.deb
