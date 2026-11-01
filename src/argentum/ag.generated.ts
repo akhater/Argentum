@@ -542,7 +542,11 @@ export type OfferedCamera = { id: string, name: string, make: string, model: str
 /**
  * A look the program offers.
  */
-export type OfferedLook = { id: string, name: string, group: string | null, };
+export type OfferedLook = { id: string, name: string, 
+/**
+ * The heading it shows under, named by the program; with none, it has no heading.
+ */
+group: string | null, };
 
 /**
  * An on/off choice the program offers. What it means is the program's: only
