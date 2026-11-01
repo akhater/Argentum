@@ -132,8 +132,8 @@ impl LookWb {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct OwnWb {
-    /// The option that asks for it. It tells no files apart by itself: at the
-    /// camera's white balance the look is the one without it, in the same file.
+    /// The option that asks for it. Alone it tells no files apart: at the camera's
+    /// white balance the look is the one without it, in the same file.
     pub option: String,
     /// What the file was made for; None for the camera's.
     pub wb: Option<LookWb>,
@@ -166,16 +166,21 @@ const MARK_HEX_CHARS: usize = 8;
 /// its own apart: `opt_` and a hash, so an id from an edit never reaches a file
 /// name, and `_`, which no camera or look can hold, so the name reads only one
 /// way. None when neither is there, so the camera's white balance keeps the
-/// plain name.
+/// plain name. Beside other options even the camera's is marked: what the
+/// program makes of those may change once it is told a white balance, so that
+/// is not the file of those options alone.
 fn options_mark(options: &LookOptions, own_wb: Option<&OwnWb>) -> Option<String> {
-    let shaping = options
+    let others: String = options
         .iter()
         .filter(|(id, _)| own_wb.is_none_or(|own| own.option != **id))
-        .map(|(id, value)| format!("{id}={value}\n"));
-    let wb = own_wb
-        .and_then(|own| own.wb)
-        .map(|wb| format!("wb={},{}\n", wb.temperature, wb.tint));
-    let lines: String = shaping.chain(wb).collect();
+        .map(|(id, value)| format!("{id}={value}\n"))
+        .collect();
+    let wb = own_wb.map(|own| match own.wb {
+        Some(wb) => format!("wb={},{}\n", wb.temperature, wb.tint),
+        None if others.is_empty() => String::new(),
+        None => "wb=camera\n".to_string(),
+    });
+    let lines = others + wb.as_deref().unwrap_or_default();
     if lines.is_empty() {
         return None;
     }
@@ -755,15 +760,19 @@ mod tests {
         );
     }
 
+    /// A program may set the other option aside once it is told a white balance.
     #[test]
-    fn with_another_option_the_cameras_white_balance_keeps_that_options_name() {
+    fn beside_another_option_the_cameras_white_balance_has_its_own_name() {
         let photo = Path::new("/photos/IMG.CR2");
         let other = options(&[("optionA", true)]);
         let both = options(&[("optionA", true), ("optionW", true)]);
-        assert_eq!(
-            look_file_for(photo, "cam1", "abc", &both, Some(&follow(None))),
-            look_file_for(photo, "cam1", "abc", &other, None)
+        let name = look_file_for(photo, "cam1", "abc", &both, Some(&follow(None))).expect("a name");
+        assert_ne!(
+            Some(&name),
+            look_file_for(photo, "cam1", "abc", &other, None).as_ref()
         );
+        let text = name.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert!(is_look_file_of(text, "IMG.CR2"), "{text}");
     }
 
     #[test]
@@ -785,6 +794,7 @@ mod tests {
             name_of(&plain, Some(&follow(Some(cooler)))),
             name_of(&plain, Some(&follow(Some(tinted)))),
             name_of(&other, Some(&follow(Some(WARM)))),
+            name_of(&other, Some(&follow(None))),
         ];
         for (i, one) in names.iter().enumerate() {
             for other in &names[i + 1..] {

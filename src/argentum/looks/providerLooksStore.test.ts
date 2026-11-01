@@ -66,7 +66,7 @@ const OFFER: ProviderLooks = {
   photo: { camera: 'cam1', files: [], previews: [], clearable: 0, ownWb: null },
 };
 
-const OPTION = { id: 'optionA', label: 'Invented choice', default: false, currentWb: false };
+const OPTION = { id: 'optionA', label: 'Invented choice', default: false, sendsCurrentWb: false };
 const WITH_OPTION: ProviderLooks = { ...OFFER, options: [OPTION] };
 
 const LOOK = OFFER.looks[0];
@@ -951,7 +951,7 @@ describe('lookFor', () => {
 });
 
 describe('a look that follows the white balance', () => {
-  const FOLLOW = { id: 'optionW', label: 'Invented follow', default: false, currentWb: true };
+  const FOLLOW = { id: 'optionW', label: 'Invented follow', default: false, sendsCurrentWb: true };
   const FOLLOWING: ProviderLooks = { ...OFFER, options: [FOLLOW] };
   const own = (wb: { temperature: number; tint: number } | null = null) => ({ option: 'optionW', wb });
   const WARM = { temperature: 4300, tint: 0 };

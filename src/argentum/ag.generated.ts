@@ -553,7 +553,7 @@ export type OfferedOption = { id: string, label: string, default: boolean,
  * With it on, looks follow the photo's white balance. Programs from before
  * this flag have none.
  */
-currentWb: boolean, };
+sendsCurrentWb: boolean, };
 
 /**
  * An old edit found on disk, and what it becomes.
@@ -589,8 +589,8 @@ export type Outcome = "deleted" | "atNextStart" | "notThere";
  */
 export type OwnWb = { 
 /**
- * The option that asks for it. It tells no files apart by itself: at the
- * camera's white balance the look is the one without it, in the same file.
+ * The option that asks for it. Alone it tells no files apart: at the camera's
+ * white balance the look is the one without it, in the same file.
  */
 option: string, 
 /**

@@ -12,10 +12,11 @@
 //! lists them.
 //!
 //! One option can have a look follow the photo's white balance: the program
-//! flags it in `list`, with what it means left to the program. With it on, a
-//! white balance that is not the camera's goes to the program as `currentWb`, in
-//! the form of `asShotWb`, and into the name of the file, so each has its own
-//! file and going back to one needs no run ([`Subject::coefficients_of`]).
+//! flags it in `list`, with what it means left to the program. With it on, the
+//! white balance the photo renders to goes to the program as `currentWb`, in the
+//! form of `asShotWb` and equal to it at the camera's. Any other goes into the
+//! name of the file too, so each has its own file and going back to one needs no
+//! run ([`Subject::coefficients_of`]).
 //! Whatever comes back is treated as untrusted: its size is capped, its ids must
 //! fit a file name, its PNG is checked, and no path is taken from it. The
 //! program writes one scratch file named here, and only Argentum writes beside a
@@ -147,7 +148,7 @@ pub struct OfferedOption {
     /// With it on, looks follow the photo's white balance. Programs from before
     /// this flag have none.
     #[serde(default)]
-    pub current_wb: bool,
+    pub sends_current_wb: bool,
 }
 
 /// What `list` answered, after validation.
@@ -176,7 +177,8 @@ impl Catalog {
     /// The option that has a look follow the photo's white balance, if `options`
     /// have it on.
     fn wb_option(&self, options: &LookOptions) -> Option<&str> {
-        let on = |o: &&OfferedOption| o.current_wb && *options.get(&o.id).unwrap_or(&o.default);
+        let on =
+            |o: &&OfferedOption| o.sends_current_wb && *options.get(&o.id).unwrap_or(&o.default);
         self.options.iter().find(on).map(|o| o.id.as_str())
     }
 
@@ -639,8 +641,10 @@ fn ask_for_lut(
     if !options.is_empty() {
         request["options"] = json!(options);
     }
-    if let Some(wb) = key.own_wb.as_ref().and_then(|own| own.wb) {
-        let current = subject.coefficients_of(wb);
+    if let Some(own) = &key.own_wb {
+        let current = own
+            .wb
+            .map_or(Some(subject.wb), |wb| subject.coefficients_of(wb));
         request["currentWb"] = json!(current.ok_or(Failure::Refused(Refusal::BadRequest))?);
     }
     let answer = run(
@@ -1852,7 +1856,7 @@ fn main() {
         if kind == "slowlist" { std::thread::sleep(std::time::Duration::from_secs(30)); }
         if kind == "badlist" { print!("not json"); return; }
         if kind == "followswb" {
-            print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}},{{\"id\":\"optionW\",\"label\":\"Invented follow\",\"default\":false,\"currentWb\":true}}]}}");
+            print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}},{{\"id\":\"optionW\",\"label\":\"Invented follow\",\"default\":false,\"sendsCurrentWb\":true}}]}}");
             return;
         }
         if kind == "optioned" {
@@ -4083,7 +4087,7 @@ fn main() {
                 id: "optionA".to_string(),
                 label: "Invented choice".to_string(),
                 default: false,
-                current_wb: false,
+                sends_current_wb: false,
             }],
         }
     }
@@ -4161,17 +4165,20 @@ fn main() {
     fn a_program_may_flag_the_option_that_follows_the_white_balance() {
         let kept = options_kept(
             r#"[{ "id": "optionA", "label": "Plain", "default": false },
-                { "id": "optionW", "label": "Follows", "default": false, "currentWb": true }]"#,
+                { "id": "optionW", "label": "Follows", "default": false, "sendsCurrentWb": true }]"#,
         );
-        assert!(!kept[0].current_wb, "a list from before the flag has none");
-        assert!(kept[1].current_wb);
+        assert!(
+            !kept[0].sends_current_wb,
+            "a list from before the flag has none"
+        );
+        assert!(kept[1].sends_current_wb);
     }
 
     #[test]
     fn a_flag_of_the_wrong_shape_drops_its_option_alone() {
         let kept = options_kept(
             r#"[{ "id": "optionA", "label": "Plain", "default": false },
-                { "id": "optionW", "label": "Bad", "default": false, "currentWb": "yes" }]"#,
+                { "id": "optionW", "label": "Bad", "default": false, "sendsCurrentWb": "yes" }]"#,
         );
         assert_eq!(kept.len(), 1);
         assert_eq!(kept[0].id, "optionA");
@@ -4368,14 +4375,34 @@ fn main() {
     }
 
     #[test]
-    fn at_the_cameras_white_balance_the_program_gets_no_current_one() {
+    fn at_the_cameras_white_balance_the_program_gets_the_as_shot_one_as_it_stands() {
         let exe = fake("good");
         let heard = queue_offering(&exe, &[("optionW", false)]);
         let photo = photo_beside(&exe, "IMG.CR3");
         ask_following(&heard, &photo, &options(&[("optionW", true)]), &follow(), 1);
         assert_eq!(heard.next().outcome, LookOutcome::Done);
-        assert!(last_request(&exe).get("currentWb").is_none());
+        let sent = last_request(&exe);
+        assert_eq!(sent["currentWb"], sent["asShotWb"]);
         assert!(look_file_of_photo(&photo).is_file(), "the as-shot name");
+    }
+
+    /// The program may set the other option aside for `currentWb`, so this must
+    /// not land on the file of that option alone.
+    #[test]
+    fn beside_another_option_the_cameras_white_balance_has_its_own_file() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let alone = options(&[("optionA", true)]);
+        let both = options(&[("optionA", true), ("optionW", true)]);
+        heard.ask_with(&photo, &alone, 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        ask_following(&heard, &photo, &both, &follow(), 2);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(calls(&exe), 2, "not the file of the option alone");
+        assert_eq!(last_request(&exe)["options"], json!(both));
+        assert!(own_file(&photo, &both, &follow()).is_file());
+        assert!(look_file_with(&photo, &alone).is_file());
     }
 
     /// Exactly today's request and today's file, from a program with no flag.

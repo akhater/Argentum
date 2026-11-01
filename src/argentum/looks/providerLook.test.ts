@@ -80,8 +80,8 @@ describe('sameProviderLook', () => {
 });
 
 describe('an option on a look', () => {
-  const OFF_FIRST = { id: 'optionA', label: 'Invented choice', default: false, currentWb: false };
-  const ON_FIRST = { id: 'optionB', label: 'Another choice', default: true, currentWb: false };
+  const OFF_FIRST = { id: 'optionA', label: 'Invented choice', default: false, sendsCurrentWb: false };
+  const ON_FIRST = { id: 'optionB', label: 'Another choice', default: true, sendsCurrentWb: false };
 
   const lookWith = (options: Record<string, boolean>): Partial<Adjustments> => ({
     ...withLook(),

@@ -144,7 +144,10 @@ describe('Preview all', () => {
 
   it('shows after the options and before the looks, ready to press', () => {
     offered({
-      offer: { ...OFFER, options: [{ id: 'optionA', label: 'Invented choice', default: false, currentWb: false }] },
+      offer: {
+        ...OFFER,
+        options: [{ id: 'optionA', label: 'Invented choice', default: false, sendsCurrentWb: false }],
+      },
     });
     const html = section();
     expect(button(html)).toContain('Preview all');
@@ -381,7 +384,7 @@ describe('with the switch off', () => {
 });
 
 describe('an option the provider offers', () => {
-  const OPTION = { id: 'optionA', label: 'Invented <choice>', default: false, currentWb: false };
+  const OPTION = { id: 'optionA', label: 'Invented <choice>', default: false, sendsCurrentWb: false };
   const checkboxes = (html: string) => html.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? [];
 
   it('with none offered, no checkbox shows', () => {
