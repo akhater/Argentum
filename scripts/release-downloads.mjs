@@ -18,7 +18,7 @@ export const REPO = 'akhater/Argentum';
 export const ROWS = [
   ['Windows', /^01_Argentum_v.+_windows_x64\.exe$/],
   ['Windows on ARM', /^01_Argentum_v.+_windows-11-arm_arm64\.exe$/],
-  ['Mac with Apple Silicon (M1 and later)', /^02_Argentum_v.+_macos-14_aarch64\.dmg$/],
+  ['Mac with Apple Silicon (M1 and later)', /^02_Argentum_v.+_macos-\d+_aarch64\.dmg$/],
   ['Mac with Intel', /^02_Argentum_v.+_macos-15-intel_x64\.dmg$/],
 ];
 

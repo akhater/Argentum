@@ -65,6 +65,11 @@ test("26.43.4's files give 26.43.4's Download section", () => {
   assert.equal(downloadSection('26.43.4', ASSETS), SECTION_26_43_4);
 });
 
+test('an Apple Silicon file is found whichever macOS version built it', () => {
+  const built = ASSETS.map((name) => name.replace('_macos-14_', '_macos-15_'));
+  assert.match(downloadSection('26.43.4', built), /\[02_Argentum_v26\.43\.4_macos-15_aarch64\.dmg\]/);
+});
+
 test('a missing installer stops it rather than linking nothing', () => {
   const noIntel = ASSETS.filter((name) => name !== '02_Argentum_v26.43.4_macos-15-intel_x64.dmg');
   assert.throws(() => downloadSection('26.43.4', noIntel), /Mac with Intel/);
