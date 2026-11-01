@@ -101,5 +101,7 @@ pub mod startup;
 pub mod super_resolution;
 pub mod text_mask;
 pub mod tif_raw;
+#[cfg(test)]
+mod ui_thread;
 pub mod viewer_surface;
 pub mod wb_legacy;

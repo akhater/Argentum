@@ -534,21 +534,29 @@ pub fn clear_preview_stage_caches(state: &AppState) {
         .unwrap_or_else(|e| e.into_inner()) = None;
 }
 
+// Argentum: off the UI thread, a render holds these locks - see mods/ui_thread.rs
 #[tauri::command]
-pub fn clear_image_caches(state: tauri::State<AppState>) {
-    if let Ok(mut decoded_cache) = state.decoded_image_cache.lock() {
-        decoded_cache.clear();
-    }
-    if let Ok(mut gpu_cache) = state.gpu_image_cache.lock() {
-        *gpu_cache = None;
-    }
-    if let Ok(mut preview_cache) = state.cached_preview.lock() {
-        *preview_cache = None;
-    }
-    if let Ok(mut warped_cache) = state.full_warped_cache.lock() {
-        *warped_cache = None;
-    }
-    clear_preview_stage_caches(&state);
+pub async fn clear_image_caches(app_handle: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    tokio::task::spawn_blocking(move || {
+        let state = app_handle.state::<AppState>();
+        if let Ok(mut decoded_cache) = state.decoded_image_cache.lock() {
+            decoded_cache.clear();
+        }
+        if let Ok(mut gpu_cache) = state.gpu_image_cache.lock() {
+            *gpu_cache = None;
+        }
+        if let Ok(mut preview_cache) = state.cached_preview.lock() {
+            *preview_cache = None;
+        }
+        if let Ok(mut warped_cache) = state.full_warped_cache.lock() {
+            *warped_cache = None;
+        }
+        clear_preview_stage_caches(&state);
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))
 }
 
 #[tauri::command]
