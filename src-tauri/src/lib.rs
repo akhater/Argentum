@@ -473,6 +473,8 @@ async fn update_wgpu_transform(
     };
 
     tokio::task::spawn_blocking(move || {
+        // Argentum: asked before the lock, as it waits for the UI thread - see mods/ui_thread.rs
+        let display_rows = crate::mods::display_monitor::shader_rows_for_main_window();
         let mut display_lock = context.display.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(display) = display_lock.as_mut() {
             display.latest_transform.rect = [payload.x, payload.y, payload.width, payload.height];
@@ -486,7 +488,7 @@ async fn update_wgpu_transform(
             display.latest_transform.bg_primary = payload.bg_primary;
             display.latest_transform.bg_secondary = payload.bg_secondary;
             display.latest_transform.pixelated = if payload.pixelated { 1.0 } else { 0.0 };
-            display.latest_transform.ag_display_matrix = crate::mods::display_monitor::shader_rows_for_main_window(); // Argentum: sRGB to whichever screen the window is on
+            display.latest_transform.ag_display_matrix = display_rows; // Argentum: sRGB to whichever screen the window is on
 
             context.queue.write_buffer(
                 &display.transform_buffer,
@@ -1081,8 +1083,20 @@ pub fn get_original_image(
     ))
 }
 
+// Argentum: off the UI thread, it waits for a render - see mods/ui_thread.rs
 #[tauri::command]
-fn generate_preset_preview(
+async fn generate_preset_preview(
+    js_adjustments: serde_json::Value,
+    app_handle: tauri::AppHandle,
+) -> Result<Response, String> {
+    tokio::task::spawn_blocking(move || {
+        render_preset_preview(js_adjustments, app_handle.state(), app_handle.clone())
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))?
+}
+
+fn render_preset_preview(
     js_adjustments: serde_json::Value,
     state: tauri::State<AppState>,
     app_handle: tauri::AppHandle,

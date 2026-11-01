@@ -904,8 +904,21 @@ fn render_lut_swatch(
     ))
 }
 
+// Argentum: off the UI thread, it waits for a render - see mods/ui_thread.rs
 #[tauri::command]
-pub fn generate_lut_previews(
+pub async fn generate_lut_previews(
+    luts: Vec<LutPreviewRequest>,
+    size: u32,
+    app_handle: AppHandle,
+) -> Result<Vec<LutPreview>, String> {
+    tokio::task::spawn_blocking(move || {
+        render_lut_previews(luts, size, app_handle.state(), app_handle.clone())
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))?
+}
+
+fn render_lut_previews(
     luts: Vec<LutPreviewRequest>,
     size: u32,
     state: State<AppState>,

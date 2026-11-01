@@ -2477,7 +2477,6 @@ pub fn save_metadata_and_update_thumbnail(
     };
     drop(loaded_image_lock);
 
-    let gpu_context = gpu_processing::get_or_init_gpu_context(&state, &app_handle).ok();
     let app_handle_clone = app_handle.clone();
     let path_clone = path.clone();
 
@@ -2485,6 +2484,8 @@ pub fn save_metadata_and_update_thumbnail(
 
     thread::spawn(move || {
         let state = app_handle_clone.state::<AppState>();
+        // Argentum: off the UI thread, it can wait for a new device - see mods/ui_thread.rs
+        let gpu_context = gpu_processing::get_or_init_gpu_context(&state, &app_handle_clone).ok();
         let settings = load_settings(app_handle_clone.clone()).unwrap_or_default();
 
         let thumb_cache_dir = match get_thumb_cache_dir(&app_handle_clone) {
