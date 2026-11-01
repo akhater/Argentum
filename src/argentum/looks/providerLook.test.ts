@@ -12,13 +12,16 @@ import {
   lookKeys,
   lookOf,
   lookOnto,
+  madeForWhiteBalance,
   offeredOptions,
   optionIsOn,
   PROVIDER_LOOK_PATH,
   providerLookOff,
   sameOptions,
   sameProviderLook,
+  whiteBalanceKeys,
   withOption,
+  withOwnWb,
 } from './providerLook';
 
 const curve = [
@@ -77,8 +80,8 @@ describe('sameProviderLook', () => {
 });
 
 describe('an option on a look', () => {
-  const OFF_FIRST = { id: 'optionA', label: 'Invented choice', default: false };
-  const ON_FIRST = { id: 'optionB', label: 'Another choice', default: true };
+  const OFF_FIRST = { id: 'optionA', label: 'Invented choice', default: false, sendsCurrentWb: false };
+  const ON_FIRST = { id: 'optionB', label: 'Another choice', default: true, sendsCurrentWb: false };
 
   const lookWith = (options: Record<string, boolean>): Partial<Adjustments> => ({
     ...withLook(),
@@ -271,5 +274,66 @@ describe('a look on hover', () => {
 
   it('from a preview, does not read as a look on the photo', () => {
     expect(lookOf(hoverEdit(photo, keys, 'C:/cache/.a.cam1.abc.lut.png'))).toBeNull();
+  });
+});
+
+describe('a white balance of its own', () => {
+  const ownWb = { option: 'optionW', wb: { temperature: 4300, tint: -12 } };
+  const keys = lookKeys('cam1', 'look1', 'Invented Stock', { optionW: true }, ownWb);
+  const photo = { rawToneRendering: 'dngStandard' } as const;
+
+  it('is held by the look that was made for it', () => {
+    expect(lookOf(lookOnto(photo, keys, true))?.ownWb).toEqual(ownWb);
+    expect(lookOf(hoverEdit(photo as never, keys))?.ownWb).toEqual(ownWb);
+  });
+
+  it('stays behind when the look comes from elsewhere, like its `before`', () => {
+    expect(lookOf(lookOnto(photo, keys))?.ownWb).toEqual({ option: 'optionW', wb: null });
+  });
+
+  it('is nowhere in a look with no such option', () => {
+    const plain = lookKeys('cam1', 'look1', 'Invented Stock');
+    expect(lookOf(plain)).not.toHaveProperty('ownWb');
+    expect(lookOf(lookOnto(photo, plain, true))).not.toHaveProperty('ownWb');
+  });
+
+  it('changes nothing else of the look on the photo', () => {
+    const on = { ...lookOnto(photo, keys, true), lutIntensity: 60 };
+    const cooler = { option: 'optionW', wb: { temperature: 6500, tint: 0 } };
+    const next = withOwnWb(on, 'cam1', 'look1', cooler);
+    expect(next?.lutIntensity).toBe(60);
+    expect(lookOf(next ?? {})).toEqual({ ...lookOf(on), ownWb: cooler });
+  });
+
+  it('does not land on another look', () => {
+    const on = lookOnto(photo, keys, true);
+    expect(withOwnWb(on, 'cam1', 'look2', ownWb)).toBeNull();
+    expect(withOwnWb(on, 'cam2', 'look1', ownWb)).toBeNull();
+    expect(withOwnWb(photo, 'cam1', 'look1', ownWb)).toBeNull();
+  });
+
+  it('asks no change of a look that has that file already', () => {
+    expect(withOwnWb(lookOnto(photo, keys, true), 'cam1', 'look1', ownWb)).toBeNull();
+  });
+
+  it('reads only what decides the white', () => {
+    const edit = { temperature: 4, tint: -2, whiteBalance: null, sectionVisibility: { basic: true }, exposure: 1 };
+    expect(whiteBalanceKeys(edit as never)).toEqual({
+      temperature: 4,
+      tint: -2,
+      whiteBalance: null,
+      sectionVisibility: { basic: true },
+    });
+    expect(whiteBalanceKeys({ exposure: 1 })).toEqual({});
+  });
+
+  it('makes a file for what it was made for, past any slider', () => {
+    expect(madeForWhiteBalance(ownWb)).toEqual({
+      temperature: 0,
+      tint: 0,
+      whiteBalance: ownWb.wb,
+      sectionVisibility: null,
+    });
+    expect(madeForWhiteBalance(null).whiteBalance).toBeNull();
   });
 });

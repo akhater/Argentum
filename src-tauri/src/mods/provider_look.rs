@@ -6,9 +6,10 @@
 //!
 //! - `lutPath` is exactly [`MARKER`]. The marker is the switch: anything that
 //!   writes a real `lutPath` turns the look off, with no code of its own.
-//! - `agProviderLook` ([`KEY`]) names the camera, the look and any options away
-//!   from their default, and keeps what the look replaced, so taking it off
-//!   restores the rendering (src/argentum/looks/providerLook.ts).
+//! - `agProviderLook` ([`KEY`]) names the camera, the look, any options away
+//!   from their default and the white balance its file was made for, if not the
+//!   camera's, and keeps what the look replaced, so taking it off restores the
+//!   rendering (src/argentum/looks/providerLook.ts).
 //!
 //! Every load of an edit's LUT goes through [`lut_of_edit`]. A path from an edit
 //! is refused if it could point anywhere (`parse_lut_file`); this one is built
@@ -28,7 +29,7 @@ use crate::AppState;
 use crate::exif_processing::peek_sidecar;
 use crate::file_management::parse_virtual_path;
 use crate::lut_processing::{self, Lut, get_or_load_lut};
-use crate::mods::file_ops::{self, LookOptions};
+use crate::mods::file_ops::{self, LookOptions, OwnWb};
 use crate::mods::lut_cache::LutCache;
 use crate::mods::raw_tone::ToneCurvePoint;
 
@@ -49,8 +50,27 @@ pub struct ProviderLook {
     #[serde(default)]
     #[cfg_attr(test, ts(as = "Option<LookOptions>", optional))]
     pub options: LookOptions,
+    /// Set while an option has it follow the photo's white balance. The photo
+    /// keeps the file this names until a new one is ready, however the sliders
+    /// have moved since.
+    #[serde(default)]
+    #[cfg_attr(test, ts(optional))]
+    pub own_wb: Option<OwnWb>,
     #[serde(default)]
     pub before: RenderingBefore,
+}
+
+impl ProviderLook {
+    /// Its file beside `photo`, the photo's own path and not a virtual copy's.
+    pub fn file(&self, photo: &Path) -> Option<PathBuf> {
+        file_ops::look_file_for(
+            photo,
+            &self.camera,
+            &self.look,
+            &self.options,
+            self.own_wb.as_ref(),
+        )
+    }
 }
 
 /// The rendering a provider look replaced on its photo.
@@ -79,13 +99,7 @@ pub fn has_look(js: &Value) -> bool {
 /// The file of the provider look `js` has on `photo`; None for an edit with
 /// none, or one whose ids could not be part of a file name.
 pub fn look_file(js: &Value, photo: &str) -> Option<PathBuf> {
-    let look = look_of(js)?;
-    file_ops::look_file_for(
-        &parse_virtual_path(photo).0,
-        &look.camera,
-        &look.look,
-        &look.options,
-    )
+    look_of(js)?.file(&parse_virtual_path(photo).0)
 }
 
 /// The look files the edits of `photo` use: its own and every virtual copy's,
@@ -292,6 +306,111 @@ mod tests {
             js[KEY]["options"] = bad;
             assert_eq!(look_file(&js, "/photos/IMG.CR3"), None);
         }
+    }
+
+    fn with_own_wb() -> Value {
+        let mut js = edit_with("optionW", true);
+        js[KEY]["ownWb"] = json!({
+            "option": "optionW",
+            "wb": { "temperature": 4300, "tint": -12 },
+        });
+        js
+    }
+
+    #[test]
+    fn an_edit_with_a_white_balance_of_its_own_names_its_own_file() {
+        let plain = look_file(&edit("cam1", "abc"), "/photos/IMG.CR3");
+        let own = look_file(&with_own_wb(), "/photos/IMG.CR3").expect("a file");
+        assert_ne!(plain.as_deref(), Some(own.as_path()));
+        let name = own.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert!(file_ops::is_look_file_of(name, "IMG.CR3"), "{name}");
+    }
+
+    /// The option on with no white balance of its own is today's file.
+    #[test]
+    fn an_edit_at_the_cameras_white_balance_names_todays_file() {
+        let mut js = with_own_wb();
+        js[KEY]["ownWb"]["wb"] = Value::Null;
+        assert_eq!(
+            look_file(&js, "/photos/IMG.CR3"),
+            look_file(&edit("cam1", "abc"), "/photos/IMG.CR3")
+        );
+    }
+
+    /// An edit file from elsewhere: nothing to load, and nothing breaks.
+    #[test]
+    fn a_white_balance_that_does_not_read_names_nothing() {
+        for bad in [
+            json!("warm"),
+            json!({ "option": "optionW", "wb": { "temperature": "warm", "tint": 0 } }),
+            json!({ "option": "optionW", "wb": { "temperature": 1.5, "tint": 0 } }),
+            json!({ "wb": null }),
+        ] {
+            let mut js = edit("cam1", "abc");
+            js[KEY]["ownWb"] = bad;
+            assert_eq!(look_file(&js, "/photos/IMG.CR3"), None);
+        }
+    }
+
+    #[test]
+    fn a_virtual_copy_with_a_white_balance_of_its_own_keeps_it_in_use() {
+        let dir = scratch("in-use-own-wb");
+        let photo = dir.join("IMG.CR3");
+        let name = photo.to_string_lossy();
+        save_edit(&name, &edit("cam1", "abc"));
+        save_edit(&format!("{name}?vc=a1b2c3"), &with_own_wb());
+        assert_eq!(
+            files_in_use(&photo),
+            HashSet::from([
+                dir.join("IMG.CR3.cam1.abc.lut.png"),
+                look_file(&with_own_wb(), &name).expect("a file"),
+            ])
+        );
+    }
+
+    /// Through the app's own file operations, not its rules for them: each of
+    /// these finds the file by its name on disk, and the edit that travels with
+    /// the photo must then find it again.
+    #[test]
+    fn a_look_file_of_its_own_white_balance_travels_with_its_photo() {
+        use crate::file_management::{
+            duplicate_file_on_disk, move_files_on_disk, rename_files_on_disk,
+        };
+        let text = |path: &Path| path.to_string_lossy().into_owned();
+        let found = |photo: &Path| {
+            look_file(&with_own_wb(), &text(photo))
+                .expect("a file")
+                .is_file()
+        };
+
+        let dir = tempfile::tempdir().expect("folder");
+        let (from, to) = (dir.path().join("from"), dir.path().join("to"));
+        std::fs::create_dir_all(&from).expect("folder");
+        std::fs::create_dir_all(&to).expect("folder");
+        let photo = from.join("IMG.CR3");
+        std::fs::write(&photo, "photo").expect("photo");
+        save_edit(&text(&photo), &with_own_wb());
+        write_look_file(&look_file(&with_own_wb(), &text(&photo)).expect("a file"));
+        assert!(found(&photo));
+
+        let copy = duplicate_file_on_disk(&text(&photo)).expect("a copy");
+        assert!(found(Path::new(&copy)), "duplicated");
+        assert!(found(&photo), "the duplicated one stays");
+
+        move_files_on_disk(&[text(&photo)], &text(&to)).expect("moved");
+        let moved = to.join("IMG.CR3");
+        assert!(found(&moved), "moved");
+        assert!(!found(&photo), "the moved one left");
+
+        let (paths, _) = rename_files_on_disk(&[text(&moved)], "trip").expect("renamed");
+        let renamed = Path::new(&paths[0]);
+        assert!(found(renamed), "renamed");
+        assert!(!found(&moved), "the old name left");
+        assert_eq!(files_in_use(renamed).len(), 1);
+
+        let trashed = file_ops::files_to_delete_with_associated(&[text(renamed)]);
+        let file = look_file(&with_own_wb(), &text(renamed)).expect("a file");
+        assert!(trashed.contains(&file), "{trashed:?}");
     }
 
     /// Saves `js` as the edit of `photo`, which a virtual copy's path names.

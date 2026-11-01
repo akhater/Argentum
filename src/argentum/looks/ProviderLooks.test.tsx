@@ -29,7 +29,7 @@ const OFFER: Offer = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [], clearable: 0 },
+  photo: { camera: 'cam1', files: [], previews: [], clearable: 0, ownWb: null },
 };
 
 /** A server render reads the store's first state. */
@@ -111,7 +111,15 @@ describe('with the switch on', () => {
   });
 
   it('shows the spinner only once a look is taking a while', () => {
-    const waited = { look: 'look1', options: {}, name: 'Invented Stock', job: 1, then: 'put', batch: false } as const;
+    const waited = {
+      ticket: 1,
+      look: 'look1',
+      options: {},
+      name: 'Invented Stock',
+      job: 1,
+      then: 'put',
+      batch: false,
+    } as const;
     offered({ waiting: { [OPEN]: { ...waited, spinning: false } } });
     expect(section()).not.toContain('agm-spin');
     offered({ waiting: { [OPEN]: { ...waited, spinning: true } } });
@@ -135,7 +143,12 @@ describe('Preview all', () => {
   const button = (html: string) => html.match(/<button[^>]*>[^<]*Preview[^<]*<\/button>/)?.[0] ?? '';
 
   it('shows after the options and before the looks, ready to press', () => {
-    offered({ offer: { ...OFFER, options: [{ id: 'optionA', label: 'Invented choice', default: false }] } });
+    offered({
+      offer: {
+        ...OFFER,
+        options: [{ id: 'optionA', label: 'Invented choice', default: false, sendsCurrentWb: false }],
+      },
+    });
     const html = section();
     expect(button(html)).toContain('Preview all');
     expect(button(html)).not.toContain('disabled');
@@ -174,7 +187,7 @@ describe('Preview all', () => {
 });
 
 describe('Delete all previews', () => {
-  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2 } };
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2, ownWb: null } };
   const button = (html: string) => html.match(/<button[^>]*>[^<]*Delete[^<]*<\/button>/)?.[0] ?? '';
 
   it('shows beside Preview all, ready to press', () => {
@@ -200,7 +213,9 @@ describe('Delete all previews', () => {
 
   it('is on right after Preview all, with only temporary previews', () => {
     const preview = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
-    offered({ offer: { ...OFFER, photo: { camera: 'cam1', files: [], previews: [preview], clearable: 1 } } });
+    offered({
+      offer: { ...OFFER, photo: { camera: 'cam1', files: [], previews: [preview], clearable: 1, ownWb: null } },
+    });
     expect(button(section())).not.toContain('disabled');
   });
 
@@ -243,7 +258,7 @@ describe('Delete all previews', () => {
 });
 
 describe('folding the section', () => {
-  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2 } };
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2, ownWb: null } };
   const RUNNING = { run: 1, photo: OPEN, job: 1, ended: 3, total: 10 };
   const head = (html: string) => html.match(/<div class="agm-provider-head">.*?<\/div>/)?.[0] ?? '';
 
@@ -369,7 +384,7 @@ describe('with the switch off', () => {
 });
 
 describe('an option the provider offers', () => {
-  const OPTION = { id: 'optionA', label: 'Invented <choice>', default: false };
+  const OPTION = { id: 'optionA', label: 'Invented <choice>', default: false, sendsCurrentWb: false };
   const checkboxes = (html: string) => html.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? [];
 
   it('with none offered, no checkbox shows', () => {

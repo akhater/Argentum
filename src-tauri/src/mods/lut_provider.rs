@@ -10,6 +10,13 @@
 //! no command, edit or answer can choose what runs. An edit can only name a
 //! camera, a look and its options, and those count only if the program itself
 //! lists them.
+//!
+//! One option can have a look follow the photo's white balance: the program
+//! flags it in `list`, with what it means left to the program. With it on, the
+//! white balance the photo renders to goes to the program as `currentWb`, in the
+//! form of `asShotWb` and equal to it at the camera's. Any other goes into the
+//! name of the file too, so each has its own file and going back to one needs no
+//! run ([`Subject::coefficients_of`]).
 //! Whatever comes back is treated as untrusted: its size is capped, its ids must
 //! fit a file name, its PNG is checked, and no path is taken from it. The
 //! program writes one scratch file named here, and only Argentum writes beside a
@@ -52,9 +59,10 @@ use crate::file_management::{parse_virtual_path, read_file_mapped};
 use crate::lut_processing::{self, Lut};
 use crate::mods::ag_settings::Setting;
 use crate::mods::atomic_write::write_atomic;
-use crate::mods::file_ops::LookOptions;
+use crate::mods::file_ops::{LookOptions, LookWb, OwnWb};
 use crate::mods::profiles::{self, same_model};
 use crate::mods::{dng_standard, file_ops, provider_look};
+use crate::white_balance::WhiteBalance;
 
 /// The event that reports each photo's result.
 pub const EVENT: &str = "provider-look-progress";
@@ -132,10 +140,15 @@ pub struct OfferedLook {
 /// its label is shown and only its id and value are sent.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
 pub struct OfferedOption {
     pub id: String,
     pub label: String,
     pub default: bool,
+    /// With it on, looks follow the photo's white balance. Programs from before
+    /// this flag have none.
+    #[serde(default)]
+    pub sends_current_wb: bool,
 }
 
 /// What `list` answered, after validation.
@@ -159,6 +172,27 @@ impl Catalog {
     fn option_defaults(&self) -> LookOptions {
         let defaults = self.options.iter();
         defaults.map(|o| (o.id.clone(), o.default)).collect()
+    }
+
+    /// The option that has a look follow the photo's white balance, if `options`
+    /// have it on.
+    fn wb_option(&self, options: &LookOptions) -> Option<&str> {
+        let on =
+            |o: &&OfferedOption| o.sends_current_wb && *options.get(&o.id).unwrap_or(&o.default);
+        self.options.iter().find(on).map(|o| o.id.as_str())
+    }
+
+    /// How a look of `subject` with `options` follows its white balance. Reads
+    /// its saved edit, with `changes` over it, only if an option asks for that.
+    fn own_wb(
+        &self,
+        subject: &Subject,
+        options: &LookOptions,
+        changes: Option<&Value>,
+    ) -> Option<OwnWb> {
+        let option = self.wb_option(options)?.to_string();
+        let wb = subject.look_wb(&edit_of(&subject.photo, changes));
+        Some(OwnWb { option, wb })
     }
 }
 
@@ -545,8 +579,38 @@ pub struct Subject {
     /// As-shot white balance as the program is sent it: R, G, G, B, at the
     /// decoder's scale, where green is 1 in most formats but not all.
     wb: [f32; 4],
+    /// The same white balance as the render holds it.
+    white: WhiteBalance,
+    /// What `white` was solved with.
+    xyz_to_camera: Option<[f32; 9]>,
     /// The exposure offset Linear gives this photo.
     offset_ev: f32,
+}
+
+impl Subject {
+    /// The white balance `edit` renders to, when it is one a look can be made
+    /// for and not the camera's.
+    fn look_wb(&self, edit: &Value) -> Option<LookWb> {
+        let target = crate::image_processing::target_white_balance(edit, self.white);
+        let wb = LookWb::of(target);
+        (wb != LookWb::of(self.white) && self.coefficients_of(wb).is_some()).then_some(wb)
+    }
+
+    /// `wb` in the form of `asShotWb`, at its scale: what the camera's white
+    /// balance would have been for the render's white to be `wb`.
+    ///
+    /// The decode keeps the as-shot white balance and a slider moves the picture
+    /// after it, in the eye's cone space (`white_balance::adaptation_log_gains`).
+    /// What ends up neutral is then what the as-shot matrix reads as `wb`, so that
+    /// matrix is the one to ask, not one mixed for `wb`. That is the white the
+    /// LUT must take back to neutral. Other colours move a little differently
+    /// from a real change of the camera's white balance, as for any edit of it.
+    fn coefficients_of(&self, wb: LookWb) -> Option<[f32; 4]> {
+        let [red, green, blue] = wb.white().camera_neutral(self.xyz_to_camera.as_ref()?)?;
+        let scale = f64::from(self.wb[1]) * green;
+        let [r, b] = [scale / red, scale / blue].map(|c| c as f32);
+        Some([r, self.wb[1], self.wb[1], b])
+    }
 }
 
 /// The file the run left, or why not.
@@ -576,6 +640,12 @@ fn ask_for_lut(
     });
     if !options.is_empty() {
         request["options"] = json!(options);
+    }
+    if let Some(own) = &key.own_wb {
+        let current = own
+            .wb
+            .map_or(Some(subject.wb), |wb| subject.coefficients_of(wb));
+        request["currentWb"] = json!(current.ok_or(Failure::Refused(Refusal::BadRequest))?);
     }
     let answer = run(
         exe,
@@ -643,6 +713,7 @@ pub struct LookProgress {
     pub camera: String,
     pub look: String,
     pub options: LookOptions,
+    pub own_wb: Option<OwnWb>,
     pub outcome: LookOutcome,
     /// For Preview all: nothing goes on a photo.
     pub preview: bool,
@@ -658,6 +729,7 @@ pub struct Request {
     look: String,
     /// Its options away from their default, as the edit holds them.
     options: LookOptions,
+    own_wb: Option<OwnWb>,
     /// Overwrite a file already there.
     remake: bool,
     /// The open photo: ahead of what is waiting.
@@ -674,6 +746,7 @@ struct Key {
     camera: String,
     look: String,
     options: LookOptions,
+    own_wb: Option<OwnWb>,
     make: String,
     model: String,
     wb: [u32; 4],
@@ -681,11 +754,18 @@ struct Key {
 }
 
 impl Key {
-    fn of(subject: &Subject, camera: &str, look: &str, options: &LookOptions) -> Self {
+    fn of(
+        subject: &Subject,
+        camera: &str,
+        look: &str,
+        options: &LookOptions,
+        own_wb: Option<&OwnWb>,
+    ) -> Self {
         Self {
             camera: camera.to_string(),
             look: look.to_string(),
             options: options.clone(),
+            own_wb: own_wb.cloned(),
             make: subject.make.clone(),
             model: subject.model.clone(),
             wb: subject.wb.map(f32::to_bits),
@@ -712,6 +792,7 @@ impl Waiter {
             camera: key.camera.clone(),
             look: key.look.clone(),
             options: key.options.clone(),
+            own_wb: key.own_wb.clone(),
             outcome,
             preview: self.preview,
         });
@@ -734,14 +815,17 @@ impl Item {
     }
 }
 
+/// The camera, look, options and white balance of a refused request.
+type RefusalOf = (String, String, LookOptions, Option<OwnWb>);
+
 #[derive(Default)]
 struct State {
     waiting: VecDeque<Item>,
     running: Vec<Item>,
     crashes: u32,
     off: bool,
-    /// What the program said no to: (camera, look, options), not asked again.
-    refused: HashMap<(String, String, LookOptions), LookOutcome>,
+    /// What the program said no to, not asked again.
+    refused: HashMap<RefusalOf, LookOutcome>,
     scratch_files: u64,
 }
 
@@ -836,17 +920,18 @@ impl Queue {
             camera,
             look,
             options,
+            own_wb,
             remake,
             front,
             preview,
             job,
             report,
         } = request;
-        let key = Key::of(&subject, &camera, &look, &options);
+        let key = Key::of(&subject, &camera, &look, &options, own_wb.as_ref());
         let source = parse_virtual_path(&subject.photo).0;
         let (Some(beside), Some(previewed)) = (
-            file_ops::look_file_for(&source, &camera, &look, &options),
-            self.preview_file(&source, &camera, &look, &options),
+            file_ops::look_file_for(&source, &camera, &look, &options, own_wb.as_ref()),
+            self.preview_file(&source, &camera, &look, &options, own_wb.as_ref()),
         ) else {
             return;
         };
@@ -890,7 +975,7 @@ impl Queue {
         }
 
         let mut state = self.state();
-        let refused = state.refused.get(&(camera, look, options)).copied();
+        let refused = state.refused.get(&(camera, look, options, own_wb)).copied();
         match (state.off, refused) {
             (true, _) => {
                 drop(state);
@@ -935,9 +1020,10 @@ impl Queue {
         camera: &str,
         look: &str,
         options: &LookOptions,
+        own_wb: Option<&OwnWb>,
     ) -> Option<PathBuf> {
         let folder = self.scratch.join(PREVIEW_FOLDER);
-        preview_file_for(&folder, photo, camera, look, options)
+        preview_file_for(&folder, photo, camera, look, options, own_wb)
     }
 
     /// Asks for every look on the list as a temporary file: what the button
@@ -958,6 +1044,9 @@ impl Queue {
         let camera = subject
             .as_ref()
             .and_then(|s| camera_for(catalog, chosen, &s.make, &s.model));
+        let own_wb = subject
+            .as_ref()
+            .and_then(|s| catalog.own_wb(s, &args.options, args.changes.as_ref()));
         for look in &catalog.looks {
             match (&subject, camera) {
                 (Some(subject), Some(camera)) if catalog.lists(&look.id, &args.options) => {
@@ -966,6 +1055,7 @@ impl Queue {
                         camera: camera.to_string(),
                         look: look.id.clone(),
                         options: args.options.clone(),
+                        own_wb: own_wb.clone(),
                         remake: false,
                         front: false,
                         preview: true,
@@ -979,6 +1069,7 @@ impl Queue {
                     camera: args.camera.clone(),
                     look: look.id.clone(),
                     options: args.options.clone(),
+                    own_wb: None,
                     outcome: LookOutcome::Unsupported,
                     preview: true,
                 }),
@@ -999,11 +1090,7 @@ impl Queue {
     fn delete_looks(&self, args: &ProviderLookDeleteArgs, remove: impl Fn(&Path)) -> LooksDeleted {
         let source = parse_virtual_path(&args.path).0;
         let mut used = provider_look::files_in_use(&source);
-        used.extend(
-            args.on_photo
-                .as_ref()
-                .and_then(|on| file_ops::look_file_for(&source, &on.camera, &on.look, &on.options)),
-        );
+        used.extend(args.on_photo.as_ref().and_then(|on| on.file(&source)));
         self.cancel_where(|waiter| {
             parse_virtual_path(&waiter.photo).0 == source && !used.contains(&waiter.file)
         });
@@ -1035,9 +1122,7 @@ impl Queue {
     fn wait_for(
         self: &Arc<Self>,
         subject: Subject,
-        camera: String,
-        look: String,
-        options: LookOptions,
+        look: provider_look::ProviderLook,
         cancel: &AtomicBool,
     ) -> LookOutcome {
         let job = NEXT_JOB.fetch_add(1, Ordering::SeqCst);
@@ -1045,9 +1130,10 @@ impl Queue {
         let tell = Mutex::new(tell);
         self.request(Request {
             subject,
-            camera,
-            look,
-            options,
+            camera: look.camera,
+            look: look.look,
+            options: look.options,
+            own_wb: look.own_wb,
             remake: false,
             front: false,
             preview: false,
@@ -1181,7 +1267,12 @@ impl Queue {
                 }
             }
             Err(failure) if failure.is_final() => {
-                let id = (key.camera.clone(), key.look.clone(), key.options.clone());
+                let id = (
+                    key.camera.clone(),
+                    key.look.clone(),
+                    key.options.clone(),
+                    key.own_wb.clone(),
+                );
                 state.refused.insert(id, failure.outcome());
             }
             Err(_) => {}
@@ -1218,10 +1309,10 @@ fn good_file(file: &Path) -> Option<(Vec<u8>, Lut)> {
 }
 
 /// A preview's file in `folder`: [`file_ops::look_file_for`] on a stem made of a
-/// dot and a hash of the photo's whole path. So the camera, the look and the
-/// options are in the name as for any look, and photos with one name in two
-/// folders never meet. A name with a dot first is never listed as a photo
-/// (`is_supported_image_file`), and that stem names no photo, so it is no
+/// dot and a hash of the photo's whole path. So the camera, the look, the options
+/// and the white balance are in the name as for any look, and photos with one
+/// name in two folders never meet. A name with a dot first is never listed as a
+/// photo (`is_supported_image_file`), and that stem names no photo, so it is no
 /// photo's look file either: nothing travels, is deleted or is read with it.
 fn preview_file_for(
     folder: &Path,
@@ -1229,8 +1320,10 @@ fn preview_file_for(
     camera: &str,
     look: &str,
     options: &LookOptions,
+    own_wb: Option<&OwnWb>,
 ) -> Option<PathBuf> {
-    file_ops::look_file_for(&folder.join(preview_stem(photo)), camera, look, options)
+    let stem = folder.join(preview_stem(photo));
+    file_ops::look_file_for(&stem, camera, look, options, own_wb)
 }
 
 /// What the name of every preview of `photo` starts with.
@@ -1379,6 +1472,16 @@ fn wb_for_program(c: [f32; 4]) -> Option<[f32; 4]> {
     Some(wb)
 }
 
+/// The saved edit of `photo`, with `changes` it may not hold yet over it.
+fn edit_of(photo: &str, changes: Option<&Value>) -> Value {
+    let saved = crate::exif_processing::load_sidecar(&parse_virtual_path(photo).1).adjustments;
+    let mut edit = saved.as_object().cloned().unwrap_or_default();
+    if let Some(Value::Object(changes)) = changes {
+        edit.extend(changes.clone());
+    }
+    Value::Object(edit)
+}
+
 /// One photo, read for a request; None for anything but a RAW with a white
 /// balance.
 fn subject_of(photo: &str) -> Option<Subject> {
@@ -1388,13 +1491,16 @@ fn subject_of(photo: &str) -> Option<Subject> {
     }
     let bytes = read_file_mapped(&source).ok()?;
     let facts = dng_standard::facts(&bytes).ok()?;
-    let wb = wb_for_program(crate::as_shot::as_shot(photo).wb_coeffs)?;
+    let as_shot = crate::as_shot::as_shot(photo);
+    let wb = wb_for_program(as_shot.wb_coeffs)?;
     Some(Subject {
         photo: photo.to_string(),
         make: facts.make,
         model: facts.model,
         iso: facts.iso,
         wb,
+        white: as_shot.white_balance,
+        xyz_to_camera: as_shot.xyz_to_camera,
         offset_ev: dng_standard::offset_for_photo(Some(photo)),
     })
 }
@@ -1411,6 +1517,7 @@ pub struct LookFile {
 /// What the open photo can have.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
 pub struct PhotoLooks {
     /// Its own camera on the list.
     pub camera: String,
@@ -1420,6 +1527,8 @@ pub struct PhotoLooks {
     /// Its look files and previews, for any camera, look and options, listed
     /// or not: what its Delete all previews looks at.
     pub clearable: usize,
+    /// How the look files reported follow its white balance.
+    pub own_wb: Option<OwnWb>,
 }
 
 /// What the provider offers.
@@ -1442,6 +1551,9 @@ pub struct ProviderLooksArgs {
     pub path: Option<String>,
     /// The options whose look files to report.
     pub options: LookOptions,
+    /// What its saved edit does not hold yet.
+    #[cfg_attr(test, ts(type = "unknown"))]
+    pub changes: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1452,6 +1564,9 @@ pub struct ProviderLookMakeArgs {
     pub camera: Option<String>,
     pub look: String,
     pub options: LookOptions,
+    /// What each photo's saved edit does not hold yet.
+    #[cfg_attr(test, ts(type = "unknown"))]
+    pub changes: Option<Value>,
     pub remake: bool,
     pub front: bool,
 }
@@ -1462,6 +1577,9 @@ pub struct ProviderLookPreviewArgs {
     pub path: String,
     pub camera: String,
     pub options: LookOptions,
+    /// What its saved edit does not hold yet.
+    #[cfg_attr(test, ts(type = "unknown"))]
+    pub changes: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1487,11 +1605,13 @@ pub struct LooksDeleted {
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderLookFileArgs {
     pub path: String,
     pub camera: String,
     pub look: String,
     pub options: LookOptions,
+    pub own_wb: Option<OwnWb>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1528,25 +1648,34 @@ fn files_there(
 }
 
 /// What the provider offers `path`; None when there is no provider.
-pub fn looks(app: &AppHandle, path: Option<&str>, options: &LookOptions) -> Option<ProviderLooks> {
+pub fn looks(app: &AppHandle, args: &ProviderLooksArgs) -> Option<ProviderLooks> {
     let provider = provider(app)?;
     let catalog = &provider.catalog;
-    let photo = path.and_then(subject_of).and_then(|subject| {
-        let camera = camera_for(catalog, None, &subject.make, &subject.model)?.to_string();
-        let source = parse_virtual_path(&subject.photo).0;
-        let files = files_there(catalog, |camera, look| {
-            file_ops::look_file_for(&source, camera, look, options)
+    let options = &args.options;
+    let photo = args
+        .path
+        .as_deref()
+        .and_then(subject_of)
+        .and_then(|subject| {
+            let camera = camera_for(catalog, None, &subject.make, &subject.model)?.to_string();
+            let source = parse_virtual_path(&subject.photo).0;
+            let own_wb = catalog.own_wb(&subject, options, args.changes.as_ref());
+            let own = own_wb.as_ref();
+            let files = files_there(catalog, |camera, look| {
+                file_ops::look_file_for(&source, camera, look, options, own)
+            });
+            let previews = files_there(catalog, |camera, look| {
+                let queue = &provider.queue;
+                queue.preview_file(&source, camera, look, options, own)
+            });
+            Some(PhotoLooks {
+                camera,
+                files,
+                previews,
+                clearable: provider.queue.clearable(&source),
+                own_wb,
+            })
         });
-        let previews = files_there(catalog, |camera, look| {
-            provider.queue.preview_file(&source, camera, look, options)
-        });
-        Some(PhotoLooks {
-            camera,
-            files,
-            previews,
-            clearable: provider.queue.clearable(&source),
-        })
-    });
     Some(ProviderLooks {
         cameras: catalog.cameras.clone(),
         looks: catalog.looks.clone(),
@@ -1571,10 +1700,12 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                 let chosen = args.camera.as_deref();
                 let camera = camera_for(&provider.catalog, chosen, &subject.make, &subject.model)?;
                 let listed = provider.catalog.lists(&args.look, &args.options);
+                let changes = args.changes.as_ref();
                 listed.then(|| Request {
                     camera: camera.to_string(),
                     look: args.look.clone(),
                     options: args.options.clone(),
+                    own_wb: provider.catalog.own_wb(&subject, &args.options, changes),
                     remake: args.remake,
                     front: args.front,
                     preview: false,
@@ -1591,6 +1722,7 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                     camera: args.camera.clone().unwrap_or_default(),
                     look: args.look.clone(),
                     options: args.options.clone(),
+                    own_wb: None,
                     outcome: LookOutcome::Unsupported,
                     preview: false,
                 }),
@@ -1619,8 +1751,10 @@ pub fn preview_all(app: &AppHandle, args: ProviderLookPreviewArgs) -> Result<u64
 
 /// Whether a photo has this look's file, with a provider or without one: the
 /// file is all a look needs to show.
-pub fn file_is_there(photo: &str, camera: &str, look: &str, options: &LookOptions) -> bool {
-    file_ops::look_file_for(&parse_virtual_path(photo).0, camera, look, options)
+pub fn file_is_there(args: &ProviderLookFileArgs) -> bool {
+    let source = parse_virtual_path(&args.path).0;
+    let own_wb = args.own_wb.as_ref();
+    file_ops::look_file_for(&source, &args.camera, &args.look, &args.options, own_wb)
         .is_some_and(|file| file.is_file())
 }
 
@@ -1648,10 +1782,7 @@ pub fn look_file_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &Atomic
     let Some(subject) = subject_of(photo).filter(|_| listed) else {
         return false;
     };
-    let made = provider
-        .queue
-        .wait_for(subject, look.camera, look.look, look.options, cancel);
-    made == LookOutcome::Done
+    provider.queue.wait_for(subject, look, cancel) == LookOutcome::Done
 }
 
 /// [`Queue::delete_looks`], for someone with a provider.
@@ -1724,6 +1855,10 @@ fn main() {
         if kind == "crash" { std::process::exit(3); }
         if kind == "slowlist" { std::thread::sleep(std::time::Duration::from_secs(30)); }
         if kind == "badlist" { print!("not json"); return; }
+        if kind == "followswb" {
+            print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}},{{\"id\":\"optionW\",\"label\":\"Invented follow\",\"default\":false,\"sendsCurrentWb\":true}}]}}");
+            return;
+        }
         if kind == "optioned" {
             print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}}]}}");
             return;
@@ -1736,7 +1871,7 @@ fn main() {
     let mut out = stdout.lock();
     match kind.as_str() {
         "onebad" if request.contains("\"look\":\"look2\"") => std::process::exit(3),
-        "good" | "optioned" | "onebad" => {
+        "good" | "optioned" | "followswb" | "onebad" => {
             std::fs::copy(dir.join("good.png"), &output).unwrap();
             write!(out, "{{\"ok\":true,\"seconds\":0.1}}").unwrap();
         }
@@ -2177,6 +2312,11 @@ fn main() {
 
     // -------------------------------------------------------------- one LUT
 
+    /// A camera's XYZ to camera matrix for daylight, as a decoder gives one.
+    const CAMERA_D65: [f32; 9] = [
+        0.4716, 0.0603, -0.0830, -0.7798, 1.5474, 0.2480, -0.1496, 0.1937, 0.6651,
+    ];
+
     fn subject(photo: &str) -> Subject {
         Subject {
             photo: photo.to_string(),
@@ -2184,6 +2324,11 @@ fn main() {
             model: "One".to_string(),
             iso: Some(400.0),
             wb: [1.8, 1.0, 1.0, 1.6],
+            white: WhiteBalance {
+                temperature: 5200.0,
+                tint: 4.0,
+            },
+            xyz_to_camera: Some(CAMERA_D65),
             offset_ev: 0.25,
         }
     }
@@ -2212,8 +2357,33 @@ fn main() {
         assert_eq!(wb_for_program(four), Some(four));
     }
 
+    /// The look `look1` of `cam1`, as an edit holds it.
+    fn look_with(options: LookOptions) -> provider_look::ProviderLook {
+        provider_look::ProviderLook {
+            camera: "cam1".to_string(),
+            look: "look1".to_string(),
+            options,
+            own_wb: None,
+            before: Default::default(),
+        }
+    }
+
+    fn is_there(photo: &str, camera: &str, look: &str, options: &LookOptions) -> bool {
+        file_is_there(&ProviderLookFileArgs {
+            path: photo.to_string(),
+            camera: camera.to_string(),
+            look: look.to_string(),
+            options: options.clone(),
+            own_wb: None,
+        })
+    }
+
+    fn look_is_there(photo: &str) -> bool {
+        is_there(photo, "cam1", "look1", &LookOptions::new())
+    }
+
     fn plain_key(subject: &Subject) -> Key {
-        Key::of(subject, "cam1", "look1", &LookOptions::new())
+        Key::of(subject, "cam1", "look1", &LookOptions::new(), None)
     }
 
     /// What a run of `kind` gives, and whether it left its scratch file.
@@ -2438,6 +2608,7 @@ fn main() {
                 camera: "cam1".to_string(),
                 look: "look1".to_string(),
                 options: options.clone(),
+                own_wb: None,
                 remake: false,
                 front: false,
                 preview: false,
@@ -2452,6 +2623,7 @@ fn main() {
                 camera: "cam1".to_string(),
                 look: look.to_string(),
                 options: LookOptions::new(),
+                own_wb: None,
                 remake,
                 front,
                 preview: false,
@@ -2477,7 +2649,7 @@ fn main() {
     }
 
     fn look_file_with(photo: &Path, options: &LookOptions) -> PathBuf {
-        file_ops::look_file_for(photo, "cam1", "look1", options).expect("a name")
+        file_ops::look_file_for(photo, "cam1", "look1", options, None).expect("a name")
     }
 
     #[test]
@@ -2542,6 +2714,7 @@ fn main() {
             camera: "cam1".to_string(),
             look: "look1".to_string(),
             options: LookOptions::new(),
+            own_wb: None,
             remake: true,
             front: false,
             preview: false,
@@ -2606,6 +2779,7 @@ fn main() {
                 camera: "cam1".to_string(),
                 look: "look1".to_string(),
                 options: LookOptions::new(),
+                own_wb: None,
                 remake: false,
                 front: false,
                 preview: false,
@@ -2636,6 +2810,7 @@ fn main() {
                 camera: "cam1".to_string(),
                 look: "look1".to_string(),
                 options: LookOptions::new(),
+                own_wb: None,
                 remake: false,
                 front: false,
                 preview: false,
@@ -2842,9 +3017,7 @@ fn main() {
         let never = AtomicBool::new(false);
         let got = heard.queue.wait_for(
             subject(&photo.to_string_lossy()),
-            "cam1".to_string(),
-            "look1".to_string(),
-            LookOptions::new(),
+            look_with(LookOptions::new()),
             &never,
         );
         assert_eq!(got, LookOutcome::Done);
@@ -2859,9 +3032,7 @@ fn main() {
         let on = options(&[("optionA", true)]);
         let got = heard.queue.wait_for(
             subject(&photo.to_string_lossy()),
-            "cam1".to_string(),
-            "look1".to_string(),
-            on.clone(),
+            look_with(on.clone()),
             &AtomicBool::new(false),
         );
         assert_eq!(got, LookOutcome::Done);
@@ -2877,9 +3048,7 @@ fn main() {
         let never = AtomicBool::new(false);
         let got = heard.queue.wait_for(
             subject(&photo.to_string_lossy()),
-            "cam1".to_string(),
-            "look1".to_string(),
-            LookOptions::new(),
+            look_with(LookOptions::new()),
             &never,
         );
         assert_eq!(got, LookOutcome::Failed);
@@ -2896,13 +3065,7 @@ fn main() {
             let subject = subject(&photo.to_string_lossy());
             std::thread::spawn(move || {
                 let none = LookOptions::new();
-                queue.wait_for(
-                    subject,
-                    "cam1".to_string(),
-                    "look1".to_string(),
-                    none,
-                    &token,
-                )
+                queue.wait_for(subject, look_with(none), &token)
             })
         };
         wait_for("the run started", || calls(&exe) == 1);
@@ -2924,13 +3087,7 @@ fn main() {
             std::thread::spawn(move || {
                 let never = AtomicBool::new(false);
                 let none = LookOptions::new();
-                queue.wait_for(
-                    subject,
-                    "cam1".to_string(),
-                    "look1".to_string(),
-                    none,
-                    &never,
-                )
+                queue.wait_for(subject, look_with(none), &never)
             })
         };
         wait_for("both wait", || {
@@ -2952,13 +3109,13 @@ fn main() {
         let photo = photo_beside(&exe, "IMG.CR3");
         let name = photo.to_string_lossy();
         let none = LookOptions::new();
-        assert!(!file_is_there(&name, "cam1", "look1", &none));
+        assert!(!is_there(&name, "cam1", "look1", &none));
         write_png(&look_file_of_photo(&photo), 512);
-        assert!(file_is_there(&name, "cam1", "look1", &none));
+        assert!(is_there(&name, "cam1", "look1", &none));
         let copy = format!("{name}?vc=a1b2c3");
-        assert!(file_is_there(&copy, "cam1", "look1", &none));
-        assert!(!file_is_there(&name, "cam2", "look1", &none));
-        assert!(!file_is_there(&name, "../cam1", "look1", &none));
+        assert!(is_there(&copy, "cam1", "look1", &none));
+        assert!(!is_there(&name, "cam2", "look1", &none));
+        assert!(!is_there(&name, "../cam1", "look1", &none));
     }
 
     #[test]
@@ -2968,9 +3125,9 @@ fn main() {
         let name = photo.to_string_lossy();
         let on = options(&[("optionA", true)]);
         write_png(&look_file_of_photo(&photo), 512);
-        assert!(!file_is_there(&name, "cam1", "look1", &on));
+        assert!(!is_there(&name, "cam1", "look1", &on));
         write_png(&look_file_with(&photo, &on), 512);
-        assert!(file_is_there(&name, "cam1", "look1", &on));
+        assert!(is_there(&name, "cam1", "look1", &on));
     }
 
     #[test]
@@ -2999,6 +3156,7 @@ fn main() {
 
     fn preview_args(photo: &Path) -> ProviderLookPreviewArgs {
         ProviderLookPreviewArgs {
+            changes: None,
             path: photo.to_string_lossy().into_owned(),
             camera: "cam1".to_string(),
             options: LookOptions::new(),
@@ -3019,7 +3177,7 @@ fn main() {
 
         fn preview_of(&self, photo: &Path, look: &str) -> PathBuf {
             let none = LookOptions::new();
-            let file = self.queue.preview_file(photo, "cam1", look, &none);
+            let file = self.queue.preview_file(photo, "cam1", look, &none, None);
             file.expect("a name")
         }
 
@@ -3044,7 +3202,7 @@ fn main() {
     fn a_preview_is_kept_apart_by_photo_camera_look_and_options() {
         let name = |photo: &str, camera: &str, look: &str, set: &LookOptions| {
             let folder = Path::new("/cache/previews");
-            preview_file_for(folder, Path::new(photo), camera, look, set).expect("a name")
+            preview_file_for(folder, Path::new(photo), camera, look, set, None).expect("a name")
         };
         let none = LookOptions::new();
         let one = name("/a/IMG.CR3", "cam1", "look1", &none);
@@ -3079,7 +3237,7 @@ fn main() {
         let none = LookOptions::new();
         let photo = Path::new("/a/IMG.CR3");
         assert_eq!(
-            preview_file_for(Path::new("/c"), photo, "../x", "look1", &none),
+            preview_file_for(Path::new("/c"), photo, "../x", "look1", &none, None),
             None
         );
     }
@@ -3089,7 +3247,7 @@ fn main() {
         let on = options(&[("optionA", true)]);
         for set in [LookOptions::new(), on] {
             let photo = Path::new("/a/IMG.CR3");
-            let file = preview_file_for(Path::new("/c"), photo, "cam1", "look1", &set);
+            let file = preview_file_for(Path::new("/c"), photo, "cam1", "look1", &set, None);
             let file = file.expect("a name");
             assert!(!crate::formats::is_supported_image_file(&file), "{file:?}");
         }
@@ -3103,7 +3261,8 @@ fn main() {
         let photo = dir.path().join("IMG.CR3");
         std::fs::write(&photo, "photo").expect("photo");
         let none = LookOptions::new();
-        let file = preview_file_for(dir.path(), &photo, "cam1", "look1", &none).expect("a name");
+        let file =
+            preview_file_for(dir.path(), &photo, "cam1", "look1", &none, None).expect("a name");
         write_png(&file, 512);
 
         let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
@@ -3120,7 +3279,8 @@ fn main() {
         let dir = tempfile::tempdir().expect("folder");
         let none = LookOptions::new();
         let photo = Path::new("/a/IMG.CR3");
-        let file = preview_file_for(dir.path(), photo, "cam1", "look1", &none).expect("a name");
+        let file =
+            preview_file_for(dir.path(), photo, "cam1", "look1", &none, None).expect("a name");
         write_png(&file, 512);
         let lut = lut_processing::parse_lut_file(&file.to_string_lossy()).expect("a LUT");
         assert_eq!(lut.size, 64);
@@ -3134,7 +3294,7 @@ fn main() {
         let photo = photo_beside(&exe, "IMG.CR3");
         let preview = heard.with_preview(&photo);
         let name = photo.to_string_lossy();
-        assert!(!file_is_there(&name, "cam1", "look1", &LookOptions::new()));
+        assert!(!look_is_there(&name));
         let edit = json!({
             "lutPath": provider_look::MARKER,
             provider_look::KEY: { "camera": "cam1", "look": "look1" },
@@ -3355,6 +3515,7 @@ fn main() {
                 "cam2",
                 "look1",
                 &options(&[("optionA", true)]),
+                None,
             )
             .expect("a name"),
         ];
@@ -3558,6 +3719,7 @@ fn main() {
                 camera: "cam1".to_string(),
                 look: "look1".to_string(),
                 options: LookOptions::new(),
+                own_wb: None,
                 remake: false,
                 front: false,
                 preview: false,
@@ -3817,7 +3979,7 @@ fn main() {
         let preview = heard.with_preview(&photo);
         let list = |set: &LookOptions| {
             files_there(&numbered(2), |camera, look| {
-                heard.queue.preview_file(&photo, camera, look, set)
+                heard.queue.preview_file(&photo, camera, look, set, None)
             })
         };
         assert_eq!(
@@ -3925,6 +4087,7 @@ fn main() {
                 id: "optionA".to_string(),
                 label: "Invented choice".to_string(),
                 default: false,
+                sends_current_wb: false,
             }],
         }
     }
@@ -3956,6 +4119,545 @@ fn main() {
         assert_eq!(camera_for(&catalog(), None, "Acme", "Three"), None);
         assert_eq!(camera_for(&catalog(), None, "Other", "One"), None);
         assert_eq!(camera_for(&catalog(), Some("cam1"), "Acme", "Three"), None);
+    }
+
+    // ------------------------------------------------- the current white balance
+
+    fn follow() -> OwnWb {
+        OwnWb {
+            option: "optionW".to_string(),
+            wb: None,
+        }
+    }
+
+    fn follow_at(temperature: i32, tint: i32) -> OwnWb {
+        OwnWb {
+            wb: Some(LookWb { temperature, tint }),
+            ..follow()
+        }
+    }
+
+    fn slider_at(temperature: i32) -> Value {
+        json!({ "temperature": temperature })
+    }
+
+    fn own_file(photo: &Path, set: &LookOptions, own: &OwnWb) -> PathBuf {
+        file_ops::look_file_for(photo, "cam1", "look1", set, Some(own)).expect("a name")
+    }
+
+    /// As `Heard::ask_with`, for a look that follows the white balance.
+    fn ask_following(heard: &Heard, photo: &Path, set: &LookOptions, own: &OwnWb, job: u64) {
+        heard.queue.request(Request {
+            subject: subject(&photo.to_string_lossy()),
+            camera: "cam1".to_string(),
+            look: "look1".to_string(),
+            options: set.clone(),
+            own_wb: Some(own.clone()),
+            remake: false,
+            front: false,
+            preview: false,
+            job,
+            report: Arc::clone(&heard.report),
+        });
+    }
+
+    #[test]
+    fn a_program_may_flag_the_option_that_follows_the_white_balance() {
+        let kept = options_kept(
+            r#"[{ "id": "optionA", "label": "Plain", "default": false },
+                { "id": "optionW", "label": "Follows", "default": false, "sendsCurrentWb": true }]"#,
+        );
+        assert!(
+            !kept[0].sends_current_wb,
+            "a list from before the flag has none"
+        );
+        assert!(kept[1].sends_current_wb);
+    }
+
+    #[test]
+    fn a_flag_of_the_wrong_shape_drops_its_option_alone() {
+        let kept = options_kept(
+            r#"[{ "id": "optionA", "label": "Plain", "default": false },
+                { "id": "optionW", "label": "Bad", "default": false, "sendsCurrentWb": "yes" }]"#,
+        );
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].id, "optionA");
+    }
+
+    fn catalog_following() -> Catalog {
+        let exe = fake("followswb");
+        validate(&exe.to_string_lossy(), &ROOMY).expect("a list")
+    }
+
+    #[test]
+    fn only_the_flagged_option_on_follows_the_white_balance() {
+        let catalog = catalog_following();
+        assert_eq!(catalog.wb_option(&LookOptions::new()), None);
+        assert_eq!(catalog.wb_option(&options(&[("optionA", true)])), None);
+        assert_eq!(catalog.wb_option(&options(&[("optionW", false)])), None);
+        assert_eq!(
+            catalog.wb_option(&options(&[("optionW", true)])),
+            Some("optionW")
+        );
+    }
+
+    #[test]
+    fn a_flagged_option_on_by_default_follows_with_nothing_chosen() {
+        let mut catalog = catalog_following();
+        catalog.options[1].default = true;
+        assert_eq!(catalog.wb_option(&LookOptions::new()), Some("optionW"));
+        assert_eq!(catalog.wb_option(&options(&[("optionW", false)])), None);
+    }
+
+    /// A program from before the flag never has an edit read for it.
+    #[test]
+    fn with_no_flagged_option_on_nothing_follows() {
+        let exe = fake("good");
+        let photo = subject(&photo_beside(&exe, "IMG.CR3").to_string_lossy());
+        let moved = slider_at(40);
+        let on = options(&[("optionA", true)]);
+        assert_eq!(catalog().own_wb(&photo, &on, Some(&moved)), None);
+    }
+
+    #[test]
+    fn at_the_cameras_white_balance_there_is_nothing_of_its_own() {
+        let photo = subject("/photos/IMG.CR3");
+        assert_eq!(photo.look_wb(&json!({})), None);
+        assert_eq!(photo.look_wb(&slider_at(0)), None);
+        let same = json!({ "whiteBalance": { "temperature": 5200.0, "tint": 4.0 } });
+        assert_eq!(photo.look_wb(&same), None);
+    }
+
+    #[test]
+    fn a_moved_slider_gives_a_white_balance_of_its_own() {
+        let photo = subject("/photos/IMG.CR3");
+        let warmer = photo.look_wb(&slider_at(40)).expect("its own");
+        assert!(warmer.temperature > 5200, "{warmer:?}");
+        assert_eq!(warmer.tint, 4);
+        let kelvin = json!({ "whiteBalance": { "temperature": 4300.0, "tint": -12.0 } });
+        assert_eq!(
+            photo.look_wb(&kelvin),
+            Some(LookWb {
+                temperature: 4300,
+                tint: -12
+            })
+        );
+    }
+
+    /// Basic's eye shut renders the camera's white balance, so that is the LUT.
+    #[test]
+    fn a_hidden_white_balance_is_the_cameras() {
+        let photo = subject("/photos/IMG.CR3");
+        let hidden = json!({ "temperature": 40, "sectionVisibility": { "basic": false } });
+        assert_eq!(photo.look_wb(&hidden), None);
+    }
+
+    /// A sensor this matrix does not describe can follow nothing.
+    #[test]
+    fn a_photo_with_no_matrix_has_nothing_of_its_own() {
+        let mut photo = subject("/photos/IMG.CR3");
+        photo.xyz_to_camera = None;
+        assert_eq!(photo.look_wb(&slider_at(40)), None);
+    }
+
+    fn own_wb_in_rgb(photo: &Subject, wb: LookWb) -> [f32; 3] {
+        let as_shot = photo.white;
+        let neutral = as_shot.camera_neutral(&CAMERA_D65).expect("as shot");
+        let neutral = neutral.map(|n| n as f32);
+        let columns = crate::white_balance::camera_to_srgb(&CAMERA_D65, &neutral).expect("colour");
+        let coefficients = photo.coefficients_of(wb).expect("in the form of asShotWb");
+
+        // What the sensor recorded of that white, through the decode...
+        let sensor = [
+            1.0 / coefficients[0],
+            1.0 / coefficients[1],
+            1.0 / coefficients[3],
+        ];
+        let mut rgb = glam::Vec3::ZERO;
+        for (column, recorded) in columns.iter().zip(sensor) {
+            rgb += glam::Vec3::from_array(*column) * recorded;
+        }
+        // ...and through the slider, as `apply_white_balance` in shader.wgsl.
+        let gains = crate::white_balance::adaptation_log_gains(as_shot, wb.white()).map(f32::exp);
+        let rgb_to_lms = crate::white_balance::rgb_to_lms();
+        let moved = rgb_to_lms.inverse() * (glam::Vec3::from_array(gains) * (rgb_to_lms * rgb));
+        moved.to_array()
+    }
+
+    /// What the LUT must take back to neutral is the white the render made
+    /// neutral: at any slider, what the camera records of that white comes out
+    /// of the decode and the slider with no colour left.
+    #[test]
+    fn the_render_makes_neutral_the_white_the_program_is_told_of() {
+        let photo = subject("/photos/IMG.CR3");
+        for (temperature, tint) in [(3200, 0), (4300, -20), (5200, 4), (6500, 30), (9000, -60)] {
+            let wb = LookWb { temperature, tint };
+            let [r, g, b] = own_wb_in_rgb(&photo, wb);
+            for channel in [r, b] {
+                assert!((channel / g - 1.0).abs() < 1e-3, "{wb:?}: {r} {g} {b}");
+            }
+        }
+    }
+
+    /// The way back gives the white it started from.
+    #[test]
+    fn a_white_balance_reads_back_from_what_the_program_is_told() {
+        let photo = subject("/photos/IMG.CR3");
+        for (temperature, tint) in [(3200, 0), (4300, -20), (6500, 30), (9000, -60)] {
+            let wb = LookWb { temperature, tint };
+            let [r, g, _, b] = photo.coefficients_of(wb).expect("in the form of asShotWb");
+            let neutral = [1.0 / r, 1.0 / g, 1.0 / b];
+            let white = WhiteBalance::from_camera_neutral(&CAMERA_D65, &neutral).expect("a white");
+            assert!(
+                (white.temperature - f64::from(temperature)).abs() < 1.0,
+                "{white:?}"
+            );
+            assert!((white.tint - f64::from(tint)).abs() < 0.2, "{white:?}");
+        }
+    }
+
+    /// Green as `asShotWb`'s, whatever the decoder's scale: the program divides by it.
+    #[test]
+    fn the_current_white_balance_is_at_the_scale_of_the_as_shot_one() {
+        let mut photo = subject("/photos/IMG.CR3");
+        photo.wb = [2.0, 2.0, 2.0, 2.0];
+        let wb = LookWb {
+            temperature: 4300,
+            tint: 0,
+        };
+        let [r, g1, g2, b] = photo.coefficients_of(wb).expect("in the form of asShotWb");
+        assert_eq!((g1, g2), (2.0, 2.0));
+        assert!(r > 0.0 && b > 0.0);
+        photo.wb = [1.0; 4];
+        let halved = photo.coefficients_of(wb).expect("in the form of asShotWb");
+        assert!((halved[0] * 2.0 - r).abs() < 1e-5);
+    }
+
+    #[test]
+    fn the_program_is_sent_the_current_white_balance_and_the_as_shot_one() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        let own = follow_at(4300, -12);
+        ask_following(&heard, &photo, &on, &own, 1);
+
+        let told = heard.next();
+        assert_eq!(told.outcome, LookOutcome::Done);
+        assert_eq!(told.own_wb, Some(own.clone()));
+        let sent = last_request(&exe);
+        let photo_told = subject("/photos/IMG.CR3");
+        let current = photo_told.coefficients_of(own.wb.unwrap());
+        let number = |field: &str, at: usize| sent[field][at].as_f64().expect("a number") as f32;
+        for (at, value) in current.expect("a white balance").into_iter().enumerate() {
+            assert_eq!(number("currentWb", at), value);
+        }
+        for (at, value) in photo_told.wb.into_iter().enumerate() {
+            assert_eq!(number("asShotWb", at), value);
+        }
+        assert_eq!(sent["options"], json!({ "optionW": true }));
+        assert!(own_file(&photo, &on, &own).is_file());
+        assert!(!look_file_of_photo(&photo).exists(), "not the as-shot file");
+    }
+
+    /// The tool decides what wins: both go, and Argentum knows neither.
+    #[test]
+    fn both_options_go_to_the_program_together() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionA", true), ("optionW", true)]);
+        ask_following(&heard, &photo, &on, &follow_at(4300, 0), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        let sent = last_request(&exe);
+        assert_eq!(sent["options"], json!({ "optionA": true, "optionW": true }));
+        assert!(sent["currentWb"].is_array(), "{sent}");
+    }
+
+    #[test]
+    fn at_the_cameras_white_balance_the_program_gets_the_as_shot_one_as_it_stands() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        ask_following(&heard, &photo, &options(&[("optionW", true)]), &follow(), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        let sent = last_request(&exe);
+        assert_eq!(sent["currentWb"], sent["asShotWb"]);
+        assert!(look_file_of_photo(&photo).is_file(), "the as-shot name");
+    }
+
+    /// The file of the other option alone, so nothing need know what that does.
+    #[test]
+    fn beside_another_option_the_cameras_white_balance_needs_no_run() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let alone = options(&[("optionA", true)]);
+        let both = options(&[("optionA", true), ("optionW", true)]);
+        heard.ask_with(&photo, &alone, 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        ask_following(&heard, &photo, &both, &follow(), 2);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(calls(&exe), 1, "the file was there");
+        assert_eq!(
+            own_file(&photo, &both, &follow()),
+            look_file_with(&photo, &alone)
+        );
+    }
+
+    /// With no file yet, the request says it all: the program decides from it.
+    #[test]
+    fn beside_another_option_the_cameras_white_balance_still_goes_to_the_program() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let both = options(&[("optionA", true), ("optionW", true)]);
+        ask_following(&heard, &photo, &both, &follow(), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        let sent = last_request(&exe);
+        assert_eq!(sent["currentWb"], sent["asShotWb"]);
+        assert_eq!(sent["options"], json!(both));
+        assert!(look_file_with(&photo, &options(&[("optionA", true)])).is_file());
+    }
+
+    /// Exactly today's request and today's file, from a program with no flag.
+    #[test]
+    fn a_program_with_no_flag_is_asked_as_it_always_was() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.ask_with(&photo, &options(&[("optionA", true)]), 1);
+        assert_eq!(heard.next().own_wb, None);
+        let sent = last_request(&exe);
+        assert!(sent.get("currentWb").is_none(), "{sent}");
+        assert_eq!(sent["options"], json!({ "optionA": true }));
+        assert!(look_file_with(&photo, &options(&[("optionA", true)])).is_file());
+    }
+
+    #[test]
+    fn the_option_on_at_the_cameras_white_balance_needs_no_run() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.ask(&photo, 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(calls(&exe), 1);
+
+        ask_following(&heard, &photo, &options(&[("optionW", true)]), &follow(), 2);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(calls(&exe), 1, "the file was there");
+    }
+
+    #[test]
+    fn each_white_balance_keeps_its_file_and_going_back_needs_no_run() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        let (warm, cool) = (follow_at(4300, 0), follow_at(6500, 0));
+        for (job, own) in [(1, &warm), (2, &cool)] {
+            ask_following(&heard, &photo, &on, own, job);
+            assert_eq!(heard.next().outcome, LookOutcome::Done);
+        }
+        assert_eq!(calls(&exe), 2);
+        assert_ne!(own_file(&photo, &on, &warm), own_file(&photo, &on, &cool));
+        assert!(own_file(&photo, &on, &warm).is_file());
+        assert!(own_file(&photo, &on, &cool).is_file());
+
+        ask_following(&heard, &photo, &on, &warm, 3);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(calls(&exe), 2, "it was there");
+    }
+
+    #[test]
+    fn a_newer_white_balance_wins_over_an_older_one_on_its_way() {
+        let exe = fake("paced");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        let (older, newer) = (follow_at(4300, 0), follow_at(6500, 0));
+
+        ask_following(&heard, &photo, &on, &older, 1);
+        wait_for("the older run", || calls(&exe) == 1);
+        ask_following(&heard, &photo, &on, &newer, 2);
+        let told = heard.next();
+        assert_eq!((told.job_id, told.outcome), (1, LookOutcome::Cancelled));
+
+        release(&exe);
+        let told = heard.next();
+        assert_eq!((told.job_id, told.outcome), (2, LookOutcome::Done));
+        assert!(own_file(&photo, &on, &newer).is_file());
+        assert!(!own_file(&photo, &on, &older).exists());
+    }
+
+    /// One white balance the program cannot do says nothing of another.
+    #[test]
+    fn a_refusal_is_for_that_white_balance_alone() {
+        let exe = fake("missing");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        ask_following(&heard, &photo, &on, &follow_at(4300, 0), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Failed);
+        ask_following(&heard, &photo, &on, &follow_at(6500, 0), 2);
+        assert_eq!(heard.next().outcome, LookOutcome::Failed);
+        assert_eq!(calls(&exe), 2);
+        ask_following(&heard, &photo, &on, &follow_at(4300, 0), 3);
+        assert_eq!(heard.next().outcome, LookOutcome::Failed);
+        assert_eq!(calls(&exe), 2, "this one was refused");
+    }
+
+    #[test]
+    fn a_white_balance_that_cannot_be_told_is_not_asked_for() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let mut photo = subject(&photo_beside(&exe, "IMG.CR3").to_string_lossy());
+        photo.xyz_to_camera = None;
+        heard.queue.request(Request {
+            subject: photo,
+            camera: "cam1".to_string(),
+            look: "look1".to_string(),
+            options: options(&[("optionW", true)]),
+            own_wb: Some(follow_at(4300, 0)),
+            remake: false,
+            front: false,
+            preview: false,
+            job: 1,
+            report: Arc::clone(&heard.report),
+        });
+        assert_eq!(heard.next().outcome, LookOutcome::Failed);
+        assert_eq!(calls(&exe), 0);
+    }
+
+    #[test]
+    fn delete_all_previews_takes_the_files_of_every_white_balance() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        let (warm, cool) = (follow_at(4300, 0), follow_at(6500, 0));
+        for (job, own) in [(1, &warm), (2, &cool)] {
+            ask_following(&heard, &photo, &on, own, job);
+            assert_eq!(heard.next().outcome, LookOutcome::Done);
+        }
+        let on_photo = provider_look::ProviderLook {
+            options: on.clone(),
+            own_wb: Some(cool.clone()),
+            ..look_with(LookOptions::new())
+        };
+
+        let args = ProviderLookDeleteArgs {
+            on_photo: Some(on_photo),
+            ..delete_args(&photo)
+        };
+        assert_eq!(heard.queue.delete_looks(&args, gone), deleted(1, 1, 0));
+        assert!(!own_file(&photo, &on, &warm).exists());
+        assert!(own_file(&photo, &on, &cool).is_file(), "the edit uses it");
+
+        assert_eq!(
+            heard.queue.delete_looks(&delete_args(&photo), gone),
+            deleted(1, 0, 0)
+        );
+        assert!(!own_file(&photo, &on, &cool).exists());
+    }
+
+    /// The saved edit counts as well as the open one.
+    #[test]
+    fn delete_all_previews_keeps_the_white_balance_the_saved_edit_uses() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        let own = follow_at(4300, 0);
+        ask_following(&heard, &photo, &on, &own, 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        let mut edit = look_on("cam1", "look1");
+        edit[provider_look::KEY]["options"] = json!(on);
+        edit[provider_look::KEY]["ownWb"] = json!(own);
+        save_edit(&photo.to_string_lossy(), &edit);
+
+        assert_eq!(
+            heard.queue.delete_looks(&delete_args(&photo), gone),
+            deleted(0, 1, 0)
+        );
+        assert!(own_file(&photo, &on, &own).is_file());
+    }
+
+    #[test]
+    fn preview_all_makes_every_look_for_the_current_white_balance() {
+        let exe = fake("followswb");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let set = options(&[("optionW", true)]);
+        let args = ProviderLookPreviewArgs {
+            options: set.clone(),
+            changes: Some(slider_at(40)),
+            ..preview_args(&photo)
+        };
+        let catalog = catalog_following();
+        let subject = subject(&photo.to_string_lossy());
+        let wb = subject.look_wb(&slider_at(40)).expect("its own");
+        heard
+            .queue
+            .preview_all(&catalog, Some(subject), &args, 1, Arc::clone(&heard.report));
+
+        let told = heard.next();
+        assert_eq!(told.outcome, LookOutcome::Done);
+        assert!(last_request(&exe)["currentWb"].is_array());
+        let own = OwnWb {
+            option: "optionW".to_string(),
+            wb: Some(wb),
+        };
+        let file = heard
+            .queue
+            .preview_file(&photo, "cam1", "look1", &set, Some(&own));
+        assert!(file.expect("a name").is_file());
+        assert!(!look_file_of_photo(&photo).exists());
+    }
+
+    /// An export of a photo with a look of its own makes that file, not another.
+    #[test]
+    fn an_export_waits_for_the_file_of_its_white_balance() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionW", true)]);
+        let own = follow_at(4300, 0);
+        let look = provider_look::ProviderLook {
+            own_wb: Some(own.clone()),
+            ..look_with(on.clone())
+        };
+        let never = AtomicBool::new(false);
+        let got = heard
+            .queue
+            .wait_for(subject(&photo.to_string_lossy()), look, &never);
+        assert_eq!(got, LookOutcome::Done);
+        assert!(own_file(&photo, &on, &own).is_file());
+    }
+
+    #[test]
+    fn what_a_saved_edit_does_not_hold_yet_goes_over_it() {
+        let dir = tempfile::tempdir().expect("folder");
+        let photo = dir.path().join("IMG.CR3");
+        let name = photo.to_string_lossy();
+        save_edit(&name, &json!({ "temperature": 10, "tint": 5 }));
+        assert_eq!(
+            edit_of(&name, Some(&slider_at(40))),
+            json!({ "temperature": 40, "tint": 5 })
+        );
+        assert_eq!(
+            edit_of(&name, None),
+            json!({ "temperature": 10, "tint": 5 })
+        );
+    }
+
+    /// A photo never saved has no edit to go over.
+    #[test]
+    fn changes_stand_alone_for_a_photo_with_no_edit() {
+        let dir = tempfile::tempdir().expect("folder");
+        let photo = dir.path().join("IMG.CR3");
+        let moved = slider_at(40);
+        assert_eq!(edit_of(&photo.to_string_lossy(), Some(&moved)), moved);
     }
 
     #[test]

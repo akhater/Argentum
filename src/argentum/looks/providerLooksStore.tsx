@@ -6,6 +6,10 @@
  * is ready: Linear and the LUT in one step, so one Undo (providerLook.ts). The
  * photo stays as it was until then, and may have been left by then.
  *
+ * A look whose option follows the white balance gets a file for each white
+ * balance the open photo settles on: only that look, never while a slider moves,
+ * and the photo keeps the file it has until the new one is ready.
+ *
  * With no provider `offer` stays null: nothing shows, nothing listens, and what
  * is passed through here comes back as it was.
  */
@@ -20,7 +24,15 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { type Adjustments, getActiveTools, INITIAL_ADJUSTMENTS, setToolActive } from '../../utils/adjustments';
 import { globalImageCache } from '../../utils/ImageLRUCache';
 import { ag } from '../ag';
-import type { LookFile, LookProgress, OfferedLook, OfferedOption, ProviderLook, ProviderLooks } from '../ag.generated';
+import type {
+  LookFile,
+  LookProgress,
+  OfferedLook,
+  OfferedOption,
+  OwnWb,
+  ProviderLook,
+  ProviderLooks,
+} from '../ag.generated';
 import { type AgKey, agText } from '../locales';
 import {
   LOOK_KEYS,
@@ -28,9 +40,12 @@ import {
   lookOf,
   lookOnto,
   type LookOptions,
+  madeForWhiteBalance,
   offeredOptions,
   sameOptions,
+  whiteBalanceKeys,
   withOption,
+  withOwnWb,
 } from './providerLook';
 
 /** As `EVENT` in mods/lut_provider.rs. */
@@ -39,17 +54,25 @@ const PROGRESS_EVENT = 'provider-look-progress';
 /** How long a look can take before its row says so: a quick one never flickers. */
 const SPIN_AFTER_MS = 300;
 
+/** A white balance changed with no drag has settled: past the 500 ms History waits (useEditorActions.ts). */
+const WB_SETTLES_MS = 600;
+
 type Edit = Partial<Adjustments>;
 
 interface Waiting {
+  /** Tells this request from a later one for the same look. */
+  ticket: number;
   look: string;
   options: LookOptions;
   name: string;
   /** None until the queue answers. */
   job: number | null;
   spinning: boolean;
-  /** `keep`: the look is in the edit already, only its file was missing or remade. */
-  then: 'put' | 'keep';
+  /**
+   * `keep`: the look is in the edit already, only its file was missing or remade.
+   * `follow`: the look is in the edit already, its new file takes over from the old.
+   */
+  then: 'put' | 'keep' | 'follow';
   batch: boolean;
 }
 
@@ -119,8 +142,17 @@ interface ProviderLooksState {
     camera: string,
     options: LookOptions,
     remake?: boolean,
+    ownWb?: OwnWb | null,
   ) => Promise<void>;
-  putOnSelection: (paths: string[], look: OfferedLook, camera: string | null, options: LookOptions) => Promise<void>;
+  putOnSelection: (
+    paths: string[],
+    look: OfferedLook,
+    camera: string | null,
+    options: LookOptions,
+    changes?: Edit | null,
+  ) => Promise<void>;
+  /** The open photo's look, for the white balance its edit has now. */
+  followWhiteBalance: (photo: string) => Promise<void>;
   /** Every look of this photo as a temporary file, to compare: only the button asks. */
   previewAll: (photo: string, camera: string, options: LookOptions) => Promise<void>;
   stopPreviews: () => Promise<void>;
@@ -151,10 +183,17 @@ const asked = new Set<string>();
 let listening = false;
 let loads = 0;
 let previewRuns = 0;
+let tickets = 0;
+/** What arrived before its request heard its job's id. */
+let early: LookProgress[] = [];
 /** Ends the watch on the open photo that a running Preview all keeps. */
 let stopWatching = () => {};
 
 const openPhoto = () => useEditorStore.getState().selectedImage?.path ?? null;
+
+/** What `photo`'s white balance is now and its saved edit may not hold yet. */
+const unsavedWhiteBalance = (photo: string | null): Edit | null =>
+  photo === openPhoto() ? whiteBalanceKeys(useEditorStore.getState().adjustments) : null;
 
 /** The change onto the open photo, as one step of its history. */
 function changeOpenPhoto(change: (now: Adjustments) => Adjustments) {
@@ -162,6 +201,22 @@ function changeOpenPhoto(change: (now: Adjustments) => Adjustments) {
   const next = change(adjustments);
   setEditor({ adjustments: next });
   pushHistory(next);
+}
+
+/** The white balance the open photo's look was last asked for. */
+let followed: { photo: string; keys: string } | null = null;
+/** The one that is settling. */
+let settling: string | null = null;
+let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+function stopSettling() {
+  clearTimeout(settleTimer);
+  settling = null;
+}
+
+function stopFollowing() {
+  stopSettling();
+  followed = null;
 }
 
 export const useProviderLooks = create<ProviderLooksState>((set, get) => {
@@ -181,9 +236,11 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     camera: string | null,
     look: OfferedLook,
     options: LookOptions,
-    how: { remake?: boolean; front: boolean; then: Waiting['then']; batch?: boolean },
+    how: { remake?: boolean; front: boolean; then: Waiting['then']; batch?: boolean; changes: Edit | null },
   ) {
+    const ticket = ++tickets;
     const entry = {
+      ticket,
       look: look.id,
       options,
       name: look.name,
@@ -192,10 +249,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       then: how.then,
       batch: !!how.batch,
     };
-    const stillWanted = (path: string) => {
-      const now = get().waiting[path];
-      return now?.look === look.id && sameOptions(now.options, options);
-    };
+    const stillWanted = (path: string) => get().waiting[path]?.ticket === ticket;
     set((state) => ({
       note: null,
       waiting: { ...state.waiting, ...Object.fromEntries(paths.map((path) => [path, entry])) },
@@ -214,6 +268,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
         camera,
         look: look.id,
         options,
+        changes: how.changes,
         remake: how.remake ?? false,
         front: how.front,
       });
@@ -235,11 +290,14 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       },
       batch: how.batch && state.batch ? { ...state.batch, job } : state.batch,
     }));
+    const arrived = early;
+    early = [];
+    arrived.forEach((progress) => void settle(progress));
   }
 
   /** The look onto its photo, open or left, with what it changed kept for a batch. */
   async function putOn(progress: LookProgress, name: string, batch: boolean) {
-    const keys = lookKeys(progress.camera, progress.look, name, progress.options);
+    const keys = lookKeys(progress.camera, progress.look, name, progress.options, progress.ownWb);
     const keep = (was: Edit, own: Edit) => {
       if (!batch) return;
       const values = Object.fromEntries(Object.keys(own).map((k) => [k, was[k] ?? INITIAL_ADJUSTMENTS[k] ?? null]));
@@ -249,7 +307,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     };
     if (progress.path === openPhoto()) {
       changeOpenPhoto((now) => {
-        const own = lookOnto(now, keys);
+        const own = lookOnto(now, keys, true);
         keep(now, own);
         return { ...now, ...own, activeTools: setToolActive(getActiveTools(now), 'lut', true) };
       });
@@ -259,10 +317,36 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       () => null,
     );
     const was = meta?.adjustments ?? {};
-    const own = lookOnto(was, keys);
+    const own = lookOnto(was, keys, true);
     keep(was, own);
     globalImageCache.delete(progress.path);
     await invoke(Invokes.ApplyAdjustmentsToPaths, { paths: [progress.path], adjustments: own });
+  }
+
+  /**
+   * The look's new file takes over, in the step of History that moved the white
+   * balance: one Undo goes back to both. What else the look holds stays as it is.
+   */
+  async function follow({ path, camera, look, ownWb }: LookProgress) {
+    const followed = (edit: Edit) => withOwnWb(edit, camera, look, ownWb);
+    if (path === openPhoto()) {
+      const { adjustments, history, historyIndex, setEditor } = useEditorStore.getState();
+      const next = followed(adjustments);
+      if (!next) return;
+      setEditor({
+        adjustments: next as Adjustments,
+        history: history.map((step, at) => (at === historyIndex ? (followed(step) ?? step) : step)) as Adjustments[],
+      });
+      return;
+    }
+    const meta = await invoke<{ adjustments?: Edit | null }>(Invokes.LoadMetadata, { path }).catch(() => null);
+    const next = followed(meta?.adjustments ?? {});
+    if (!next) return;
+    globalImageCache.delete(path);
+    await invoke(Invokes.ApplyAdjustmentsToPaths, {
+      paths: [path],
+      adjustments: { agProviderLook: next.agProviderLook },
+    });
   }
 
   /** The batch's note goes, and what went on can be undone, as for any look. */
@@ -300,7 +384,11 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     if (progress.preview) return settlePreview(progress);
     const waited = get().waiting[progress.path];
     if (waited?.look !== progress.look || !sameOptions(waited.options, progress.options)) return;
-    if (waited.job !== null && waited.job !== progress.jobId) return;
+    if (waited.job === null) {
+      early.push(progress);
+      return;
+    }
+    if (waited.job !== progress.jobId) return;
     forget([progress.path]);
     const note = (text: AgKey) => set({ note: { photo: progress.path, look: progress.look, text } });
     if (progress.outcome === 'done') {
@@ -309,6 +397,8 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
         await putOn(progress, waited.name, waited.batch);
         // The edit has them now, so an Undo shows on the checkbox.
         if (!waited.batch) forgetChosenOptions(progress.path);
+      } else if (waited.then === 'follow') {
+        await follow(progress);
       } else if (progress.path === openPhoto()) {
         // The same edit, with its picture to draw again.
         const { adjustments, setEditor } = useEditorStore.getState();
@@ -349,7 +439,9 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 
     load: async (photo, options = {}) => {
       const mine = ++loads;
-      const offer = await ag('provider_looks', { path: photo, options }).catch(() => null);
+      const offer = await ag('provider_looks', { path: photo, options, changes: unsavedWhiteBalance(photo) }).catch(
+        () => null,
+      );
       if (mine !== loads) return;
       if (offer && !listening) startListening();
       set({ offer, offerOf: { photo, options } });
@@ -358,6 +450,8 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     reset: () => {
       asked.clear();
       stopWatching();
+      stopFollowing();
+      early = [];
       set(FIRST);
     },
 
@@ -393,14 +487,37 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       if (look && camera) await get().pick(photo, look, camera, options);
     },
 
-    pick: (photo, look, camera, options) => ask([photo], camera, look, options, { front: true, then: 'put' }),
+    pick: (photo, look, camera, options) =>
+      ask([photo], camera, look, options, { front: true, then: 'put', changes: unsavedWhiteBalance(photo) }),
 
-    keepLook: (paths, look, camera, options, remake = false) =>
-      ask(paths, camera, look, options, { remake, front: paths.length === 1, then: 'keep' }),
+    keepLook: (paths, look, camera, options, remake = false, ownWb = null) =>
+      ask(paths, camera, look, options, {
+        remake,
+        front: paths.length === 1,
+        then: 'keep',
+        changes: madeForWhiteBalance(ownWb),
+      }),
 
-    putOnSelection: async (paths, look, camera, options) => {
+    putOnSelection: async (paths, look, camera, options, changes = null) => {
       set({ batch: { name: look.name, job: null, done: 0, ended: 0, total: paths.length, before: [] } });
-      await ask(paths, camera, look, options, { front: false, then: 'put', batch: true });
+      await ask(paths, camera, look, options, { front: false, then: 'put', batch: true, changes });
+    },
+
+    followWhiteBalance: async (photo) => {
+      const { adjustments } = useEditorStore.getState();
+      const on = lookOf(adjustments);
+      if (!on || photo !== openPhoto()) return;
+      if (!get().offer) await get().load(photo, get().optionsOf(photo, adjustments));
+      const { offer, waiting } = get();
+      const look = offer?.looks.find((l) => l.id === on.look);
+      // A look picked and still on its way is what the photo is waiting for.
+      if (!offer?.on || !look || waiting[photo]?.then === 'put') return;
+      await get().cancel(photo);
+      await ask([photo], on.camera, look, on.options ?? {}, {
+        front: true,
+        then: 'follow',
+        changes: unsavedWhiteBalance(photo),
+      });
     },
 
     previewAll: async (photo, camera, options) => {
@@ -411,7 +528,8 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       stopWatching = useEditorStore.subscribe((editor) => {
         if ((editor.selectedImage?.path ?? null) !== photo) void get().stopPreviews();
       });
-      const job = await ag('provider_look_preview', { path: photo, camera, options }).catch((err) => {
+      const changes = unsavedWhiteBalance(photo);
+      const job = await ag('provider_look_preview', { path: photo, camera, options, changes }).catch((err) => {
         console.warn('Provider looks:', err);
         return null;
       });
@@ -521,7 +639,9 @@ export function takeFromPaste(paths: string[], changes: Edit): Edit {
   const on = lookOf(changes);
   if (!offer || !on) return changes;
   const look = offer.looks.find((l) => l.id === on.look);
-  if (look) void putOnSelection(paths, look, on.camera, offeredOptions(offer.options, on.options));
+  if (look) {
+    void putOnSelection(paths, look, on.camera, offeredOptions(offer.options, on.options), whiteBalanceKeys(changes));
+  }
   return Object.fromEntries(Object.entries(changes).filter(([key]) => !LOOK_KEYS.includes(key)));
 }
 
@@ -541,15 +661,16 @@ export async function restoreLook(photo: string, edit: Edit) {
   const on = lookOf(edit);
   if (!offer?.photo || !on) return;
   const options = optionsToMake(offer, on);
-  const key = JSON.stringify([photo, on.camera, on.look, options]);
+  const ownWb = on.ownWb ?? null;
+  const key = JSON.stringify([photo, on.camera, on.look, options, ownWb]);
   const look = offer.looks.find((l) => l.id === on.look);
   if (!options || !look || !offer.cameras.some((c) => c.id === on.camera) || asked.has(key)) return;
-  const there = await ag('provider_look_file', { path: photo, camera: on.camera, look: on.look, options }).catch(
+  const there = await ag('provider_look_file', { path: photo, camera: on.camera, look: on.look, options, ownWb }).catch(
     () => false,
   );
   if (there || asked.has(key)) return;
   asked.add(key);
-  await keepLook([photo], look, on.camera, options);
+  await keepLook([photo], look, on.camera, options, false, ownWb);
 }
 
 /** A preset that brings a look, on photos in the grid: each asks for its file. */
@@ -560,3 +681,34 @@ export function restoreLooks(paths: string[], edit: Edit) {
   const options = offer && on && optionsToMake(offer, on);
   if (on && look && options) void keepLook(paths, look, on.camera, options);
 }
+
+/**
+ * The open photo's look follows its white balance once that settles: at once
+ * when a slider is let go, a moment after any other change, and never while a
+ * slider moves. Without a look that follows it this ends at its first test.
+ */
+useEditorStore.subscribe((editor, before) => {
+  const photo = editor.selectedImage?.path;
+  if (!photo || !lookOf(editor.adjustments)?.ownWb) {
+    stopFollowing();
+    return;
+  }
+  const keys = JSON.stringify(whiteBalanceKeys(editor.adjustments));
+  if (followed?.photo !== photo) {
+    stopSettling();
+    followed = { photo, keys };
+  } else if (editor.isSliderDragging || keys === followed.keys) {
+    stopSettling();
+  } else if (keys !== settling) {
+    stopSettling();
+    settling = keys;
+    settleTimer = setTimeout(
+      () => {
+        settling = null;
+        followed = { photo, keys };
+        void useProviderLooks.getState().followWhiteBalance(photo);
+      },
+      before.isSliderDragging ? 0 : WB_SETTLES_MS,
+    );
+  }
+});
