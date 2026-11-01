@@ -269,7 +269,7 @@ just as true of this app.
 | NIND | The models behind AI noise reduction |
 | [NegPy](https://github.com/marcinz606/NegPy) | The approach the film-negative conversion is based on |
 | Spektrafilm — Andrea Volpato | The spectrally-based film emulation LUTs. Licensed CC BY-SA 4.0 |
-| [libgphoto2](https://github.com/gphoto/libgphoto2) | Camera communication for tethering, in the `_tethering` builds for macOS and Linux (`--features tethering`) |
+| [libgphoto2](https://github.com/gphoto/libgphoto2) | Camera communication for tethering, only in builds from source for macOS and Linux (`--features tethering`) |
 
 Two entries are deliberately named without a link: **Depth Anything** and
 **NIND** have several plausible upstreams and none is cited in the code, so

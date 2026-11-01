@@ -1,6 +1,6 @@
 name: 'Release: Build & Package App'
 
-# The only definition of the twelve desktop builds. Creating a release runs it and attaches every
+# The only definition of the eight desktop builds. Creating a release runs it and attaches every
 # installer; run it by hand from the Actions tab to build them all without a release (each
 # build's files are kept as an artifact for 7 days). Fast checks run on every push in lint.yml,
 # app.yml and engine.yml.
@@ -27,14 +27,6 @@ jobs:
           - platform: 'macos-15-intel'
             target: x86_64-apple-darwin
             asset-prefix: '02'
-          - platform: 'macos-15'
-            target: aarch64-apple-darwin
-            args: '--features tethering'
-            asset-prefix: '02_tethering'
-          - platform: 'macos-15-intel'
-            target: x86_64-apple-darwin
-            args: '--features tethering'
-            asset-prefix: '02_tethering'
           - platform: 'ubuntu-22.04'
             target: ''
             asset-prefix: '03'
@@ -47,20 +39,11 @@ jobs:
           - platform: 'ubuntu-24.04-arm'
             target: ''
             asset-prefix: '03'
-          - platform: 'ubuntu-22.04'
-            target: ''
-            args: '--features tethering'
-            asset-prefix: '03_tethering'
-          - platform: 'ubuntu-24.04'
-            target: ''
-            args: '--features tethering'
-            asset-prefix: '03_tethering'
     uses: ./.github/workflows/build.yml
     with:
       release-id: ${{ github.event.release.id }}
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
-      build-args: ${{ matrix.args }}
       asset-name-pattern: '[name]_v[version]_[platform]_[arch][ext]'
       asset-prefix: ${{ matrix.asset-prefix }}
     secrets: inherit
