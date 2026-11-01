@@ -1,1 +1,0 @@
-- Apple Silicon Mac builds now run on macOS 15, because GitHub is retiring its macOS 14 runners, so those installers are named `macos-15` instead of `macos-14`. The app still supports macOS 13 and later.

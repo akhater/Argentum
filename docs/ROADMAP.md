@@ -14,6 +14,7 @@ Work that went out without being planned on this page, newest first.
 
 | Version | What |
 |---|---|
+| `26.44.5` | Arrows on the thumbnail bar and a button to switch between the photo and the thumbnails. Apple Silicon Mac builds move to macOS 15. Tethering downloads removed |
 | `26.44.4` | Left and Right keep working when the photo on show leaves the filtered list. Import Images removed: Shoebox does the importing |
 | `26.44.3` | Lens correction uses the aperture and distance a photo was shot at. Less colour cast in the deepest shadows of very high ISO photos (RAWmakase). The active library filter shows on the View button, with Show all when the grid is empty. A missing LUT no longer renders a photo black |
 | `26.44.2` | An eye on Crop > Lens Correction. The export size estimate back in the Modern window. Safer saves: no file cut short by a crash, no starred looks or snapshots wiped after a failed read, an XMP kept on import. Light palette notifications and Curves histogram. Lean sweep: Android, RapidRAW Cloud sign-in at start, Google Fonts, the old Presets panel and Classic layout state removed; colour maths, cache keys, file names and models defined once; stricter CI (golden photos, translations, lint, installer size) |

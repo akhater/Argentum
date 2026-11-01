@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.44.5',
+    date: '2026-11-01',
+    notes: [
+      'Previous and next arrows at each end of the thumbnail bar.',
+      'A button in the top bar switches between the open photo and the thumbnails.',
+      'Macs with Apple Silicon get a download again, with everything from 26.44.4.',
+      'The separate tethering downloads are gone: tethering now needs a build from source.',
+    ],
+  },
+  {
     version: '26.44.4',
     date: '2026-10-31',
     notes: [
