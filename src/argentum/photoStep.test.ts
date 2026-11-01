@@ -8,7 +8,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useUIStore } from '../store/useUIStore';
-import { stepPhoto } from './photoStep';
+import { arrowsAt, stepPhoto } from './photoStep';
 
 const images = (...paths: string[]) => paths.map((path) => ({ path })) as ImageFile[];
 const list = images('/p/a.CR2', '/p/b.CR2', '/p/c.CR2');
@@ -98,5 +98,38 @@ describe('stepping the photo on show', () => {
 
     expect(handleImageSelect).not.toHaveBeenCalled();
     expect(useLibraryStore.getState().libraryActivePath).toBe('/p/a.CR2');
+  });
+});
+
+describe('where the arrows stop', () => {
+  const flat = (shown: ImageFile[], path: string) => arrowsAt(shown, path, 'library', LibraryViewMode.Flat);
+  const both = { previous: true, next: true };
+  const neither = { previous: false, next: false };
+
+  it('stops the previous arrow on the first photo and the next arrow on the last', () => {
+    expect(flat(list, '/p/a.CR2')).toEqual({ previous: false, next: true });
+    expect(flat(list, '/p/b.CR2')).toEqual(both);
+    expect(flat(list, '/p/c.CR2')).toEqual({ previous: true, next: false });
+  });
+
+  it('stops both with one photo, and with none', () => {
+    expect(flat(images('/p/a.CR2'), '/p/a.CR2')).toEqual(neither);
+    expect(flat([], '/p/a.CR2')).toEqual(neither);
+  });
+
+  it('goes by the one folder in a recursive grid, and the whole list in the editor', () => {
+    const mixed = images('/p/a.CR2', '/q/x.CR2', '/p/b.CR2');
+    const recursive = (path: string, view = 'library') => arrowsAt(mixed, path, view, LibraryViewMode.Recursive);
+
+    expect(recursive('/p/a.CR2')).toEqual({ previous: false, next: true });
+    expect(recursive('/p/b.CR2')).toEqual({ previous: true, next: false });
+    expect(recursive('/q/x.CR2')).toEqual(neither);
+    expect(recursive('/q/x.CR2', 'editor')).toEqual(both);
+  });
+
+  it('leaves both on for a photo that left the list, as there is no end to be at', () => {
+    expect(flat(list, '/p/gone.CR2')).toEqual(both);
+    expect(flat(images('/p/a.CR2'), '/p/gone.CR2')).toEqual(both);
+    expect(arrowsAt(images('/q/x.CR2'), '/p/gone.CR2', 'library', LibraryViewMode.Recursive)).toEqual(neither);
   });
 });

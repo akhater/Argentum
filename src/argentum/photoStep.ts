@@ -2,10 +2,11 @@
  * Previous and next photo, for Left and Right and the thumbnail bar's arrows alike. Ours.
  *
  * The editor opens the photo. The grid selects it, and a recursive view keeps to the folder of the
- * photo on show; the editor walks the whole list. Any other view has no photo to step.
+ * photo on show; the editor walks the whole list. Any other view has no photo to step. The keys wrap
+ * at the ends of that list and the arrows stop there, by `arrowsAt`.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { type ImageFile, LibraryViewMode } from '../components/ui/AppProperties';
 import { activePhotoPath } from '../hooks/useLibraryActions';
 import { useLibraryStore } from '../store/useLibraryStore';
@@ -25,6 +26,43 @@ const parentFolder = (path: string) => {
   return lastSep === -1 ? physicalPath : physicalPath.slice(0, lastSep);
 };
 
+/** The photos a step from `path` goes through in `activeView`. */
+function stepOrder(
+  list: ReadonlyArray<ImageFile>,
+  path: string,
+  activeView: string,
+  viewMode: LibraryViewMode | undefined,
+) {
+  if (activeView !== 'library' || viewMode !== LibraryViewMode.Recursive) return list;
+  return list.filter((image) => parentFolder(image.path) === parentFolder(path));
+}
+
+/**
+ * Which arrows can step from `path`. A photo that has left the list has no end to be at: both go, to
+ * the nearest photo, while there is one.
+ */
+export function arrowsAt(
+  list: ReadonlyArray<ImageFile>,
+  path: string,
+  activeView: string,
+  viewMode: LibraryViewMode | undefined,
+) {
+  const order = stepOrder(list, path, activeView, viewMode);
+  const index = order.findIndex((image) => image.path === path);
+  if (index === -1) return { previous: order.length > 0, next: order.length > 0 };
+  return { previous: index > 0, next: index < order.length - 1 };
+}
+
+/** `arrowsAt` for the view on show; neither with no photo on show. */
+export function useArrowsAt(list: ReadonlyArray<ImageFile>, path: string | null | undefined) {
+  const activeView = useUIStore((s) => s.activeView);
+  const viewMode = useSettingsStore((s) => s.appSettings?.libraryViewMode);
+  return useMemo(
+    () => (path ? arrowsAt(list, path, activeView, viewMode) : { previous: false, next: false }),
+    [list, path, activeView, viewMode],
+  );
+}
+
 /** Makes `path` the grid's active photo, alone in the selection. */
 export function selectInGrid(path: string, handleImageSelect: ImageSelect) {
   useLibraryStore.getState().setLibrary({ libraryActivePath: path, multiSelectedPaths: [path] });
@@ -42,15 +80,11 @@ export function stepPhoto(
   const path = activePhotoPath();
   if (!path || (activeView !== 'editor' && activeView !== 'library')) return;
 
-  if (activeView === 'editor') {
-    const target = stepFrom(pathsOf(list), lastOrder, path, step);
-    if (target) handleImageSelect(target, true);
-    return;
-  }
-  const recursive = useSettingsStore.getState().appSettings?.libraryViewMode === LibraryViewMode.Recursive;
-  const neighbours = recursive ? list.filter((image) => parentFolder(image.path) === parentFolder(path)) : list;
-  const target = stepFrom(pathsOf(neighbours), lastOrder, path, step);
-  if (target) selectInGrid(target, handleImageSelect);
+  const viewMode = useSettingsStore.getState().appSettings?.libraryViewMode;
+  const target = stepFrom(pathsOf(stepOrder(list, path, activeView, viewMode)), lastOrder, path, step);
+  if (!target) return;
+  if (activeView === 'editor') handleImageSelect(target, true);
+  else selectInGrid(target, handleImageSelect);
 }
 
 /** `stepPhoto` for the list on show, keeping the record of where the photo on show stood. */

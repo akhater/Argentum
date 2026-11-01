@@ -6,8 +6,8 @@
  * status line (render time while a photo is open, thumbnail progress in the
  * grid). The strip is today's Filmstrip. A click opens the photo while one is
  * open, and selects it in the grid, as the grid's own click does. The arrows
- * either side of it step as Left and Right do, in a column of their own, so
- * they never cover a thumbnail.
+ * either side of it step as Left and Right do, but stop at the ends, in a
+ * column of their own, so they never cover a thumbnail.
  */
 
 import { type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
@@ -24,13 +24,14 @@ import RenderStatus from '../RenderStatus';
 import { useAgTranslation } from '../locales';
 import { folderName } from './folders';
 import { fileNameOf } from '../paths';
+import { useArrowsAt } from '../photoStep';
 
 /** The header's height; the strip under it is the resizable part. */
 const HEADER_PX = 24;
 /** The strip's own height while the shared one is still the app's untouched default. */
 const STRIP_PX = 104;
-const PREVIOUS = { step: -1, label: 'mwPrevPhoto', Icon: ChevronLeft } as const;
-const NEXT = { step: 1, label: 'mwNextPhoto', Icon: ChevronRight } as const;
+const PREVIOUS = { name: 'previous', step: -1, label: 'mwPrevPhoto', Icon: ChevronLeft } as const;
+const NEXT = { name: 'next', step: 1, label: 'mwNextPhoto', Icon: ChevronRight } as const;
 
 interface FilmstripAreaProps {
   imageList: ImageFile[];
@@ -67,17 +68,18 @@ export default function FilmstripArea(props: FilmstripAreaProps) {
   const current = editing ? selectedImage?.path : libraryActivePath;
   const index = current ? props.imageList.findIndex((f) => f.path === current) : -1;
   const total = props.imageList.length;
+  const arrows = useArrowsAt(props.imageList, current);
 
-  // Its column stays with no photo current, so the strip keeps its width. A press takes no focus,
+  // Its column stays with no photo on show, so the strip keeps its width. A press takes no focus,
   // so Space and Enter stay the window's shortcuts after a click.
-  const arrow = ({ step, label, Icon }: typeof PREVIOUS | typeof NEXT) => (
+  const arrow = ({ name, step, label, Icon }: typeof PREVIOUS | typeof NEXT) => (
     <div className="agm-strip-side">
-      {index >= 0 && (
+      {currentFolderPath && current && (
         <button
           className="agm-btn"
           aria-label={t(label)}
           data-tooltip={t(label)}
-          disabled={total < 2}
+          disabled={!arrows[name]}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => props.onStepPhoto(step)}
         >

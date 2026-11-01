@@ -1,1 +1,1 @@
-- Previous and next arrows on the thumbnail bar, next to the photo count. They do what the Left and Right keys do, in the grid and in the editor.
+- Previous and next arrows on the thumbnail bar, at each end of the strip. They step through the photos in the grid and in the editor, and stop at the first and last photo.
