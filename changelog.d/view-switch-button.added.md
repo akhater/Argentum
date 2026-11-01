@@ -1,1 +1,0 @@
-- A button in the top bar switches between the open photo and the thumbnail grid, so two clicks go there and back. Esc and Enter still do the same.
