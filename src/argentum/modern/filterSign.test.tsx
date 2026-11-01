@@ -32,6 +32,8 @@ const topBar = () =>
       onBack={noop}
       onForward={noop}
       onOpenPath={noop}
+      onOpenPhoto={noop}
+      onBackToLibrary={noop}
       onZoom={noop}
       thumbnailSize={ThumbnailSize.Medium}
       setThumbnailSize={noop}

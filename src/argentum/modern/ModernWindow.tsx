@@ -142,6 +142,8 @@ export default function ModernWindow(props: ModernWindowProps) {
           onBack={props.onNavBack}
           onForward={props.onNavForward}
           onOpenPath={props.onSelectFolder}
+          onOpenPhoto={props.onOpenPhoto}
+          onBackToLibrary={props.onBackToLibrary}
           onZoom={props.onZoom}
           thumbnailSize={props.libraryProps.thumbnailSize}
           setThumbnailSize={props.libraryProps.setThumbnailSize}

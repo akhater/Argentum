@@ -4,8 +4,9 @@
  * Left to right: folder history, the path (click it or press Alt+D to type or
  * paste one), then what the view in the centre needs (the grid's sort, size
  * and view options, or the photo's undo, Before, Clipping, RGB and zoom), the
- * panel toggles, the Settings gear and the window controls. It is the one
- * region that never hides, so the gear and the toggles are always there.
+ * switch between the photo and the grid, the panel toggles, the Settings gear
+ * and the window controls. It is the one region that never hides, so the gear
+ * and the toggles are always there.
  *
  * Every control drives today's own state: the library store's sort and
  * filters, the app's view settings, the editor's history and Before, today's
@@ -14,7 +15,17 @@
 
 import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { ArrowLeft, ArrowRight, ChevronRight, Eye, Redo2, Settings, Undo2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight,
+  Eye,
+  Image as ImageIcon,
+  LayoutGrid,
+  Redo2,
+  Settings,
+  Undo2,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -84,6 +95,8 @@ interface TopBarProps {
   onBack(): void;
   onForward(): void;
   onOpenPath(path: string): void;
+  onOpenPhoto(path: string): void;
+  onBackToLibrary(): void;
   onZoom(zoom: number, fitToWindow?: boolean): void;
   thumbnailSize: ThumbnailSize;
   setThumbnailSize(size: ThumbnailSize): void;
@@ -105,8 +118,13 @@ export default function TopBar(props: TopBarProps) {
       setUI: s.setUI,
     })),
   );
-  const { currentFolderPath, navHistory, navIndex } = useLibraryStore(
-    useShallow((s) => ({ currentFolderPath: s.currentFolderPath, navHistory: s.navHistory, navIndex: s.navIndex })),
+  const { currentFolderPath, libraryActivePath, navHistory, navIndex } = useLibraryStore(
+    useShallow((s) => ({
+      currentFolderPath: s.currentFolderPath,
+      libraryActivePath: s.libraryActivePath,
+      navHistory: s.navHistory,
+      navIndex: s.navIndex,
+    })),
   );
   const selectedPath = useEditorStore((s) => s.selectedImage?.path);
   const editing = activeView === 'editor' && !!selectedPath;
@@ -146,6 +164,8 @@ export default function TopBar(props: TopBarProps) {
     setUI((s) => ({ uiVisibility: { ...s.uiVisibility, [key]: !s.uiVisibility[key] } }));
   const canBack = navIndex > 0;
   const canForward = navIndex < navHistory.length - 1;
+  const photoToOpen = activeView === 'library' && currentFolderPath ? libraryActivePath : null;
+  const switchTip = t(editing ? 'mwToGrid' : currentFolderPath ? 'mwOpenPhoto' : 'mwOpenFolderFirst');
 
   return (
     <div className="agm-top" data-tauri-drag-region={appSettings?.decorations ? undefined : 'true'}>
@@ -211,6 +231,22 @@ export default function TopBar(props: TopBarProps) {
       {!isSettingsOpen && (editing ? <PhotoTools onZoom={props.onZoom} /> : <GridTools {...props} />)}
 
       <div className="agm-win">
+        {/* A press takes no focus, so Space and Enter stay the window's shortcuts after a click. */}
+        {!isSettingsOpen && (
+          <>
+            <button
+              className="agm-btn"
+              disabled={!editing && !photoToOpen}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => (photoToOpen ? props.onOpenPhoto(photoToOpen) : props.onBackToLibrary())}
+              aria-label={switchTip}
+              data-tooltip={switchTip}
+            >
+              {editing ? <LayoutGrid size={16} /> : <ImageIcon size={16} />}
+            </button>
+            <div className="agm-sep" />
+          </>
+        )}
         <button
           className={clsx('agm-btn', uiVisibility.leftPanel ? 'agm-on' : 'agm-off')}
           onClick={() => toggle('leftPanel')}
