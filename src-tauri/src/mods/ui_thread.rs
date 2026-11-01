@@ -84,7 +84,10 @@ fn functions(source: &str) -> Vec<(&str, &str)> {
             .map_or(from, |n| from + n);
         let rest = &source[name_end..];
         // A declaration without a body, as in a trait or an extern block.
-        if rest.find(';').is_some_and(|semi| Some(semi) < rest.find('{')) {
+        if rest
+            .find(';')
+            .is_some_and(|semi| Some(semi) < rest.find('{'))
+        {
             continue;
         }
         found.push((&source[from..name_end], body_from(source, start)));
