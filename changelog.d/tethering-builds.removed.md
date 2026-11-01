@@ -1,1 +1,0 @@
-- The `_tethering` downloads for macOS and Linux are gone. Shooting from a USB camera now needs a build from source with `--features tethering`; the README has the steps.

@@ -4,6 +4,21 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.44.5 — 2026-11-01
+
+### Added
+
+- Previous and next arrows on the thumbnail bar, at each end of the strip. They step through the photos in the grid and in the editor, and stop at the first and last photo.
+- A button in the top bar switches between the open photo and the thumbnail grid, so two clicks go there and back. Esc and Enter still do the same.
+
+### Changed
+
+- Apple Silicon Mac builds now run on macOS 15, because GitHub is retiring its macOS 14 runners, so those installers are named `macos-15` instead of `macos-14`. The app still supports macOS 13 and later.
+
+### Removed
+
+- The `_tethering` downloads for macOS and Linux are gone. Shooting from a USB camera now needs a build from source with `--features tethering`; the README has the steps.
+
 ## 26.44.4 — 2026-10-31
 
 ### Changed
