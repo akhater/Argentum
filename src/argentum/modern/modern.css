@@ -1616,6 +1616,12 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   color: var(--agm-text);
 }
 
+.agm-look-folder-on {
+  flex: none;
+  display: flex;
+  color: var(--agm-marker);
+}
+
 .agm-count {
   margin-left: auto;
   color: var(--agm-dim);
@@ -1625,6 +1631,10 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 
 .agm-look-inner .agm-look {
   padding-left: 30px;
+}
+
+.agm-look-inner .agm-provider-rownote {
+  padding-left: 72px;
 }
 
 /* A look: swatch, name, kind, star; the one on the photo is a slate row with its marker. */

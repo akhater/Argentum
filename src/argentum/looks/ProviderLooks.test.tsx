@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initReactI18next } from 'react-i18next';
 import i18n from 'i18next';
 import type { ProviderLooks as Offer } from '../ag.generated';
@@ -15,6 +15,7 @@ const { default: ProviderLooks, LookStrip } = await import('./ProviderLooks');
 const { useProviderLooks } = await import('./providerLooksStore');
 const { useLibraryStore } = await import('../../store/useLibraryStore');
 const { useUIStore } = await import('../../store/useUIStore');
+const { useEditorStore } = await import('../../store/useEditorStore');
 
 const OPEN = 'D:/photos/open.cr3';
 
@@ -369,6 +370,135 @@ describe('folding the section', () => {
     offered({ offer: null });
     folded(true);
     expect(section()).toBe('');
+  });
+});
+
+describe('the groups the provider names', () => {
+  const GROUPED: Offer = {
+    ...OFFER,
+    looks: [
+      { id: 'look1', name: 'Invented Stock', group: 'Group B' },
+      { id: 'look2', name: 'Other Stock', group: 'Group A' },
+      { id: 'look3', name: 'Third Stock', group: 'Group B' },
+      { id: 'look4', name: 'Loose Stock', group: null },
+    ],
+  };
+  const ON_PHOTO = {
+    lutPath: 'provider-look',
+    agProviderLook: {
+      camera: 'cam1',
+      look: 'look3',
+      before: { rawToneRendering: 'dngStandard', rawToneCurve: null, rawToneCurveMode: null },
+    },
+  };
+
+  /** The adjustments of the open photo, for a server render too. */
+  function edited(adjustments: object) {
+    Object.assign(useEditorStore.getInitialState(), { adjustments });
+    useEditorStore.setState({ adjustments } as never);
+  }
+
+  function foldGroup(name: string) {
+    useUIStore.setState((s) => ({
+      collapsibleSectionsState: { ...s.collapsibleSectionsState, [`providerGroupFolded:${name}`]: true },
+    }));
+    syncFold();
+  }
+
+  const FIRST_ADJUSTMENTS = useEditorStore.getState().adjustments;
+  afterEach(() => edited(FIRST_ADJUSTMENTS));
+
+  it('shows the list as it was with no group on it', () => {
+    offered({ offer: OFFER });
+    const html = section();
+    expect(html).not.toContain('agm-look-folder');
+    expect(html.indexOf('Invented Stock')).toBeLessThan(html.indexOf('Other Stock'));
+  });
+
+  it('heads each group in list order, its looks in theirs, looks with no group first', () => {
+    offered({ offer: GROUPED });
+    const html = section();
+    const order = ['Loose Stock', 'Group B', 'Invented Stock', 'Third Stock', 'Group A', 'Other Stock'];
+    const at = order.map((text) => html.indexOf(text));
+    expect(at).not.toContain(-1);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  });
+
+  it('comes after Preview all, as the looks did', () => {
+    offered({ offer: GROUPED });
+    const html = section();
+    expect(html.indexOf('Preview all')).toBeLessThan(html.indexOf('Group B'));
+  });
+
+  it('a folded group hides its looks and leaves the others', () => {
+    offered({ offer: GROUPED });
+    foldGroup('Group B');
+    const html = section();
+    expect(html).toContain('Group B');
+    expect(html).not.toContain('Invented Stock');
+    expect(html).not.toContain('Third Stock');
+    expect(html).toContain('Other Stock');
+    expect(html).toContain('Loose Stock');
+  });
+
+  it('marks a folded group holding the look on the photo, and no other', () => {
+    offered({ offer: GROUPED });
+    edited(ON_PHOTO);
+    foldGroup('Group B');
+    foldGroup('Group A');
+    const html = section();
+    const mark = html.indexOf('agm-look-folder-on');
+    expect(mark).toBeGreaterThan(html.indexOf('Group B'));
+    expect(mark).toBeLessThan(html.indexOf('Group A'));
+    expect(html.lastIndexOf('agm-look-folder-on')).toBe(mark);
+  });
+
+  it('shows the look’s own row when its group is open, with no mark', () => {
+    offered({ offer: GROUPED });
+    edited(ON_PHOTO);
+    const html = section();
+    expect(html).toContain('agm-look agm-on');
+    expect(html).not.toContain('agm-look-folder-on');
+  });
+
+  it('marks nothing with no look on the photo', () => {
+    offered({ offer: GROUPED });
+    foldGroup('Group B');
+    expect(section()).not.toContain('agm-look-folder-on');
+  });
+
+  it('marks nothing in the grid, where no photo is open', () => {
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: OPEN });
+    offered({ offer: GROUPED });
+    edited(ON_PHOTO);
+    foldGroup('Group B');
+    const html = renderToStaticMarkup(<ProviderLooks photo={null} ready={false} onTakeOff={() => {}} />);
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
+    expect(html).not.toContain('agm-look-folder-on');
+  });
+
+  it('Preview all counts the looks of a folded group too', async () => {
+    offered({ offer: GROUPED });
+    foldGroup('Group B');
+    useProviderLooks.getState().previewAll(OPEN, 'cam1', {});
+    expect(useProviderLooks.getState().previewing?.total).toBe(GROUPED.looks.length);
+  });
+
+  it('with the switch off, dims its headings and leaves them to fold', () => {
+    offered({ offer: { ...GROUPED, on: false } });
+    const html = section();
+    expect(html).toContain('agm-looks-off');
+    expect(html).not.toContain('agm-look-folder agm-look-dim');
+  });
+
+  it('keeps a look’s note and spinner in its group', () => {
+    offered({
+      offer: GROUPED,
+      note: { photo: OPEN, look: 'look3', text: 'looksProviderFailed' },
+    });
+    const html = section();
+    expect(html.indexOf('Third Stock')).toBeLessThan(html.indexOf('Couldn’t make this look'));
+    expect(html.indexOf('Couldn’t make this look')).toBeLessThan(html.indexOf('Group A'));
   });
 });
 

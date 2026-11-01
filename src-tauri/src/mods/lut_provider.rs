@@ -50,7 +50,7 @@ use std::time::{Duration, Instant};
 
 use image::{ImageFormat, ImageReader};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -84,6 +84,8 @@ const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 const MAX_NAME_CHARS: usize = 80;
 /// What is kept of the options on a list.
 const MAX_OPTIONS: usize = 8;
+/// What is kept of the groups on a list. Past this, looks stay, under no heading.
+const MAX_GROUPS: usize = 32;
 /// For what was asked for by hand: a click, a batch, an export.
 const RUNS_AT_ONCE: usize = 2;
 /// For everything together, with Preview all: more would hold up a smaller machine.
@@ -132,8 +134,15 @@ pub struct OfferedCamera {
 pub struct OfferedLook {
     pub id: String,
     pub name: String,
-    #[serde(default)]
+    /// The heading it shows under, named by the program; with none, it has no heading.
+    #[serde(default, deserialize_with = "text_or_none")]
     pub group: Option<String>,
+}
+
+/// A text as it came, and anything else as none: one field of the wrong shape
+/// must not cost a look its place on the list.
+fn text_or_none<'de, D: Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    Ok(Value::deserialize(d)?.as_str().map(str::to_string))
 }
 
 /// An on/off choice the program offers. What it means is the program's: only
@@ -283,6 +292,22 @@ fn good_name(name: &str) -> bool {
     !name.trim().is_empty() && name.chars().count() <= MAX_NAME_CHARS
 }
 
+/// Each look's group fit to show, of the first `MAX_GROUPS`, or none: the group
+/// is a heading and the key of its fold, and the look is worth more than either.
+fn keep_groups(looks: &mut [OfferedLook]) {
+    let mut seen = HashSet::new();
+    for look in looks {
+        look.group = look
+            .group
+            .take()
+            .map(|group| group.trim().to_string())
+            .filter(|group| good_name(group) && !group.chars().any(char::is_control))
+            .filter(|group| {
+                seen.contains(group) || (seen.len() < MAX_GROUPS && seen.insert(group.clone()))
+            });
+    }
+}
+
 /// What `list` answered. A bad entry is dropped and the rest stay; with no
 /// camera or no look left there is nothing to offer. Options are extra: anything
 /// but a list of them is none.
@@ -312,11 +337,12 @@ fn read_list(answer: &[u8]) -> Result<Catalog, String> {
                 && !c.model.trim().is_empty()
         },
     );
-    let looks = kept(
+    let mut looks = kept(
         list.looks,
         |l: &OfferedLook| &l.id,
         |l| file_ops::is_look_name_part(&l.id) && good_name(&l.name),
     );
+    keep_groups(&mut looks);
     let mut options = kept(
         match list.options {
             Value::Array(entries) => entries,
@@ -1863,7 +1889,7 @@ fn main() {
             print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}}]}}");
             return;
         }
-        print!("{{\"protocol\":1,\"generator\":\"fake 1\",\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}},{{\"id\":\"cam2\",\"name\":\"Camera Two\",\"make\":\"Acme\",\"model\":\"Two\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\",\"group\":\"Colour\"}},{{\"id\":\"look2\",\"name\":\"Other Stock\"}}]}}");
+        print!("{{\"protocol\":1,\"generator\":\"fake 1\",\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}},{{\"id\":\"cam2\",\"name\":\"Camera Two\",\"make\":\"Acme\",\"model\":\"Two\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\",\"group\":\"Group A\"}},{{\"id\":\"look2\",\"name\":\"Other Stock\"}}]}}");
         return;
     }
     let output = output_of(&request);
@@ -2128,13 +2154,119 @@ fn main() {
 
     const GOOD_LIST: &str = r#"{ "protocol": 1, "generator": "t",
         "cameras": [{ "id": "cam1", "name": "Camera One", "make": "Acme", "model": "One" }],
-        "looks": [{ "id": "look1", "name": "Invented Stock", "group": "Colour" }] }"#;
+        "looks": [{ "id": "look1", "name": "Invented Stock", "group": "Group A" }] }"#;
 
     #[test]
     fn a_good_list_is_kept() {
         let catalog = read_list(GOOD_LIST.as_bytes()).expect("a list");
         assert_eq!(catalog.cameras[0].id, "cam1");
-        assert_eq!(catalog.looks[0].group.as_deref(), Some("Colour"));
+        assert_eq!(catalog.looks[0].group.as_deref(), Some("Group A"));
+    }
+
+    /// The groups of a list with one look per entry of `groups`, each a JSON value.
+    fn groups_kept(groups: &[String]) -> Vec<Option<String>> {
+        let looks: Vec<String> = (0..groups.len())
+            .map(|n| {
+                format!(
+                    r#"{{ "id": "look{n}", "name": "L", "group": {} }}"#,
+                    groups[n]
+                )
+            })
+            .collect();
+        let list = format!(
+            r#"{{ "protocol": 1, "looks": [{}],
+            "cameras": [{{ "id": "cam1", "name": "One", "make": "Acme", "model": "One" }}] }}"#,
+            looks.join(",")
+        );
+        let looks = read_list(list.as_bytes()).expect("a list").looks;
+        assert_eq!(looks.len(), groups.len(), "a look went with its group");
+        looks.into_iter().map(|look| look.group).collect()
+    }
+
+    #[test]
+    fn a_look_has_its_group_as_listed() {
+        let groups = [r#""Group B""#, r#""Group A""#, r#""Group B""#].map(String::from);
+        let kept = groups_kept(&groups);
+        let names: Vec<_> = kept.iter().flatten().map(String::as_str).collect();
+        assert_eq!(names, ["Group B", "Group A", "Group B"]);
+    }
+
+    #[test]
+    fn a_look_with_no_group_has_none() {
+        let list = GOOD_LIST.replace(r#", "group": "Group A""#, "");
+        let catalog = read_list(list.as_bytes()).expect("a list");
+        assert_eq!(catalog.looks[0].group, None);
+    }
+
+    /// The spaces around a name would make two headings of one.
+    #[test]
+    fn a_group_is_kept_without_the_spaces_around_it() {
+        let kept = groups_kept(&[r#"" Group A ""#.to_string()]);
+        assert_eq!(kept, [Some("Group A".to_string())]);
+    }
+
+    /// A group is a heading: the look stays without it, however bad it is.
+    #[test]
+    fn a_bad_group_costs_a_look_its_heading_only() {
+        let long = format!(r#""{}""#, "x".repeat(MAX_NAME_CHARS + 1));
+        for bad in [
+            long.as_str(),
+            r#""""#,
+            r#""   ""#,
+            r#""Group\nA""#,
+            r#""Group\u0007A""#,
+            "7",
+            "true",
+            "null",
+            "[]",
+            r#"{ "name": "Group A" }"#,
+        ] {
+            assert_eq!(groups_kept(&[bad.to_string()]), [None], "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_group_of_the_longest_name_is_kept() {
+        let longest = "x".repeat(MAX_NAME_CHARS);
+        let kept = groups_kept(&[format!(r#""{longest}""#)]);
+        assert_eq!(kept, [Some(longest)]);
+    }
+
+    /// Past the limit the looks stay, under no heading, and a group already
+    /// kept takes more of them.
+    #[test]
+    fn a_list_of_too_many_groups_keeps_the_first() {
+        let mut groups: Vec<String> = (0..MAX_GROUPS + 2)
+            .map(|n| format!(r#""Group {n}""#))
+            .collect();
+        groups.push(r#""Group 0""#.to_string());
+        let kept = groups_kept(&groups);
+        let distinct: HashSet<_> = kept.iter().flatten().collect();
+        assert_eq!(distinct.len(), MAX_GROUPS);
+        assert_eq!(
+            kept[MAX_GROUPS - 1],
+            Some(format!("Group {}", MAX_GROUPS - 1))
+        );
+        assert_eq!(kept[MAX_GROUPS], None);
+        assert_eq!(kept[MAX_GROUPS + 1], None);
+        assert_eq!(kept[MAX_GROUPS + 2], Some("Group 0".to_string()));
+    }
+
+    /// A look that goes for its own faults holds no place among the groups.
+    #[test]
+    fn a_dropped_look_counts_for_no_group() {
+        let mut looks = vec![r#"{ "id": "Bad", "name": "L", "group": "Dropped" }"#.to_string()];
+        looks.extend(
+            (0..MAX_GROUPS)
+                .map(|n| format!(r#"{{ "id": "look{n}", "name": "L", "group": "Group {n}" }}"#)),
+        );
+        let list = format!(
+            r#"{{ "protocol": 1, "looks": [{}],
+            "cameras": [{{ "id": "cam1", "name": "One", "make": "Acme", "model": "One" }}] }}"#,
+            looks.join(",")
+        );
+        let looks = read_list(list.as_bytes()).expect("a list").looks;
+        assert!(looks.iter().all(|look| look.group.is_some()));
     }
 
     fn list_with_options(options: &str) -> String {

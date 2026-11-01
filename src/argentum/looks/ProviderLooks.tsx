@@ -12,6 +12,7 @@
  * button starts it. Delete all previews sends that photo's look files to the
  * Recycle Bin, but for those an edit uses, and drops its temporary files. The
  * head folds the section away, switch left in place, and that stops nothing.
+ * The looks show under the groups the provider names (LookGroup.tsx).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -25,6 +26,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { ag } from '../ag';
 import type { OfferedLook } from '../ag.generated';
 import { useAgTranslation } from '../locales';
+import LookGroup, { groupsOf } from './LookGroup';
 import { hoverEdit, lookKeys, lookOf, offeredOptions, optionIsOn, sameOptions } from './providerLook';
 import { previewsFor, restoreLook, useProviderLooks } from './providerLooksStore';
 
@@ -215,6 +217,27 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
       collapsibleSectionsState: { ...s.collapsibleSectionsState, [FOLDED]: !folded },
     }));
 
+  const lookRow = (look: OfferedLook) => {
+    const file = fileOf(look) ?? previewOf(look);
+    const swatch = file && swatches[file.path];
+    return (
+      <div key={look.id}>
+        <div
+          className={clsx('agm-look', isOn(look) && 'agm-on', !on && 'agm-look-dim')}
+          onClick={() => choose(look)}
+          onMouseEnter={() => startPreview(look)}
+        >
+          <span className="agm-swatch" style={swatch ? { backgroundImage: `url(${swatch})` } : undefined} />
+          <span className="agm-look-name">{look.name}</span>
+          {subject && waiting[subject]?.look === look.id && waiting[subject].spinning && (
+            <span aria-label={t('looksProviderMaking')} className="agm-spin" />
+          )}
+        </div>
+        {note?.photo === subject && note.look === look.id && <div className="agm-provider-rownote">{t(note.text)}</div>}
+      </div>
+    );
+  };
+
   return (
     <div className="agm-provider" onMouseLeave={stopPreview}>
       <div className="agm-provider-head" onClick={toggleFolded}>
@@ -281,28 +304,23 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
               </button>
             </div>
           )}
-          {offer.looks.map((look) => {
-            const file = fileOf(look) ?? previewOf(look);
-            const swatch = file && swatches[file.path];
-            return (
-              <div key={look.id}>
-                <div
-                  className={clsx('agm-look', isOn(look) && 'agm-on', !on && 'agm-look-dim')}
-                  onClick={() => choose(look)}
-                  onMouseEnter={() => startPreview(look)}
+          <div className={clsx(!on && 'agm-looks-off')}>
+            {groupsOf(offer.looks).map(({ name, looks }) =>
+              name === null ? (
+                looks.map(lookRow)
+              ) : (
+                <LookGroup
+                  count={looks.length}
+                  hasOnPhoto={looks.some(isOn)}
+                  key={name}
+                  name={name}
+                  onMouseEnter={stopPreview}
                 >
-                  <span className="agm-swatch" style={swatch ? { backgroundImage: `url(${swatch})` } : undefined} />
-                  <span className="agm-look-name">{look.name}</span>
-                  {subject && waiting[subject]?.look === look.id && waiting[subject].spinning && (
-                    <span aria-label={t('looksProviderMaking')} className="agm-spin" />
-                  )}
-                </div>
-                {note?.photo === subject && note.look === look.id && (
-                  <div className="agm-provider-rownote">{t(note.text)}</div>
-                )}
-              </div>
-            );
-          })}
+                  {looks.map(lookRow)}
+                </LookGroup>
+              ),
+            )}
+          </div>
         </>
       )}
       {batch && (
