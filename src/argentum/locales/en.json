@@ -239,6 +239,8 @@
   "mwReadOnlyMany": "To change all {count}, use Looks or paste settings.",
   "mwOpenToUse": "Open a photo (Enter) to use this tool.",
   "mwOf": "{n} of {total}",
+  "mwPrevPhoto": "Previous photo",
+  "mwNextPhoto": "Next photo",
   "mwSelected": "{count} selected",
   "mwNoFolder": "No folder open",
   "mwThumbsEdits": "Thumbnails show your edits",

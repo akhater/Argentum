@@ -1,0 +1,1 @@
+- Previous and next arrows on the thumbnail bar, next to the photo count. They do what the Left and Right keys do, in the grid and in the editor.

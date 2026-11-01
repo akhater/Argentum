@@ -91,6 +91,7 @@ export interface ModernWindowProps {
   sortedImageList: ImageFile[];
   thumbnailAspectRatio: ThumbnailAspectRatio;
   onSelectInGrid(path: string, event: MouseEvent): void;
+  onStepPhoto(step: 1 | -1): void;
   onClearSelection(): void;
   onThumbnailContextMenu(event: MouseEvent, path: string): void;
   onEmptyAreaContextMenu(event: MouseEvent): void;
@@ -190,6 +191,7 @@ export default function ModernWindow(props: ModernWindowProps) {
               thumbnailAspectRatio={props.thumbnailAspectRatio}
               onOpenInEditor={props.onOpenInEditor}
               onSelectInGrid={props.onSelectInGrid}
+              onStepPhoto={props.onStepPhoto}
               onClearSelection={props.onClearSelection}
               onContextMenu={props.onThumbnailContextMenu}
               onEmptyAreaContextMenu={props.onEmptyAreaContextMenu}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
-import { ImageFile, ImageFlag, Panel, ExifOverlay, LibraryViewMode } from '../components/ui/AppProperties';
+import { ImageFile, ImageFlag, Panel, ExifOverlay } from '../components/ui/AppProperties';
 import { KEYBIND_DEFINITIONS, getDefaultCombo, normalizeCombo } from '../utils/keyboardUtils';
 import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
@@ -8,19 +8,10 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorActions } from './useEditorActions';
-import { activePhotoPath, useLibraryActions } from './useLibraryActions';
+import { useLibraryActions } from './useLibraryActions';
 import { rowNeighbour } from '../argentum/modern/gridRows';
-import { lastOrderHolding, stepFrom } from '../argentum/nearestPhoto';
 import { physicalPathOf } from '../argentum/paths';
-
-const getParentFolder = (path: string) => {
-  const physicalPath = physicalPathOf(path);
-  const separator = physicalPath.includes('/') ? '/' : '\\';
-  const lastSep = physicalPath.lastIndexOf(separator);
-  return lastSep === -1 ? physicalPath : physicalPath.slice(0, lastSep);
-};
-
-const pathsOf = (images: ReadonlyArray<ImageFile>) => images.map((image) => image.path);
+import { selectInGrid } from '../argentum/photoStep';
 
 interface KeyboardShortcutsProps {
   sortedImageList: Array<ImageFile>;
@@ -31,6 +22,7 @@ interface KeyboardShortcutsProps {
   handleImageSelect(path: string, openInEditor?: boolean): void;
   handlePasteFiles(str: string): void;
   handleZoomChange(zoomValue: number, fitToWindow?: boolean): void;
+  stepPhoto(step: 1 | -1): void;
 }
 
 export const useKeyboardShortcuts = ({
@@ -42,16 +34,14 @@ export const useKeyboardShortcuts = ({
   handleImageSelect,
   handlePasteFiles,
   handleZoomChange,
+  stepPhoto,
 }: KeyboardShortcutsProps) => {
   const { handleRotate, handleAutoStraighten, handleCopyAdjustments, handlePasteAdjustments, toggleShowOriginal } =
     useEditorActions();
   const { handleRate, handleSetFlag, handleToggleFlag, handleSetColorLabel } = useLibraryActions();
 
   const sortedListRef = useRef(sortedImageList);
-  // The last list the photo on show was in: once it leaves the list, the only record of where it stood.
-  const lastOrderRef = useRef<readonly string[]>([]);
   useEffect(() => {
-    lastOrderRef.current = lastOrderHolding(lastOrderRef.current, pathsOf(sortedListRef.current), activePhotoPath());
     sortedListRef.current = sortedImageList;
   }, [sortedImageList]);
 
@@ -105,10 +95,9 @@ export const useKeyboardShortcuts = ({
       return libraryActivePath ? [libraryActivePath] : [];
     };
 
-    const stepInEditor = (e: KeyboardEvent, s: ShortcutState, step: 1 | -1) => {
+    const stepInEditor = (e: KeyboardEvent, step: 1 | -1) => {
       e.preventDefault();
-      const target = stepFrom(pathsOf(sortedListRef.current), lastOrderRef.current, s.editor.selectedImage!.path, step);
-      if (target) handleImageSelect(target, true);
+      stepPhoto(step);
     };
 
     const actions: Record<string, any> = {
@@ -182,11 +171,11 @@ export const useKeyboardShortcuts = ({
       },
       preview_prev: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: KeyboardEvent, s: ShortcutState) => stepInEditor(e, s, -1),
+        execute: (e: KeyboardEvent) => stepInEditor(e, -1),
       },
       preview_next: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: KeyboardEvent, s: ShortcutState) => stepInEditor(e, s, 1),
+        execute: (e: KeyboardEvent) => stepInEditor(e, 1),
       },
       zoom_in_step: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
@@ -661,26 +650,16 @@ export const useKeyboardShortcuts = ({
           e.preventDefault();
           const activePath = s.library.libraryActivePath;
           if (!activePath || sortedListRef.current.length === 0) return;
-          const selectPath = (path: string) => {
-            s.library.setLibrary({ libraryActivePath: path, multiSelectedPaths: [path] });
-            handleImageSelect(path, false);
-          };
           // RapidRAW ecf7730f: src/hooks/useKeyboardShortcuts.ts. Up and Down move a row in the grid,
           // and stay put on its top and bottom rows; previous and next only where no grid shows the photo.
           if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
             const target = rowNeighbour(s.library.libraryGridRows, activePath, e.code === 'ArrowDown' ? 1 : -1);
             if (target !== null) {
-              if (target !== activePath) selectPath(target);
+              if (target !== activePath) selectInGrid(target, handleImageSelect);
               return;
             }
           }
-          const isNext = e.code === 'ArrowRight' || e.code === 'ArrowDown';
-          const recursive = s.settings.appSettings?.libraryViewMode === LibraryViewMode.Recursive;
-          const navigationList = recursive
-            ? sortedListRef.current.filter((img) => getParentFolder(img.path) === getParentFolder(activePath))
-            : sortedListRef.current;
-          const target = stepFrom(pathsOf(navigationList), lastOrderRef.current, activePath, isNext ? 1 : -1);
-          if (target) selectPath(target);
+          stepPhoto(e.code === 'ArrowRight' || e.code === 'ArrowDown' ? 1 : -1);
         },
       },
     ];
@@ -745,6 +724,7 @@ export const useKeyboardShortcuts = ({
     handleImageSelect,
     handlePasteFiles,
     handleZoomChange,
+    stepPhoto,
     handleRotate,
     handleAutoStraighten,
     handleCopyAdjustments,

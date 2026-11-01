@@ -1089,8 +1089,29 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
 
 .agm-strip-body {
   flex: 1;
+  display: flex;
   min-height: 0;
   overflow: hidden;
+}
+
+.agm-strip-film {
+  flex: 1;
+  min-width: 0;
+}
+
+.agm-strip-side {
+  flex: none;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agm-strip-side .agm-btn {
+  height: 100%;
+  min-width: 24px;
+  padding: 0;
+  border-radius: 0;
 }
 
 /* --------------------------------------------------------------- empty view */
