@@ -5,11 +5,14 @@
  * photo of how many, its name, how many are selected, and on the right the
  * status line (render time while a photo is open, thumbnail progress in the
  * grid). The strip is today's Filmstrip. A click opens the photo while one is
- * open, and selects it in the grid, as the grid's own click does.
+ * open, and selects it in the grid, as the grid's own click does. The arrows
+ * either side of it step as Left and Right do, but stop at the ends, in a
+ * column of their own, so they never cover a thumbnail.
  */
 
 import { type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Filmstrip from '../../components/panel/Filmstrip';
 import Resizer from '../../components/ui/Resizer';
 import { type ImageFile, Orientation, type ThumbnailAspectRatio } from '../../components/ui/AppProperties';
@@ -21,17 +24,21 @@ import RenderStatus from '../RenderStatus';
 import { useAgTranslation } from '../locales';
 import { folderName } from './folders';
 import { fileNameOf } from '../paths';
+import { useArrowsAt } from '../photoStep';
 
 /** The header's height; the strip under it is the resizable part. */
 const HEADER_PX = 24;
 /** The strip's own height while the shared one is still the app's untouched default. */
 const STRIP_PX = 104;
+const PREVIOUS = { name: 'previous', step: -1, label: 'mwPrevPhoto', Icon: ChevronLeft } as const;
+const NEXT = { name: 'next', step: 1, label: 'mwNextPhoto', Icon: ChevronRight } as const;
 
 interface FilmstripAreaProps {
   imageList: ImageFile[];
   thumbnailAspectRatio: ThumbnailAspectRatio;
   onOpenInEditor(path: string, event?: MouseEvent): void;
   onSelectInGrid(path: string, event: MouseEvent): void;
+  onStepPhoto(step: 1 | -1): void;
   onClearSelection(): void;
   onContextMenu(event: MouseEvent, path: string): void;
   onEmptyAreaContextMenu(event: MouseEvent): void;
@@ -61,6 +68,26 @@ export default function FilmstripArea(props: FilmstripAreaProps) {
   const current = editing ? selectedImage?.path : libraryActivePath;
   const index = current ? props.imageList.findIndex((f) => f.path === current) : -1;
   const total = props.imageList.length;
+  const arrows = useArrowsAt(props.imageList, current);
+
+  // Its column stays with no photo on show, so the strip keeps its width. A press takes no focus,
+  // so Space and Enter stay the window's shortcuts after a click.
+  const arrow = ({ name, step, label, Icon }: typeof PREVIOUS | typeof NEXT) => (
+    <div className="agm-strip-side">
+      {currentFolderPath && current && (
+        <button
+          className="agm-btn"
+          aria-label={t(label)}
+          data-tooltip={t(label)}
+          disabled={!arrows[name]}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => props.onStepPhoto(step)}
+        >
+          <Icon size={18} />
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="agm-strip" style={{ height: height + HEADER_PX }}>
@@ -104,22 +131,26 @@ export default function FilmstripArea(props: FilmstripAreaProps) {
         </span>
       </div>
       <div className="agm-strip-body">
-        <Filmstrip
-          imageList={props.imageList}
-          imageRatings={imageRatings}
-          isLoading={isViewLoading}
-          multiSelectedPaths={multiSelectedPaths}
-          onClearSelection={props.onClearSelection}
-          onContextMenu={props.onContextMenu}
-          onEmptyAreaContextMenu={props.onEmptyAreaContextMenu}
-          onImageSelect={(path, event) =>
-            editing ? props.onOpenInEditor(path, event) : props.onSelectInGrid(path, event)
-          }
-          onRequestThumbnails={props.onRequestThumbnails}
-          selectedImage={editing ? (selectedImage ?? undefined) : undefined}
-          thumbnailAspectRatio={props.thumbnailAspectRatio}
-          totalImages={total}
-        />
+        {arrow(PREVIOUS)}
+        <div className="agm-strip-film">
+          <Filmstrip
+            imageList={props.imageList}
+            imageRatings={imageRatings}
+            isLoading={isViewLoading}
+            multiSelectedPaths={multiSelectedPaths}
+            onClearSelection={props.onClearSelection}
+            onContextMenu={props.onContextMenu}
+            onEmptyAreaContextMenu={props.onEmptyAreaContextMenu}
+            onImageSelect={(path, event) =>
+              editing ? props.onOpenInEditor(path, event) : props.onSelectInGrid(path, event)
+            }
+            onRequestThumbnails={props.onRequestThumbnails}
+            selectedImage={editing ? (selectedImage ?? undefined) : undefined}
+            thumbnailAspectRatio={props.thumbnailAspectRatio}
+            totalImages={total}
+          />
+        </div>
+        {arrow(NEXT)}
       </div>
     </div>
   );
