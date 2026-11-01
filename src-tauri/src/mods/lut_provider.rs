@@ -4386,10 +4386,9 @@ fn main() {
         assert!(look_file_of_photo(&photo).is_file(), "the as-shot name");
     }
 
-    /// The program may set the other option aside for `currentWb`, so this must
-    /// not land on the file of that option alone.
+    /// The file of the other option alone, so nothing need know what that does.
     #[test]
-    fn beside_another_option_the_cameras_white_balance_has_its_own_file() {
+    fn beside_another_option_the_cameras_white_balance_needs_no_run() {
         let exe = fake("good");
         let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
         let photo = photo_beside(&exe, "IMG.CR3");
@@ -4399,10 +4398,26 @@ fn main() {
         assert_eq!(heard.next().outcome, LookOutcome::Done);
         ask_following(&heard, &photo, &both, &follow(), 2);
         assert_eq!(heard.next().outcome, LookOutcome::Done);
-        assert_eq!(calls(&exe), 2, "not the file of the option alone");
-        assert_eq!(last_request(&exe)["options"], json!(both));
-        assert!(own_file(&photo, &both, &follow()).is_file());
-        assert!(look_file_with(&photo, &alone).is_file());
+        assert_eq!(calls(&exe), 1, "the file was there");
+        assert_eq!(
+            own_file(&photo, &both, &follow()),
+            look_file_with(&photo, &alone)
+        );
+    }
+
+    /// With no file yet, the request says it all: the program decides from it.
+    #[test]
+    fn beside_another_option_the_cameras_white_balance_still_goes_to_the_program() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionW", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let both = options(&[("optionA", true), ("optionW", true)]);
+        ask_following(&heard, &photo, &both, &follow(), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        let sent = last_request(&exe);
+        assert_eq!(sent["currentWb"], sent["asShotWb"]);
+        assert_eq!(sent["options"], json!(both));
+        assert!(look_file_with(&photo, &options(&[("optionA", true)])).is_file());
     }
 
     /// Exactly today's request and today's file, from a program with no flag.

@@ -589,8 +589,8 @@ export type Outcome = "deleted" | "atNextStart" | "notThere";
  */
 export type OwnWb = { 
 /**
- * The option that asks for it. Alone it tells no files apart: at the camera's
- * white balance the look is the one without it, in the same file.
+ * The option that asks for it. It tells no files apart: at the camera's white
+ * balance the look is the one without it, in the same file.
  */
 option: string, 
 /**
