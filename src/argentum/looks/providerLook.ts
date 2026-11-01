@@ -12,13 +12,17 @@
  * options existed reads the same as one with every option at its default. What
  * an option means is the provider's: here it is an id, a label and a value.
  *
+ * One option can have a look follow the photo's white balance. `ownWb` then names
+ * that option and the white balance the look's file was made for, none for the
+ * camera's. It says which file is on the photo, not where the sliders are now.
+ *
  * A look goes on with Linear (its LUT is made for that), so whatever takes it
  * off also gives the photo its own rendering back, from `before`, which belongs
  * to that photo: it never travels to another.
  */
 
 import type { Adjustments } from '../../utils/adjustments';
-import type { OfferedOption, ProviderLook, RenderingBefore } from '../ag.generated';
+import type { OfferedOption, OwnWb, ProviderLook, RenderingBefore } from '../ag.generated';
 
 /** As `MARKER` in mods/provider_look.rs. */
 export const PROVIDER_LOOK_PATH = 'provider-look';
@@ -60,14 +64,40 @@ export function sameOptions(a: LookOptions = {}, b: LookOptions = {}): boolean {
 }
 
 /** What a provider look writes on a photo, through `lookOnto`, which fits it to the photo. */
-export const lookKeys = (camera: string, look: string, name: string, options: LookOptions = {}): Edit => ({
+export const lookKeys = (
+  camera: string,
+  look: string,
+  name: string,
+  options: LookOptions = {},
+  ownWb?: OwnWb | null,
+): Edit => ({
   lutPath: PROVIDER_LOOK_PATH,
   lutName: name,
   lutSize: LOOK_STEPS,
   lutIntensity: 100,
   lutIsSceneReferred: false,
   agLutDeclaredInput: true,
-  agProviderLook: { camera, look, ...(Object.keys(options).length > 0 && { options }), before: LINEAR },
+  agProviderLook: {
+    camera,
+    look,
+    ...(Object.keys(options).length > 0 && { options }),
+    ...(ownWb && { ownWb }),
+    before: LINEAR,
+  },
+});
+
+/** The keys of an edit that decide the white it renders to: `target_white_balance` in image_processing.rs. */
+const WHITE_BALANCE_KEYS = ['temperature', 'tint', 'whiteBalance', 'sectionVisibility'];
+
+export const whiteBalanceKeys = (edit: Edit): Edit =>
+  Object.fromEntries(Object.entries(edit).filter(([key]) => WHITE_BALANCE_KEYS.includes(key)));
+
+/** What makes a look's file for the white balance it was made for, wherever the sliders are. */
+export const madeForWhiteBalance = (ownWb?: OwnWb | null): Edit => ({
+  temperature: 0,
+  tint: 0,
+  whiteBalance: ownWb?.wb ?? null,
+  sectionVisibility: null,
 });
 
 /**
@@ -76,7 +106,7 @@ export const lookKeys = (camera: string, look: string, name: string, options: Lo
  */
 export const hoverEdit = (photo: Adjustments, keys: Edit, preview?: string): Adjustments => ({
   ...photo,
-  ...lookOnto(photo, keys),
+  ...lookOnto(photo, keys, true),
   ...(preview && { lutPath: preview }),
 });
 
@@ -104,13 +134,24 @@ export const sameProviderLook = (a: Edit, b: Edit): boolean => {
 /**
  * What `changes`, made elsewhere (a preset, a LUT), write on `photo`. A provider
  * look they bring keeps this photo's rendering as its `before`, the first one
- * if a look is already on. Any other LUT in them takes a look on the photo off.
+ * if a look is already on. The white balance it was made for is this photo's only
+ * if it was made for this photo (`made`): from elsewhere, like `before`, it stays
+ * behind. Any other LUT in them takes a look on the photo off.
  */
-export function lookOnto(photo: Edit, changes: Edit): Edit {
+export function lookOnto(photo: Edit, changes: Edit, made = false): Edit {
   const incoming = lookOf(changes);
   if (incoming) {
     const before = lookOf(photo)?.before ?? renderingOf(photo);
-    return { ...changes, ...LINEAR, agProviderLook: { ...incoming, before } };
+    const ownWb = incoming.ownWb && { ...incoming.ownWb, wb: made ? incoming.ownWb.wb : null };
+    return { ...changes, ...LINEAR, agProviderLook: { ...incoming, ...(ownWb && { ownWb }), before } };
   }
   return changes.lutPath === undefined ? changes : { ...providerLookOff(photo), ...changes };
+}
+
+/** `edit` with its look's file now the one for `ownWb`; null if that look is off it, or has that file already. */
+export function withOwnWb(edit: Edit, camera: string, look: string, ownWb: OwnWb | null): Edit | null {
+  const on = lookOf(edit);
+  if (on?.camera !== camera || on.look !== look) return null;
+  if (JSON.stringify(on.ownWb ?? null) === JSON.stringify(ownWb)) return null;
+  return { ...edit, agProviderLook: { ...on, ...(ownWb && { ownWb }) } };
 }

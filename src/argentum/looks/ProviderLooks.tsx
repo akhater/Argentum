@@ -188,7 +188,8 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
     window.clearTimeout(hover.current);
     hover.current = window.setTimeout(() => {
       const now = useEditorStore.getState().adjustments;
-      setEditor({ previewOverride: hoverEdit(now, lookKeys(camera, look.id, look.name, options), preview) });
+      const keys = lookKeys(camera, look.id, look.name, options, offer.photo?.ownWb);
+      setEditor({ previewOverride: hoverEdit(now, keys, preview) });
     }, PREVIEW_AFTER_MS);
   };
 
@@ -384,17 +385,19 @@ export function OnPhotoLook({
   const camera = on?.camera ?? '';
   const look = on?.look ?? '';
   const optionsKey = JSON.stringify(on?.options ?? {});
+  const ownWbKey = JSON.stringify(on?.ownWb ?? null);
   const [there, setThere] = useState(true);
 
   useEffect(() => {
     let current = true;
-    ag('provider_look_file', { path: photo, camera, look, options: JSON.parse(optionsKey) })
+    const [options, ownWb] = [JSON.parse(optionsKey), JSON.parse(ownWbKey)];
+    ag('provider_look_file', { path: photo, camera, look, options, ownWb })
       .then((found) => current && setThere(found))
       .catch(() => current && setThere(false));
     return () => {
       current = false;
     };
-  }, [photo, camera, look, optionsKey, filesMade]);
+  }, [photo, camera, look, optionsKey, ownWbKey, filesMade]);
 
   const file = offer?.photo?.files.find((f) => f.camera === camera && f.look === look);
   const swatches = useFileSwatches(file ? [file] : [], photo, true);
@@ -410,7 +413,7 @@ export function OnPhotoLook({
       canMake={listed}
       kind={offer?.cameras.find((c) => c.id === camera)?.name ?? t('looksProviderKind')}
       name={adjustments.lutName ?? ''}
-      onMake={() => offered && keepLook([photo], offered, camera, lookOptions, true)}
+      onMake={() => offered && keepLook([photo], offered, camera, lookOptions, true, on?.ownWb)}
       onStrength={onStrength}
       onTakeOff={onTakeOff}
       strength={adjustments.lutIntensity ?? 100}

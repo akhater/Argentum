@@ -4,7 +4,8 @@
 //! A photo travels with its files: its edits (`IMG.CR2.agdata`, and one
 //! `IMG.CR2.<id>.agdata` per virtual copy), its EXIF cache (`IMG.CR2.agexif`),
 //! its XMP (`IMG.xmp`) and its look files (`IMG.CR2.<camera>.<look>.lut.png`,
-//! with a marker before `.lut.png` for a look made with options).
+//! with a marker before `.lut.png` for a look made with options or for a white
+//! balance of its own).
 //! Delete, copy, move and rename in `file_management.rs` ask this module which
 //! files those are and where they go, and do only the disk work themselves:
 //!
@@ -31,10 +32,13 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use crate::file_management::{
     VIRTUAL_COPY, parse_sidecar_name, parse_virtual_path, split_virtual_path,
 };
 use crate::formats::is_supported_image_file;
+use crate::white_balance::WhiteBalance;
 
 /// Why a file operation stopped before writing anything.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +103,42 @@ pub fn is_look_name_part(part: &str) -> bool {
 /// default, so a look with every option at its default has none.
 pub type LookOptions = BTreeMap<String, bool>;
 
+/// A white balance as a look file is named for it: whole kelvin and whole tint,
+/// finer than a step of either slider, so equal ones give one name on every run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct LookWb {
+    pub temperature: i32,
+    pub tint: i32,
+}
+
+impl LookWb {
+    pub fn of(white: WhiteBalance) -> Self {
+        Self {
+            temperature: white.temperature.round() as i32,
+            tint: white.tint.round() as i32,
+        }
+    }
+
+    pub fn white(self) -> WhiteBalance {
+        WhiteBalance {
+            temperature: self.temperature.into(),
+            tint: self.tint.into(),
+        }
+    }
+}
+
+/// A look whose option has it follow the photo's white balance.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct OwnWb {
+    /// The option that asks for it. It tells no files apart by itself: at the
+    /// camera's white balance the look is the one without it, in the same file.
+    pub option: String,
+    /// What the file was made for; None for the camera's.
+    pub wb: Option<LookWb>,
+}
+
 /// The look file of `photo` for this camera and look, beside it, the only
 /// place that writes such a name. None when `camera` or `look` could not be
 /// part of one.
@@ -107,11 +147,12 @@ pub fn look_file_for(
     camera: &str,
     look: &str,
     options: &LookOptions,
+    own_wb: Option<&OwnWb>,
 ) -> Option<PathBuf> {
     let photo_name = photo.file_name()?.to_str()?;
     (is_look_name_part(camera) && is_look_name_part(look)).then(|| {
         let name = format!("{photo_name}.{camera}.{look}");
-        photo.with_file_name(match options_mark(options) {
+        photo.with_file_name(match options_mark(options, own_wb) {
             Some(mark) => format!("{name}.{mark}.lut.png"),
             None => format!("{name}.lut.png"),
         })
@@ -121,24 +162,24 @@ pub fn look_file_for(
 const MARK_START: &str = "opt_";
 const MARK_HEX_CHARS: usize = 8;
 
-/// The part of a look file's name that tells `options` apart: `opt_` and a
-/// hash, so an id from an edit never reaches a file name, and `_`, which no
-/// camera or look can hold, so the name reads only one way. None for no options.
-fn options_mark(options: &LookOptions) -> Option<String> {
-    if options.is_empty() {
+/// The part of a look file's name that tells `options` and a white balance of
+/// its own apart: `opt_` and a hash, so an id from an edit never reaches a file
+/// name, and `_`, which no camera or look can hold, so the name reads only one
+/// way. None when neither is there, so the camera's white balance keeps the
+/// plain name.
+fn options_mark(options: &LookOptions, own_wb: Option<&OwnWb>) -> Option<String> {
+    let shaping = options
+        .iter()
+        .filter(|(id, _)| own_wb.is_none_or(|own| own.option != **id))
+        .map(|(id, value)| format!("{id}={value}\n"));
+    let wb = own_wb
+        .and_then(|own| own.wb)
+        .map(|wb| format!("wb={},{}\n", wb.temperature, wb.tint));
+    let lines: String = shaping.chain(wb).collect();
+    if lines.is_empty() {
         return None;
     }
-    let mut hasher = blake3::Hasher::new();
-    for (id, value) in options {
-        hasher.update(
-            format!(
-                "{id}={value}
-"
-            )
-            .as_bytes(),
-        );
-    }
-    let hex = hasher.finalize().to_hex();
+    let hex = blake3::hash(lines.as_bytes()).to_hex();
     Some(format!("{MARK_START}{}", &hex[..MARK_HEX_CHARS]))
 }
 
@@ -153,9 +194,8 @@ fn is_options_mark(part: &str) -> bool {
 
 /// The photo `file_name` is a look file of, the only place that reads such a
 /// name: `IMG.CR2` for `IMG.CR2.cam1.abc.lut.png`. None for any other file,
-/// such as `my.film.lut.png`, which names no photo. An options marker before
-/// the ending changes nothing: `IMG.CR2.cam1.abc.opt_0a1b2c3d.lut.png` is
-/// `IMG.CR2`'s too.
+/// such as `my.film.lut.png`, which names no photo. A marker before the ending
+/// changes nothing: `IMG.CR2.cam1.abc.opt_0a1b2c3d.lut.png` is `IMG.CR2`'s too.
 pub fn photo_of_look_file(file_name: &str) -> Option<&str> {
     let name = file_name.strip_suffix(".lut.png")?;
     let name = match name.rsplit_once('.') {
@@ -175,8 +215,8 @@ pub fn is_look_file_of(file_name: &str, image_name: &str) -> bool {
     photo_of_look_file(file_name) == Some(image_name)
 }
 
-/// Every look file of `photo` beside it, whichever camera, look and options
-/// made it. The names decide, so a look its provider no longer lists counts.
+/// Every look file of `photo` beside it, whichever camera, look, options and
+/// white balance made it. The names decide, so a look its provider no longer lists counts.
 pub fn look_files_of(photo: &Path) -> Vec<PathBuf> {
     let (Some(folder), Some(photo_name)) = (
         photo.parent(),
@@ -602,12 +642,15 @@ mod tests {
     #[test]
     fn a_look_files_name_is_read_back_as_its_photos() {
         let photo = Path::new("/photos/IMG.CR2");
-        let file = look_file_for(photo, "cam-1", "abc", &no_options()).expect("a name");
+        let file = look_file_for(photo, "cam-1", "abc", &no_options(), None).expect("a name");
         assert_eq!(file, Path::new("/photos/IMG.CR2.cam-1.abc.lut.png"));
         let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
         assert!(is_look_file_of(name, "IMG.CR2"));
-        assert_eq!(look_file_for(photo, "../x", "abc", &no_options()), None);
-        assert_eq!(look_file_for(photo, "cam1", "A", &no_options()), None);
+        assert_eq!(
+            look_file_for(photo, "../x", "abc", &no_options(), None),
+            None
+        );
+        assert_eq!(look_file_for(photo, "cam1", "A", &no_options(), None), None);
     }
 
     #[test]
@@ -652,8 +695,8 @@ mod tests {
     #[test]
     fn a_look_file_with_an_option_keeps_its_start_and_end_and_is_read_back() {
         let photo = Path::new("/photos/IMG.CR2");
-        let file =
-            look_file_for(photo, "cam1", "abc", &options(&[("optionA", true)])).expect("a name");
+        let file = look_file_for(photo, "cam1", "abc", &options(&[("optionA", true)]), None)
+            .expect("a name");
         let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
         assert!(name.starts_with("IMG.CR2.cam1.abc."), "{name}");
         assert!(name.ends_with(".lut.png"), "{name}");
@@ -666,7 +709,7 @@ mod tests {
     #[test]
     fn each_set_of_options_has_its_own_name() {
         let photo = Path::new("/photos/IMG.CR2");
-        let name_of = |set: &LookOptions| look_file_for(photo, "cam1", "abc", set);
+        let name_of = |set: &LookOptions| look_file_for(photo, "cam1", "abc", set, None);
         let names = [
             name_of(&no_options()),
             name_of(&options(&[("optionA", true)])),
@@ -685,6 +728,95 @@ mod tests {
         );
     }
 
+    fn follow(wb: Option<LookWb>) -> OwnWb {
+        OwnWb {
+            option: "optionW".to_string(),
+            wb,
+        }
+    }
+
+    const WARM: LookWb = LookWb {
+        temperature: 4300,
+        tint: -12,
+    };
+
+    /// The option alone changes nothing: at the camera's white balance the look
+    /// is the one without it.
+    #[test]
+    fn the_cameras_white_balance_keeps_todays_name() {
+        let photo = Path::new("/photos/IMG.CR2");
+        let today = look_file_for(photo, "cam1", "abc", &no_options(), None);
+        let set = options(&[("optionW", true)]);
+        let own = follow(None);
+        assert_eq!(look_file_for(photo, "cam1", "abc", &set, Some(&own)), today);
+        assert_eq!(
+            today.expect("a name"),
+            Path::new("/photos/IMG.CR2.cam1.abc.lut.png")
+        );
+    }
+
+    #[test]
+    fn with_another_option_the_cameras_white_balance_keeps_that_options_name() {
+        let photo = Path::new("/photos/IMG.CR2");
+        let other = options(&[("optionA", true)]);
+        let both = options(&[("optionA", true), ("optionW", true)]);
+        assert_eq!(
+            look_file_for(photo, "cam1", "abc", &both, Some(&follow(None))),
+            look_file_for(photo, "cam1", "abc", &other, None)
+        );
+    }
+
+    #[test]
+    fn each_white_balance_has_its_own_name_with_or_without_other_options() {
+        let photo = Path::new("/photos/IMG.CR2");
+        let name_of = |set: &LookOptions, own: Option<&OwnWb>| {
+            look_file_for(photo, "cam1", "abc", set, own).expect("a name")
+        };
+        let (plain, other) = (no_options(), options(&[("optionA", true)]));
+        let cooler = LookWb {
+            temperature: 6500,
+            ..WARM
+        };
+        let tinted = LookWb { tint: 12, ..WARM };
+        let names = [
+            name_of(&plain, None),
+            name_of(&other, None),
+            name_of(&plain, Some(&follow(Some(WARM)))),
+            name_of(&plain, Some(&follow(Some(cooler)))),
+            name_of(&plain, Some(&follow(Some(tinted)))),
+            name_of(&other, Some(&follow(Some(WARM)))),
+        ];
+        for (i, one) in names.iter().enumerate() {
+            for other in &names[i + 1..] {
+                assert_ne!(one, other);
+            }
+            let name = one.file_name().and_then(|n| n.to_str()).expect("a name");
+            assert!(is_look_file_of(name, "IMG.CR2"), "{name}");
+            assert!(name.starts_with("IMG.CR2.cam1.abc."), "{name}");
+            assert!(name.ends_with(".lut.png"), "{name}");
+        }
+    }
+
+    /// Equal white balances give one name, on this run and on every later one.
+    #[test]
+    fn the_name_of_a_white_balance_never_changes() {
+        let own = follow(Some(WARM));
+        let set = options(&[("optionW", true)]);
+        assert_eq!(
+            look_file_for(Path::new("IMG.CR2"), "cam1", "abc", &set, Some(&own)),
+            Some(PathBuf::from("IMG.CR2.cam1.abc.opt_95a686a3.lut.png"))
+        );
+    }
+
+    #[test]
+    fn a_white_balance_rounds_to_whole_units_either_way() {
+        let of = |temperature, tint| LookWb::of(WhiteBalance { temperature, tint });
+        assert_eq!(of(4299.6, -11.6), WARM);
+        assert_eq!(of(4300.4, -12.4), WARM);
+        assert_eq!(of(4300.0, -0.2), of(4300.0, 0.2));
+        assert_eq!(LookWb::of(WARM.white()), WARM);
+    }
+
     /// A name written today must still be found by every later version.
     #[test]
     fn the_name_of_a_set_of_options_never_changes() {
@@ -693,6 +825,7 @@ mod tests {
             "cam1",
             "abc",
             &options(&[("optionA", true), ("optionB", false)]),
+            None,
         );
         assert_eq!(
             file.expect("a name"),
@@ -706,7 +839,7 @@ mod tests {
     fn an_options_id_never_reaches_the_file_name() {
         let photo = Path::new("/photos/IMG.CR2");
         let set = options(&[(r"..\..\evil/name", true)]);
-        let file = look_file_for(photo, "cam1", "abc", &set).expect("a name");
+        let file = look_file_for(photo, "cam1", "abc", &set, None).expect("a name");
         assert_eq!(file.parent(), Some(Path::new("/photos")));
         let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
         assert!(is_look_file_of(name, "IMG.CR2"), "{name}");

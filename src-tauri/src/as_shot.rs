@@ -15,6 +15,9 @@ pub struct AsShot {
     /// three-colour sensor, and all are NaN when the file holds none
     /// (mods/lut_provider.rs is what reads it).
     pub wb_coeffs: [f32; 4],
+    /// The XYZ to camera matrix `white_balance` was solved with, for a
+    /// three-colour sensor (mods/lut_provider.rs is what reads it).
+    pub xyz_to_camera: Option<[f32; 9]>,
 }
 
 impl AsShot {
@@ -23,6 +26,7 @@ impl AsShot {
             white_balance: WhiteBalance::reference(),
             exposure: RawExposure::default(),
             wb_coeffs: [1.0; 4],
+            xyz_to_camera: None,
         }
     }
 }

@@ -2372,6 +2372,19 @@ fn is_section_visible(adjustments: &serde_json::Value, section: &str) -> bool {
         .unwrap_or(true)
 }
 
+/// Argentum: the white an edit renders to, the one rule for the render and for
+/// what is told of it (mods/lut_provider.rs).
+pub fn target_white_balance(
+    adjustments: &serde_json::Value,
+    as_shot: white_balance::WhiteBalance,
+) -> white_balance::WhiteBalance {
+    if is_section_visible(adjustments, "basic") {
+        white_balance::from_adjustments(adjustments, as_shot)
+    } else {
+        as_shot
+    }
+}
+
 /// Argentum: is the Crop tab's Lens Correction eye open? Closed, no part of
 /// any lens correction applies, the camera's own or a lens profile's.
 pub fn is_lens_correction_shown(adjustments: &serde_json::Value) -> bool {
@@ -2870,15 +2883,11 @@ pub fn get_all_adjustments_from_json(
     render: RenderOptions,
     photo: Option<&str>,
 ) -> AllAdjustments {
-    let target_white_balance = if is_section_visible(js_adjustments, "basic") {
-        white_balance::from_adjustments(js_adjustments, as_shot.white_balance)
-    } else {
-        as_shot.white_balance
-    };
+    let target = target_white_balance(js_adjustments, as_shot.white_balance);
     let mut global = get_global_adjustments_from_json(
         js_adjustments,
         is_raw,
-        white_balance::adaptation_log_gains(as_shot.white_balance, target_white_balance),
+        white_balance::adaptation_log_gains(as_shot.white_balance, target),
         render.tonemapper_override,
         photo,
     );
@@ -2896,8 +2905,7 @@ pub fn get_all_adjustments_from_json(
         .enumerate()
         .take(MAX_MASKS)
     {
-        mask_adjustments[i] =
-            get_mask_adjustments_from_json(&mask_def.adjustments, target_white_balance);
+        mask_adjustments[i] = get_mask_adjustments_from_json(&mask_def.adjustments, target);
         global.ag_grade.mark_mask(i, &mask_def.adjustments); // Argentum: Lightroom's grading
         mask_count += 1;
     }

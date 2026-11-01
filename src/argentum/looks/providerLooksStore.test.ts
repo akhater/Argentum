@@ -13,13 +13,14 @@ let answerDeleted: LooksDeleted | null = null;
 let fileThere = false;
 let hear: ((event: { payload: LookProgress }) => void) | null = null;
 const listened = vi.fn();
+let makeJob = 7;
 const sidecars: Record<string, Record<string, unknown>> = {};
 
 vi.mock('../ag', () => ({
   ag: vi.fn(async (name: string, args: unknown) => {
     calls.push({ name, args });
     if (name === 'provider_looks') return answerOffer;
-    if (name === 'provider_look_make') return 7;
+    if (name === 'provider_look_make') return makeJob;
     if (name === 'provider_look_preview') return PREVIEW_JOB;
     if (name === 'provider_look_file') return fileThere;
     if (name === 'provider_look_delete') {
@@ -62,10 +63,10 @@ const OFFER: ProviderLooks = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [], clearable: 0 },
+  photo: { camera: 'cam1', files: [], previews: [], clearable: 0, ownWb: null },
 };
 
-const OPTION = { id: 'optionA', label: 'Invented choice', default: false };
+const OPTION = { id: 'optionA', label: 'Invented choice', default: false, currentWb: false };
 const WITH_OPTION: ProviderLooks = { ...OFFER, options: [OPTION] };
 
 const LOOK = OFFER.looks[0];
@@ -83,6 +84,7 @@ const progress = (
   camera: 'cam1',
   look,
   options,
+  ownWb: null,
   outcome,
   preview: false,
 });
@@ -108,6 +110,7 @@ beforeEach(() => {
   calls.length = 0;
   invoked.length = 0;
   listened.mockClear();
+  makeJob = 7;
   useProviderLooks.getState().reset();
   fileThere = false;
   openPhoto();
@@ -179,7 +182,7 @@ describe('picking a look', () => {
     await useProviderLooks.getState().pick(OPEN, LOOK, 'cam1', {});
     expect(calls).toContainEqual({
       name: 'provider_look_make',
-      args: { paths: [OPEN], camera: 'cam1', look: 'look1', options: {}, remake: false, front: true },
+      args: { paths: [OPEN], camera: 'cam1', look: 'look1', options: {}, changes: {}, remake: false, front: true },
     });
     expect(useEditorStore.getState().adjustments.lutPath).toBeUndefined();
   });
@@ -300,7 +303,7 @@ describe('the camera picker', () => {
     await useProviderLooks.getState().chooseCamera(OPEN, 'cam2', edit);
     expect(calls).toContainEqual({
       name: 'provider_look_make',
-      args: { paths: [OPEN], camera: 'cam2', look: 'look2', options: {}, remake: false, front: true },
+      args: { paths: [OPEN], camera: 'cam2', look: 'look2', options: {}, changes: {}, remake: false, front: true },
     });
   });
 });
@@ -348,7 +351,15 @@ describe('an option', () => {
     const before = useEditorStore.getState().adjustments;
     await choose(true, onPhoto());
     expect(makes()).toEqual([
-      { paths: [OPEN], camera: 'cam1', look: 'look1', options: { optionA: true }, remake: false, front: true },
+      {
+        paths: [OPEN],
+        camera: 'cam1',
+        look: 'look1',
+        options: { optionA: true },
+        changes: {},
+        remake: false,
+        front: true,
+      },
     ]);
     expect(useEditorStore.getState().adjustments).toBe(before);
 
@@ -360,7 +371,7 @@ describe('an option', () => {
   it('back at its default asks for today’s file', async () => {
     await choose(false, onPhoto({ optionA: true }));
     expect(makes()).toEqual([
-      { paths: [OPEN], camera: 'cam1', look: 'look1', options: {}, remake: false, front: true },
+      { paths: [OPEN], camera: 'cam1', look: 'look1', options: {}, changes: {}, remake: false, front: true },
     ]);
   });
 
@@ -436,7 +447,10 @@ describe('an option', () => {
 
   it('asks for the look files of what is chosen', async () => {
     await useProviderLooks.getState().load(OPEN, { optionA: true });
-    expect(calls).toContainEqual({ name: 'provider_looks', args: { path: OPEN, options: { optionA: true } } });
+    expect(calls).toContainEqual({
+      name: 'provider_looks',
+      args: { path: OPEN, options: { optionA: true }, changes: {} },
+    });
   });
 
   it('is pasted with the look', async () => {
@@ -472,7 +486,7 @@ describe('an option', () => {
     await restoreLook(OPEN, onPhoto({ optionA: true }));
     expect(calls).toContainEqual({
       name: 'provider_look_file',
-      args: { path: OPEN, camera: 'cam1', look: 'look1', options: { optionA: true } },
+      args: { path: OPEN, camera: 'cam1', look: 'look1', options: { optionA: true }, ownWb: null },
     });
     expect(makes()).toEqual([]);
   });
@@ -525,6 +539,7 @@ describe('a batch', () => {
         camera: null,
         look: 'look1',
         options: {},
+        changes: null,
         remake: false,
         front: false,
       },
@@ -581,7 +596,7 @@ describe('a paste', () => {
     await settled();
     expect(calls).toContainEqual({
       name: 'provider_look_make',
-      args: { paths: [OTHER], camera: 'cam2', look: 'look1', options: {}, remake: false, front: false },
+      args: { paths: [OTHER], camera: 'cam2', look: 'look1', options: {}, changes: {}, remake: false, front: false },
     });
   });
 
@@ -647,7 +662,7 @@ describe('Preview all', () => {
   it('asks once, for this photo with its camera and options', async () => {
     await state().previewAll(OPEN, 'cam2', { optionA: true });
     expect(starts()).toEqual([
-      { name: 'provider_look_preview', args: { path: OPEN, camera: 'cam2', options: { optionA: true } } },
+      { name: 'provider_look_preview', args: { path: OPEN, camera: 'cam2', options: { optionA: true }, changes: {} } },
     ]);
   });
 
@@ -847,7 +862,7 @@ describe('Delete all previews', () => {
     const before = loads().length;
     await state().deleteLooks(OPEN);
     expect(loads().slice(before)).toEqual([
-      { name: 'provider_looks', args: { path: OPEN, options: { optionA: true } } },
+      { name: 'provider_looks', args: { path: OPEN, options: { optionA: true }, changes: {} } },
     ]);
   });
 
@@ -904,7 +919,7 @@ describe('the previews a photo shows', () => {
   const PREVIEW = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
 
   beforeEach(async () => {
-    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW], clearable: 1 } };
+    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW], clearable: 1, ownWb: null } };
     await useProviderLooks.getState().load(OPEN, { optionA: true });
   });
 
@@ -932,5 +947,330 @@ describe('lookFor', () => {
     const look = { camera: 'cam1', look: 'look1', before: {} };
     expect(lookFor({ lutPath: PROVIDER_LOOK_PATH, agProviderLook: look })).toEqual(look);
     expect(lookFor({ lutPath: 'film.cube', agProviderLook: look })).toBeNull();
+  });
+});
+
+describe('a look that follows the white balance', () => {
+  const FOLLOW = { id: 'optionW', label: 'Invented follow', default: false, currentWb: true };
+  const FOLLOWING: ProviderLooks = { ...OFFER, options: [FOLLOW] };
+  const own = (wb: { temperature: number; tint: number } | null = null) => ({ option: 'optionW', wb });
+  const WARM = { temperature: 4300, tint: 0 };
+  const look: ProviderLook = {
+    camera: 'cam1',
+    look: 'look1',
+    options: { optionW: true },
+    ownWb: own(),
+    before: { rawToneRendering: 'dngStandard', rawToneCurve: null, rawToneCurveMode: null },
+  };
+  const onPhoto = (changes: Record<string, unknown> = {}) => ({
+    lutPath: PROVIDER_LOOK_PATH,
+    lutIntensity: 60,
+    temperature: 0,
+    tint: 0,
+    agProviderLook: look,
+    ...changes,
+  });
+
+  const makes = () => calls.filter((c) => c.name === 'provider_look_make').map((c) => c.args);
+  const move = (temperature: number) =>
+    useEditorStore.setState((state) => ({ adjustments: { ...state.adjustments, temperature } }));
+  const grab = () => useEditorStore.setState({ isSliderDragging: true });
+  const letGo = () => useEditorStore.setState({ isSliderDragging: false });
+  /** Past every wait, with what they started finished. */
+  const rest = () => vi.advanceTimersByTimeAsync(1000);
+  const follows = (
+    job: number,
+    wb: { temperature: number; tint: number } | null,
+    outcome: LookProgress['outcome'],
+  ) => ({
+    ...progress(OPEN, outcome, 'look1', { optionW: true }),
+    jobId: job,
+    ownWb: own(wb),
+  });
+  const heard = async (payload: LookProgress) => {
+    hear?.({ payload });
+    await vi.advanceTimersByTimeAsync(0);
+  };
+  const onEdit = () => (useEditorStore.getState().adjustments as { agProviderLook?: ProviderLook }).agProviderLook;
+
+  beforeEach(async () => {
+    await offered(FOLLOWING);
+    useEditorStore.setState({ history: [onPhoto()] as never, historyIndex: 0 });
+    openPhoto(onPhoto());
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    letGo();
+    useEditorStore.setState({ selectedImage: null });
+  });
+
+  it('asks for nothing while the slider moves, and once when it is let go', async () => {
+    grab();
+    for (const temperature of [5, 20, 40]) {
+      move(temperature);
+      await rest();
+    }
+    expect(makes()).toEqual([]);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(makes()).toEqual([
+      {
+        paths: [OPEN],
+        camera: 'cam1',
+        look: 'look1',
+        options: { optionW: true },
+        changes: { temperature: 40, tint: 0 },
+        remake: false,
+        front: true,
+      },
+    ]);
+  });
+
+  it('with no look on the photo asks for nothing', async () => {
+    openPhoto({ temperature: 0 });
+    await rest();
+    grab();
+    move(40);
+    letGo();
+    await rest();
+    expect(makes()).toEqual([]);
+  });
+
+  it('with the option off asks for nothing', async () => {
+    openPhoto(onPhoto({ agProviderLook: { ...look, options: {}, ownWb: undefined } }));
+    await rest();
+    grab();
+    move(40);
+    letGo();
+    await rest();
+    expect(makes()).toEqual([]);
+  });
+
+  it('with the switch off asks for nothing', async () => {
+    await offered({ ...FOLLOWING, on: false });
+    grab();
+    move(40);
+    letGo();
+    await rest();
+    expect(makes()).toEqual([]);
+  });
+
+  it('asks nothing of another slider, or of a slider let go where it started', async () => {
+    grab();
+    useEditorStore.setState((state) => ({ adjustments: { ...state.adjustments, exposure: 1 } }));
+    letGo();
+    await rest();
+    grab();
+    move(40);
+    move(0);
+    letGo();
+    await rest();
+    expect(makes()).toEqual([]);
+  });
+
+  it('asks nothing of opening a photo', async () => {
+    useEditorStore.setState({
+      selectedImage: { path: OTHER } as never,
+      adjustments: onPhoto({ temperature: 30 }) as never,
+    });
+    await rest();
+    expect(makes()).toEqual([]);
+  });
+
+  it('settles a change made with no drag, once History has it', async () => {
+    move(10);
+    await vi.advanceTimersByTimeAsync(300);
+    move(20);
+    await vi.advanceTimersByTimeAsync(599);
+    expect(makes()).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(makes()).toHaveLength(1);
+  });
+
+  it('keeps the file on the photo until the new one is ready, and all else after', async () => {
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onEdit()?.ownWb).toEqual(own());
+    await heard(follows(7, WARM, 'done'));
+    expect(onEdit()).toEqual({ ...look, ownWb: own(WARM) });
+    expect(useEditorStore.getState().adjustments.lutIntensity).toBe(60);
+    expect(useEditorStore.getState().adjustments.temperature).toBe(40);
+  });
+
+  it('goes into the step that moved the white balance: one Undo for both', async () => {
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    const moved = useEditorStore.getState().adjustments;
+    useEditorStore.setState({ history: [onPhoto() as never, moved], historyIndex: 1 });
+    await heard(follows(7, WARM, 'done'));
+    const { history, historyIndex } = useEditorStore.getState();
+    expect(history).toHaveLength(2);
+    expect(historyIndex).toBe(1);
+    expect((history[1] as { agProviderLook?: ProviderLook }).agProviderLook?.ownWb).toEqual(own(WARM));
+    expect((history[0] as { agProviderLook?: ProviderLook }).agProviderLook?.ownWb).toEqual(own());
+  });
+
+  it('back at the camera’s white balance takes the file with no white balance', async () => {
+    openPhoto(onPhoto({ temperature: 40, agProviderLook: { ...look, ownWb: own(WARM) } }));
+    await rest();
+    grab();
+    move(0);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    await heard(follows(7, null, 'done'));
+    expect(onEdit()?.ownWb).toEqual(own());
+  });
+
+  it('a newer release wins over an older one on its way', async () => {
+    grab();
+    move(20);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    makeJob = 8;
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(makes()).toHaveLength(2);
+    expect(calls).toContainEqual({ name: 'provider_look_cancel', args: { jobId: 7 } });
+
+    await heard(follows(7, { temperature: 4800, tint: 0 }, 'done'));
+    expect(onEdit()?.ownWb).toEqual(own());
+    expect(useProviderLooks.getState().waiting[OPEN]?.job).toBe(8);
+    await heard(follows(8, WARM, 'done'));
+    expect(onEdit()?.ownWb).toEqual(own(WARM));
+  });
+
+  it('hears nothing of an older request while the newer one’s job is on its way', async () => {
+    grab();
+    move(20);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    const { ag } = await import('../ag');
+    let answer: (job: number) => void = () => {};
+    vi.mocked(ag).mockImplementationOnce(async () => null);
+    vi.mocked(ag).mockImplementationOnce(() => new Promise((resolve) => (answer = resolve as never)));
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    await heard(follows(7, { temperature: 4800, tint: 0 }, 'done'));
+    answer(8);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onEdit()?.ownWb).toEqual(own());
+    expect(useProviderLooks.getState().waiting[OPEN]?.job).toBe(8);
+  });
+
+  it('a file reported before its job is known still arrives', async () => {
+    const { ag } = await import('../ag');
+    let answer: (job: number) => void = () => {};
+    vi.mocked(ag).mockImplementationOnce(() => new Promise((resolve) => (answer = resolve as never)));
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    await heard(follows(7, WARM, 'done'));
+    expect(onEdit()?.ownWb).toEqual(own());
+    answer(7);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onEdit()?.ownWb).toEqual(own(WARM));
+  });
+
+  it('that fails keeps the look it has, and says so', async () => {
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    await heard(follows(7, WARM, 'failed'));
+    expect(onEdit()?.ownWb).toEqual(own());
+    expect(useProviderLooks.getState().note).toEqual({ photo: OPEN, look: 'look1', text: 'looksProviderFailed' });
+  });
+
+  it('taken off while it is made stays off', async () => {
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    useEditorStore.setState((state) => ({
+      adjustments: { ...state.adjustments, lutPath: null, agProviderLook: null } as never,
+    }));
+    await heard(follows(7, WARM, 'done'));
+    expect(useEditorStore.getState().adjustments.lutPath).toBeNull();
+    expect(useEditorStore.getState().adjustments.agProviderLook).toBeNull();
+  });
+
+  it('reaches a photo left while it was made, in that look alone', async () => {
+    sidecars[OPEN] = onPhoto();
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    useEditorStore.setState({ selectedImage: { path: OTHER } as never });
+    await heard(follows(7, WARM, 'done'));
+    expect(invoked).toContainEqual({
+      name: 'apply_adjustments_to_paths',
+      args: { paths: [OPEN], adjustments: { agProviderLook: { ...look, ownWb: own(WARM) } } },
+    });
+  });
+
+  it('leaves a look picked and on its way alone', async () => {
+    await useProviderLooks.getState().pick(OPEN, OFFER.looks[1], 'cam1', {});
+    const asked = makes().length;
+    grab();
+    move(40);
+    letGo();
+    await rest();
+    expect(makes()).toHaveLength(asked);
+    expect(useProviderLooks.getState().waiting[OPEN]?.look).toBe('look2');
+  });
+
+  it('asks what is offered first if the Looks tab was never opened', async () => {
+    useProviderLooks.setState({ offer: null });
+    answerOffer = FOLLOWING;
+    grab();
+    move(40);
+    letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(makes()).toHaveLength(1);
+  });
+
+  it('asks for the file it holds when one is missing, wherever the sliders are', async () => {
+    const edit = onPhoto({ temperature: 40, agProviderLook: { ...look, ownWb: own(WARM) } });
+    await restoreLook(OPEN, edit as never);
+    expect(calls).toContainEqual({
+      name: 'provider_look_file',
+      args: { path: OPEN, camera: 'cam1', look: 'look1', options: { optionW: true }, ownWb: own(WARM) },
+    });
+    expect(makes()).toEqual([
+      {
+        paths: [OPEN],
+        camera: 'cam1',
+        look: 'look1',
+        options: { optionW: true },
+        changes: { temperature: 0, tint: 0, whiteBalance: WARM, sectionVisibility: null },
+        remake: false,
+        front: true,
+      },
+    ]);
+  });
+
+  it('a pasted white balance goes with the look, for each photo’s own file', async () => {
+    takeFromPaste([OTHER], { ...onPhoto({ temperature: 15 }), exposure: 1 } as never);
+    await rest();
+    expect(makes()).toEqual([expect.objectContaining({ paths: [OTHER], changes: { temperature: 15, tint: 0 } })]);
+  });
+
+  it('asks for what is offered with the white balance the photo has now', async () => {
+    move(40);
+    await useProviderLooks.getState().load(OPEN, { optionW: true });
+    expect(calls).toContainEqual({
+      name: 'provider_looks',
+      args: { path: OPEN, options: { optionW: true }, changes: { temperature: 40, tint: 0 } },
+    });
   });
 });

@@ -189,15 +189,6 @@ impl WhiteBalance {
         Self::from_xyz(normal.inverse() * rhs)
     }
 
-    pub fn from_dual_illuminant_camera_neutral(
-        xyz_to_camera_a: &[f32],
-        xyz_to_camera_d65: &[f32],
-        neutral: &[f32],
-    ) -> Option<Self> {
-        Self::dual_illuminant_camera_neutral(xyz_to_camera_a, xyz_to_camera_d65, neutral)
-            .map(|(estimate, _)| estimate)
-    }
-
     /// The as-shot white and the camera matrix mixed for it from the A and D65
     /// ones. RapidRAW 3f5345a5: src-tauri/src/white_balance.rs, which returns the
     /// matrix from `from_dual_illuminant_camera_neutral`; the arithmetic of the
@@ -230,6 +221,21 @@ impl WhiteBalance {
             }
         }
         Some((estimate, xyz_to_camera))
+    }
+
+    /// What a camera records of this white, by channel: the way back from
+    /// `from_camera_neutral`. None if a channel would record nothing.
+    pub fn camera_neutral(self, xyz_to_camera: &[f32; 9]) -> Option<[f64; 3]> {
+        let (x, y) = self.to_xy();
+        let xyz = DVec3::new(x / y, 1.0, (1.0 - x - y) / y);
+        let [red, green, blue] = xyz_to_camera.as_chunks::<3>().0 else {
+            return None;
+        };
+        let neutral = [red, green, blue].map(|row| DVec3::from_array(row.map(f64::from)).dot(xyz));
+        neutral
+            .iter()
+            .all(|n| n.is_finite() && *n > 0.0)
+            .then_some(neutral)
     }
 }
 

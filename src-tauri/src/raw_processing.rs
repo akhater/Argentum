@@ -241,11 +241,14 @@ pub fn read_as_shot(file_bytes: &[u8]) -> Option<AsShot> {
     let is_monochrome = raw_image.cpp == 1
         && !matches!(raw_image.photometric, RawPhotometricInterpretation::Cfa(_));
 
+    let as_shot_white = (!is_monochrome)
+        .then(|| as_shot_white_balance(&raw_image, file_bytes))
+        .flatten();
     Some(AsShot {
-        white_balance: (!is_monochrome)
-            .then(|| as_shot_white_balance(&raw_image, file_bytes))
-            .flatten()
-            .unwrap_or_else(WhiteBalance::reference),
+        white_balance: as_shot_white
+            .as_ref()
+            .map_or_else(WhiteBalance::reference, |(white, _)| *white),
+        xyz_to_camera: as_shot_white.and_then(|(_, matrix)| matrix.try_into().ok()),
         exposure: crate::baseline_exposure::read(decoder.as_ref(), file_bytes, is_monochrome),
         wb_coeffs: crate::multi_exposure::neutralize_wb_if_multiexposure(
             raw_image.wb_coeffs,
@@ -254,7 +257,11 @@ pub fn read_as_shot(file_bytes: &[u8]) -> Option<AsShot> {
     })
 }
 
-fn as_shot_white_balance(raw_image: &RawImage, file_bytes: &[u8]) -> Option<WhiteBalance> {
+/// The as-shot white and the matrix it was solved with.
+fn as_shot_white_balance(
+    raw_image: &RawImage,
+    file_bytes: &[u8],
+) -> Option<(WhiteBalance, Vec<f32>)> {
     let wb_coeffs =
         crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
     let neutral = if wb_coeffs[0].is_nan() {
@@ -267,13 +274,14 @@ fn as_shot_white_balance(raw_image: &RawImage, file_bytes: &[u8]) -> Option<Whit
     if let (Some(matrix_a), Some(matrix_d65)) =
         (matrices.get(&Illuminant::A), matrices.get(&Illuminant::D65))
     {
-        return WhiteBalance::from_dual_illuminant_camera_neutral(matrix_a, matrix_d65, &neutral);
+        return WhiteBalance::dual_illuminant_camera_neutral(matrix_a, matrix_d65, &neutral);
     }
 
     let color_matrix = matrices
         .get(&Illuminant::D65)
         .or_else(|| matrices.values().next())?;
-    WhiteBalance::from_camera_neutral(color_matrix, &neutral)
+    let white = WhiteBalance::from_camera_neutral(color_matrix, &neutral)?;
+    Some((white, color_matrix.clone()))
 }
 
 fn rgb_pixels_to_rgb(

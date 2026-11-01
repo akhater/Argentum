@@ -422,11 +422,17 @@ export type LookPickArgs = { path: string, lut: string, };
 /**
  * One photo's result, as the interface hears it.
  */
-export type LookProgress = { jobId: number, path: string, camera: string, look: string, options: { [key in string]?: boolean }, outcome: LookOutcome, 
+export type LookProgress = { jobId: number, path: string, camera: string, look: string, options: { [key in string]?: boolean }, ownWb: OwnWb | null, outcome: LookOutcome, 
 /**
  * For Preview all: nothing goes on a photo.
  */
 preview: boolean, };
+
+/**
+ * A white balance as a look file is named for it: whole kelvin and whole tint,
+ * finer than a step of either slider, so equal ones give one name on every run.
+ */
+export type LookWb = { temperature: number, tint: number, };
 
 /**
  * What became of a photo's look files and previews.
@@ -542,7 +548,12 @@ export type OfferedLook = { id: string, name: string, group: string | null, };
  * An on/off choice the program offers. What it means is the program's: only
  * its label is shown and only its id and value are sent.
  */
-export type OfferedOption = { id: string, label: string, default: boolean, };
+export type OfferedOption = { id: string, label: string, default: boolean, 
+/**
+ * With it on, looks follow the photo's white balance. Programs from before
+ * this flag have none.
+ */
+currentWb: boolean, };
 
 /**
  * An old edit found on disk, and what it becomes.
@@ -574,6 +585,20 @@ jsAdjustments: unknown, };
 export type Outcome = "deleted" | "atNextStart" | "notThere";
 
 /**
+ * A look whose option has it follow the photo's white balance.
+ */
+export type OwnWb = { 
+/**
+ * The option that asks for it. It tells no files apart by itself: at the
+ * camera's white balance the look is the one without it, in the same file.
+ */
+option: string, 
+/**
+ * What the file was made for; None for the camera's.
+ */
+wb: LookWb | null, };
+
+/**
  * One flag for each part of a lens correction.
  */
 export type Parts = { distortion: boolean, chromatic: boolean, vignetting: boolean, };
@@ -603,7 +628,11 @@ previews: Array<LookFile>,
  * Its look files and previews, for any camera, look and options, listed
  * or not: what its Delete all previews looks at.
  */
-clearable: number, };
+clearable: number, 
+/**
+ * How the look files reported follow its white balance.
+ */
+ownWb: OwnWb | null, };
 
 /**
  * The folder a file dialog opens in: the open photo's, when there is one.
@@ -636,7 +665,13 @@ export type ProviderLook = { camera: string, look: string,
 /**
  * Its options away from their default. Edits saved before options have none.
  */
-options?: { [key in string]?: boolean }, before: RenderingBefore, };
+options?: { [key in string]?: boolean }, 
+/**
+ * Set while an option has it follow the photo's white balance. The photo
+ * keeps the file this names until a new one is ready, however the sliders
+ * have moved since.
+ */
+ownWb?: OwnWb, before: RenderingBefore, };
 
 export type ProviderLookCancelArgs = { jobId: number, };
 
@@ -646,15 +681,23 @@ export type ProviderLookDeleteArgs = { path: string,
  */
 onPhoto: ProviderLook | null, };
 
-export type ProviderLookFileArgs = { path: string, camera: string, look: string, options: { [key in string]?: boolean }, };
+export type ProviderLookFileArgs = { path: string, camera: string, look: string, options: { [key in string]?: boolean }, ownWb: OwnWb | null, };
 
 export type ProviderLookMakeArgs = { paths: Array<string>, 
 /**
  * None for each photo's own camera.
  */
-camera: string | null, look: string, options: { [key in string]?: boolean }, remake: boolean, front: boolean, };
+camera: string | null, look: string, options: { [key in string]?: boolean }, 
+/**
+ * What each photo's saved edit does not hold yet.
+ */
+changes: unknown, remake: boolean, front: boolean, };
 
-export type ProviderLookPreviewArgs = { path: string, camera: string, options: { [key in string]?: boolean }, };
+export type ProviderLookPreviewArgs = { path: string, camera: string, options: { [key in string]?: boolean }, 
+/**
+ * What its saved edit does not hold yet.
+ */
+changes: unknown, };
 
 /**
  * What the provider offers.
@@ -674,7 +717,11 @@ export type ProviderLooksArgs = { path: string | null,
 /**
  * The options whose look files to report.
  */
-options: { [key in string]?: boolean }, };
+options: { [key in string]?: boolean }, 
+/**
+ * What its saved edit does not hold yet.
+ */
+changes: unknown, };
 
 export type ProviderLooksSwitchArgs = { on: boolean, };
 
