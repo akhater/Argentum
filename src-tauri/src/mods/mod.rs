@@ -52,6 +52,7 @@ pub mod file_ops;
 pub mod film_lut;
 pub mod folder_counts;
 pub mod gpu_runtime;
+pub mod gpu_setup_mark;
 pub mod highlight_protection;
 pub mod highlights;
 pub mod history;

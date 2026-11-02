@@ -1978,11 +1978,10 @@ pub fn run() {
             }
 
             let config_dir = app_handle.path().app_config_dir().expect("Failed to get config dir");
-            let crash_flag_path = config_dir.join(".gpu_init_crash_flag");
 
             {
                 let state = app.state::<AppState>();
-                *state.gpu_crash_flag_path.lock().unwrap() = Some(crash_flag_path.clone());
+                state.gpu_setup_mark.set_path(config_dir.join(".gpu_init_crash_flag"));
             }
 
             let mut settings: AppSettings = load_settings(app_handle.clone()).unwrap_or_default();
@@ -1993,12 +1992,16 @@ pub fn run() {
                 state.decoded_image_cache.lock().unwrap().set_capacity(cache_size);
             }
 
-            if crash_flag_path.exists() {
-                log::warn!("GPU Driver crash detected on last run! Falling back to OpenGL backend.");
-                settings.processing_backend = Some("gl".to_string());
-                let _ = crate::save_settings(settings.clone(), app_handle.clone());
-                let _ = std::fs::remove_file(&crash_flag_path);
-            }
+            let gpu_fallback_note = {
+                let state = app.state::<AppState>();
+                state.gpu_setup_mark.left_over().then(|| {
+                    let note = mods::gpu_setup_mark::fallback_note(settings.processing_backend.as_deref());
+                    settings.processing_backend = Some("gl".to_string());
+                    let _ = crate::save_settings(settings.clone(), app_handle.clone());
+                    state.gpu_setup_mark.clear();
+                    note
+                })
+            };
 
             let lens_db = lens_correction::load_lensfun_db(&app_handle);
             {
@@ -2044,6 +2047,15 @@ pub fn run() {
             }
 
             setup_logging(&app_handle);
+
+            if let Some(note) = gpu_fallback_note {
+                log::warn!("{}", note);
+                if let Ok(log_dir) = app_handle.path().app_log_dir()
+                    && let Err(e) = mods::gpu_setup_mark::keep_record(&log_dir, &note)
+                {
+                    log::warn!("Could not keep the GPU fallback record: {}", e);
+                }
+            }
 
             if let Some(backend) = &settings.processing_backend
                 && backend != "auto" {
@@ -2282,7 +2294,7 @@ pub fn run() {
         })
         .manage(AppState {
             window_setup_complete: AtomicBool::new(false),
-            gpu_crash_flag_path: Mutex::new(None),
+            gpu_setup_mark: Default::default(),
             original_image: Mutex::new(None),
             cached_preview: Mutex::new(None),
             gpu_context: Mutex::new(None),

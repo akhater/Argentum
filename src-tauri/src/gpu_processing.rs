@@ -212,13 +212,7 @@ pub fn get_or_init_gpu_context(
         instance_desc.backends = wgpu::Backends::PRIMARY;
     }
 
-    let flag_path = state.gpu_crash_flag_path.lock().unwrap().clone();
-    if let Some(p) = &flag_path {
-        if let Some(parent) = p.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = std::fs::write(p, "initializing_gpu");
-    }
+    state.gpu_setup_mark.begin();
 
     let instance = wgpu::Instance::new(instance_desc);
 
@@ -236,9 +230,7 @@ pub fn get_or_init_gpu_context(
                             "Failed to create surface, falling back to compute-only: {}",
                             e
                         );
-                        if let Some(p) = &flag_path {
-                            let _ = std::fs::remove_file(p);
-                        }
+                        state.gpu_setup_mark.clear();
                         None
                     }
                 }
@@ -259,9 +251,7 @@ pub fn get_or_init_gpu_context(
         ..Default::default()
     }))
     .map_err(|e| {
-        if let Some(p) = &flag_path {
-            let _ = std::fs::remove_file(p);
-        }
+        state.gpu_setup_mark.clear();
         format!("Failed to find a wgpu adapter: {}", e)
     })?;
 
@@ -295,9 +285,7 @@ pub fn get_or_init_gpu_context(
         trace: wgpu::Trace::Off,
     }))
     .map_err(|e| {
-        if let Some(p) = &flag_path {
-            let _ = std::fs::remove_file(p);
-        }
+        state.gpu_setup_mark.clear();
         e.to_string()
     })?;
 
@@ -312,9 +300,7 @@ pub fn get_or_init_gpu_context(
         }
     });
 
-    if let Some(p) = &flag_path {
-        let _ = std::fs::remove_file(p);
-    }
+    state.gpu_setup_mark.finish();
 
     #[cfg(not(target_os = "linux"))]
     let display_opt = if let Some(surface) = surface_opt {
