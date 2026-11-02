@@ -70,11 +70,11 @@ export default function FilmstripArea(props: FilmstripAreaProps) {
   const total = props.imageList.length;
   const arrows = useArrowsAt(props.imageList, current);
 
-  // Its column stays with no photo on show, so the strip keeps its width. A press takes no focus,
+  // Its column stays with no photo to step to, so the strip keeps its width. A press takes no focus,
   // so Space and Enter stay the window's shortcuts after a click.
   const arrow = ({ name, step, label, Icon }: typeof PREVIOUS | typeof NEXT) => (
     <div className="agm-strip-side">
-      {currentFolderPath && current && (
+      {currentFolderPath && (current || total > 0) && (
         <button
           className="agm-btn"
           aria-label={t(label)}

@@ -3,7 +3,8 @@
  *
  * The editor opens the photo. The grid selects it, and a recursive view keeps to the folder of the
  * photo on show; the editor walks the whole list. Any other view has no photo to step. The keys wrap
- * at the ends of that list and the arrows stop there, by `arrowsAt`.
+ * at the ends of that list and the arrows stop there, by `arrowsAt`. With nothing selected, a step
+ * forward takes the first photo of the list and a step back has nowhere to go.
  */
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -19,6 +20,8 @@ type ImageSelect = (path: string, openInEditor?: boolean) => void;
 
 const pathsOf = (images: ReadonlyArray<ImageFile>) => images.map((image) => image.path);
 
+const stepsPhotos = (activeView: string) => activeView === 'editor' || activeView === 'library';
+
 export const parentFolder = (path: string) => {
   const physicalPath = physicalPathOf(path);
   const separator = physicalPath.includes('/') ? '/' : '\\';
@@ -29,38 +32,36 @@ export const parentFolder = (path: string) => {
 /** The photos a step from `path` goes through in `activeView`. */
 function stepOrder(
   list: ReadonlyArray<ImageFile>,
-  path: string,
+  path: string | null,
   activeView: string,
   viewMode: LibraryViewMode | undefined,
 ) {
-  if (activeView !== 'library' || viewMode !== LibraryViewMode.Recursive) return list;
+  if (!path || activeView !== 'library' || viewMode !== LibraryViewMode.Recursive) return list;
   return list.filter((image) => parentFolder(image.path) === parentFolder(path));
 }
 
 /**
  * Which arrows can step from `path`. A photo that has left the list has no end to be at: both go, to
- * the nearest photo, while there is one.
+ * the nearest photo, while there is one. With nothing selected, only next goes, to the first photo.
  */
 export function arrowsAt(
   list: ReadonlyArray<ImageFile>,
-  path: string,
+  path: string | null | undefined,
   activeView: string,
   viewMode: LibraryViewMode | undefined,
 ) {
+  if (!path) return { previous: false, next: stepsPhotos(activeView) && list.length > 0 };
   const order = stepOrder(list, path, activeView, viewMode);
   const index = order.findIndex((image) => image.path === path);
   if (index === -1) return { previous: order.length > 0, next: order.length > 0 };
   return { previous: index > 0, next: index < order.length - 1 };
 }
 
-/** `arrowsAt` for the view on show; neither with no photo on show. */
+/** `arrowsAt` for the view on show. */
 export function useArrowsAt(list: ReadonlyArray<ImageFile>, path: string | null | undefined) {
   const activeView = useUIStore((s) => s.activeView);
   const viewMode = useSettingsStore((s) => s.appSettings?.libraryViewMode);
-  return useMemo(
-    () => (path ? arrowsAt(list, path, activeView, viewMode) : { previous: false, next: false }),
-    [list, path, activeView, viewMode],
-  );
+  return useMemo(() => arrowsAt(list, path, activeView, viewMode), [list, path, activeView, viewMode]);
 }
 
 /** Makes `path` the grid's active photo, alone in the selection. */
@@ -77,9 +78,9 @@ export function stepPhoto(
   handleImageSelect: ImageSelect,
 ) {
   const { activeView } = useUIStore.getState();
-  const path = activePhotoPath();
-  if (!path || (activeView !== 'editor' && activeView !== 'library')) return;
+  if (!stepsPhotos(activeView)) return;
 
+  const path = activePhotoPath();
   const viewMode = useSettingsStore.getState().appSettings?.libraryViewMode;
   const target = stepFrom(pathsOf(stepOrder(list, path, activeView, viewMode)), lastOrder, path, step);
   if (!target) return;

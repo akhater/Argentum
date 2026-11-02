@@ -649,10 +649,11 @@ export const useKeyboardShortcuts = ({
         execute: (e: KeyboardEvent, s: any) => {
           e.preventDefault();
           const activePath = s.library.libraryActivePath;
-          if (!activePath || sortedListRef.current.length === 0) return;
+          if (sortedListRef.current.length === 0) return;
           // RapidRAW ecf7730f: src/hooks/useKeyboardShortcuts.ts. Up and Down move a row in the grid,
           // and stay put on its top and bottom rows; previous and next only where no grid shows the photo.
           if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+            if (!activePath) return;
             const target = rowNeighbour(s.library.libraryGridRows, activePath, e.code === 'ArrowDown' ? 1 : -1);
             if (target !== null) {
               if (target !== activePath) selectInGrid(target, handleImageSelect);
