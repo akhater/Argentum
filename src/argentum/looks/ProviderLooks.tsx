@@ -12,6 +12,8 @@
  * button starts it. Delete all previews sends that photo's look files to the
  * Recycle Bin, but for those an edit uses, and drops its temporary files. The
  * head folds the section away, switch left in place, and that stops nothing.
+ * A click on the switch folds it too, off folded and on open, and the head has
+ * the say again until the next click; only a click does, never a load.
  * The looks show under the groups the provider names (LookGroup.tsx).
  */
 
@@ -212,9 +214,9 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
       .replace('{done}', String(previewing.ended))
       .replace('{total}', String(previewing.total));
 
-  const toggleFolded = () =>
+  const setFolded = (value: boolean) =>
     useUIStore.setState((s) => ({
-      collapsibleSectionsState: { ...s.collapsibleSectionsState, [FOLDED]: !folded },
+      collapsibleSectionsState: { ...s.collapsibleSectionsState, [FOLDED]: value },
     }));
 
   const lookRow = (look: OfferedLook) => {
@@ -240,7 +242,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
 
   return (
     <div className="agm-provider" onMouseLeave={stopPreview}>
-      <div className="agm-provider-head" onClick={toggleFolded}>
+      <div className="agm-provider-head" onClick={() => setFolded(!folded)}>
         {folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
         <span className="min-w-0 truncate">{t('looksProvider')}</span>
         {folded && previewCount && <span className="agm-provider-running">{previewCount}</span>}
@@ -251,6 +253,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
           onClick={(e) => {
             e.stopPropagation();
             setOn(!on);
+            setFolded(on);
           }}
           role="switch"
         >
