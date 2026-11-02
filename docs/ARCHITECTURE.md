@@ -291,6 +291,10 @@ best-in-class, and it's clean C++.
 
 **Same recipe regardless of source.** See [ADDING_A_TOOL.md](ADDING_A_TOOL.md).
 
+**One rawler for both apps.** Argentum and Shoebox pin `rawler` from the same
+fork, and the pins move to the same commit. `npm run check:sources` warns when
+they differ. It never blocks, so neither app's release waits for the other.
+
 ---
 
 ## Where things live

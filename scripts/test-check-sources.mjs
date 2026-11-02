@@ -1,8 +1,7 @@
 // Tests for scripts/check-sources.mjs.
 //
 // The one that matters: every wiring line is in today's tree, and a tree that
-// lost one fails. The rest test the "a harvest review is due" warning without
-// the network.
+// lost one fails. The rest test the warnings without the network.
 //
 // Run:  npm run test:checks   (or node scripts/test-check-sources.mjs)
 
@@ -17,6 +16,8 @@ import {
   missingWiring,
   pinWarning,
   pinnedFlashRaw,
+  pinnedRawler,
+  rawlerWarning,
   reviewedRelease,
 } from './check-sources.mjs';
 
@@ -104,6 +105,46 @@ test('a newer FlashRaw release asks for a measurement', () => {
   assert.equal(pinWarning('0.1.10', tags), null);
   assert.equal(pinWarning('0.2.0', tags), null); // published before it was tagged
   assert.match(pinWarning(null, tags), /no longer pins FlashRaw/);
+});
+
+test('Argentum pins one rawler commit', () => {
+  assert.match(pinnedRawler(readTree('src-tauri/Cargo.toml')) ?? '', /^[0-9a-f]{40}$/);
+  assert.equal(pinnedRawler('rawler = { git = "https://example.com/x.git", rev = "abc123" }'), 'abc123');
+  assert.equal(pinnedRawler('rawler = "0.7"'), null);
+  assert.equal(pinnedRawler('rawler-core = { git = "x", rev = "abc123" }'), null);
+  assert.equal(pinnedRawler('# rawler = { git = "x", rev = "abc123" }'), null);
+});
+
+// `test` is synchronous, so these runs happen first and their results are asserted below.
+const ours = pinnedRawler(readTree('src-tauri/Cargo.toml'));
+const shoeboxPinning = (rev) => async () => `[dependencies]\nrawler = { git = "x", rev = "${rev}" }\n`;
+const samePin = await rawlerWarning(root, shoeboxPinning(ours));
+const otherPin = await rawlerWarning(root, shoeboxPinning('16b9b01068ac1f7a9b5319705a075ef6c7789d7a'));
+const noPin = await rawlerWarning(root, async () => '404: Not Found');
+const offline = await rawlerWarning(root, async () => {
+  throw new TypeError('fetch failed');
+});
+const noCheckout = await rawlerWarning(join(root, 'no-such-checkout'), shoeboxPinning(ours));
+
+test('a matching rawler pin says nothing', () => {
+  assert.equal(samePin, null);
+});
+
+test('a different rawler pin names both commits and asks to align them', () => {
+  assert.ok(otherPin.includes(ours.slice(0, 7)), otherPin);
+  assert.ok(otherPin.includes('16b9b01'), otherPin);
+  assert.ok(!otherPin.includes('16b9b010'), otherPin); // short commits, not the full ones
+  assert.match(otherPin, /move both to the same commit/);
+});
+
+test('a Shoebox file that cannot be read is one line, not a failure', () => {
+  assert.match(noPin, /Shoebox/);
+  assert.match(offline, /could not read Shoebox's Cargo\.toml \(fetch failed\)/);
+  for (const warning of [noPin, offline]) assert.ok(!warning.includes('\n'), warning);
+});
+
+test('a checkout without the Cargo.toml has nothing to check', () => {
+  assert.equal(noCheckout, null);
 });
 
 console.log('');
