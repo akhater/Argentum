@@ -1171,7 +1171,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Хранится в iCloud — не загружено",
+      "cloudPlaceholder": "Хранится в облаке — не загружено",
       "collapseFolder": "Свернуть папку",
       "currentFolder": "Текущая папка",
       "expandFolder": "Развернуть папку",

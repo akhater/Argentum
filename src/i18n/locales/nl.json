@@ -1108,7 +1108,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Opgeslagen in iCloud — niet gedownload",
+      "cloudPlaceholder": "Opgeslagen in de cloud — niet gedownload",
       "collapseFolder": "Map inklappen",
       "currentFolder": "Huidige map",
       "expandFolder": "Map uitklappen",

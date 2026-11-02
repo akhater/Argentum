@@ -1146,7 +1146,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Stocké dans iCloud — non téléchargé",
+      "cloudPlaceholder": "Stocké dans le cloud — non téléchargé",
       "collapseFolder": "Réduire le dossier",
       "currentFolder": "Dossier actuel",
       "expandFolder": "Développer le dossier",

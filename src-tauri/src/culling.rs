@@ -129,9 +129,7 @@ fn analyze_image(
 ) -> Result<ImageAnalysisData, String> {
     const ANALYSIS_DIM: u32 = 720; // FIXME: How should we calculate good focus if it's downscaled?!?
 
-    if crate::file_management::is_cloud_placeholder(Path::new(path)) {
-        return Err(format!("'{}' is stored in iCloud and not downloaded", path));
-    }
+    crate::file_management::require_on_this_disk(Path::new(path))?;
 
     let file_bytes = std::fs::read(path).map_err(|e| e.to_string())?;
 

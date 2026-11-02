@@ -1122,7 +1122,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Stored in iCloud — not downloaded",
+      "cloudPlaceholder": "Stored in the cloud — not downloaded",
       "collapseFolder": "Collapse Folder",
       "currentFolder": "Current Folder",
       "expandFolder": "Expand Folder",

@@ -1146,7 +1146,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Almacenado en iCloud — no descargado",
+      "cloudPlaceholder": "Almacenado en la nube — no descargado",
       "collapseFolder": "Contraer carpeta",
       "currentFolder": "Carpeta actual",
       "expandFolder": "Expandir carpeta",

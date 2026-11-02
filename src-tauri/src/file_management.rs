@@ -148,7 +148,7 @@ fn enqueue_metadata(
     manager.cvar.notify_one();
 }
 
-// Not compute-heavy — these threads mostly block waiting on iCloud to
+// Not compute-heavy — these threads mostly block waiting on the cloud to
 // materialize a file, not burning CPU — so a small fixed pool is enough and
 // doesn't need a user-facing setting the way thumbnail_worker_threads does.
 const METADATA_WORKER_THREADS: usize = 4;
@@ -1326,9 +1326,27 @@ pub fn is_cloud_placeholder(path: &Path) -> bool {
     ret == 0 && (stat_buf.st_flags & SF_DATALESS) != 0
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Asks for the attributes alone: no data is read, so nothing is fetched.
+#[cfg(windows)]
+pub fn is_cloud_placeholder(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|meta| folder_walk::is_online_only(path, &meta))
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn is_cloud_placeholder(_path: &Path) -> bool {
     false
+}
+
+/// For work nobody asked of this one photo, such as culling or tagging a whole
+/// folder: an online-only photo stays where it is.
+pub fn require_on_this_disk(path: &Path) -> Result<(), String> {
+    if is_cloud_placeholder(path) {
+        return Err(format!(
+            "'{}' is online-only and not downloaded",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 pub fn read_file_mapped(path: &Path) -> Result<Mmap, ReadFileError> {
@@ -1806,11 +1824,14 @@ fn generate_single_thumbnail_and_cache(
     None
 }
 
-fn prefetch_source_file(path_str: &str) {
+fn prefetch_source_file(path_str: &str) -> u64 {
     let (source_path, _) = parse_virtual_path(path_str);
-    if let Ok(mut file) = std::fs::File::open(&source_path) {
-        let _ = std::io::copy(&mut file, &mut std::io::sink());
+    if is_cloud_placeholder(&source_path) {
+        return 0;
     }
+    std::fs::File::open(&source_path)
+        .and_then(|mut file| std::io::copy(&mut file, &mut std::io::sink()))
+        .unwrap_or(0)
 }
 
 pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
@@ -3520,6 +3541,10 @@ pub fn get_cached_or_generate_thumbnail_image(
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let target_width_small = settings.small_thumbnail_resolution.unwrap_or(480);
     let target_width_medium = settings.medium_thumbnail_resolution.unwrap_or(1280);
+    let generate = || {
+        require_on_this_disk(&parse_virtual_path(path_str).0).map_err(|e| anyhow::anyhow!(e))?;
+        generate_thumbnail_data(path_str, gpu_context, None, app_handle)
+    };
 
     if let Some(cache_hash) = get_cache_key_hash(path_str) {
         let cache_path = thumb_cache_dir.join(format!("{}_medium.jpg", cache_hash));
@@ -3534,7 +3559,7 @@ pub fn get_cached_or_generate_thumbnail_image(
             );
         }
 
-        let thumb_image = generate_thumbnail_data(path_str, gpu_context, None, app_handle)?;
+        let thumb_image = generate()?;
         if let (Ok(small_data), Ok(medium_data)) = (
             encode_thumbnail(&thumb_image, target_width_small),
             encode_thumbnail(&thumb_image, target_width_medium),
@@ -3551,7 +3576,7 @@ pub fn get_cached_or_generate_thumbnail_image(
 
         Ok(thumb_image)
     } else {
-        generate_thumbnail_data(path_str, gpu_context, None, app_handle)
+        generate()
     }
 }
 
@@ -4006,7 +4031,9 @@ pub fn sync_metadata_from_xmp(
 ) -> bool {
     let content_opt: Option<String> = match resolve_xmp_path(source_path) {
         Some(xmp_file) => fs::read_to_string(&xmp_file).ok(),
-        None if scan_embedded => read_embedded_xmp_packet(source_path),
+        None if scan_embedded && !is_cloud_placeholder(source_path) => {
+            read_embedded_xmp_packet(source_path)
+        }
         None => None,
     };
 
@@ -4239,6 +4266,75 @@ mod sidecar_name_tests {
                 PathBuf::from("/p/IMG.CR2.a1b2c3.agdata")
             )
         );
+    }
+}
+
+/// A file marked offline stands in for an online-only one: Windows sets the
+/// same attribute on it and nothing here can fetch a real one by accident.
+#[cfg(all(test, windows))]
+mod online_only_tests {
+    use super::*;
+
+    const PACKET: &[u8] =
+        b"<?xpacket begin='' id='x'?><xmp:Rating>3</xmp:Rating><?xpacket end='w'?>";
+
+    fn a_photo(dir: &tempfile::TempDir) -> PathBuf {
+        let photo = dir.path().join("a.bin");
+        fs::write(&photo, PACKET).unwrap();
+        photo
+    }
+
+    fn mark_online_only(path: &Path) {
+        let marked = std::process::Command::new("attrib")
+            .arg("+O")
+            .arg(path)
+            .status()
+            .unwrap();
+        assert!(marked.success());
+    }
+
+    #[test]
+    fn a_file_marked_offline_is_a_placeholder() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = a_photo(&dir);
+        assert!(!is_cloud_placeholder(&photo));
+        mark_online_only(&photo);
+        assert!(is_cloud_placeholder(&photo));
+    }
+
+    #[test]
+    fn a_missing_file_is_not_a_placeholder() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!is_cloud_placeholder(&dir.path().join("gone.bin")));
+    }
+
+    #[test]
+    fn the_read_ahead_leaves_an_online_only_photo_unread() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = a_photo(&dir);
+        let photo_str = photo.to_string_lossy();
+        assert_eq!(prefetch_source_file(&photo_str), PACKET.len() as u64);
+        mark_online_only(&photo);
+        assert_eq!(prefetch_source_file(&photo_str), 0);
+    }
+
+    #[test]
+    fn the_embedded_xmp_scan_leaves_an_online_only_photo_unread() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = a_photo(&dir);
+        mark_online_only(&photo);
+        let mut meta = ImageMetadata::default();
+        assert!(!sync_metadata_from_xmp(&photo, &mut meta, true));
+        assert_eq!(meta.rating, 0);
+    }
+
+    #[test]
+    fn work_nobody_asked_of_a_photo_stops_at_an_online_only_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = a_photo(&dir);
+        assert!(require_on_this_disk(&photo).is_ok());
+        mark_online_only(&photo);
+        assert!(require_on_this_disk(&photo).is_err());
     }
 }
 

@@ -1148,7 +1148,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Archiviato in iCloud — non scaricato",
+      "cloudPlaceholder": "Archiviato nel cloud — non scaricato",
       "collapseFolder": "Comprimi Cartella",
       "currentFolder": "Cartella Corrente",
       "expandFolder": "Espandi Cartella",
