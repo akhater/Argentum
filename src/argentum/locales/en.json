@@ -463,5 +463,7 @@
   "bwMixReset": "Reset",
   "bwMixAuto": "Auto",
   "bwMixAutoTip": "This photo's own mix, as Lightroom's Auto",
-  "rgbReadoutTip": "Sample RGB under the cursor"
+  "rgbReadoutTip": "Sample RGB under the cursor",
+  "gpuFallbackThisLaunch": "Graphics setup did not finish last time, so Argentum is using OpenGL for this session. Your Processing Backend setting stays on {backend}, and Argentum will try it again next time.",
+  "gpuFallbackSaved": "Graphics setup on {backend} did not finish twice in a row, so Argentum changed the Processing Backend setting to OpenGL. You can change it back in Settings."
 }

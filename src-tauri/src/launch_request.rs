@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicI32, Ordering};
 use tauri::Emitter;
 
+use crate::mods::gpu_setup_mark::Fallback;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalEditSession {
@@ -54,6 +56,7 @@ pub fn resolve_exit_code(requested: Option<i32>, recorded: i32) -> i32 {
 pub struct LaunchPayload {
     pub open_with_file: Option<String>,
     pub edit_session: Option<ExternalEditSession>,
+    pub gpu_fallback: Option<Fallback>,
 }
 
 pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
