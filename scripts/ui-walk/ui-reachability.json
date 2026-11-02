@@ -428,6 +428,8 @@
     "Library > Centre > 0 Demo-06.jpg 1/250 f/2.8 200 35mm [button]",
     "Library > Centre > 0 [button]",
     "Library > Filmstrip > 0 [button]",
+    "Library > Filmstrip > Next photo [button]",
+    "Library > Filmstrip > Previous photo [button]",
     "Library > Folder menu > Change Icon > Menu > Automotive [menuitem]",
     "Library > Folder menu > Change Icon > Menu > Favorites [menuitem]",
     "Library > Folder menu > Change Icon > Menu > Featured [menuitem]",

@@ -89,15 +89,50 @@ describe('stepping the photo on show', () => {
     expect(handleImageSelect).toHaveBeenLastCalledWith('/q/x.CR2', true);
   });
 
-  it('does nothing with no photo on show, or an empty list', () => {
-    inGrid(null);
-    stepPhoto(list, [], 1, handleImageSelect);
-
+  it('does nothing with an empty list', () => {
     inGrid('/p/a.CR2');
     stepPhoto([], [], 1, handleImageSelect);
 
     expect(handleImageSelect).not.toHaveBeenCalled();
     expect(useLibraryStore.getState().libraryActivePath).toBe('/p/a.CR2');
+  });
+
+  describe('with nothing selected in the grid', () => {
+    beforeEach(() => inGrid(null));
+
+    it('selects the first photo going forward, without opening it', () => {
+      stepPhoto(list, [], 1, handleImageSelect);
+      expect(useLibraryStore.getState().libraryActivePath).toBe('/p/a.CR2');
+      expect(useLibraryStore.getState().multiSelectedPaths).toEqual(['/p/a.CR2']);
+      expect(handleImageSelect).toHaveBeenLastCalledWith('/p/a.CR2', false);
+    });
+
+    it('selects the only photo of a folder of one', () => {
+      stepPhoto(images('/p/a.CR2'), [], 1, handleImageSelect);
+      expect(useLibraryStore.getState().libraryActivePath).toBe('/p/a.CR2');
+    });
+
+    it('takes the first of the whole list in a recursive grid', () => {
+      viewMode(LibraryViewMode.Recursive);
+      stepPhoto(images('/q/x.CR2', '/p/a.CR2'), [], 1, handleImageSelect);
+      expect(useLibraryStore.getState().libraryActivePath).toBe('/q/x.CR2');
+    });
+
+    it('does nothing going back, or with an empty list', () => {
+      stepPhoto(list, [], -1, handleImageSelect);
+      stepPhoto([], [], 1, handleImageSelect);
+
+      expect(handleImageSelect).not.toHaveBeenCalled();
+      expect(useLibraryStore.getState().libraryActivePath).toBeNull();
+    });
+
+    it('does nothing in a view with no photos to step', () => {
+      useUIStore.setState({ activeView: 'community' });
+      stepPhoto(list, [], 1, handleImageSelect);
+
+      expect(handleImageSelect).not.toHaveBeenCalled();
+      expect(useLibraryStore.getState().libraryActivePath).toBeNull();
+    });
   });
 });
 
@@ -131,5 +166,17 @@ describe('where the arrows stop', () => {
     expect(flat(list, '/p/gone.CR2')).toEqual(both);
     expect(flat(images('/p/a.CR2'), '/p/gone.CR2')).toEqual(both);
     expect(arrowsAt(images('/q/x.CR2'), '/p/gone.CR2', 'library', LibraryViewMode.Recursive)).toEqual(neither);
+  });
+
+  it('leaves only the next arrow on with nothing selected, as there is nothing before the start', () => {
+    const onlyNext = { previous: false, next: true };
+    expect(arrowsAt(list, null, 'library', LibraryViewMode.Flat)).toEqual(onlyNext);
+    expect(arrowsAt(images('/p/a.CR2'), null, 'library', LibraryViewMode.Flat)).toEqual(onlyNext);
+    expect(arrowsAt(images('/q/x.CR2', '/p/a.CR2'), null, 'library', LibraryViewMode.Recursive)).toEqual(onlyNext);
+  });
+
+  it('stops both with nothing selected and no photos, or in a view with no photos to step', () => {
+    expect(arrowsAt([], null, 'library', LibraryViewMode.Flat)).toEqual(neither);
+    expect(arrowsAt(list, null, 'community', LibraryViewMode.Flat)).toEqual(neither);
   });
 });
