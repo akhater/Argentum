@@ -54,6 +54,12 @@ describe('the photo Left and Right go to', () => {
     expect(stepFrom([], stood, 'c', -1)).toBeNull();
     expect(stepFrom([], [], 'c', 1)).toBeNull();
   });
+
+  it('takes the first photo going forward and stays going back when no photo is on show', () => {
+    expect(stepFrom(['a', 'b'], [], null, 1)).toBe('a');
+    expect(stepFrom(['a', 'b'], stood, null, -1)).toBeNull();
+    expect(stepFrom([], [], null, 1)).toBeNull();
+  });
 });
 
 describe('the order a photo stood in', () => {
