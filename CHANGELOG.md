@@ -4,6 +4,17 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.45.1 — 2026-11-02
+
+### Fixed
+
+- If graphics setup does not finish at start-up, Argentum no longer moves you to OpenGL for good without saying so. The next launch uses OpenGL once and tells you, and your Processing Backend setting stays as it was. The setting changes to OpenGL only if setup fails twice in a row on the same backend, and you are told when it does. Each case is kept in `gpu-fallback.log` in the log folder.
+- Force-stopping the app while it recovers from a lost GPU no longer switches the processing backend to OpenGL at the next launch.
+- The app no longer freezes for good when moving between photos, zooming or panning while look previews are drawing. On Windows, the window could stop responding and had to be closed, most often when going from a landscape photo to a portrait one. Look previews are now drawn away from the window's own thread, so it keeps responding while they render.
+- The app no longer freezes for good when its window is resized while it recovers from a graphics driver reset. On Windows, the window could stop responding and had to be closed. The window now keeps responding during the recovery, and the picture fits the window's final size once it is done.
+- The app no longer slows down the more its window is resized. Each resize could leave a background listener behind, and each one made more work for the next resize. After a few long drags, the window could stop responding for many seconds and the photo stopped following it.
+- The photo no longer stays at the wrong size after resizing the window. If the viewer was drawing at the moment of the last resize, that resize was lost, and the picture did not match the window until the next one. The viewer now fits the window's final size as soon as the drawing is done.
+
 ## 26.44.5 — 2026-11-01
 
 ### Added

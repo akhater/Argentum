@@ -1,1 +1,0 @@
-- The app no longer freezes for good when moving between photos, zooming or panning while look previews are drawing. On Windows, the window could stop responding and had to be closed, most often when going from a landscape photo to a portrait one. Look previews are now drawn away from the window's own thread, so it keeps responding while they render.

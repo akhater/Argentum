@@ -1,1 +1,0 @@
-- The photo no longer stays at the wrong size after resizing the window. If the viewer was drawing at the moment of the last resize, that resize was lost, and the picture did not match the window until the next one. The viewer now fits the window's final size as soon as the drawing is done.
