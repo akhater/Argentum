@@ -1171,7 +1171,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "Przechowywane w iCloud — niepobrane",
+      "cloudPlaceholder": "Przechowywane w chmurze — niepobrane",
       "collapseFolder": "Zwiń folder",
       "currentFolder": "Bieżący folder",
       "expandFolder": "Rozwiń folder",

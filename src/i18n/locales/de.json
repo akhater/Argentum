@@ -1121,7 +1121,7 @@
       }
     },
     "items": {
-      "cloudPlaceholder": "In iCloud gespeichert — nicht heruntergeladen",
+      "cloudPlaceholder": "In der Cloud gespeichert — nicht heruntergeladen",
       "collapseFolder": "Ordner zuklappen",
       "currentFolder": "Aktueller Ordner",
       "expandFolder": "Ordner aufklappen",

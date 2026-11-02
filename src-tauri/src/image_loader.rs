@@ -11,6 +11,7 @@ use crate::image_processing::{
     remove_raw_artifacts_and_enhance,
 };
 use crate::mask_generation::{MaskDefinition, SubMask, generate_mask_bitmap};
+use crate::mods::folder_walk::{System, THIS_SYSTEM};
 use crate::white_balance::WhiteBalance;
 use anyhow::{Context, Result, anyhow};
 use base64::{Engine as _, engine::general_purpose};
@@ -861,6 +862,18 @@ pub fn is_image_cached(
         .is_some()
 }
 
+/// Why this photo cannot be opened yet. Opening is the user's act, so on Windows
+/// the read fetches an online-only photo, as opening it in Explorer does. On a
+/// Mac that read froze the app (RapidRAW 1f152fa3), so Finder fetches it first.
+fn open_refusal(system: System, source_path: &Path) -> Option<String> {
+    (system == System::Mac && crate::file_management::is_cloud_placeholder(source_path)).then(|| {
+        format!(
+            "'{}' is stored in iCloud and hasn't been downloaded yet. Download it in Finder, then try again.",
+            source_path.display()
+        )
+    })
+}
+
 #[tauri::command]
 pub async fn load_image(
     path: String,
@@ -940,11 +953,8 @@ pub async fn load_image(
     let (pristine_arc, exif_data) = if let Some((cached_img, cached_exif)) = cached_data {
         (cached_img, cached_exif)
     } else {
-        if crate::file_management::is_cloud_placeholder(&source_path) {
-            return Err(format!(
-                "'{}' is stored in iCloud and hasn't been downloaded yet. Download it in Finder, then try again.",
-                source_path_str
-            ));
+        if let Some(refusal) = open_refusal(THIS_SYSTEM, &source_path) {
+            return Err(refusal);
         }
 
         let (pristine_img, exif_data_loaded) = tokio::task::spawn_blocking(move || {
@@ -1051,4 +1061,25 @@ pub async fn load_image(
         is_raw,
         as_shot_white_balance: as_shot.white_balance,
     })
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_mac_refuses_to_open_an_online_only_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("a.jpg");
+        fs::write(&photo, b"x").unwrap();
+        let marked = std::process::Command::new("attrib")
+            .arg("+O")
+            .arg(&photo)
+            .status()
+            .unwrap();
+        assert!(marked.success());
+
+        assert_eq!(open_refusal(System::Windows, &photo), None);
+        assert!(open_refusal(System::Mac, &photo).is_some());
+    }
 }

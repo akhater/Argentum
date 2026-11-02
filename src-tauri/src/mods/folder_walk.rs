@@ -102,20 +102,26 @@ pub fn look_at(system: System, parent: &Path, name: &str, online_only: bool) -> 
     }
 }
 
-/// A folder whose contents are not on this computer, so reading it would
-/// fetch them. `meta` comes from the listing: on Windows it holds the
-/// attributes without opening the folder.
-#[cfg(windows)]
-pub fn is_online_only(_path: &Path, meta: &Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
+/// Windows file attributes that say the contents are not on this computer.
+#[cfg(any(windows, test))]
+fn attributes_say_online_only(attributes: u32) -> bool {
     const FILE_ATTRIBUTE_OFFLINE: u32 = 0x0000_1000;
     const FILE_ATTRIBUTE_RECALL_ON_OPEN: u32 = 0x0004_0000;
     const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
-    meta.file_attributes()
+    attributes
         & (FILE_ATTRIBUTE_OFFLINE
             | FILE_ATTRIBUTE_RECALL_ON_OPEN
             | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS)
         != 0
+}
+
+/// A file or folder whose contents are not on this computer, so reading it
+/// would fetch them. On Windows `meta` holds the attributes, so it answers
+/// without reading anything; a listing has them without opening the folder.
+#[cfg(windows)]
+pub fn is_online_only(_path: &Path, meta: &Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    attributes_say_online_only(meta.file_attributes())
 }
 
 #[cfg(not(windows))]
@@ -203,6 +209,23 @@ mod tests {
             let look = look_at(system, Path::new("/data/photos"), "2026", true);
             assert_eq!(look, Look::Leave, "{system:?}");
         }
+    }
+
+    #[test]
+    fn each_attribute_of_an_online_only_file_says_so() {
+        for attribute in [0x0000_1000, 0x0004_0000, 0x0040_0000] {
+            assert!(attributes_say_online_only(attribute), "{attribute:#x}");
+        }
+    }
+
+    #[test]
+    fn a_onedrive_listing_reads_as_it_should() {
+        const ONLINE_ONLY: u32 = 0x0040_1620;
+        const DOWNLOADED: u32 = 0x0000_0420;
+        const HIDDEN_SYSTEM_FILE: u32 = 0x0018_0026;
+        assert!(attributes_say_online_only(ONLINE_ONLY));
+        assert!(!attributes_say_online_only(DOWNLOADED));
+        assert!(!attributes_say_online_only(HIDDEN_SYSTEM_FILE));
     }
 
     #[cfg(windows)]
