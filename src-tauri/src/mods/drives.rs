@@ -6,8 +6,10 @@
 //! folder column shows (name, free and total space) and leaving out what
 //! Shoebox's catalog needs (serial numbers, file systems).
 //!
-//! Network drives are left out: asking an offline share for its name can hang
-//! for seconds, and the column is read every time Argentum opens.
+//! Network drives are left out on Windows: asking an offline share for its name
+//! can hang for seconds, and the column is read every time Argentum opens. For
+//! the same reason macOS and Linux take their disks from a folder's listing and
+//! never ask the mount behind an entry.
 
 use serde::Serialize;
 
@@ -41,6 +43,44 @@ pub fn list() -> Vec<Drive> {
 /// group alphabetical whatever the case.
 fn sort_key(path: &str) -> (bool, String) {
     (path.len() > 3, path.to_lowercase())
+}
+
+/// One entry of a folder disks are mounted in, as its listing gives it.
+#[cfg(any(not(windows), test))]
+struct Listed {
+    path: String,
+    name: String,
+    is_dir: bool,
+    /// A link to `/`, which is how `/Volumes` names a Mac's system disk.
+    is_system_link: bool,
+}
+
+/// The system disk at `/`, under the name its link gives it if it has one,
+/// then every disk listed. The link itself is not a disk: through it, every
+/// folder on the system disk would have a second path.
+#[cfg(any(not(windows), test))]
+fn disks_in(listed: &[Listed]) -> Vec<Drive> {
+    let system_name = listed.iter().find(|l| l.is_system_link);
+    let mut out = vec![Drive {
+        path: "/".to_string(),
+        label: system_name.map(|l| l.name.clone()).unwrap_or_default(),
+        removable: false,
+        free_bytes: 0,
+        total_bytes: 0,
+    }];
+    out.extend(
+        listed
+            .iter()
+            .filter(|l| l.is_dir && !l.name.starts_with('.'))
+            .map(|l| Drive {
+                path: l.path.clone(),
+                label: l.name.clone(),
+                removable: true,
+                free_bytes: 0,
+                total_bytes: 0,
+            }),
+    );
+    out
 }
 
 #[cfg(windows)]
@@ -141,7 +181,7 @@ mod platform {
 /// put disks. Free space is not read here yet.
 #[cfg(not(windows))]
 mod platform {
-    use super::Drive;
+    use super::{Drive, Listed, disks_in};
     use std::path::Path;
 
     pub fn list() -> Vec<Drive> {
@@ -155,40 +195,77 @@ mod platform {
                 "/mnt".into(),
             ]
         };
-        let mut out = Vec::new();
-        if !cfg!(target_os = "macos") {
-            out.push(drive("/", "", false));
-        }
+        let mut listed = Vec::new();
         for place in places {
             let Ok(entries) = std::fs::read_dir(&place) else {
                 continue;
             };
             for entry in entries.filter_map(Result::ok) {
+                let Ok(kind) = entry.file_type() else {
+                    continue;
+                };
                 let path = entry.path();
-                if path.is_dir() {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    out.push(drive(&path.to_string_lossy(), &name, true));
-                }
+                listed.push(Listed {
+                    is_dir: kind.is_dir(),
+                    is_system_link: kind.is_symlink()
+                        && std::fs::read_link(&path).is_ok_and(|to| to == Path::new("/")),
+                    path: path.to_string_lossy().into_owned(),
+                    name: entry.file_name().to_string_lossy().into_owned(),
+                });
             }
         }
-        out.retain(|d| Path::new(&d.path).is_dir());
-        out
-    }
-
-    fn drive(path: &str, label: &str, removable: bool) -> Drive {
-        Drive {
-            path: path.to_string(),
-            label: label.to_string(),
-            removable,
-            free_bytes: 0,
-            total_bytes: 0,
-        }
+        disks_in(&listed)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn listed(path: &str, is_dir: bool, is_system_link: bool) -> Listed {
+        Listed {
+            path: path.to_string(),
+            name: path.rsplit('/').next().unwrap_or(path).to_string(),
+            is_dir,
+            is_system_link,
+        }
+    }
+
+    #[test]
+    fn a_macs_system_disk_is_at_its_root_not_behind_its_link() {
+        let drives = disks_in(&[
+            listed("/Volumes/Macintosh HD", false, true),
+            listed("/Volumes/Trips", true, false),
+        ]);
+        let paths: Vec<&str> = drives.iter().map(|d| d.path.as_str()).collect();
+        assert_eq!(paths, vec!["/", "/Volumes/Trips"]);
+        assert_eq!(drives[0].label, "Macintosh HD");
+        assert!(!drives[0].removable && drives[1].removable);
+    }
+
+    #[test]
+    fn the_system_disk_is_listed_with_no_link_to_name_it() {
+        let drives = disks_in(&[listed("/mnt/photos", true, false)]);
+        assert_eq!(drives[0].path, "/");
+        assert_eq!(drives[0].label, "");
+        assert_eq!(drives[1].path, "/mnt/photos");
+    }
+
+    #[test]
+    fn a_hidden_folder_or_another_link_is_not_a_disk() {
+        let drives = disks_in(&[
+            listed("/Volumes/.timemachine", true, false),
+            listed("/Volumes/Shortcut", false, false),
+        ]);
+        assert_eq!(drives.len(), 1);
+    }
+
+    #[test]
+    fn the_system_disk_comes_before_the_others() {
+        let mut paths = vec!["/Volumes/Trips", "/"];
+        paths.sort_by_key(|p| sort_key(p));
+        assert_eq!(paths, vec!["/", "/Volumes/Trips"]);
+    }
 
     #[test]
     fn drive_letters_come_first_and_in_order() {
