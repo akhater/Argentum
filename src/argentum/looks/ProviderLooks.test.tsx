@@ -289,6 +289,18 @@ describe('folding the section', () => {
     syncFold();
   };
 
+  /** A real click, then what it changed, for a server render too. */
+  const clickSwitch = async () => {
+    found(rendered(), (el) => el.props.role === 'switch')?.props.onClick?.({ stopPropagation: () => {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    offered({ offer: useProviderLooks.getState().offer });
+    syncFold();
+  };
+
+  const foldKept = () =>
+    (useUIStore.getState().collapsibleSectionsState as unknown as Record<string, boolean | undefined>)
+      .providerLooksFolded;
+
   it('is open at first, with nothing kept for it', () => {
     offered({ offer: WITH_FILES });
     const html = section();
@@ -326,7 +338,7 @@ describe('folding the section', () => {
     expect(useUIStore.getState().collapsibleSectionsState).toMatchObject(before);
   });
 
-  it('the switch works and does not fold it', async () => {
+  it('the switch works, and its click never reaches the head', async () => {
     offered({ offer: WITH_FILES });
     const stopPropagation = vi.fn();
     const button = found(rendered(), (el) => el.props.role === 'switch');
@@ -334,7 +346,84 @@ describe('folding the section', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(stopPropagation).toHaveBeenCalled();
     expect(useProviderLooks.getState().offer?.on).toBe(false);
-    expect(useUIStore.getState().collapsibleSectionsState).not.toHaveProperty('providerLooksFolded');
+  });
+
+  it('turning the switch off folds the section', async () => {
+    offered({ offer: WITH_FILES });
+    await clickSwitch();
+    expect(useProviderLooks.getState().offer?.on).toBe(false);
+    expect(foldKept()).toBe(true);
+    expect(section()).not.toContain('Invented Stock');
+  });
+
+  it('turning the switch on opens the section', async () => {
+    offered({ offer: { ...WITH_FILES, on: false } });
+    folded(true);
+    await clickSwitch();
+    expect(useProviderLooks.getState().offer?.on).toBe(true);
+    expect(foldKept()).toBe(false);
+    expect(section()).toContain('Invented Stock');
+  });
+
+  it('a section already folded stays folded when the switch goes off', async () => {
+    offered({ offer: WITH_FILES });
+    folded(true);
+    await clickSwitch();
+    expect(foldKept()).toBe(true);
+  });
+
+  it('a section already open stays open when the switch goes on', async () => {
+    offered({ offer: { ...WITH_FILES, on: false } });
+    await clickSwitch();
+    expect(foldKept()).toBe(false);
+    expect(section()).toContain('Invented Stock');
+  });
+
+  it('opening by hand after the switch went off holds until the next flip', async () => {
+    offered({ offer: WITH_FILES });
+    await clickSwitch();
+    clickHead();
+    expect(section()).toContain('Invented Stock');
+    expect(useProviderLooks.getState().offer?.on).toBe(false);
+    await clickSwitch();
+    expect(section()).toContain('Invented Stock');
+    await clickSwitch();
+    expect(section()).not.toContain('Invented Stock');
+  });
+
+  it('folding by hand after the switch went on holds until the next flip', async () => {
+    offered({ offer: { ...WITH_FILES, on: false } });
+    await clickSwitch();
+    clickHead();
+    expect(section()).not.toContain('Invented Stock');
+    expect(useProviderLooks.getState().offer?.on).toBe(true);
+    await clickSwitch();
+    await clickSwitch();
+    expect(section()).toContain('Invented Stock');
+  });
+
+  it.each([
+    ['off and open', false, undefined],
+    ['off and folded', false, true],
+    ['on and folded', true, true],
+    ['on and open', true, false],
+  ])('showing a section %s changes nothing', (_, on, kept) => {
+    offered({ offer: { ...WITH_FILES, on } });
+    if (kept !== undefined) folded(kept);
+    const before = useUIStore.getState().collapsibleSectionsState;
+    rendered();
+    expect(useUIStore.getState().collapsibleSectionsState).toBe(before);
+  });
+
+  it('a photo change, or the switch set from outside, changes nothing', async () => {
+    offered({ offer: WITH_FILES });
+    const before = useUIStore.getState().collapsibleSectionsState;
+    await useProviderLooks.getState().setOn(false);
+    await useProviderLooks.getState().load(OPEN, {});
+    offered({ offer: { ...WITH_FILES, on: false, photo: { ...WITH_FILES.photo!, camera: 'cam2' } } });
+    rendered();
+    expect(useUIStore.getState().collapsibleSectionsState).toBe(before);
+    expect(section()).toContain('Invented Stock');
   });
 
   it('cancels nothing, and the head says Preview all is still running', () => {
