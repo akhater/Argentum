@@ -149,6 +149,42 @@ fn no_command_on_the_ui_thread_touches_a_render() {
     assert!(caught.is_empty(), "{caught:#?}");
 }
 
+/// What waits for the lock a new GPU context is made under. Making one asks the
+/// UI thread for the window twice over, so whoever makes it can hold that lock
+/// until the UI thread answers: a device lost mid-session is enough.
+const WAITS_FOR_THE_GPU_CONTEXT: [&str; 2] = [".gpu_context.lock", "get_or_init_gpu_context"];
+
+/// The part of `body` that runs where it was called: a spawned thread is free
+/// to wait, so what follows the first spawn is not the UI thread's.
+fn before_first_spawn(body: &str) -> &str {
+    body.find("spawn").map_or(body, |at| &body[..at])
+}
+
+#[test]
+fn nothing_on_the_ui_thread_waits_for_the_gpu_context() {
+    let mut caught = Vec::new();
+    for (path, source) in sources() {
+        let mut on_the_ui_thread = synchronous_commands(&source);
+        // The window's events run there too, and a resize is the one that reaches it.
+        if path.ends_with("viewer_surface.rs") {
+            on_the_ui_thread.extend(
+                functions(&source)
+                    .into_iter()
+                    .filter(|(name, _)| *name == "apply_window_resize"),
+            );
+        }
+        for (name, body) in on_the_ui_thread {
+            let body = flat(body);
+            for word in WAITS_FOR_THE_GPU_CONTEXT {
+                if before_first_spawn(&body).contains(word) {
+                    caught.push(format!("{} in {}: {word}", name, path.display()));
+                }
+            }
+        }
+    }
+    assert!(caught.is_empty(), "{caught:#?}");
+}
+
 /// What sends a question to the UI thread and waits for the answer.
 const ASKS_THE_UI_THREAD: [&str; 2] = ["main_window()", ".hwnd()"];
 

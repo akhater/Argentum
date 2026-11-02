@@ -1,0 +1,1 @@
+- The app no longer freezes for good when its window is resized while it recovers from a graphics driver reset. On Windows, the window could stop responding and had to be closed. The window now keeps responding during the recovery, and the picture fits the window's final size once it is done.
