@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Argentum reads the photos in the Desktop folders you open and saves your edits next to them.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Argentum reads the photos in the Documents folders you open and saves your edits next to them.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Argentum reads the photos in the Downloads folders you open and saves your edits next to them.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>Argentum reads the photos on the external drives you open and saves your edits next to them.</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>Argentum reads the photos on the network drives you open and saves your edits next to them.</string>
+</dict>
+</plist>

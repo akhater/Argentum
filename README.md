@@ -78,8 +78,8 @@ protected your PC" the first time. Choose **More info**, then **Run anyway**.
 
 ### macOS: two one-time steps
 
-Argentum is not yet signed or notarized by Apple, so macOS needs two things
-done once. Only do this with a DMG from the official Argentum release.
+Argentum has its own signature but is not notarized by Apple, so macOS needs two
+things done once. Only do this with a DMG from the official Argentum release.
 
 **1. Let it open.** Copy `Argentum.app` from the DMG to `/Applications`. Without
 this step macOS reports it as "damaged". In Terminal, run:
@@ -100,7 +100,8 @@ This opens the right page:
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"
 ```
 
-Because Argentum is not signed, macOS may ask again after an update.
+Each release carries the same signature, so macOS remembers your answers across
+updates. The first release with that signature asks once more.
 
 ### macOS: folders made by an import script
 
