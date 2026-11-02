@@ -66,5 +66,10 @@ A release is a merge commit on `main`, published in this order.
    release (`scripts/installer-size.mjs`) and fails when one grew by more than
    3%: add a line starting `Installer size:` to the notes saying why, then re-run
    that job.
+
+   The macOS builds are signed with the self-signed certificate in the
+   `MACOS_CERTIFICATE` secret, and fail without it. Keep that certificate:
+   macOS ties each user's privacy answers to it, so a new one makes every Mac
+   ask again once.
 5. **Bump.** A "Bump development version to <next>" PR changes the same three
    lines as step 1.

@@ -91,6 +91,40 @@ jobs:
           fi
           echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
 
+      # macOS ties a user's privacy answers to the app's signature. An unsigned build is known only
+      # by its hash, so each release asks again; one certificate keeps the answers across updates.
+      # Replacing the certificate makes every Mac ask once more. It is self-signed, so Tauri's own
+      # APPLE_CERTIFICATE import cannot be used: that accepts only Apple's certificate names.
+      - name: Import the signing certificate (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [[ -z "$MACOS_CERTIFICATE" || -z "$MACOS_CERTIFICATE_PASSWORD" ]]; then
+            echo "::error::MACOS_CERTIFICATE and MACOS_CERTIFICATE_PASSWORD are not set"
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(openssl rand -hex 16)"
+          base64 --decode <<< "$MACOS_CERTIFICATE" > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -f pkcs12 \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          # Not `find-identity -v`: that lists only certificates the system trusts.
+          identity="$(security find-identity -p codesigning "$keychain" | awk '/^ *1\)/ { print $2; exit }')"
+          if [[ -z "$identity" ]]; then
+            echo "::error::MACOS_CERTIFICATE holds no code signing identity"
+            exit 1
+          fi
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
       - id: tauri-build
         name: Build with tauri-action
         # FIXME set this back to a release major version, ex. v0 . This is a commit from the `dev` branch which includes PR
@@ -106,6 +140,23 @@ jobs:
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           releaseId: ${{ inputs.release-id }}
           retryAttempts: 3
+
+      # `cdhash` here means the certificate did not reach the build: every Mac would ask again.
+      - name: Check the signature and the privacy prompts (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="$(echo src-tauri/target/${{ inputs.target }}/release/bundle/macos/*.app)"
+          codesign --verify --deep --strict "$app"
+          requirement="$(codesign -d -r- "$app" 2>&1)"
+          echo "$requirement"
+          if ! grep -q '^designated => .*certificate ' <<< "$requirement" || grep -q 'cdhash' <<< "$requirement"; then
+            echo "::error::$app has no certificate requirement"
+            exit 1
+          fi
+          for folder in DesktopFolder DocumentsFolder DownloadsFolder RemovableVolumes NetworkVolumes; do
+            /usr/libexec/PlistBuddy -c "Print :NS${folder}UsageDescription" "$app/Contents/Info.plist"
+          done
 
       - name: Upload Windows Artifacts
         if: ${{ startsWith(inputs.platform, 'windows') && inputs.release-id == '' }}
