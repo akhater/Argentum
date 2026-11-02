@@ -19,7 +19,7 @@ type ImageSelect = (path: string, openInEditor?: boolean) => void;
 
 const pathsOf = (images: ReadonlyArray<ImageFile>) => images.map((image) => image.path);
 
-const parentFolder = (path: string) => {
+export const parentFolder = (path: string) => {
   const physicalPath = physicalPathOf(path);
   const separator = physicalPath.includes('/') ? '/' : '\\';
   const lastSep = physicalPath.lastIndexOf(separator);

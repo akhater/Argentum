@@ -7,6 +7,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { Invokes } from '../components/ui/AppProperties';
 import { ExportSettings, Status } from '../components/ui/ExportImportProperties';
 import { debouncedSave } from './useEditorActions';
+import { openFromOutside } from '../argentum/modern/folders';
 
 /**
  * Handles files handed to the app from outside (OS "open with" and the
@@ -14,27 +15,32 @@ import { debouncedSave } from './useEditorActions';
  * Opens the requested image in the editor and, for edit sessions, exports
  * the result to the caller-provided output path and exits the app.
  */
-export function useExternalEditSession(handleImageSelect: (path: string) => void) {
+export function useExternalEditSession(
+  handleImageSelect: (path: string) => void,
+  showFolder: (folder: string) => void,
+) {
   const initialFileToOpen = useProcessStore((state) => state.initialFileToOpen);
   const externalEditSession = useProcessStore((state) => state.externalEditSession);
   const exportStatus = useProcessStore((state) => state.exportState.status);
   const [isFinishing, setIsFinishing] = useState(false);
 
   const handleImageSelectRef = useRef(handleImageSelect);
+  const showFolderRef = useRef(showFolder);
   useEffect(() => {
     handleImageSelectRef.current = handleImageSelect;
+    showFolderRef.current = showFolder;
   });
 
   useEffect(() => {
     if (!initialFileToOpen) return;
     useProcessStore.getState().setProcess({ initialFileToOpen: null });
-    handleImageSelectRef.current(initialFileToOpen);
+    openFromOutside(initialFileToOpen, handleImageSelectRef.current, showFolderRef.current);
   }, [initialFileToOpen]);
 
   useEffect(() => {
     if (!externalEditSession) return;
     setIsFinishing(false);
-    handleImageSelectRef.current(externalEditSession.source);
+    openFromOutside(externalEditSession.source, handleImageSelectRef.current, showFolderRef.current);
   }, [externalEditSession]);
 
   useEffect(() => {
