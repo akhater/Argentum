@@ -23,7 +23,7 @@
 //! fix is confirmed.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, TryLockError};
+use std::sync::{Mutex, MutexGuard, TryLockError};
 use std::time::Duration;
 
 use tauri::Manager;
@@ -62,20 +62,11 @@ pub fn apply_window_resize(window: &tauri::Window, size: PhysicalSize<u32>) {
     let restored = MINIMISED.swap(false, Ordering::Relaxed);
 
     let state = window.state::<AppState>();
-    let Some(ctx) = context_now(&state.gpu_context, || {
-        fit_once_free(window.app_handle(), restored)
+    let busy = || fit_once_free(window.app_handle(), restored);
+    let Some((ctx, presented)) = fit_now(&state.gpu_context, display_of, busy, |ctx, display| {
+        display.as_mut().map(|d| fit_and_render(d, ctx, size))
     }) else {
         return;
-    };
-
-    // Never wait here: this is the event thread, and a render may hold the lock.
-    let presented = match ctx.display.try_lock() {
-        Ok(mut guard) => guard.as_mut().map(|d| fit_and_render(d, &ctx, size)),
-        Err(TryLockError::Poisoned(poisoned)) => poisoned
-            .into_inner()
-            .as_mut()
-            .map(|d| fit_and_render(d, &ctx, size)),
-        Err(TryLockError::WouldBlock) => None,
     };
 
     if restored {
@@ -103,14 +94,15 @@ fn fit_and_render(display: &mut WgpuDisplay, ctx: &GpuContext, size: PhysicalSiz
     display.render(&ctx.device, &ctx.queue)
 }
 
-/// The context, or None with `busy` called if something holds its lock.
-///
-/// Never wait for this lock on the event thread: a thread making a new context
-/// holds it while it asks the event thread for the window, see mods/ui_thread.rs.
-fn context_now<C: Clone>(lock: &Mutex<Option<C>>, busy: impl FnOnce()) -> Option<C> {
+fn display_of(ctx: &GpuContext) -> &Mutex<Option<WgpuDisplay>> {
+    &ctx.display
+}
+
+/// The lock, or None with `busy` called if something holds it.
+fn lock_now<T>(lock: &Mutex<T>, busy: impl FnOnce()) -> Option<MutexGuard<'_, T>> {
     match lock.try_lock() {
-        Ok(guard) => guard.clone(),
-        Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner().clone(),
+        Ok(guard) => Some(guard),
+        Err(TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
         Err(TryLockError::WouldBlock) => {
             busy();
             None
@@ -118,7 +110,24 @@ fn context_now<C: Clone>(lock: &Mutex<Option<C>>, busy: impl FnOnce()) -> Option
     }
 }
 
-/// Fits the surface once the context lock is free, off the event thread.
+/// The context and what `fit` made of its display. None if there is no context,
+/// or with `busy` called if something holds either lock.
+///
+/// Never wait for these on the event thread: a render may hold the display, and
+/// a thread making a new context holds the context's lock while it asks the event
+/// thread for the window, see mods/ui_thread.rs.
+fn fit_now<C: Clone, D, R>(
+    contexts: &Mutex<Option<C>>,
+    display: fn(&C) -> &Mutex<D>,
+    busy: impl Fn(),
+    fit: impl FnOnce(&C, &mut D) -> R,
+) -> Option<(C, R)> {
+    let context = lock_now(contexts, &busy)?.clone()?;
+    let fitted = fit(&context, &mut *lock_now(display(&context), &busy)?);
+    Some((context, fitted))
+}
+
+/// Fits the surface once its locks are free, off the event thread.
 fn fit_once_free(app: &tauri::AppHandle, restored: bool) {
     static WAITING: WaitingFit = WaitingFit::new();
     if !WAITING.ask(restored) {
@@ -127,27 +136,27 @@ fn fit_once_free(app: &tauri::AppHandle, restored: bool) {
     let app = app.clone();
     std::thread::spawn(move || {
         let state = app.state::<AppState>();
-        WAITING.run(&state.gpu_context, latest_size, |ctx, size, restored| {
-            if is_minimised() {
-                return;
-            }
-            if let Some(display) = ctx
-                .display
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .as_mut()
-            {
-                fit_and_render(display, &ctx, size);
-            }
-            if restored {
-                redraw_after_restore(ctx);
-            }
-        });
+        WAITING.run(
+            &state.gpu_context,
+            display_of,
+            latest_size,
+            |ctx, display, size, restored| {
+                if is_minimised() {
+                    return;
+                }
+                if let Some(display) = display.as_mut() {
+                    fit_and_render(display, ctx, size);
+                }
+                if restored {
+                    redraw_after_restore(ctx.clone());
+                }
+            },
+        );
     });
 }
 
-/// A fit that could not run because the context lock was busy. However many
-/// resizes arrive meanwhile, one thread waits, and it fits to the latest size.
+/// A fit that could not run because a lock was busy. However many resizes arrive
+/// meanwhile, one thread waits, and it fits to the latest size.
 struct WaitingFit {
     waiting: AtomicBool,
     restored: AtomicBool,
@@ -167,19 +176,24 @@ impl WaitingFit {
         !self.waiting.swap(true, Ordering::SeqCst)
     }
 
-    /// Waits for the lock, then fits. The next `ask` starts a thread of its own,
-    /// and is taken before the size is read, so no resize falls between the two.
-    fn run<C: Clone>(
+    /// Waits for both locks, then fits. Only then does the next `ask` start a
+    /// thread of its own, and it is taken before the size is read, so no resize
+    /// falls between the two and no older size lands after a newer one.
+    fn run<C: Clone, D>(
         &self,
-        lock: &Mutex<Option<C>>,
+        contexts: &Mutex<Option<C>>,
+        display: fn(&C) -> &Mutex<D>,
         size: impl Fn() -> PhysicalSize<u32>,
-        fit: impl FnOnce(C, PhysicalSize<u32>, bool),
+        fit: impl FnOnce(&C, &mut D, PhysicalSize<u32>, bool),
     ) {
-        let context = lock.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let context = contexts.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let mut held = context
+            .as_ref()
+            .map(|context| display(context).lock().unwrap_or_else(|e| e.into_inner()));
         self.waiting.store(false, Ordering::SeqCst);
         let restored = self.restored.swap(false, Ordering::SeqCst);
-        if let Some(context) = context {
-            fit(context, size(), restored);
+        if let (Some(context), Some(held)) = (&context, &mut held) {
+            fit(context, held, size(), restored);
         }
     }
 }
@@ -210,6 +224,82 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use std::sync::mpsc::channel;
+    use std::thread::JoinHandle;
+
+    /// Stands in for `GpuContext`: all that matters here is the lock around its
+    /// display, and the display is the width it was last fitted to.
+    type Context = Arc<Mutex<u32>>;
+
+    fn display_lock(context: &Context) -> &Mutex<u32> {
+        context
+    }
+
+    /// The viewer's locks, and a resize taking the path the real one takes.
+    struct Viewer {
+        contexts: Mutex<Option<Context>>,
+        display: Context,
+        newest: AtomicU64,
+        waiting: WaitingFit,
+        threads: Mutex<Vec<JoinHandle<()>>>,
+    }
+
+    impl Viewer {
+        fn new() -> Arc<Self> {
+            let display = Arc::new(Mutex::new(0));
+            Arc::new(Self {
+                contexts: Mutex::new(Some(Arc::clone(&display))),
+                display,
+                newest: AtomicU64::new(0),
+                waiting: WaitingFit::new(),
+                threads: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn resize(self: &Arc<Self>, width: u32) {
+            self.newest.store(u64::from(width), Ordering::SeqCst);
+            fit_now(
+                &self.contexts,
+                display_lock,
+                || self.fit_once_free(),
+                |_, display| *display = width,
+            );
+        }
+
+        fn fit_once_free(self: &Arc<Self>) {
+            if !self.waiting.ask(false) {
+                return;
+            }
+            let viewer = Arc::clone(self);
+            let thread = std::thread::spawn(move || {
+                let newest = || PhysicalSize::new(viewer.newest.load(Ordering::SeqCst) as u32, 1);
+                viewer.waiting.run(
+                    &viewer.contexts,
+                    display_lock,
+                    newest,
+                    |_, display, size, _| *display = size.width,
+                );
+            });
+            self.threads.lock().expect("threads").push(thread);
+        }
+
+        /// How many threads had to wait, once they are all done.
+        fn join(&self) -> usize {
+            let threads = std::mem::take(&mut *self.threads.lock().expect("threads"));
+            let count = threads.len();
+            for thread in threads {
+                thread.join().expect("the fit");
+            }
+            count
+        }
+
+        fn fitted_width(&self) -> u32 {
+            *self.display.lock().expect("display")
+        }
+    }
+
+    fn any_size() -> PhysicalSize<u32> {
+        PhysicalSize::new(1, 1)
+    }
 
     /// The freeze, in miniature: a thread making the context holds the lock until
     /// the event thread answers it, and the event thread is handling a resize.
@@ -232,92 +322,141 @@ mod tests {
         is_held.recv().expect("held");
 
         let mut busy = false;
-        let context = context_now(&lock, || busy = true);
+        let got_the_lock = lock_now(&lock, || busy = true).is_some();
         let _ = answer.send(());
 
         holder.join().expect("the holder gave up waiting");
-        assert_eq!(context, None);
+        assert!(!got_the_lock);
         assert!(busy);
     }
 
     #[test]
-    fn a_free_lock_gives_the_context_at_once() {
-        let lock = Mutex::new(Some(7));
-        assert_eq!(context_now(&lock, || panic!("not busy")), Some(7));
-        assert_eq!(
-            context_now(&Mutex::new(None::<u8>), || panic!("not busy")),
-            None
+    fn free_locks_fit_at_once() {
+        let viewer = Viewer::new();
+        let fitted = fit_now(
+            &viewer.contexts,
+            display_lock,
+            || panic!("not busy"),
+            |_, display| *display = 7,
         );
+        assert!(fitted.is_some());
+        assert_eq!(viewer.fitted_width(), 7);
+    }
+
+    #[test]
+    fn no_context_needs_no_fit_now() {
+        let contexts = Mutex::new(None::<Context>);
+        let fitted = fit_now(
+            &contexts,
+            display_lock,
+            || panic!("not busy"),
+            |_, _| panic!("no context"),
+        );
+        assert!(fitted.is_none());
     }
 
     /// A drag ends on one last size, and it is the one that has to land.
     #[test]
     fn the_last_size_of_a_drag_is_the_one_fitted() {
-        let lock = Arc::new(Mutex::new(Some(1)));
-        let newest = Arc::new(AtomicU64::new(0));
-        let waiting = Arc::new(WaitingFit::new());
-        let (fitted, fits) = channel();
-        let guard = lock.lock().expect("lock");
-
-        let mut threads = 0;
+        let viewer = Viewer::new();
+        let making_a_context = viewer.contexts.lock().expect("contexts");
         for width in 1..=50 {
-            newest.store(width, Ordering::SeqCst);
-            if waiting.ask(false) {
-                threads += 1;
-                let (lock, newest, waiting, fitted) = (
-                    Arc::clone(&lock),
-                    Arc::clone(&newest),
-                    Arc::clone(&waiting),
-                    fitted.clone(),
-                );
-                std::thread::spawn(move || {
-                    let size = || PhysicalSize::new(newest.load(Ordering::SeqCst) as u32, 1);
-                    waiting.run(&lock, size, |_, size, _| {
-                        fitted.send(size.width).expect("fit")
-                    });
-                });
-            }
+            viewer.resize(width);
         }
-        drop(guard);
-        drop(fitted);
+        drop(making_a_context);
 
+        assert_eq!(viewer.join(), 1);
+        assert_eq!(viewer.fitted_width(), 50);
+    }
+
+    /// The same drag with a render holding the display instead. The first thread
+    /// is left time to reach that lock, as the later sizes must not start another
+    /// or be missed by it, and its size must be read once it holds the lock.
+    #[test]
+    fn the_last_size_of_a_drag_lands_after_a_render() {
+        let viewer = Viewer::new();
+        let render = viewer.display.lock().expect("display");
+        viewer.resize(1);
+        std::thread::sleep(Duration::from_millis(50));
+        for width in 2..=50 {
+            viewer.resize(width);
+        }
+        drop(render);
+
+        let threads = viewer.join();
+        assert_eq!(viewer.fitted_width(), 50);
         assert_eq!(threads, 1);
-        assert_eq!(fits.iter().collect::<Vec<_>>(), [50]);
+    }
+
+    /// The event thread must leave a restore to the waiting thread: if it took
+    /// the context back as well, both would schedule the redraws.
+    #[test]
+    fn a_restore_on_a_busy_display_is_left_to_the_waiting_thread() {
+        let viewer = Viewer::new();
+        let render = viewer.display.lock().expect("display");
+        let fitted = fit_now(
+            &viewer.contexts,
+            display_lock,
+            || {
+                viewer.waiting.ask(true);
+            },
+            |_, _| (),
+        );
+        drop(render);
+        assert!(fitted.is_none());
+
+        let mut fits_owing_redraws = 0;
+        for _ in 0..2 {
+            viewer.waiting.run(
+                &viewer.contexts,
+                display_lock,
+                any_size,
+                |_, _, _, restored| fits_owing_redraws += u32::from(restored),
+            );
+        }
+        assert_eq!(fits_owing_redraws, 1);
     }
 
     #[test]
     fn a_resize_after_the_fit_starts_another() {
-        let lock = Mutex::new(Some(1));
-        let waiting = WaitingFit::new();
+        let viewer = Viewer::new();
+        let waiting = &viewer.waiting;
         assert!(waiting.ask(false));
         assert!(!waiting.ask(false));
-        waiting.run(&lock, || PhysicalSize::new(1, 1), |_, _, _| {});
+        waiting.run(&viewer.contexts, display_lock, any_size, |_, _, _, _| {});
         assert!(waiting.ask(false));
     }
 
     /// A restore among the resizes still owes its redraws, once.
     #[test]
     fn a_restore_while_waiting_is_carried_to_the_fit() {
-        let lock = Mutex::new(Some(1));
-        let waiting = WaitingFit::new();
-        let size = || PhysicalSize::new(1, 1);
+        let viewer = Viewer::new();
+        let waiting = &viewer.waiting;
         waiting.ask(false);
         waiting.ask(true);
-        waiting.run(&lock, size, |_, _, restored| assert!(restored));
+        waiting.run(
+            &viewer.contexts,
+            display_lock,
+            any_size,
+            |_, _, _, restored| assert!(restored),
+        );
         waiting.ask(false);
-        waiting.run(&lock, size, |_, _, restored| assert!(!restored));
+        waiting.run(
+            &viewer.contexts,
+            display_lock,
+            any_size,
+            |_, _, _, restored| assert!(!restored),
+        );
     }
 
     #[test]
     fn no_context_means_nothing_to_fit() {
-        let lock = Mutex::new(None::<u8>);
+        let contexts = Mutex::new(None::<Context>);
         let waiting = WaitingFit::new();
         waiting.ask(false);
-        waiting.run(
-            &lock,
-            || PhysicalSize::new(1, 1),
-            |_, _, _| panic!("no context"),
-        );
+        waiting.run(&contexts, display_lock, any_size, |_, _, _, _| {
+            panic!("no context")
+        });
         assert!(waiting.ask(false));
     }
 }
