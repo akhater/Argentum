@@ -34,8 +34,10 @@ export function usePlatform(): string {
   return os;
 }
 
-function useWindow(os: string) {
-  const appWindow = getCurrentWindow();
+export function useWindow(os: string) {
+  // One object across renders: each call makes a new one, and the effect below
+  // would listen again on every render, and a resize renders this.
+  const [appWindow] = useState(getCurrentWindow);
   const [maximised, setMaximised] = useState(false);
 
   useEffect(() => {
@@ -45,9 +47,10 @@ function useWindow(os: string) {
         .then(setMaximised)
         .catch(() => {});
     read();
-    let unlisten: (() => void) | undefined;
-    appWindow.onResized(read).then((u) => (unlisten = u));
-    return () => unlisten?.();
+    const listening = appWindow.onResized(read);
+    return () => {
+      listening.then((stop) => stop()); // through the promise: it may not be listening yet
+    };
   }, [appWindow]);
 
   const toggle = useCallback(async () => {
