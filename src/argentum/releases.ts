@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.45.1',
+    date: '2026-11-02',
+    notes: [
+      'No more freeze when moving between photos, most often from a landscape photo to a portrait one.',
+      'The app no longer gets slower each time the window is resized.',
+      'The photo fits the window after a resize, every time.',
+      'If graphics setup fails at start-up, Argentum uses OpenGL for one launch and tells you, instead of switching for good without a word.',
+    ],
+  },
+  {
     version: '26.44.5',
     date: '2026-11-01',
     notes: [

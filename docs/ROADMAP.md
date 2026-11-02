@@ -14,6 +14,7 @@ Work that went out without being planned on this page, newest first.
 
 | Version | What |
 |---|---|
+| `26.45.1` | Freezes fixed when changing photos and when resizing during graphics recovery. No slowdown or wrong size after window resizes. OpenGL fallback lasts one launch and says so |
 | `26.44.5` | Arrows on the thumbnail bar and a button to switch between the photo and the thumbnails. Apple Silicon Mac builds move to macOS 15. Tethering downloads removed |
 | `26.44.4` | Left and Right keep working when the photo on show leaves the filtered list. Import Images removed: Shoebox does the importing |
 | `26.44.3` | Lens correction uses the aperture and distance a photo was shot at. Less colour cast in the deepest shadows of very high ISO photos (RAWmakase). The active library filter shows on the View button, with Show all when the grid is empty. A missing LUT no longer renders a photo black |

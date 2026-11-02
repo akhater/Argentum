@@ -1,1 +1,0 @@
-- The app no longer slows down the more its window is resized. Each resize could leave a background listener behind, and each one made more work for the next resize. After a few long drags, the window could stop responding for many seconds and the photo stopped following it.

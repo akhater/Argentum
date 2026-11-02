@@ -1,1 +1,0 @@
-- Force-stopping the app while it recovers from a lost GPU no longer switches the processing backend to OpenGL at the next launch.
