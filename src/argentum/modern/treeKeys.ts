@@ -7,8 +7,9 @@
  * Space shows the folder. One difference from Shoebox: a folder reached with
  * the arrows is also shown once the key rests, as Explorer's tree does, so
  * browsing needs no Enter. A disk is shown only on Enter, since a whole disk
- * can be a long wait. Keys the tree uses stop there, so the grid behind it
- * does not move as well.
+ * can be a long wait, and so is a folder nothing may read until it is opened,
+ * since resting on it would read it. Keys the tree uses stop there, so the
+ * grid behind it does not move as well.
  */
 
 import { type FocusEvent, type KeyboardEvent, useEffect, useRef } from 'react';
@@ -21,16 +22,17 @@ interface Row {
   /** It has folders inside, so Right and Left open and close it. */
   opens: boolean;
   open: boolean;
-  disk?: boolean;
+  /** Reaching it with the arrows does not show it. */
+  onlyOnEnter?: boolean;
   selected?: boolean;
 }
 
 /** The attributes that make a row reachable from the keyboard. */
-export const treeRow = ({ depth, opens, open, disk = false, selected = false }: Row) => ({
+export const treeRow = ({ depth, opens, open, onlyOnEnter = false, selected = false }: Row) => ({
   'data-nav': '',
   'data-depth': depth,
   'data-open': opens ? String(open) : undefined,
-  'data-disk': disk ? '' : undefined,
+  'data-only-on-enter': onlyOnEnter ? '' : undefined,
   'data-selected': selected ? '' : undefined,
   tabIndex: -1,
 });
@@ -73,7 +75,7 @@ export function useTreeKeys(enabled: boolean) {
       row.focus();
       row.scrollIntoView({ block: 'nearest' });
       window.clearTimeout(showing.current);
-      if (row.dataset.disk === undefined) {
+      if (row.dataset.onlyOnEnter === undefined) {
         showing.current = window.setTimeout(() => {
           if (document.activeElement === row) row.click();
         }, SHOW_AFTER_MS);

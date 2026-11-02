@@ -41,9 +41,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../../../store/useLibraryStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useModernLayout } from '../../../argentum/layout/editorLayout';
-import { driveName, refreshModernTrees, useModernFolders } from '../../../argentum/modern/folders';
+import { driveName, readFoldedDisks, refreshModernTrees, useModernFolders } from '../../../argentum/modern/folders';
 import RecentFolders, { RECENT_FOLDED } from '../../../argentum/modern/RecentFolders';
-import { useFolderCount } from '../../../argentum/modern/folderCounts';
+import { rowWantsCount, useFolderCount } from '../../../argentum/modern/folderCounts';
 import { FOLD_CONTROL, treeRow, useTreeKeys } from '../../../argentum/modern/treeKeys';
 import { formatSize } from '../../../argentum/formatSize';
 import { useAgTranslation } from '../../../argentum/locales';
@@ -57,6 +57,8 @@ export interface FolderTree {
   path: string;
   imageCount?: number;
   hasSubdirs?: boolean;
+  /** Listed but not looked inside: the arrow is a guess until it is opened. */
+  unread?: boolean;
   modified?: number;
   created?: number;
 }
@@ -527,7 +529,10 @@ function TreeNode({
   const drive = useModernFolders((s) => s.drives.find((d) => d.path === node.path));
   const modern = useModernLayout();
   const modernFavourite = modern && sectionId === 'pinned' && isPinned;
-  const modernCount = useFolderCount(node.path, modern && !drive);
+  const modernCount = useFolderCount(
+    node.path,
+    modern && !drive && rowWantsCount({ unread: node.unread, open: isExpanded, selected: isSelected }),
+  );
   const agT = useAgTranslation();
 
   const { setNodeRef, isOver, active } = useDroppable({
@@ -608,7 +613,13 @@ function TreeNode({
         onClick={handleNameClick}
         onContextMenu={(e: any) => onContextMenu(e, node.path, isPinned)}
         {...(modern
-          ? treeRow({ depth, opens: !!hasChildren, open: isExpanded, disk: !!drive, selected: isSelected })
+          ? treeRow({
+              depth,
+              opens: !!hasChildren,
+              open: isExpanded,
+              onlyOnEnter: !!drive || !!node.unread,
+              selected: isSelected,
+            })
           : {})}
       >
         <div
@@ -830,6 +841,10 @@ export default function FolderTree({
 
   const trimmedQuery = searchQuery.trim();
   const isSearching = trimmedQuery.length > 1;
+
+  useEffect(() => {
+    if (isSearching) readFoldedDisks();
+  }, [isSearching]);
 
   const filteredTrees = useMemo(() => {
     let base = folderTrees;

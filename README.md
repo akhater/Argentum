@@ -89,18 +89,18 @@ xattr -dr com.apple.quarantine "/Applications/Argentum.app"
 open "/Applications/Argentum.app"
 ```
 
-**2. Let it read your photos.** macOS protects Documents, Desktop, Downloads,
-Pictures and external drives. Open *System Settings → Privacy & Security → Files
-and Folders* and allow Argentum the folders your photos are in. If Argentum is
-not listed there, add `/Applications/Argentum.app` under *Full Disk Access*.
-Then quit and reopen Argentum. This opens the right page:
+**2. Let it read your photos.** macOS protects Desktop, Documents, Downloads
+and external drives, and asks the first time you open one in Argentum. Argentum
+reads a protected folder only when you open it. It has no use for your Apple
+Music or Photos libraries and leaves them out of its folder list. To change an
+answer later, open *System Settings → Privacy & Security → Files and Folders*.
+This opens the right page:
 
 ```bash
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"
 ```
 
-No Terminal command can grant this access; it has to be allowed in System
-Settings.
+Because Argentum is not signed, macOS may ask again after an update.
 
 ### macOS: folders made by an import script
 

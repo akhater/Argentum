@@ -51,6 +51,7 @@ pub mod face_mask;
 pub mod file_ops;
 pub mod film_lut;
 pub mod folder_counts;
+pub mod folder_walk;
 pub mod gpu_runtime;
 pub mod gpu_setup_mark;
 pub mod highlight_protection;
