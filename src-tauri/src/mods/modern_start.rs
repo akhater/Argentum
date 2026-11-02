@@ -38,12 +38,15 @@ pub fn plan(
     saved_expanded: &[String],
     is_dir: impl Fn(&str) -> bool,
 ) -> ModernStart {
+    let last_folder = last_folder.map(|f| real_path(f, &drives));
     let start = last_folder
+        .as_deref()
         .filter(|f| !f.starts_with(ALBUM_PREFIX) && is_dir(f))
         .and_then(|f| {
             drives
                 .iter()
-                .find(|d| is_within(f, &d.path))
+                .filter(|d| is_within(f, &d.path))
+                .max_by_key(|d| d.path.len())
                 .map(|d| (f, d.path.as_str()))
         });
 
@@ -53,7 +56,10 @@ pub fn plan(
             expanded.push(p);
         }
     };
-    saved_expanded.iter().cloned().for_each(&mut add);
+    saved_expanded
+        .iter()
+        .map(|f| real_path(f, &drives))
+        .for_each(&mut add);
     if let Some((folder, disk)) = start {
         above(folder, disk).into_iter().for_each(&mut add);
     }
@@ -63,6 +69,21 @@ pub fn plan(
         start_folder: start.map(|(f, _)| f.to_string()),
         expanded,
         drives,
+    }
+}
+
+/// A folder saved when a Mac's system disk was listed through its link in
+/// `/Volumes`, at its real path. The link still leads there, but the column has
+/// the disk at `/`, so it would never find the folder.
+fn real_path(folder: &str, drives: &[Drive]) -> String {
+    let link = drives
+        .iter()
+        .find(|d| d.path == "/" && !d.label.is_empty())
+        .map(|d| format!("/Volumes/{}", d.label));
+    match link.and_then(|link| folder.strip_prefix(&link).map(str::to_string)) {
+        Some(rest) if rest.is_empty() => "/".to_string(),
+        Some(rest) if rest.starts_with('/') => rest,
+        _ => folder.to_string(),
     }
 }
 
@@ -121,6 +142,50 @@ mod tests {
         } else {
             "/media/photos/"
         }
+    }
+
+    fn a_macs_system_disk() -> Drive {
+        Drive {
+            label: "Macintosh HD".into(),
+            ..disk("/")
+        }
+    }
+
+    #[test]
+    fn a_disk_at_the_root_unfolds_down_to_the_last_folder() {
+        let start = plan(vec![disk("/")], vec![], Some("/Users/me/Trip"), &[], |_| {
+            true
+        });
+        assert_eq!(start.start_folder.as_deref(), Some("/Users/me/Trip"));
+        assert!(start.expanded.iter().any(|f| f == "/"));
+    }
+
+    #[test]
+    fn a_folder_on_a_disk_unfolds_from_that_disk_not_from_the_root() {
+        let drives = vec![disk("/"), disk("/Volumes/Trips")];
+        let start = plan(drives, vec![], Some("/Volumes/Trips/2026"), &[], |_| true);
+        assert_eq!(start.expanded, vec!["/Volumes/Trips".to_string()]);
+    }
+
+    #[test]
+    fn a_folder_saved_through_the_system_disk_link_opens_at_its_real_path() {
+        let saved = "/Volumes/Macintosh HD/Users/me/Trip";
+        let unfolded = vec![
+            "/Volumes/Macintosh HD".to_string(),
+            "/Volumes/Trips".to_string(),
+        ];
+        let drives = vec![a_macs_system_disk(), disk("/Volumes/Trips")];
+        let start = plan(drives, vec![], Some(saved), &unfolded, |_| true);
+        assert_eq!(start.start_folder.as_deref(), Some("/Users/me/Trip"));
+        assert_eq!(start.expanded[0], "/");
+        assert!(start.expanded.iter().any(|f| f == "/Volumes/Trips"));
+    }
+
+    #[test]
+    fn a_folder_that_only_starts_like_the_link_keeps_its_path() {
+        let drives = [a_macs_system_disk()];
+        let similar = "/Volumes/Macintosh HD 2/Trip";
+        assert_eq!(real_path(similar, &drives), similar);
     }
 
     #[test]
