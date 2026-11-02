@@ -1867,6 +1867,7 @@ fn frontend_ready(
     Ok(LaunchPayload {
         open_with_file,
         edit_session,
+        gpu_fallback: state.gpu_setup_mark.take_notice(),
     })
 }
 
@@ -1992,16 +1993,15 @@ pub fn run() {
                 state.decoded_image_cache.lock().unwrap().set_capacity(cache_size);
             }
 
-            let gpu_fallback_note = {
+            let last_gpu_run = {
                 let state = app.state::<AppState>();
-                state.gpu_setup_mark.left_over().then(|| {
-                    let note = mods::gpu_setup_mark::fallback_note(settings.processing_backend.as_deref());
-                    settings.processing_backend = Some("gl".to_string());
-                    let _ = crate::save_settings(settings.clone(), app_handle.clone());
-                    state.gpu_setup_mark.clear();
-                    note
-                })
+                state.gpu_setup_mark.check_last_run(settings.processing_backend.as_deref())
             };
+            if matches!(last_gpu_run.fallback, Some(mods::gpu_setup_mark::Fallback::Saved { .. })) {
+                settings.processing_backend = Some("gl".to_string());
+                let _ = crate::save_settings(settings.clone(), app_handle.clone());
+            }
+            let gpu_backend = app.state::<AppState>().gpu_setup_mark.running_backend().to_string();
 
             let lens_db = lens_correction::load_lensfun_db(&app_handle);
             {
@@ -2010,10 +2010,9 @@ pub fn run() {
             }
 
             unsafe {
-                if let Some(backend) = &settings.processing_backend
-                    && backend != "auto" {
-                        std::env::set_var("WGPU_BACKEND", backend);
-                    }
+                if gpu_backend != "auto" {
+                    std::env::set_var("WGPU_BACKEND", &gpu_backend);
+                }
 
                 #[cfg(target_os = "linux")]
                 {
@@ -2048,7 +2047,7 @@ pub fn run() {
 
             setup_logging(&app_handle);
 
-            if let Some(note) = gpu_fallback_note {
+            if let Some(note) = last_gpu_run.note {
                 log::warn!("{}", note);
                 if let Ok(log_dir) = app_handle.path().app_log_dir()
                     && let Err(e) = mods::gpu_setup_mark::keep_record(&log_dir, &note)
@@ -2057,10 +2056,9 @@ pub fn run() {
                 }
             }
 
-            if let Some(backend) = &settings.processing_backend
-                && backend != "auto" {
-                    log::info!("Applied processing backend setting: {}", backend);
-                }
+            if gpu_backend != "auto" {
+                log::info!("Applied processing backend: {}", gpu_backend);
+            }
 
             #[cfg(target_os = "linux")]
             if settings.linux_gpu_optimization.unwrap_or(false) {

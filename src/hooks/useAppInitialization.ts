@@ -12,6 +12,7 @@ import { Invokes, LibraryViewMode, Theme, ThumbnailSize, ThumbnailAspectRatio } 
 import { useTranslation } from 'react-i18next';
 import { shownFiltersOnly } from '../argentum/modern/shownFilters';
 import { LANGUAGES, switchLanguage } from '../argentum/locales/languages';
+import { showGpuFallback } from '../argentum/gpuFallback';
 
 interface UseAppInitializationProps {
   preloadedDataRef: React.RefObject<any>;
@@ -232,6 +233,7 @@ export const useAppInitialization = ({
 
         invoke('frontend_ready')
           .then((launch: any) => {
+            if (launch?.gpuFallback) showGpuFallback(launch.gpuFallback);
             if (launch?.editSession) {
               useProcessStore.getState().setProcess({ externalEditSession: launch.editSession });
             } else if (launch?.openWithFile) {
