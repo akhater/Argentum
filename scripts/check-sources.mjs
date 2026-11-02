@@ -14,7 +14,10 @@
 //     review read (the CHANGELOG's "read up to" line): a review is due;
 //   * warns when RAWmakase has released past a table generated from it (DEC-34);
 //   * warns when FlashRaw has released past the version the engine pins: a new
-//     version is measured against rawler's image before the pin moves.
+//     version is measured against rawler's image before the pin moves;
+//   * warns when Shoebox's main pins a different rawler commit: the two apps
+//     share the fork, so the pins move together, and neither release waits for
+//     the other.
 //
 // A network failure is a warning, never a failure. No git history is needed.
 //
@@ -34,6 +37,8 @@ import { namesWarning } from './rawmakase-camera-names.mjs';
 export const RAPIDRAW = 'https://github.com/CyberTimon/RapidRAW';
 export const FLASHRAW = 'https://github.com/ybouane/flashraw';
 const FLASHRAW_PIN = 'src-tauri/engine/Cargo.toml';
+const RAWLER_PIN = 'src-tauri/Cargo.toml';
+const SHOEBOX_CARGO = 'https://raw.githubusercontent.com/akhater/shoebox/main/src-tauri/Cargo.toml';
 
 /** Calls that must stay in place. Moved here from the retired anchors (scripts/upstream-anchors.mjs). */
 export const WIRING = [
@@ -162,6 +167,34 @@ async function flashrawWarning(root) {
   }
 }
 
+/** The rawler commit a Cargo.toml pins, from its `rawler = { git = "...", rev = "X" }`. */
+export function pinnedRawler(cargoToml) {
+  return /^rawler\s*=.*?\brev\s*=\s*"([^"]+)"/m.exec(cargoToml)?.[1] ?? null;
+}
+
+/** Shoebox's Cargo.toml on its main branch. */
+async function fetchShoeboxCargo() {
+  const response = await fetch(SHOEBOX_CARGO, { signal: AbortSignal.timeout(20000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.text();
+}
+
+/** A warning when Shoebox pins a different rawler commit from ours, else null. */
+export async function rawlerWarning(root, readShoebox = fetchShoeboxCargo) {
+  if (!existsSync(join(root, RAWLER_PIN))) return null;
+  const ours = pinnedRawler(readFileSync(join(root, RAWLER_PIN), 'utf8'));
+  if (!ours) return `${RAWLER_PIN} no longer pins rawler to a commit, so it cannot be compared with Shoebox's`;
+  let shoebox;
+  try {
+    shoebox = pinnedRawler(await readShoebox());
+  } catch (error) {
+    return `could not read Shoebox's Cargo.toml (${error.message})`;
+  }
+  if (!shoebox) return `Shoebox's Cargo.toml names no rawler commit, so the two pins were not compared`;
+  if (ours === shoebox) return null;
+  return `rawler is pinned at ${ours.slice(0, 7)} here and ${shoebox.slice(0, 7)} in Shoebox: move both to the same commit`;
+}
+
 async function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const started = Date.now();
@@ -183,6 +216,7 @@ async function main() {
       lensWarning(root).catch((error) => `lens baselines not checked against RAWmakase: ${error.message}`),
       namesWarning(root).catch((error) => `camera names not checked against RAWmakase: ${error.message}`),
       flashrawWarning(root),
+      rawlerWarning(root),
     ])
   ).filter(Boolean);
 
