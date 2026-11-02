@@ -9,12 +9,17 @@
  * folders, and the folder last open, selected, if it is still there. The
  * folders added one by one before the Modern window stay in the settings; it
  * never changes them.
+ *
+ * A disk left folded is not read: its row is drawn from the list of disks, and
+ * opening it is what reads it (mods/folder_walk.rs has the rule for the rows
+ * below). Each disk read is its own call, so a slow one holds up only its row.
  */
 
 import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { ag } from '../ag';
 import { forgetFolderCounts } from './folderCounts';
+import { rootContaining } from '../folderRoot';
 import { parentFolder } from '../photoStep';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
@@ -22,6 +27,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import { Invokes, type ImageFile } from '../../components/ui/AppProperties';
 import type { Drive, ModernStart } from '../ag.generated';
+import type { FolderTree } from '../../components/panel/right/FolderTree';
 export type { Drive } from '../ag.generated';
 
 interface FoldersState {
@@ -48,6 +54,39 @@ async function listDisks(lastFolder: string | null, expanded: string[]): Promise
     useModernFolders.setState({ unavailable: true });
     return null;
   }
+}
+
+/** A disk's row before anything has been read from it. */
+const unreadDisk = (path: string): FolderTree => ({
+  name: folderName(path),
+  path,
+  children: [],
+  isDir: true,
+  hasSubdirs: true,
+  unread: true,
+});
+
+/** A disk's row, with the folders left unfolded on it. One that cannot be read keeps its row. */
+async function readDisk(path: string, expanded: string[]): Promise<FolderTree> {
+  if (!expanded.includes(path)) return unreadDisk(path);
+  try {
+    const [tree] = await invoke<FolderTree[]>(Invokes.GetPinnedFolderTrees, {
+      paths: [path],
+      expandedFolders: expanded,
+      showImageCounts: false,
+    });
+    return tree ?? unreadDisk(path);
+  } catch (err) {
+    console.error('Could not read a disk for the folder column:', err);
+    return unreadDisk(path);
+  }
+}
+
+/** Puts a disk's row back in the column, read again. */
+function showDisk(tree: FolderTree) {
+  useLibraryStore.getState().setLibrary((state: { folderTrees: FolderTree[] }) => ({
+    folderTrees: state.folderTrees.map((row) => (row.path === tree.path ? tree : row)),
+  }));
 }
 
 /** What App knows about the first folder, read ahead while the app starts (useAppInitialization). */
@@ -81,19 +120,12 @@ export function startModernLibrary(preloaded: { current: Preloaded | null }, sel
     if (!start || roots.length === 0) return;
     watchLibrary();
 
-    setLibrary({ rootPaths: roots, expandedFolders: new Set(start.expanded), isTreeLoading: true });
-    try {
-      const trees = await invoke<unknown[]>(Invokes.GetPinnedFolderTrees, {
-        paths: roots,
-        expandedFolders: start.expanded,
-        showImageCounts: false,
-      });
-      setLibrary({ folderTrees: trees });
-    } catch (err) {
-      console.error('Could not read the disks for the folder column:', err);
-    } finally {
-      setLibrary({ isTreeLoading: false });
-    }
+    setLibrary({
+      rootPaths: roots,
+      expandedFolders: new Set(start.expanded),
+      folderTrees: roots.map(unreadDisk),
+    });
+    await Promise.all(roots.map((path) => readDisk(path, start.expanded).then(showDisk)));
 
     const opened = useLibraryStore.getState().currentFolderPath;
     const folder = opened ?? start.startFolder;
@@ -133,11 +165,7 @@ export async function refreshModernTrees(): Promise<void> {
   const roots = start.drives.map((d) => d.path);
   try {
     const [folderTrees, pinnedFolderTrees] = await Promise.all([
-      invoke<unknown[]>(Invokes.GetPinnedFolderTrees, {
-        paths: roots,
-        expandedFolders: expanded,
-        showImageCounts: false,
-      }),
+      Promise.all(roots.map((path) => readDisk(path, expanded))),
       pinned.length > 0
         ? invoke<unknown[]>(Invokes.GetPinnedFolderTrees, {
             paths: pinned,
@@ -157,7 +185,9 @@ let watching = false;
 /**
  * Every folder opened goes to the top of Recent, and the tree's roots stay the
  * disks. If the library's own refresh puts the folders added one by one back
- * in the tree, the disks are read back.
+ * in the tree, the disks are read back. A folder opened from outside the tree
+ * unfolds the folders above it, which nothing has read yet, so its disk is
+ * read for them.
  */
 function watchLibrary() {
   if (watching) return;
@@ -168,6 +198,10 @@ function watchLibrary() {
       ag('add_recent_folder', { path: folder })
         .then((recent) => useModernFolders.setState({ recent }))
         .catch((err) => console.warn('Recent folders not saved:', err));
+      const disk = rootContaining(folder, state.rootPaths);
+      if (disk && state.expandedFolders.size > previous.expandedFolders.size) {
+        readDisk(disk, Array.from(state.expandedFolders)).then(showDisk);
+      }
     }
     if (state.folderTrees !== previous.folderTrees) {
       const disks = useModernFolders.getState().drives.map((d) => d.path);
@@ -177,6 +211,21 @@ function watchLibrary() {
       }
     }
   });
+}
+
+/**
+ * The tree with a folder's children in place, as they are now: opening a folder
+ * also settles the arrow it had only guessed. RapidRAW's, from src/App.tsx.
+ */
+export function insertChildrenIntoTree(node: FolderTree, targetPath: string, newChildren: FolderTree[]): FolderTree {
+  if (node.path === targetPath) {
+    const children = newChildren.map((newChild) => {
+      const existing = node.children?.find((child) => child.path === newChild.path);
+      return existing?.children?.length ? { ...newChild, children: existing.children } : newChild;
+    });
+    return { ...node, children, hasSubdirs: children.length > 0, unread: false };
+  }
+  return { ...node, children: node.children?.map((child) => insertChildrenIntoTree(child, targetPath, newChildren)) };
 }
 
 /** A disk as the column names it: its letter or mount point, then its own name. */
