@@ -251,7 +251,9 @@ function App() {
     externalEditSession,
     isFinishing: isExternalEditFinishing,
     finishExternalEdit,
-  } = useExternalEditSession(handleImageSelect);
+  } = useExternalEditSession(handleImageSelect, (folder) =>
+    handleSelectSubfolder(folder, false, undefined, true, true),
+  );
 
   const {
     handleRate,

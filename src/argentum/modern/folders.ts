@@ -15,6 +15,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { ag } from '../ag';
 import { forgetFolderCounts } from './folderCounts';
+import { parentFolder } from '../photoStep';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -67,7 +68,8 @@ type SelectFolder = (
  * The Modern window's stand-in for Continue Session: fill the column, then
  * open the folder last open, with its photos read ahead if they are of that
  * folder. A photo opened with Argentum stays open; the folder fills in behind
- * it. If no disk can be listed nothing changes, and today's start screen shows.
+ * it, and is the photo's own when the photo got there first. If no disk can be
+ * listed nothing changes, and today's start screen shows.
  */
 export function startModernLibrary(preloaded: { current: Preloaded | null }, selectFolder: SelectFolder): void {
   const run = async () => {
@@ -93,16 +95,23 @@ export function startModernLibrary(preloaded: { current: Preloaded | null }, sel
       setLibrary({ isTreeLoading: false });
     }
 
-    if (!start.startFolder) return;
+    const opened = useLibraryStore.getState().currentFolderPath;
+    const folder = opened ?? start.startFolder;
+    if (!folder) return;
     const ahead = preloaded.current;
     let images: ImageFile[] | undefined;
-    if (ahead?.currentPath === start.startFolder && ahead.images) {
+    if (ahead?.currentPath === folder && ahead.images) {
       images = await ahead.images.catch(() => undefined);
       ahead.images = undefined;
     }
     const { initialFileToOpen, externalEditSession } = useProcessStore.getState();
-    const keepEditor = !!(useEditorStore.getState().selectedImage || initialFileToOpen || externalEditSession);
-    await selectFolder(start.startFolder, false, images, false, keepEditor);
+    const keepEditor = !!(
+      opened ||
+      useEditorStore.getState().selectedImage ||
+      initialFileToOpen ||
+      externalEditSession
+    );
+    await selectFolder(folder, false, images, !!opened, keepEditor);
   };
   run().catch((err) => console.error('Failed to open the Modern folder column:', err));
 }
@@ -180,6 +189,23 @@ export function driveName(drive: Drive): string {
 export function folderName(path: string): string {
   const parts = path.split(/[\\/]+/).filter(Boolean);
   return parts[parts.length - 1] ?? path;
+}
+
+/** The folder a photo is in. A drive's own folder is its root, E:\, not E:. */
+export function folderOfPhoto(path: string): string {
+  const folder = parentFolder(path);
+  return /^[A-Za-z]:$/.test(folder) ? `${folder}\\` : folder || '/';
+}
+
+/**
+ * Opens a photo handed in from outside, and takes the library to its folder:
+ * the path over the photo, the filmstrip and the arrows are all of the folder
+ * on show, which until now was whichever was open last.
+ */
+export function openFromOutside(path: string, openPhoto: (path: string) => void, showFolder: (folder: string) => void) {
+  openPhoto(path);
+  const folder = folderOfPhoto(path);
+  if (folder !== useLibraryStore.getState().currentFolderPath) showFolder(folder);
 }
 
 /**
