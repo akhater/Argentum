@@ -1057,6 +1057,7 @@ pub(crate) fn scan_dir_lazy(
     path: &Path,
     expanded_folders: &HashSet<&str>,
     show_image_counts: bool,
+    prefetch_one_level: bool,
     system: System,
 ) -> Result<(Vec<FolderNode>, usize), std::io::Error> {
     let mut children_folders = Vec::new();
@@ -1116,10 +1117,19 @@ pub(crate) fn scan_dir_lazy(
 
         let path_str = current_path.to_string_lossy().into_owned();
         let is_expanded = expanded_folders.contains(path_str.as_str());
-        let unread = !is_expanded && look == Look::Leave;
 
-        let (grand_children, sub_dir_own_images) = if is_expanded {
-            scan_dir_lazy(&current_path, expanded_folders, show_image_counts, system)?
+        let should_scan = is_expanded || (prefetch_one_level && look == Look::Peek);
+        let next_prefetch = is_expanded;
+        let unread = !should_scan && look == Look::Leave;
+
+        let (grand_children, sub_dir_own_images) = if should_scan {
+            scan_dir_lazy(
+                &current_path,
+                expanded_folders,
+                show_image_counts,
+                next_prefetch,
+                system,
+            )?
         } else {
             let count = if show_image_counts && !unread {
                 WalkDir::new(&current_path)
@@ -1135,7 +1145,7 @@ pub(crate) fn scan_dir_lazy(
             (Vec::new(), count)
         };
 
-        let has_any_subdirs = if is_expanded {
+        let has_any_subdirs = if should_scan {
             grand_children.iter().any(|c| c.is_dir)
         } else {
             unread || has_subdirs(&current_path)
@@ -1192,9 +1202,14 @@ fn get_folder_tree_sync(
 
     let expanded_set: HashSet<&str> = expanded_folders.iter().map(|s| s.as_str()).collect();
 
-    let (children, own_count) =
-        scan_dir_lazy(root_path, &expanded_set, show_image_counts, THIS_SYSTEM)
-            .map_err(|e| e.to_string())?;
+    let (children, own_count) = scan_dir_lazy(
+        root_path,
+        &expanded_set,
+        show_image_counts,
+        true,
+        THIS_SYSTEM,
+    )
+    .map_err(|e| e.to_string())?;
 
     let children_sum: usize = children.iter().map(|c| c.image_count).sum();
     let has_subdirs = children.iter().any(|c| c.is_dir);
@@ -1235,8 +1250,9 @@ pub async fn get_folder_children(
             return Err(format!("Directory does not exist: {}", path));
         }
         let empty_set = HashSet::new();
-        let (children, _) = scan_dir_lazy(root_path, &empty_set, show_image_counts, THIS_SYSTEM)
-            .map_err(|e| e.to_string())?;
+        let (children, _) =
+            scan_dir_lazy(root_path, &empty_set, show_image_counts, false, THIS_SYSTEM)
+                .map_err(|e| e.to_string())?;
 
         Ok(children)
     })
@@ -4173,17 +4189,15 @@ mod folder_tree_count_tests {
             fs::write(folder.join("IMG.CR2"), b"").unwrap();
             fs::write(folder.join("IMG.CR2.cam1.abc.lut.png"), b"").unwrap();
         }
-        let day_path = day.to_string_lossy();
-        let tree = |expanded: &[&str]| {
-            let expanded: HashSet<&str> = expanded.iter().copied().collect();
-            scan_dir_lazy(dir.path(), &expanded, true, THIS_SYSTEM).unwrap()
+        let tree = |prefetch| {
+            scan_dir_lazy(dir.path(), &HashSet::new(), true, prefetch, THIS_SYSTEM).unwrap()
         };
 
-        // Its own files, then a subfolder walked for the count and one read
-        // because it is unfolded.
-        let (children, own) = tree(&[]);
+        // Its own files, then a subfolder read for the count (`prefetch`) and
+        // one walked for it.
+        let (children, own) = tree(true);
         assert_eq!((own, children[0].image_count), (1, 1));
-        let (children, _) = tree(&[&day_path]);
+        let (children, _) = tree(false);
         assert_eq!(children[0].image_count, 1);
     }
 }

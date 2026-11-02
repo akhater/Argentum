@@ -18,7 +18,7 @@ vi.mock('../ag', () => ({ ag: () => Promise.resolve(start) }));
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { rowWantsCount } from './folderCounts';
-import { insertChildrenIntoTree, startModernLibrary } from './folders';
+import { insertChildrenIntoTree, readFoldedDisks, startModernLibrary } from './folders';
 import type { FolderTree } from '../../components/panel/right/FolderTree';
 
 const tree = (path: string, children: FolderTree[] = []): FolderTree => ({
@@ -79,6 +79,47 @@ describe('a folder opened from outside the tree', () => {
     });
     await vi.waitFor(() => expect(readDisks()).toEqual(['C:\\']));
     expect(invoke.mock.calls[0][1].expandedFolders).toContain('C:\\2026');
+  });
+});
+
+describe('a photo opened before the column fills', () => {
+  it('has its disk read for the folders above it', async () => {
+    invoke.mockReset();
+    invoke.mockImplementation((_: string, { paths }: { paths: string[] }) =>
+      Promise.resolve(paths.map((p) => tree(p))),
+    );
+    useLibraryStore.setState({
+      folderTrees: [],
+      rootPaths: [],
+      expandedFolders: new Set(),
+      currentFolderPath: 'C:\\2026\\June',
+    });
+    useSettingsStore.setState({ appSettings: { lastFolderState: null } as never });
+    const selectFolder = vi.fn(async () => {
+      const { expandedFolders } = useLibraryStore.getState();
+      useLibraryStore.setState({ expandedFolders: new Set([...expandedFolders, 'C:\\', 'C:\\2026']) });
+    });
+    startModernLibrary({ current: null }, selectFolder);
+    await vi.waitFor(() => expect(readDisks()).toContain('C:\\'));
+    const read = invoke.mock.calls.find(([, args]) => args.paths[0] === 'C:\\');
+    expect(read?.[1].expandedFolders).toContain('C:\\2026');
+  });
+});
+
+describe('a search of the column', () => {
+  it('reads the folded disks and leaves the rest', async () => {
+    invoke.mockReset();
+    invoke.mockImplementation((_: string, { paths }: { paths: string[] }) =>
+      Promise.resolve(paths.map((p) => tree(p, [tree(`${p}Trips`)]))),
+    );
+    useLibraryStore.setState({
+      folderTrees: [{ ...tree('C:\\'), unread: true }, tree('D:\\', [tree('D:\\Photos')])],
+      expandedFolders: new Set(['D:\\']),
+    });
+    readFoldedDisks();
+    await vi.waitFor(() => expect(rowOf('C:\\')?.children).toHaveLength(1));
+    expect(readDisks()).toEqual(['C:\\']);
+    expect(rowOf('C:\\')?.unread).toBeUndefined();
   });
 });
 

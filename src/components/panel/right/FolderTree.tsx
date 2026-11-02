@@ -41,7 +41,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../../../store/useLibraryStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useModernLayout } from '../../../argentum/layout/editorLayout';
-import { driveName, refreshModernTrees, useModernFolders } from '../../../argentum/modern/folders';
+import { driveName, readFoldedDisks, refreshModernTrees, useModernFolders } from '../../../argentum/modern/folders';
 import RecentFolders, { RECENT_FOLDED } from '../../../argentum/modern/RecentFolders';
 import { rowWantsCount, useFolderCount } from '../../../argentum/modern/folderCounts';
 import { FOLD_CONTROL, treeRow, useTreeKeys } from '../../../argentum/modern/treeKeys';
@@ -841,6 +841,10 @@ export default function FolderTree({
 
   const trimmedQuery = searchQuery.trim();
   const isSearching = trimmedQuery.length > 1;
+
+  useEffect(() => {
+    if (isSearching) readFoldedDisks();
+  }, [isSearching]);
 
   const filteredTrees = useMemo(() => {
     let base = folderTrees;

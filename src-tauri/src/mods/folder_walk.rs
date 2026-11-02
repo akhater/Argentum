@@ -123,20 +123,13 @@ pub fn is_online_only(path: &Path, _meta: &Metadata) -> bool {
     crate::file_management::is_cloud_placeholder(path)
 }
 
-/// A walk through everything below an opened folder goes where a listing would
-/// peek and no further: the folder it started in, then only what is free.
+/// A walk through everything below a folder, which someone asked for, goes
+/// everywhere but into what is not a folder to them. It does not stop at what
+/// a listing leaves unread: an export from it would silently lose photos.
 pub fn walks_into(system: System, entry: &walkdir::DirEntry) -> bool {
-    if entry.depth() == 0 || !entry.file_type().is_dir() {
-        return true;
-    }
-    let Some(parent) = entry.path().parent() else {
-        return false;
-    };
-    let online_only = entry
-        .metadata()
-        .is_ok_and(|meta| is_online_only(entry.path(), &meta));
-    let name = entry.file_name().to_string_lossy();
-    look_at(system, parent, &name, online_only) == Look::Peek
+    entry.depth() == 0
+        || !entry.file_type().is_dir()
+        || !(system == System::Mac && is_package(&entry.file_name().to_string_lossy()))
 }
 
 #[cfg(test)]
@@ -237,9 +230,18 @@ mod tests {
         (disk, home)
     }
 
+    /// The rows of an opened folder, as unfolding it reads them.
     fn rows(folder: &Path, expanded: &[&str]) -> Vec<FolderNode> {
         let expanded: HashSet<&str> = expanded.iter().copied().collect();
-        scan_dir_lazy(folder, &expanded, false, System::Mac)
+        scan_dir_lazy(folder, &expanded, false, false, System::Mac)
+            .unwrap()
+            .0
+    }
+
+    /// The rows of a root at start, which reads one level ahead.
+    fn rows_at_start(root: &Path, expanded: &[&str]) -> Vec<FolderNode> {
+        let expanded: HashSet<&str> = expanded.iter().copied().collect();
+        scan_dir_lazy(root, &expanded, false, true, System::Mac)
             .unwrap()
             .0
     }
@@ -272,7 +274,7 @@ mod tests {
         let (disk, home) = a_home_folder();
         let users = disk.path().join("Users");
         let (users_str, home_str) = (users.to_string_lossy(), home.to_string_lossy());
-        let at_disk = rows(disk.path(), &[&users_str, &home_str]);
+        let at_disk = rows_at_start(disk.path(), &[&users_str, &home_str]);
         let users_row = row(&at_disk, "Users");
         let home_row = row(&users_row.children, "me");
         assert!(home_row.children.iter().all(|c| c.unread));
@@ -284,29 +286,31 @@ mod tests {
         let (_disk, home) = a_home_folder();
         let desktop = home.join("Desktop");
         fs::create_dir(desktop.join("shoot")).unwrap();
-        let rows = rows(&home, &[&desktop.to_string_lossy()]);
+        let rows = rows_at_start(&home, &[&desktop.to_string_lossy()]);
         let desktop = row(&rows, "Desktop");
         assert!(!desktop.unread);
         assert_eq!(desktop.children.len(), 1);
     }
 
     #[test]
-    fn a_folder_that_was_not_unfolded_is_not_read_ahead() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::create_dir_all(dir.path().join("2026").join("June")).unwrap();
-        let rows = rows(dir.path(), &[]);
-        let year = row(&rows, "2026");
-        assert!(year.has_subdirs && !year.unread);
-        assert!(year.children.is_empty());
+    fn a_read_ahead_goes_where_looking_is_free_and_no_further() {
+        let (_disk, home) = a_home_folder();
+        fs::create_dir_all(home.join("Pictures").join("2026").join("June")).unwrap();
+        let in_pictures = rows_at_start(&home.join("Pictures"), &[]);
+        let year = row(&in_pictures, "2026");
+        assert!(!year.unread);
+        assert_eq!(year.children.len(), 1);
+
+        let in_home = rows_at_start(&home, &[]);
+        assert!(row(&in_home, "Pictures").children.is_empty());
     }
 
     #[test]
-    fn a_walk_stops_at_libraries_and_guarded_folders() {
+    fn a_walk_goes_everywhere_but_into_a_library() {
         let (_disk, home) = a_home_folder();
         fs::write(home.join("Desktop").join("a.jpg"), b"").unwrap();
-        let shoot = home.join("Pictures").join("shoot");
-        fs::create_dir(&shoot).unwrap();
-        fs::write(shoot.join("b.jpg"), b"").unwrap();
+        let library = home.join("Pictures").join("Photos Library.photoslibrary");
+        fs::write(library.join("originals").join("b.jpg"), b"").unwrap();
 
         let walked = |from: &Path| -> Vec<String> {
             WalkDir::new(from)
@@ -317,7 +321,7 @@ mod tests {
                 .map(|e| e.file_name().to_string_lossy().into_owned())
                 .collect()
         };
-        assert_eq!(walked(&home.join("Pictures")), vec!["b.jpg"]);
-        assert!(walked(&home).is_empty());
+        assert_eq!(walked(&home), vec!["a.jpg"]);
+        assert!(walked(&home.join("Pictures")).is_empty());
     }
 }

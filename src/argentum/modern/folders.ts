@@ -11,8 +11,9 @@
  * never changes them.
  *
  * A disk left folded is not read: its row is drawn from the list of disks, and
- * opening it is what reads it (mods/folder_walk.rs has the rule for the rows
- * below). Each disk read is its own call, so a slow one holds up only its row.
+ * opening it, or searching the column, is what reads it (mods/folder_walk.rs
+ * has the rule for the rows below). Each disk read is its own call, so a slow
+ * one holds up only its row.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -66,9 +67,8 @@ const unreadDisk = (path: string): FolderTree => ({
   unread: true,
 });
 
-/** A disk's row, with the folders left unfolded on it. One that cannot be read keeps its row. */
+/** A disk's row, read now, with the folders unfolded on it. One that cannot be read keeps its row. */
 async function readDisk(path: string, expanded: string[]): Promise<FolderTree> {
-  if (!expanded.includes(path)) return unreadDisk(path);
   try {
     const [tree] = await invoke<FolderTree[]>(Invokes.GetPinnedFolderTrees, {
       paths: [path],
@@ -87,6 +87,22 @@ function showDisk(tree: FolderTree) {
   useLibraryStore.getState().setLibrary((state: { folderTrees: FolderTree[] }) => ({
     folderTrees: state.folderTrees.map((row) => (row.path === tree.path ? tree : row)),
   }));
+}
+
+/** The disk `folder` is on, read for the folders above it that opening it unfolded. */
+function readDiskOf(folder: string) {
+  const { rootPaths, expandedFolders } = useLibraryStore.getState();
+  const disk = rootContaining(folder, rootPaths);
+  if (disk) readDisk(disk, Array.from(expandedFolders)).then(showDisk);
+}
+
+/** The column's search covers what has been read, so the first search reads the folded disks. */
+export function readFoldedDisks() {
+  const { folderTrees, expandedFolders } = useLibraryStore.getState();
+  const expanded = Array.from(expandedFolders);
+  for (const row of folderTrees as FolderTree[]) {
+    if (row.unread) readDisk(row.path, expanded).then(showDisk);
+  }
 }
 
 /** What App knows about the first folder, read ahead while the app starts (useAppInitialization). */
@@ -125,7 +141,8 @@ export function startModernLibrary(preloaded: { current: Preloaded | null }, sel
       expandedFolders: new Set(start.expanded),
       folderTrees: roots.map(unreadDisk),
     });
-    await Promise.all(roots.map((path) => readDisk(path, start.expanded).then(showDisk)));
+    const unfolded = roots.filter((path) => start.expanded.includes(path));
+    await Promise.all(unfolded.map((path) => readDisk(path, start.expanded).then(showDisk)));
 
     const opened = useLibraryStore.getState().currentFolderPath;
     const folder = opened ?? start.startFolder;
@@ -144,6 +161,7 @@ export function startModernLibrary(preloaded: { current: Preloaded | null }, sel
       externalEditSession
     );
     await selectFolder(folder, false, images, !!opened, keepEditor);
+    if (opened) readDiskOf(folder);
   };
   run().catch((err) => console.error('Failed to open the Modern folder column:', err));
 }
@@ -165,7 +183,9 @@ export async function refreshModernTrees(): Promise<void> {
   const roots = start.drives.map((d) => d.path);
   try {
     const [folderTrees, pinnedFolderTrees] = await Promise.all([
-      Promise.all(roots.map((path) => readDisk(path, expanded))),
+      Promise.all(
+        roots.map((path) => (expanded.includes(path) ? readDisk(path, expanded) : Promise.resolve(unreadDisk(path)))),
+      ),
       pinned.length > 0
         ? invoke<unknown[]>(Invokes.GetPinnedFolderTrees, {
             paths: pinned,
@@ -198,10 +218,7 @@ function watchLibrary() {
       ag('add_recent_folder', { path: folder })
         .then((recent) => useModernFolders.setState({ recent }))
         .catch((err) => console.warn('Recent folders not saved:', err));
-      const disk = rootContaining(folder, state.rootPaths);
-      if (disk && state.expandedFolders.size > previous.expandedFolders.size) {
-        readDisk(disk, Array.from(state.expandedFolders)).then(showDisk);
-      }
+      if (state.expandedFolders.size > previous.expandedFolders.size) readDiskOf(folder);
     }
     if (state.folderTrees !== previous.folderTrees) {
       const disks = useModernFolders.getState().drives.map((d) => d.path);
