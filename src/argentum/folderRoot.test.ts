@@ -1,7 +1,7 @@
 // Which root the folder tree expands to (rootContaining in hooks/useAppNavigation.ts).
 // RapidRAW d6d90783.
 import { describe, expect, it } from 'vitest';
-import { rootContaining } from '../hooks/useAppNavigation';
+import { rootContaining } from './folderRoot';
 
 describe('the root a folder opens inside', () => {
   it('is not a root whose name the path only starts with', () => {

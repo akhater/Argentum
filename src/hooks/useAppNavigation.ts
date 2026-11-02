@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { homeDir } from '@tauri-apps/api/path';
+import { rootContaining } from '../argentum/folderRoot';
 import { toast } from 'react-toastify';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useEditorStore } from '../store/useEditorStore';
@@ -96,19 +97,6 @@ const loadExifForImages = async (
 
 /** Counts handleImageSelect calls, so a call that waited can tell a later one was made. */
 let imageSelectGeneration = 0;
-
-/**
- * The root or pinned folder a folder opened inside belongs to, so the tree expands down to it: the
- * longest one the path is inside, whole folder names only (D:\Photos2 is not inside D:\Photos).
- * RapidRAW d6d90783: src/hooks/useAppNavigation.ts.
- */
-export function rootContaining(path: string, roots: readonly string[]): string | undefined {
-  const isInsideRoot = (r: string) =>
-    path === r || (path.startsWith(r) && (/[\\/]$/.test(r) || ['/', '\\'].includes(path[r.length])));
-  return roots
-    .filter(isInsideRoot)
-    .reduce<string | undefined>((best, r) => (!best || r.length > best.length ? r : best), undefined);
-}
 
 export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationProps) {
   const {

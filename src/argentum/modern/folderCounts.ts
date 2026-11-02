@@ -8,7 +8,8 @@
  * on a whole disk is a scan of the disk. A few counts run at once; a row that
  * goes before its count started takes its request with it. Counts are kept
  * until the column is read again (refreshModernTrees), so folding and
- * unfolding costs nothing.
+ * unfolding costs nothing. A row nothing may look inside until it is opened
+ * (mods/folder_walk.rs) asks for its count once it has been.
  */
 
 import { useEffect } from 'react';
@@ -55,6 +56,10 @@ export function forgetFolderCounts() {
   asked.clear();
   useFolderCounts.setState((s) => ({ counts: {}, round: s.round + 1 }));
 }
+
+/** Whether a row on screen may have its folder read for a count. */
+export const rowWantsCount = (row: { unread?: boolean; open: boolean; selected: boolean }) =>
+  !row.unread || row.open || row.selected;
 
 /** The photos directly in `path`, once counted; asks for the count while `wanted`. */
 export function useFolderCount(path: string, wanted: boolean): number | undefined {
