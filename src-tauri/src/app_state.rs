@@ -20,6 +20,7 @@ use crate::gpu_processing::GpuProcessor;
 use crate::image_processing::GpuContext;
 use crate::launch_request::ExternalEditSession;
 use crate::lens_correction::LensDatabase;
+use crate::mods::gpu_setup_mark::GpuSetupMark;
 use crate::mods::lut_cache::LutCache;
 
 pub struct AiTaskToken {
@@ -218,7 +219,7 @@ pub type TransformedPreview = (Arc<DynamicImage>, f32, (f32, f32));
 
 pub struct AppState {
     pub window_setup_complete: AtomicBool,
-    pub gpu_crash_flag_path: Mutex<Option<PathBuf>>,
+    pub gpu_setup_mark: GpuSetupMark,
     pub original_image: Mutex<Option<LoadedImage>>,
     pub cached_preview: Mutex<Option<CachedPreview>>,
     pub gpu_context: Mutex<Option<GpuContext>>,
