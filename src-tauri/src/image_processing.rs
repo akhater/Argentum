@@ -129,7 +129,6 @@ pub fn mark_baseline_exposure(adjustments: &mut Value) {
 pub fn default_adjustments() -> Value {
     let mut adjustments = json!({});
     mark_baseline_exposure(&mut adjustments);
-    crate::mods::dng_colour::mark(&mut adjustments); // Argentum: a new edit takes the DNG way
     adjustments
 }
 
@@ -184,7 +183,8 @@ fn is_null_or_all_true(value: &Value) -> bool {
 /// Does this edit hold nothing but the editor's starting values? A sidecar that
 /// holds only those is not written (exif_processing.rs `write_sidecar`).
 /// RapidRAW's (image_processing.rs @ 8f41c5ec), against Argentum's starting
-/// values, and with Argentum's section eyes all open counting as untouched.
+/// values, and with Argentum's section eyes all open, and the retired
+/// `agDngColour` mark either way (mods/dng_colour.rs), counting as untouched.
 pub fn is_default_adjustments(adjustments: &Value) -> bool {
     let map = match adjustments {
         Value::Null => return true,
@@ -200,7 +200,7 @@ pub fn is_default_adjustments(adjustments: &Value) -> bool {
     }
 
     map.iter().all(|(key, value)| match key.as_str() {
-        BASELINE_EXPOSURE_KEY => true,
+        BASELINE_EXPOSURE_KEY | crate::mods::dng_colour::RETIRED_KEY => true,
         "activeTools" | "sectionVisibility" => is_null_or_all_true(value),
         _ => defaults
             .get(key)

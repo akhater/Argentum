@@ -158,19 +158,16 @@ pub fn develop_without_recovery(
     develop(bytes, path, settings)
 }
 
-/// The edit the app starts a photo with when it opens: a new edit, which takes
-/// the camera colour the DNG way (mods/dng_colour.rs), and the camera's
-/// built-in lens correction where it starts on (src/argentum/lensBuiltin.ts).
+/// The edit the app starts a photo with when it opens: the camera's built-in
+/// lens correction where it starts on (src/argentum/lensBuiltin.ts).
 pub fn opening_edit(bytes: &[u8]) -> Value {
-    let mut edit = match argentum_engine::rm_lens_builtin::read(bytes) {
+    match argentum_engine::rm_lens_builtin::read(bytes) {
         Some(c) if c.default_on => json!({
             crate::mods::lens_builtin::KEYS[0]: true,
             crate::mods::lens_builtin::KEYS[1]: c,
         }),
         _ => json!({}),
-    };
-    crate::mods::dng_colour::mark(&mut edit);
-    edit
+    }
 }
 
 /// `base` with `keys` set on it.

@@ -80,7 +80,7 @@ pub mod mods {
     }
 
     /// `mods::dng_colour` and `mods::profile_correction`: what the decode
-    /// remembers for an edit made the DNG way, a correction after the decode
+    /// remembers for the camera colour the DNG way, a correction after the decode
     /// that the parity tests do not reach.
     pub mod dng_colour {
         use rawler::rawimage::RawImage;

@@ -68,7 +68,9 @@ use std::path::{Path, PathBuf};
 /// 11. Noise below black is clipped after demosaicing on Bayer sensors, so very
 ///     high ISO shadows carry less of a red and blue cast (rawler fork, from
 ///     RAWmakase 4d3f6f8c: `crates/rawmakase-decode/src/demosaic.rs`).
-pub const PIPELINE: u32 = 12;
+/// 12. Edits saved before 10 take the camera colour the DNG way too
+///     (`mods/dng_colour.rs`).
+pub const PIPELINE: u32 = 13;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

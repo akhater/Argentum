@@ -1,5 +1,4 @@
-//! A RAW's camera colour the way the DNG spec builds it, for edits made from
-//! now on. Ours, from RapidRAW 3f5345a5 ("DNG-style camera colour with
+//! A RAW's camera colour the way the DNG spec builds it. Ours, from RapidRAW 3f5345a5 ("DNG-style camera colour with
 //! dual-illuminant matrices").
 //!
 //! WHAT CHANGES
@@ -29,29 +28,24 @@
 //! as-shot white to the same grey, so a neutral keeps its brightness exactly
 //! and only colours move.
 //!
-//! WHICH EDITS
+//! WHICH PHOTOS
 //!
-//! An edit carries `agDngColour: true` from the day this exists, the way
-//! RapidRAW 1.6.6 marked `baselineExposure`: in the editor's starting values
-//! (argentum/defaultAdjustments.json) and the backend's (`default_adjustments`).
-//! An edit saved before has no key and keeps rawler's colour, multiplied by the
-//! identity rather than skipped, so its pixels are what they were. A photo
-//! with no edit at all is new and takes the DNG way, as the editor does when it
-//! opens one. Copy settings and presets do not carry the key: it says when an
-//! edit was made, not how it should look.
+//! Every edit, whenever it was made. From 26.44.1 to 26.45.x only new edits
+//! took it, marked `agDngColour: true` (`RETIRED_KEY`), and older ones kept
+//! rawler's colour; that mark is ignored now and goes on the next save.
 //!
 //! Only a RAW developed through a 3x3 matrix: a mosaic, or a linear RAW (a
 //! Canon sRAW, a linear DNG) whose calibration the decode applied. A
 //! monochrome or four-colour sensor keeps rawler's colour, and a chosen
 //! camera profile replaces the matrix as before.
 
-use serde_json::Value;
-
 use super::profile_matrix::{invert, multiply};
 use crate::white_balance::{WhiteBalance, camera_to_srgb};
 
-/// The edit's key: true for an edit made the DNG way.
-pub const KEY: &str = "agDngColour";
+/// The mark 26.44.1 to 26.45.x stored in a new edit. No render reads it: a
+/// stored one counts as untouched (`image_processing::is_default_adjustments`)
+/// and the editor drops it on load (adjustments.ts `normalizeLoadedAdjustments`).
+pub const RETIRED_KEY: &str = "agDngColour";
 
 /// What the correction needs from the decode, beside the matrix it used.
 #[derive(Clone, Debug, PartialEq)]
@@ -95,24 +89,6 @@ pub fn inputs_of(raw: &rawler::rawimage::RawImage, calibrated: bool) -> Option<I
     })
 }
 
-/// Was this edit made the DNG way? No edit at all counts as new; an edit
-/// without the key is from before and keeps rawler's colour.
-pub fn is_on(adjustments: &Value) -> bool {
-    match adjustments {
-        Value::Null => true,
-        Value::Object(edit) if edit.is_empty() || edit.contains_key("is_null") => true,
-        Value::Object(edit) => edit.get(KEY).and_then(Value::as_bool) == Some(true),
-        _ => false,
-    }
-}
-
-/// Mark an edit as made the DNG way.
-pub fn mark(adjustments: &mut Value) {
-    if let Some(edit) = adjustments.as_object_mut() {
-        edit.insert(KEY.to_string(), Value::Bool(true));
-    }
-}
-
 /// What to multiply decoded pixels by for the DNG way: `built_in` is the matrix
 /// rawler developed with, `developed` its camera to sRGB as the decode applied
 /// it (profile_correction.rs `cam_to_srgb`).
@@ -151,7 +127,6 @@ mod tests {
     use super::*;
     use crate::mods::profile_matrix::as_rows;
     use argentum_engine::colour::SRGB_TO_XYZ_D65;
-    use serde_json::json;
 
     /// Canon EOS 5D Mark II in rawler's data, D65 and A.
     const D65_5D2: [f32; 9] = [
@@ -175,25 +150,6 @@ mod tests {
 
     fn apply(m: &[[f32; 3]; 3], v: [f32; 3]) -> [f32; 3] {
         [0, 1, 2].map(|r| m[r][0] * v[0] + m[r][1] * v[1] + m[r][2] * v[2])
-    }
-
-    #[test]
-    fn an_edit_from_before_keeps_rawlers_colour() {
-        assert!(!is_on(
-            &json!({ "exposure": 0.3, "baselineExposure": true })
-        ));
-        assert!(!is_on(&json!({ "exposure": 0.3, KEY: false })));
-        assert!(is_on(&json!({ "exposure": 0.3, KEY: true })));
-    }
-
-    #[test]
-    fn a_photo_with_no_edit_is_new() {
-        assert!(is_on(&Value::Null));
-        assert!(is_on(&json!({})));
-        assert!(is_on(&json!({ "is_null": true })));
-        let mut fresh = json!({ "baselineExposure": true });
-        mark(&mut fresh);
-        assert!(is_on(&fresh));
     }
 
     /// Both ways turn the as-shot white into the same grey, so a neutral keeps
@@ -256,5 +212,49 @@ mod tests {
             wb: [f32::NAN, 1.0, 1.0],
         };
         assert!(correction(&D65_5D2, &built, &nan).is_some());
+    }
+
+    /// A photo reset in the editor (its starting values) or by the backend
+    /// (`default_adjustments`), with no rating, flag, tags or snapshots, has
+    /// no sidecar, whether or not its stored edit still carries the mark.
+    #[test]
+    fn a_reset_photo_has_no_sidecar_with_or_without_the_retired_mark() {
+        use crate::image_processing::{ImageMetadata, default_adjustments, is_default_adjustments};
+        use serde_json::{Value, json};
+
+        assert!(is_default_adjustments(&default_adjustments()));
+        let editor = Value::Object(crate::mods::compat_corpus::starting_values());
+        assert!(is_default_adjustments(&editor));
+
+        let with = |edit: &Value, mark: Value| {
+            let mut edit = edit.clone();
+            edit[RETIRED_KEY] = mark;
+            edit
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("IMG_0001.CR2");
+        let sidecar = crate::file_management::sidecar_for(&source, None);
+        for edit in [
+            default_adjustments(),
+            editor.clone(),
+            with(&default_adjustments(), json!(true)),
+            with(&editor, json!(true)),
+            with(&editor, json!(false)),
+        ] {
+            std::fs::write(&sidecar, "{}").unwrap();
+            let metadata = ImageMetadata {
+                adjustments: edit.clone(),
+                ..Default::default()
+            };
+            crate::exif_processing::write_sidecar(&sidecar, &source, &metadata).unwrap();
+            assert!(!sidecar.exists(), "kept for {edit}");
+        }
+
+        // An edit is still an edit, mark or not.
+        let edited = with(
+            &json!({ "baselineExposure": true, "exposure": 0.5 }),
+            json!(true),
+        );
+        assert!(!is_default_adjustments(&edited));
     }
 }

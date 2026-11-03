@@ -802,7 +802,6 @@ const EDIT_JSON: &str = r##"{
   "aiDenoiseAmount": 60, "aiDenoiseDetail": 30, "aiDenoiseEnabled": true,
   "aspectRatio": 0.6666666666666666,
   "baselineExposure": false,
-  "agDngColour": false,
   "blacks": -12, "brightness": 0.35,
   "centré": 18, "centréX": 0.42, "centréY": 0.58,
   "clarity": 22,
