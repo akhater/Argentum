@@ -14,6 +14,7 @@ Work that went out without being planned on this page, newest first.
 
 | Version | What |
 |---|---|
+| `26.45.2` | Focus points on the photo (Shift+F). Windows no longer downloads online-only photos. Opened photos show their own folder. Thumbnail arrows with nothing selected. Mac: fewer permission prompts, system disk at `/`, signed builds keep permissions |
 | `26.45.1` | Freezes fixed when changing photos and when resizing during graphics recovery. No slowdown or wrong size after window resizes. OpenGL fallback lasts one launch and says so |
 | `26.44.5` | Arrows on the thumbnail bar and a button to switch between the photo and the thumbnails. Apple Silicon Mac builds move to macOS 15. Tethering downloads removed |
 | `26.44.4` | Left and Right keep working when the photo on show leaves the filtered list. Import Images removed: Shoebox does the importing |

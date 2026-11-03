@@ -4,6 +4,62 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.45.2 — 2026-11-03
+
+### Added
+
+- **Focus points: see where the camera focused.** A new icon in the photo view's top bar, after RGB
+  (or Shift+F), draws the camera's autofocus points over the photo: red where the camera confirmed
+  focus, white where a point was chosen, the camera's other points faint and a zone dashed. It stays
+  on from photo to photo and after a restart, follows zoom, pan, rotation, flips, straightening and
+  the crop, and is hidden while Transform changes the perspective or the crop tool is open. A photo
+  focused by hand, or whose file records no point, says so. Read from Canon, Nikon, Sony, Fujifilm,
+  Olympus / OM System, Panasonic / Leica and Pentax / Ricoh maker notes and a phone's SubjectArea,
+  by Shoebox's `focus-points` crate (`src-tauri/focus-points`, commit `580c5a6d`, MIT), with Shoebox's
+  maker-note finder (`src-tauri/src/imaging.rs`), adapter (`src-tauri/src/focus.rs`) and drawing
+  (`src/components/FocusPoints.tsx`, `src/styles.css`) copied at the same commit. Formats researched
+  from ExifTool by Phil Harvey; no ExifTool code.
+
+### Changed
+
+- **A Mac remembers your folder permissions across updates.** The macOS builds are now signed with
+  one self-signed certificate, so an update is no longer a new app to macOS. The first signed
+  release asks once more. The prompts for Desktop, Documents, Downloads, external drives and
+  network drives now say why Argentum asks (`src-tauri/Info.plist`, merged by Tauri). Installing
+  still needs the one-time `xattr` step, because the builds are not notarized.
+
+### Fixed
+
+- **The folder column reads a folder when you open it.** It used to look inside every folder it
+  listed, and at start one level below each folder left unfolded, for the arrows and photo counts.
+  On a Mac that raised Desktop, Apple Music and Photo Library permission prompts with nothing
+  opened. Now a folded disk is read only when it is opened or the column is searched, on every
+  system, and folders in a Mac home folder, online-only folders and mounted disks show an arrow and
+  no count until they are opened. Photos, Music and TV libraries and apps are no longer listed as
+  folders on a Mac, and a recursive listing skips them. Arrows and counts elsewhere are unchanged. The rule is `src-tauri/src/mods/folder_walk.rs`; RapidRAW's
+  `has_subdirs` it narrows is at 79c2a46b.
+- **A Mac's system disk is listed at `/`.** The folder column showed it as
+  `/Volumes/Macintosh HD` with a removable disk's icon, so a folder chosen by its
+  real path, such as `/Users/you/Pictures`, was never found in the column. A
+  folder saved through the old path opens at its real one. On macOS and Linux
+  the list of disks now comes from a folder's listing and never touches a mount,
+  so a share that has gone cannot hold up the start.
+- **A photo opened from another app shows its own folder.** Opened from Shoebox
+  or with "Open with", a photo appeared under the folder last open: the path
+  over it named that folder, and the filmstrip and the arrows went through its
+  photos. The library now goes to the photo's folder, at start and in a running
+  window, and the photo stays open.
+- **The thumbnail bar's arrows show with nothing selected.** With a folder of
+  photos open and no photo picked yet, both arrows were missing. They now show:
+  next and the Right key select the first photo, and previous stays greyed out.
+- **Opening a folder on Windows no longer downloads its online-only photos.** The check for files
+  that are not on this computer existed only for macOS, so on Windows a OneDrive folder fetched every
+  photo for its thumbnails and metadata. Online-only photos now show a cloud icon instead of a
+  thumbnail until they are downloaded, and opening one fetches it as before. Culling and AI tagging
+  skip them. The read-ahead on hard disks, the embedded XMP scan and AI tagging now leave online-only
+  photos unread on macOS too. Small sidecar files that are online-only are still fetched, in the
+  background, for ratings and edits. The tooltip says "the cloud" rather than iCloud.
+
 ## 26.45.1 — 2026-11-02
 
 ### Fixed

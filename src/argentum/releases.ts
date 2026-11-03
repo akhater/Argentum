@@ -32,6 +32,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.45.2',
+    date: '2026-11-03',
+    notes: [
+      'New: see where the camera focused. Click the focus icon after RGB, or press Shift+F.',
+      'Opening a folder on Windows no longer downloads its online-only OneDrive photos.',
+      'A photo opened from Shoebox or "Open with" now shows its own folder.',
+      'The thumbnail bar arrows show even before a photo is picked.',
+      'On a Mac: fewer permission prompts, the system disk is listed at /, and updates keep your folder permissions.',
+    ],
+  },
+  {
     version: '26.45.1',
     date: '2026-11-02',
     notes: [
