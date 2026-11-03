@@ -12,6 +12,7 @@ import { useLibraryActions } from './useLibraryActions';
 import { rowNeighbour } from '../argentum/modern/gridRows';
 import { physicalPathOf } from '../argentum/paths';
 import { selectInGrid } from '../argentum/photoStep';
+import { useFocusPoints } from '../argentum/focusSwitch';
 
 interface KeyboardShortcutsProps {
   sortedImageList: Array<ImageFile>;
@@ -313,6 +314,13 @@ export const useKeyboardShortcuts = ({
         execute: (e: any) => {
           e.preventDefault();
           toggleShowOriginal();
+        },
+      },
+      toggle_focus_points: {
+        shouldFire: (s: ShortcutState) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
+        execute: (e: KeyboardEvent) => {
+          e.preventDefault();
+          useFocusPoints.getState().toggle();
         },
       },
       toggle_adjustments: {

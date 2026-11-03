@@ -713,6 +713,18 @@ commands! {
         .await
         .map_err(|e| e.to_string())??
     }
+    "focus_points" => (a: PathArgs) -> Option<crate::mods::focus_points::Focus> {
+        // Where the camera focused, from the file's metadata, off the UI thread.
+        tokio::task::spawn_blocking(move || crate::mods::focus_points::of_photo(&a.path))
+            .await
+            .map_err(|e| e.to_string())??
+    }
+    "focus_points_shown" => () -> bool {
+        crate::mods::focus_points::shown(crate::mods::profiles::library_ready()?)
+    }
+    "set_focus_points_shown" => (a: OnArgs) -> () {
+        crate::mods::focus_points::save_shown(crate::mods::profiles::library_ready()?, a.on)?;
+    }
     "raw_tone_curve" => (a: RawToneArgs) -> Vec<crate::mods::raw_tone::ToneCurvePoint> {
         commands::raw_tone_curve(a.path, a.mode, app_handle)?
     }

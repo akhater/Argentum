@@ -42,6 +42,7 @@ import {
   ThumbnailSize,
 } from '../../components/ui/AppProperties';
 import RgbReadoutButton from '../RgbReadoutButton';
+import FocusPointsButton from '../FocusPointsButton';
 import { useAgTranslation, type AgKey } from '../locales';
 import VersionNote from './VersionNote';
 import { crumbs } from './folders';
@@ -483,6 +484,7 @@ function PhotoTools({ onZoom }: { onZoom(zoom: number, fitToWindow?: boolean): v
         {t('mwClipping')}
       </button>
       <RgbReadoutButton />
+      <FocusPointsButton />
       <div className="agm-sep" />
       <Menu label={t('mwZoom')}>
         {(close) => (

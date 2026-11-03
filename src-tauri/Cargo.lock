@@ -16,6 +16,7 @@ dependencies = [
  "fern",
  "filetime",
  "flate2",
+ "focus-points",
  "futures",
  "fuzzy-matcher",
  "glam 0.33.5",
@@ -1915,6 +1916,14 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
+name = "focus-points"
+version = "0.1.0"
+source = "git+https://github.com/akhater/shoebox?rev=580c5a6ddb4274d3209b397d779271a9ba072807#580c5a6ddb4274d3209b397d779271a9ba072807"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "foldhash"

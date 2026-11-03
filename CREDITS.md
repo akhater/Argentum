@@ -98,6 +98,26 @@ Fujifilm compressed RAF, Olympus ORF, Panasonic RW2 (v8) and Pentax PEF
 
 ---
 
+## Focus points
+
+### [Shoebox](https://github.com/akhater/shoebox)
+
+Focus points in the photo view (Shift+F) are Shoebox's. Its `focus-points` crate
+(MIT, `src-tauri/focus-points` at `580c5a6d`), used as a library, reads where the
+camera focused from Canon, Nikon, Sony, Fujifilm, Olympus / OM System, Panasonic /
+Leica and Pentax / Ricoh maker notes, and a phone's EXIF SubjectArea. The code that
+finds a file's maker note (`src-tauri/src/imaging.rs`), the adapter to rawler
+(`src-tauri/src/focus.rs`), the icon and the drawing (`src/components/FocusPoints.tsx`,
+`src/styles.css`) are copied from its app at the same commit
+(`src-tauri/src/mods/focus_points.rs`, `src/argentum/FocusPoints.tsx`).
+
+### [ExifTool](https://exiftool.org) — Phil Harvey
+
+The maker-note formats the `focus-points` crate reads were researched from
+ExifTool, the reference for them. No ExifTool code is used.
+
+---
+
 ## RAW rendering
 
 DNG Standard, under Edit > Profile > Rendering, is the default picture of a DNG renderer:

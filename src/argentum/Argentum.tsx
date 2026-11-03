@@ -33,6 +33,8 @@ import './historyOnRelease';
 import './history/historyKeeper';
 import './looks/filmLookInput';
 import RgbReadout from './RgbReadout';
+import FocusOverlay from './FocusOverlay';
+import { useFocusPoints } from './focusSwitch';
 import LinearMask from './LinearMask';
 import RadialFeather from './RadialFeather';
 import RefreshMetadataButton from './RefreshMetadataButton';
@@ -110,6 +112,11 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
     useCompactSliders.getState().load();
   }, []);
 
+  // Whether the camera's focus points are drawn over the photo, as it was left.
+  useEffect(() => {
+    useFocusPoints.getState().load();
+  }, []);
+
   // How the Modern window was left, its palette and its text size. Read once at startup.
   useEffect(() => {
     useEditorLayout.getState().load();
@@ -182,6 +189,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {aiModels && createPortal(<AiModels />, aiModels)}
       {general && <PanelsSetting slot={general as HTMLElement} />}
       <RgbReadout />
+      <FocusOverlay />
       <LinearMask />
       <RadialFeather />
       <WhiteBalanceUpgrade />
