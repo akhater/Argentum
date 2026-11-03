@@ -1,25 +1,21 @@
-// Which edits take the camera colour the DNG way (agDngColour, mods/dng_colour.rs), as the editor
-// reads a photo's edit: a new edit does, one saved before does not. RapidRAW 3f5345a5, ours.
+// The camera colour mark 26.44.1 to 26.45.x stored in new edits (agDngColour, mods/dng_colour.rs):
+// every photo takes that colour now, so the editor starts without it and drops a stored one,
+// and the next save leaves it out.
 import { describe, expect, it } from 'vitest';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments, type Adjustments } from '../utils/adjustments';
 
 const loaded = (edit: Record<string, unknown>) => normalizeLoadedAdjustments(edit as unknown as Adjustments);
 
-describe('the camera colour an edit takes', () => {
-  it('is the DNG way for a new edit', () => {
-    expect(INITIAL_ADJUSTMENTS.agDngColour).toBe(true);
+describe('the retired camera colour mark', () => {
+  it('is not in a new edit', () => {
+    expect('agDngColour' in INITIAL_ADJUSTMENTS).toBe(false);
   });
 
-  it('stays rawler’s for an edit saved before', () => {
-    expect(loaded({ exposure: 0.5, baselineExposure: true }).agDngColour).toBe(false);
-  });
-
-  it('is what the edit says once it says', () => {
-    expect(loaded({ exposure: 0.5, agDngColour: true }).agDngColour).toBe(true);
-    expect(loaded({ exposure: 0.5, agDngColour: false }).agDngColour).toBe(false);
-  });
-
-  it('is the DNG way for an edit that holds nothing, as the backend reads it', () => {
-    expect(loaded({}).agDngColour).toBe(true);
+  it('is dropped from a stored edit, and nothing else is', () => {
+    for (const mark of [true, false]) {
+      const edit = loaded({ exposure: 0.5, agDngColour: mark });
+      expect('agDngColour' in edit).toBe(false);
+      expect(edit.exposure).toBe(0.5);
+    }
   });
 });

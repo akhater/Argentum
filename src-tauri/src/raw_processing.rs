@@ -142,7 +142,7 @@ fn develop_internal(
 
     raw_image.wb_coeffs =
         crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
-    // Argentum: the white balance this decode applies, for an edit made the DNG way (mods/dng_colour.rs)
+    // Argentum: the white balance this decode applies, for the camera colour the DNG way (mods/dng_colour.rs)
     crate::mods::profile_correction::remember_colour(
         photo_path,
         crate::mods::dng_colour::inputs_of(&raw_image, !is_linear_format || apply_calibration),

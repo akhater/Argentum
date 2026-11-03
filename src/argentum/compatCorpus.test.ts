@@ -20,7 +20,13 @@ interface Dropped {
   pr: string;
 }
 
-const DROPPED: Dropped[] = [];
+const DROPPED: Dropped[] = [
+  {
+    path: '/agDngColour',
+    reason: 'the camera colour mark of 26.44.1 to 26.45.x; every photo takes that colour now (mods/dng_colour.rs)',
+    pr: '#329',
+  },
+];
 
 interface Sidecar {
   adjustments: Record<string, unknown>;

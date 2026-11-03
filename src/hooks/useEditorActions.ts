@@ -192,7 +192,6 @@ export function useEditorActions() {
         const override = { ...INITIAL_ADJUSTMENTS };
         const preservedKeys: Array<keyof Adjustments> = [
           'baselineExposure',
-          'agDngColour', // Argentum: the edit's own camera colour (mods/dng_colour.rs)
           'crop',
           'rotation',
           'flipHorizontal',

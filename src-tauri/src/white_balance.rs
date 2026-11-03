@@ -243,8 +243,8 @@ impl WhiteBalance {
 // DNG spec builds it: invert the camera's XYZ matrix, take the as-shot white in
 // XYZ and adapt it to D65 with Bradford. `from_camera_neutral` above solves the
 // same white by its own sums, kept so the as-shot white balance of every photo
-// stays bit for bit what it was; this one is used only for the camera colour of
-// new edits (mods/dng_colour.rs).
+// stays bit for bit what it was; this one is used only for the camera colour
+// (mods/dng_colour.rs).
 fn camera_to_xyz(xyz_to_camera: &[f32]) -> Option<Vec<DVec3>> {
     let rows: Vec<DVec3> = xyz_to_camera
         .as_chunks::<3>()

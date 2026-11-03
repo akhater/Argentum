@@ -77,8 +77,8 @@ pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0
 /// deliberate exception to the anchor rule, taken because the alternative was a
 /// heuristic that is wrong in a case a person would hit.
 /// One photo's built-in matrix, and its camera (maker, model) once the decode
-/// has said, remembered against the photo they came from; and what an edit made
-/// the DNG way needs for its camera colour (mods/dng_colour.rs).
+/// has said, remembered against the photo they came from; and what its camera
+/// colour the DNG way needs (mods/dng_colour.rs).
 struct BuiltInMatrix {
     path: String,
     matrix: [f32; 9],
@@ -124,7 +124,7 @@ pub fn remember_camera(path: Option<&str>, make: &str, model: &str) {
     }
 }
 
-/// What the camera colour of an edit made the DNG way needs from the decode
+/// What the camera colour the DNG way needs from the decode
 /// `remember_built_in` has just remembered: `None` for a RAW it does not apply
 /// to (mods/dng_colour.rs `inputs_of`).
 pub fn remember_colour(path: Option<&str>, colour: Option<super::dng_colour::Inputs>) {
@@ -262,18 +262,18 @@ pub fn correction_for(photo: Option<&str>, profile_xyz2cam: &[f32; 9]) -> Option
 }
 
 /// The three shader rows for whatever profile this photo asked for, or, with
-/// none, for its camera colour when the edit was made the DNG way.
+/// none, for its camera colour the DNG way.
 ///
-/// Identity whenever there is no profile and an edit from before the DNG way,
-/// no library, or anything at all goes wrong. Such a photo must render exactly
-/// as it always has, and "exactly" here means multiplied by the identity, not
-/// skipped.
+/// Identity whenever the decode left nothing to correct against (not a RAW, a
+/// monochrome or four-colour sensor, a photo it never saw), there is no library,
+/// or anything at all goes wrong. Such a photo renders exactly as rawler
+/// developed it, multiplied by the identity, not skipped.
 pub fn rows_for(
     js_adjustments: &serde_json::Value,
     photo: Option<&str>,
 ) -> ([f32; 4], [f32; 4], [f32; 4]) {
     let m = chosen_correction(js_adjustments, photo)
-        .or_else(|| dng_colour_correction(js_adjustments, photo))
+        .or_else(|| dng_colour_correction(photo))
         .unwrap_or(IDENTITY);
     (
         [m[0][0], m[0][1], m[0][2], 0.0],
@@ -302,16 +302,9 @@ fn chosen_correction(
     correction_for(photo, &xyz2cam)
 }
 
-/// The camera colour the DNG way, as a correction of what the decode did: for
-/// an edit marked for it (mods/dng_colour.rs `is_on`) of a photo whose decode
-/// remembered its inputs.
-fn dng_colour_correction(
-    js_adjustments: &serde_json::Value,
-    photo: Option<&str>,
-) -> Option<[[f32; 3]; 3]> {
-    if !super::dng_colour::is_on(js_adjustments) {
-        return None;
-    }
+/// The camera colour the DNG way, as a correction of what the decode did, for
+/// any edit of a photo whose decode remembered its inputs.
+fn dng_colour_correction(photo: Option<&str>) -> Option<[[f32; 3]; 3]> {
     let (built_in, inputs) = colour_for_this_render(photo)?;
     super::dng_colour::correction(&built_in, &cam_to_srgb(&built_in)?, &inputs)
 }
@@ -660,11 +653,11 @@ mod tests {
         assert!(!known.iter().any(|e| e.path == "photo-0.CR2"));
     }
 
-    /// An edit saved before the DNG way renders through the identity, exactly,
-    /// even when the decode remembered everything the DNG way needs; a new
-    /// edit, and a photo with no edit, take the correction.
+    /// Every edit takes the camera colour the DNG way, whenever it was made: one
+    /// saved before 26.44.1 (no mark), one marked by 26.44.1 to 26.45.x either
+    /// way, and a photo with no edit. A chosen camera profile is not this test's.
     #[test]
-    fn only_an_edit_made_the_dng_way_moves_colour() {
+    fn every_edit_takes_the_dng_colour() {
         let _guard = serialised();
         forget_built_in();
         remember_built_in(Some("T.CR2"), BUILT_IN_5D2);
@@ -683,13 +676,16 @@ mod tests {
             [0.0, 0.0, 1.0, 0.0],
         );
         let before = serde_json::json!({ "exposure": 0.5, "baselineExposure": true });
-        assert_eq!(rows_for(&before, Some("T.CR2")), identity);
-        let marked_off = serde_json::json!({ "exposure": 0.5, "agDngColour": false });
-        assert_eq!(rows_for(&marked_off, Some("T.CR2")), identity);
-
-        let new = serde_json::json!({ "exposure": 0.5, "agDngColour": true });
-        assert_ne!(rows_for(&new, Some("T.CR2")), identity);
-        assert_ne!(rows_for(&serde_json::Value::Null, Some("T.CR2")), identity);
+        let corrected = rows_for(&before, Some("T.CR2"));
+        assert_ne!(corrected, identity);
+        for edit in [
+            serde_json::json!({ "exposure": 0.5, "agDngColour": false }),
+            serde_json::json!({ "exposure": 0.5, "agDngColour": true }),
+            serde_json::Value::Null,
+        ] {
+            assert_eq!(rows_for(&edit, Some("T.CR2")), corrected, "{edit}");
+        }
+        let new = serde_json::json!({ "exposure": 0.5 });
         // A photo the decode never saw, or one without the inputs, stays as it was.
         assert_eq!(rows_for(&new, Some("other.CR2")), identity);
         remember_built_in(Some("T.CR2"), BUILT_IN_5D2);

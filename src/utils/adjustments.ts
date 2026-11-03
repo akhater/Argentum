@@ -257,7 +257,6 @@ export interface Adjustments {
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
   baselineExposure: boolean;
-  agDngColour?: boolean; // Argentum: camera colour the DNG way, for edits made since (mods/dng_colour.rs)
   blacks: number;
   brightness: number;
   centré: number;
@@ -627,10 +626,12 @@ const deepCloneParametric = (pCurve: any): ParametricCurve => ({
   blue: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.blue || {}) },
 });
 
-export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any => {
-  if (!loadedAdjustments) {
+export const normalizeLoadedAdjustments = (stored: Adjustments): any => {
+  if (!stored) {
     return INITIAL_ADJUSTMENTS;
   }
+  // Argentum: the camera colour mark 26.44.1 to 26.45.x stored; every photo takes that colour now (mods/dng_colour.rs).
+  const { agDngColour: _retired, ...loadedAdjustments } = stored;
 
   const normalizeSubMasks = (subMasks: any[]) => {
     return (subMasks || []).map((subMask: Partial<SubMask>) => ({
@@ -700,8 +701,6 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
       autoCrop: loadedAdjustments.guidedPerspective?.autoCrop ?? true,
     },
     baselineExposure: loadedAdjustments.baselineExposure ?? false,
-    // Argentum: an edit saved before keeps rawler's camera colour; no edit at all is new (mods/dng_colour.rs).
-    agDngColour: loadedAdjustments.agDngColour ?? Object.keys(loadedAdjustments).length === 0,
     lutIsSceneReferred: loadedAdjustments.lutIsSceneReferred ?? false,
     flareAmount: loadedAdjustments.flareAmount ?? INITIAL_ADJUSTMENTS.flareAmount,
     glowAmount: loadedAdjustments.glowAmount ?? INITIAL_ADJUSTMENTS.glowAmount,
