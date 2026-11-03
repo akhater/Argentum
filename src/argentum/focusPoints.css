@@ -1,0 +1,57 @@
+/* Where the camera focused (Shift+F): the camera's other points faint, the
+   chosen ones white, those in focus red, the zone given dashed; each over a
+   dark halo so it shows on bright and dark photos. The photo is never dimmed:
+   its sharpness is what is being judged.
+   From Shoebox src/styles.css at 580c5a6d (`.focus-points`, `.af`). Changed:
+   the layer is zoomed with the photo, so each width is divided by the zoom
+   (`--af-zoom`, set by FocusOverlay.tsx) to stay the same on screen. */
+.focus-points {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  animation: focus-points-in 0.12s ease-out;
+}
+@keyframes focus-points-in {
+  from {
+    opacity: 0;
+  }
+}
+.focus-points rect {
+  fill: none;
+}
+.af .halo {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: calc(4px / var(--af-zoom, 1));
+}
+.af .line {
+  stroke-width: calc(2px / var(--af-zoom, 1));
+}
+.af.other .halo {
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: calc(3px / var(--af-zoom, 1));
+}
+.af.other .line {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: calc(1px / var(--af-zoom, 1));
+}
+.af.chosen .line {
+  stroke: #ffffff;
+}
+.focus-points .af.inFocus .line {
+  stroke: #ff453a;
+  fill: rgba(255, 69, 58, 0.15);
+}
+.af.area .halo,
+.af.area .line {
+  stroke-dasharray: calc(6px / var(--af-zoom, 1)) calc(4px / var(--af-zoom, 1));
+}
+.af.area .halo {
+  stroke-width: calc(3.5px / var(--af-zoom, 1));
+}
+.af.area .line {
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: calc(1.5px / var(--af-zoom, 1));
+}

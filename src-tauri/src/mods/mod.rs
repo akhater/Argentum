@@ -50,6 +50,7 @@ pub mod export_precision;
 pub mod face_mask;
 pub mod file_ops;
 pub mod film_lut;
+pub mod focus_points;
 pub mod folder_counts;
 pub mod folder_walk;
 pub mod gpu_runtime;

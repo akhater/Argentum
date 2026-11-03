@@ -230,6 +230,22 @@ const COMMANDS = {
   'plugin:dialog|message': none,
 };
 
+/** Where each demo photo's camera focused: a grid of points with one in focus and one chosen on the
+ *  first, focused by hand on the second, nothing recorded on the rest. */
+const FOCUS = {
+  'Demo-01.dng': {
+    mode: 'Single point',
+    points: Array.from({ length: 45 }, (_, i) => ({
+      x: 0.15 + (i % 9) * 0.08,
+      y: 0.2 + Math.floor(i / 9) * 0.13,
+      w: 0.035,
+      h: 0.05,
+      state: i === 15 ? 'inFocus' : i === 24 ? 'chosen' : 'other',
+    })),
+  },
+  'Demo-02.jpg': { mode: 'Manual focus', points: [] },
+};
+
 const AG = {
   modern_start: () => ({
     drives: [{ path: DEMO_DRIVE, label: 'Demo', removable: false, freeBytes: 0, totalBytes: 0 }],
@@ -253,6 +269,9 @@ const AG = {
   dng_standard_held_back: none,
   highlight_recovery: () => false,
   set_highlight_recovery: none,
+  focus_points: ({ path }) => FOCUS[path.split('\\').pop()] ?? null,
+  focus_points_shown: () => false,
+  set_focus_points_shown: none,
   sharpen_auto: () => ({ radius: null, contrast: null }),
   camera_profile_status: () => ({ camera: 'Demo Camera One', make: 'Demo', available: [], publishedInstalled: false }),
   // Settings: no camera seen, no model downloaded.

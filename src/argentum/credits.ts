@@ -110,6 +110,27 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
+    heading: 'Focus points',
+    entries: [
+      {
+        name: 'Shoebox',
+        href: 'https://github.com/akhater/shoebox',
+        what:
+          'Focus points in the photo view are Shoebox’s: its focus-points crate (MIT) reads where ' +
+          'the camera focused from Canon, Nikon, Sony, Fujifilm, Olympus / OM System, Panasonic / ' +
+          'Leica and Pentax / Ricoh maker notes and a phone’s SubjectArea, used as a library; the ' +
+          'code that finds the maker note, the icon and the drawing are copied from its app.',
+      },
+      {
+        name: 'ExifTool',
+        href: 'https://exiftool.org',
+        what:
+          'By Phil Harvey. The maker-note formats the focus-points crate reads were researched from ' +
+          'ExifTool, the reference for them. No ExifTool code is used.',
+      },
+    ],
+  },
+  {
     heading: 'RAW rendering',
     entries: [
       {

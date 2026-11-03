@@ -195,6 +195,28 @@ jsAdjustments: unknown, parts: ReadonlyArray<string>, rotation: number, flipHori
 export type FileArgs = { file: string, };
 
 /**
+ * Where the camera focused, as the interface receives it: the crate's
+ * `Focus`, field for field. `From` takes each apart whole, so a field the
+ * crate adds stops this compiling rather than going missing.
+ */
+export type Focus = { 
+/**
+ * How the camera was set to focus, in the crate's `MODES` words
+ * ("Manual focus", "Single point"...).
+ */
+mode: string | null, points: Array<FocusPoint>, };
+
+/**
+ * One point: its top-left corner and size, fractions of the upright picture.
+ */
+export type FocusPoint = { x: number, y: number, w: number, h: number, state: FocusState, };
+
+/**
+ * What a point was in this photo.
+ */
+export type FocusState = "other" | "chosen" | "inFocus" | "area";
+
+/**
  * A folder's path before and after a rename.
  */
 export type FolderRenameArgs = { oldPath: string, newPath: string, };
@@ -882,6 +904,8 @@ export interface AgCommands {
   face_mask: { args: FaceMaskArgs; answer: Selection };
   face_mask_models_status: { args: Record<string, never>; answer: ModelsStatus };
   flashraw_handles: { args: PathArgs; answer: boolean };
+  focus_points: { args: PathArgs; answer: Focus | null };
+  focus_points_shown: { args: Record<string, never>; answer: boolean };
   folder_photo_count: { args: PathArgs; answer: number };
   forget_camera: { args: ModelArgs; answer: null };
   forget_look_picks: { args: Record<string, never>; answer: null };
@@ -924,6 +948,7 @@ export interface AgCommands {
   set_camera_default_profile: { args: DefaultProfileArgs; answer: null };
   set_compact_slider_gap: { args: GapArgs; answer: null };
   set_editor_layout_panels: { args: LayoutPanelsArgs; answer: null };
+  set_focus_points_shown: { args: OnArgs; answer: null };
   set_highlight_recovery: { args: OnArgs; answer: null };
   set_history: { args: HistoryArgs; answer: null };
   set_look_learning: { args: LearningArgs; answer: null };
