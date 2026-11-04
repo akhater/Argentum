@@ -4,6 +4,37 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.45.3 — 2026-11-04
+
+### Added
+
+- **Headless export can size and pick its photos, and reports each one.** `argentum export`
+  takes `--long-edge <px>` to write each photo at that long edge (never enlarged) instead of full
+  size; `--edited-only` to export only a folder's photos that carry an edit, the ones the thumbnails
+  mark as edited; and `--files <list.txt>` in place of a source, one path per line, where a virtual
+  copy is given as `<photo path>?vc=<copy id>`. Every photo asked for gets one JSON line on stdout
+  (`source`, `copy`, `output` and `ok`, or `error`), and the progress messages moved to stderr. The
+  exit code is non-zero when any photo failed; a folder with no edited photo exits without an error.
+
+### Changed
+
+- **Photos edited before 26.44.1 now use the same camera colour as new ones.** 26.44.1 built a
+  RAW's camera colour the DNG way only for new edits and kept older edits on the previous colour;
+  every RAW now takes it, so an older edit's colours can shift slightly. Measured on five test
+  RAWs, older edit before and after, CIEDE2000 mean 0.02 to 0.27 (p95 up to 0.62) on three
+  R6 Mark III photos and 0.84 to 1.31 (p95 up to 3.47) on two 5D Mark II photos. A chosen camera
+  profile still replaces the colour as before. The hidden `agDngColour` mark that new edits
+  carried is no longer read and is dropped the next time an edit is saved, and a photo reset to
+  its starting values still has its sidecar removed whether or not its edit carried the mark.
+  Thumbnails are redrawn once (`mods/dng_colour.rs`, `mods/profile_correction.rs`).
+
+### Fixed
+
+- **The macOS DMG opens again.** Since 26.45.2 the DMG carried the same self-signed signature as
+  the app, and macOS refused to open it ("Apple could not verify ... is free of malware"). The app
+  keeps its signature, so privacy answers still carry over between updates; the DMG is unsigned
+  as before 26.45.2, and the release build fails if one is left signed (`scripts/tauri-macos.mjs`).
+
 ## 26.45.2 — 2026-11-03
 
 ### Added
