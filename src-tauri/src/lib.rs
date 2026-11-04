@@ -2041,7 +2041,7 @@ pub fn run() {
                     };
                     let ort_library_path = resource_path.join(ort_library_name);
                     std::env::set_var("ORT_DYLIB_PATH", &ort_library_path);
-                    cli_println!("Set ORT_DYLIB_PATH to: {}", ort_library_path.display());
+                    cli_eprintln!("Set ORT_DYLIB_PATH to: {}", ort_library_path.display());
                 }
             }
 
@@ -2076,7 +2076,7 @@ pub fn run() {
                     tauri::async_runtime::spawn(async move {
                         match crate::export_processing::run_headless_export(session, app_handle_clone.clone()).await {
                             Ok(_) => {
-                                cli_println!("Headless export completed successfully.");
+                                cli_eprintln!("Headless export completed successfully.");
                                 app_handle_clone.exit(0);
                             }
                             Err(e) => {

@@ -17,10 +17,14 @@ pub struct ExternalEditSession {
 #[derive(Clone, Debug)]
 pub struct HeadlessExportSession {
     pub source: String,
+    /// A text file listing the photos to export, one path per line, instead of `source`.
+    pub files: Option<String>,
     pub output: String,
     pub format: String,
     pub quality: u8,
     pub tiff_bit_depth: u8,
+    pub long_edge: Option<u32>,
+    pub edited_only: bool,
     pub keep_metadata: bool,
     pub adjustments_override: Option<String>,
 }
@@ -61,19 +65,20 @@ pub struct LaunchPayload {
 
 pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
     if args.first().map(|s| s.as_str()) == Some("export") {
-        let mut iter = args.iter().skip(1);
+        let mut iter = args.iter().skip(1).peekable();
 
         let mut source = String::new();
+        let mut files = None;
         let mut output = String::new();
         let mut format = String::from("jpeg");
         let mut quality = 90;
         let mut tiff_bit_depth = 16;
+        let mut long_edge = None;
+        let mut edited_only = false;
         let mut keep_metadata = false;
         let mut adjustments_override = None;
 
-        if let Some(src) = iter.next()
-            && !src.starts_with('-')
-        {
+        if let Some(src) = iter.next_if(|arg| !arg.starts_with('-')) {
             source = src.clone();
         }
 
@@ -116,6 +121,33 @@ pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
                         }
                     };
                 }
+                "--long-edge" => {
+                    let Some(value) = iter.next() else {
+                        return LaunchRequest::InvalidHeadless(
+                            "Missing value for --long-edge; expected a size in pixels above 0."
+                                .to_string(),
+                        );
+                    };
+                    long_edge = match value.parse::<u32>() {
+                        Ok(px) if px > 0 => Some(px),
+                        _ => {
+                            return LaunchRequest::InvalidHeadless(format!(
+                                "Invalid long edge '{}'; expected a size in pixels above 0.",
+                                value
+                            ));
+                        }
+                    };
+                }
+                "--edited-only" => edited_only = true,
+                "--files" => {
+                    let Some(list) = iter.next() else {
+                        return LaunchRequest::InvalidHeadless(
+                            "Missing value for --files; expected a text file with one path per line."
+                                .to_string(),
+                        );
+                    };
+                    files = Some(list.clone());
+                }
                 "--keep-metadata" => keep_metadata = true,
                 "--adjustments" => {
                     if let Some(adj) = iter.next() {
@@ -126,12 +158,21 @@ pub fn parse_launch_args(args: &[String]) -> LaunchRequest {
             }
         }
 
+        if files.is_some() && !source.is_empty() {
+            return LaunchRequest::InvalidHeadless(
+                "Give a source path or --files, not both.".to_string(),
+            );
+        }
+
         return LaunchRequest::HeadlessExport(HeadlessExportSession {
             source,
+            files,
             output,
             format,
             quality,
             tiff_bit_depth,
+            long_edge,
+            edited_only,
             keep_metadata,
             adjustments_override,
         });
@@ -202,7 +243,7 @@ pub fn emit_launch_request(app_handle: &tauri::AppHandle, request: LaunchRequest
             handle_file_open(app_handle, PathBuf::from(path));
         }
         LaunchRequest::HeadlessExport(_) => {
-            cli_println!(
+            cli_eprintln!(
                 "Error: Headless export cannot be attached to an already running GUI instance."
             );
         }
@@ -251,6 +292,60 @@ mod tests {
             &["export", "photo.cr3", "--tiff-bit-depth"][..],
             &["export", "photo.cr3", "--tiff-bit-depth", "twelve"][..],
             &["export", "photo.cr3", "--tiff-bit-depth", "12"][..],
+        ] {
+            assert!(matches!(parse(args), LaunchRequest::InvalidHeadless(_)));
+        }
+    }
+
+    #[test]
+    fn headless_defaults_to_full_size_and_every_image() {
+        let LaunchRequest::HeadlessExport(session) = parse(&["export", "photos"]) else {
+            panic!("expected a headless export request");
+        };
+        assert_eq!(session.long_edge, None);
+        assert!(!session.edited_only);
+    }
+
+    #[test]
+    fn headless_reads_long_edge_and_edited_only() {
+        let LaunchRequest::HeadlessExport(session) =
+            parse(&["export", "photos", "--long-edge", "2048", "--edited-only"])
+        else {
+            panic!("expected a headless export request");
+        };
+        assert_eq!(session.long_edge, Some(2048));
+        assert!(session.edited_only);
+    }
+
+    #[test]
+    fn headless_long_edge_rejects_invalid_or_missing_values() {
+        for args in [
+            &["export", "photos", "--long-edge"][..],
+            &["export", "photos", "--long-edge", "0"][..],
+            &["export", "photos", "--long-edge", "big"][..],
+            &["export", "photos", "--long-edge", "-5"][..],
+        ] {
+            assert!(matches!(parse(args), LaunchRequest::InvalidHeadless(_)));
+        }
+    }
+
+    #[test]
+    fn headless_reads_a_file_list_in_place_of_a_source() {
+        let LaunchRequest::HeadlessExport(session) =
+            parse(&["export", "--files", "list.txt", "--output", "out"])
+        else {
+            panic!("expected a headless export request");
+        };
+        assert_eq!(session.files.as_deref(), Some("list.txt"));
+        assert_eq!(session.source, "");
+        assert_eq!(session.output, "out");
+    }
+
+    #[test]
+    fn headless_file_list_rejects_a_missing_value_or_a_source_as_well() {
+        for args in [
+            &["export", "--files"][..],
+            &["export", "photos", "--files", "list.txt"][..],
         ] {
             assert!(matches!(parse(args), LaunchRequest::InvalidHeadless(_)));
         }

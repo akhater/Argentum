@@ -24,7 +24,8 @@ use tauri::Manager;
 use crate::AppState;
 use crate::exif_processing;
 use crate::file_management::{
-    generate_filename_from_template, parse_virtual_path, read_file_mapped,
+    generate_filename_from_template, parse_virtual_path, read_file_mapped, sidecar_for,
+    split_virtual_path,
 };
 use crate::formats::is_raw_file;
 use crate::image_loader::{composite_patches_on_image, load_and_composite, load_base_image_from_bytes};
@@ -1357,6 +1358,12 @@ fn export_adjustments_as_lut(
     Ok(cube_lut)
 }
 
+/// One photo of an export: the path it was asked as, and the file written or why not.
+pub(crate) struct ExportOutcome {
+    pub path: String,
+    pub output: Result<PathBuf, String>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn export_images_impl(
     paths: Vec<String>,
@@ -1368,7 +1375,7 @@ pub(crate) async fn export_images_impl(
     adjustments_mode: ExportAdjustmentsMode,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
-    completion_tx: Option<tokio::sync::oneshot::Sender<Result<(), usize>>>,
+    completion_tx: Option<tokio::sync::oneshot::Sender<Vec<ExportOutcome>>>,
 ) -> Result<(), String> {
     let cancellation_token = register_export_task(&state.export_task_token)?;
     let task_guard = ExportTaskGuard::with_app_handle(
@@ -1482,6 +1489,7 @@ pub(crate) async fn export_images_impl(
             let cancellation_token_clone = Arc::clone(&cancellation_token);
             let adjustments_mode = adjustments_mode.clone();
             let used_paths_clone = Arc::clone(&used_paths);
+            let asked_path = image_path_str.clone();
 
             let handle = tokio::task::spawn_blocking(move || {
                 ensure_export_not_cancelled(&cancellation_token_clone)?;
@@ -1750,22 +1758,25 @@ pub(crate) async fn export_images_impl(
                 if cancellation_token_clone.load(Ordering::SeqCst) {
                     Err("Export cancelled".to_string())
                 } else {
-                    result
+                    result.map(|()| output_path)
                 }
             });
 
-            join_handles.push(handle);
+            join_handles.push((asked_path, handle));
         }
 
-        let mut results = Vec::new();
-        for handle in join_handles {
-            match handle.await {
-                Ok(res) => results.push(res),
-                Err(e) => results.push(Err(format!("Thread crashed: {}", e))),
-            }
+        let mut outcomes = Vec::new();
+        for (path, handle) in join_handles {
+            let output = handle
+                .await
+                .unwrap_or_else(|e| Err(format!("Thread crashed: {}", e)));
+            outcomes.push(ExportOutcome { path, output });
         }
 
-        let errors: Vec<String> = results.into_iter().filter_map(Result::err).collect();
+        let errors: Vec<String> = outcomes
+            .iter()
+            .filter_map(|outcome| outcome.output.as_ref().err().cloned())
+            .collect();
         let error_count = errors.len();
         let export_state = app_handle.state::<AppState>();
         let finalized = finish_export_task(
@@ -1810,11 +1821,7 @@ pub(crate) async fn export_images_impl(
         }
 
         if let Some(tx) = completion_tx {
-            if error_count > 0 {
-                let _ = tx.send(Err(error_count));
-            } else {
-                let _ = tx.send(Ok(()));
-            }
+            let _ = tx.send(outcomes);
         }
     });
 
@@ -1853,31 +1860,112 @@ pub async fn export_images(
     .await
 }
 
+/// The paths a folder export renders, and how many `--edited-only` left out.
+fn headless_folder_paths(
+    images: Vec<crate::file_management::ImageFile>,
+    edited_only: bool,
+) -> (Vec<String>, usize) {
+    let listed = images.len();
+    let paths: Vec<String> = images
+        .into_iter()
+        .filter(|img| !edited_only || img.is_edited())
+        .map(|img| img.path)
+        .collect();
+    let skipped = listed - paths.len();
+    (paths, skipped)
+}
+
+/// The paths of a `--files` list: one per line, blank lines left out.
+fn headless_list_paths(list: &str) -> Vec<String> {
+    list.trim_start_matches('\u{feff}')
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// Why a photo or virtual copy (`IMG.CR3?vc=a1b2c3`) asked for cannot be exported.
+fn headless_missing(path: &str) -> Option<String> {
+    let (photo, copy_id) = split_virtual_path(path);
+    if !Path::new(photo).exists() {
+        return Some(format!("Source path does not exist: {}", photo));
+    }
+    match copy_id {
+        Some(id) if !sidecar_for(Path::new(photo), Some(id)).exists() => {
+            Some(format!("Virtual copy {} does not exist", id))
+        }
+        _ => None,
+    }
+}
+
+/// The JSON line a headless export prints on stdout for each photo asked for.
+fn headless_result_line(path: &str, output: &Result<PathBuf, String>) -> String {
+    let (source, copy) = split_virtual_path(path);
+    let line = match output {
+        Ok(file) => serde_json::json!({
+            "source": source,
+            "copy": copy,
+            "output": file.to_string_lossy(),
+            "ok": true,
+        }),
+        Err(error) => serde_json::json!({
+            "source": source,
+            "copy": copy,
+            "ok": false,
+            "error": error,
+        }),
+    };
+    line.to_string()
+}
+
 pub async fn run_headless_export(
     session: crate::launch_request::HeadlessExportSession,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    cli_println!("Starting headless export...");
+    cli_eprintln!("Starting headless export...");
     set_runtime_depth(TiffDepth::from_u8(session.tiff_bit_depth));
     let state = app_handle.state::<crate::AppState>();
 
-    let source_path = std::path::Path::new(&session.source);
-    if !source_path.exists() {
-        return Err(format!("Source path does not exist: {}", session.source));
-    }
-
     let mut paths = Vec::new();
-    if source_path.is_dir() {
+    let mut skipped = 0;
+    if let Some(list) = &session.files {
+        let content = std::fs::read_to_string(list)
+            .map_err(|e| format!("Failed to read file list {}: {}", list, e))?;
+        paths = headless_list_paths(&content);
+    } else if Path::new(&session.source).is_dir() {
         let images = crate::file_management::list_images_recursive(
             session.source.clone(),
             app_handle.clone(),
         )?;
-        paths = images.into_iter().map(|img| img.path).collect();
+        (paths, skipped) = headless_folder_paths(images, session.edited_only);
     } else {
         paths.push(session.source.clone());
     }
 
+    if skipped > 0 {
+        cli_eprintln!("Skipped {} unedited images (--edited-only).", skipped);
+    }
+    // The same names every run: a photo sorts before its copies, which take `_VC01`, `_VC02`...
+    paths.sort();
+    let asked = paths.len();
+    let mut failed = 0;
+    paths.retain(|path| match headless_missing(path) {
+        None => true,
+        Some(error) => {
+            cli_println!("{}", headless_result_line(path, &Err(error)));
+            failed += 1;
+            false
+        }
+    });
     if paths.is_empty() {
+        if failed > 0 {
+            return Err(format!("{} of {} exports failed.", failed, asked));
+        }
+        if skipped > 0 {
+            cli_eprintln!("No edited images found at the source path; nothing to export.");
+            return Ok(());
+        }
         return Err("No supported images found at the source path.".to_string());
     }
 
@@ -1895,11 +1983,15 @@ pub async fn run_headless_export(
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
-    cli_println!("Found {} images to export. Processing...", paths.len());
+    cli_eprintln!("Found {} images to export. Processing...", paths.len());
 
     let export_settings = ExportSettings {
         jpeg_quality: session.quality,
-        resize: None,
+        resize: session.long_edge.map(|value| ResizeOptions {
+            mode: ResizeMode::LongEdge,
+            value,
+            dont_enlarge: true,
+        }),
         border: None,
         pad: None,
         keep_metadata: session.keep_metadata,
@@ -1921,7 +2013,7 @@ pub async fn run_headless_export(
         let json: serde_json::Value = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse adjustments JSON: {}", e))?;
         custom_adjustments = Some(json);
-        cli_println!(
+        cli_eprintln!(
             "Loaded custom adjustments to override sidecars from: {}",
             adj_path
         );
@@ -1938,11 +2030,17 @@ pub async fn run_headless_export(
         }
     };
 
+    // A list's photos come from anywhere: they all go straight into the output folder.
+    let base_origin_folders = match session.files {
+        Some(_) => Vec::new(),
+        None => vec![session.source],
+    };
+
     export_images_impl(
         paths,
         session.output,
         is_explicit_file_path,
-        vec![session.source],
+        base_origin_folders,
         export_settings,
         session.format,
         mode,
@@ -1952,11 +2050,17 @@ pub async fn run_headless_export(
     )
     .await?;
 
-    match rx.await {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(errors)) => Err(format!("Export completed with {} errors.", errors)),
-        Err(_) => Err("Export task panicked or was cancelled.".to_string()),
+    let outcomes = rx
+        .await
+        .map_err(|_| "Export task panicked or was cancelled.".to_string())?;
+    for outcome in &outcomes {
+        cli_println!("{}", headless_result_line(&outcome.path, &outcome.output));
+        failed += usize::from(outcome.output.is_err());
     }
+    if failed > 0 {
+        return Err(format!("{} of {} exports failed.", failed, asked));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -2257,4 +2361,104 @@ pub async fn estimate_export_sizes(
     };
 
     Ok(single_image_extrapolated_size * paths.len())
+}
+
+#[cfg(test)]
+mod headless_tests {
+    use super::{
+        headless_folder_paths, headless_list_paths, headless_missing, headless_result_line,
+    };
+    use crate::file_management::{ImageFile, VIRTUAL_COPY, sidecar_for};
+    use serde_json::json;
+    use std::path::PathBuf;
+
+    fn image(path: &str, is_edited: bool) -> ImageFile {
+        serde_json::from_value(json!({
+            "path": path,
+            "modified": 0,
+            "is_edited": is_edited,
+            "has_provider_look": false,
+            "rating": 0,
+            "is_virtual_copy": false,
+            "is_cloud_placeholder": false,
+            "is_raw": true,
+        }))
+        .unwrap()
+    }
+
+    fn folder() -> Vec<ImageFile> {
+        vec![
+            image("a.cr3", true),
+            image("b.cr3", false),
+            image("c.cr3", true),
+        ]
+    }
+
+    #[test]
+    fn a_folder_exports_every_image_by_default() {
+        let (paths, skipped) = headless_folder_paths(folder(), false);
+        assert_eq!(paths, ["a.cr3", "b.cr3", "c.cr3"]);
+        assert_eq!(skipped, 0);
+    }
+
+    #[test]
+    fn edited_only_keeps_the_edited_images_and_counts_the_rest() {
+        let (paths, skipped) = headless_folder_paths(folder(), true);
+        assert_eq!(paths, ["a.cr3", "c.cr3"]);
+        assert_eq!(skipped, 1);
+    }
+
+    #[test]
+    fn edited_only_on_an_unedited_folder_leaves_nothing() {
+        let (paths, skipped) = headless_folder_paths(vec![image("b.cr3", false)], true);
+        assert!(paths.is_empty());
+        assert_eq!(skipped, 1);
+    }
+
+    #[test]
+    fn a_file_list_reads_one_path_per_line() {
+        let list = "\u{feff}C:\\a b\\IMG.CR3\r\n\r\n  D:\\IMG.CR2?vc=a1b2c3  \n";
+        assert_eq!(
+            headless_list_paths(list),
+            ["C:\\a b\\IMG.CR3", "D:\\IMG.CR2?vc=a1b2c3"]
+        );
+    }
+
+    #[test]
+    fn a_missing_photo_or_virtual_copy_is_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR3");
+        let photo_str = photo.to_string_lossy().into_owned();
+        assert!(headless_missing(&photo_str).is_some());
+
+        std::fs::write(&photo, b"raw").unwrap();
+        let copy = format!("{photo_str}{VIRTUAL_COPY}a1b2c3");
+        assert_eq!(headless_missing(&photo_str), None);
+        assert_eq!(
+            headless_missing(&copy).as_deref(),
+            Some("Virtual copy a1b2c3 does not exist")
+        );
+
+        std::fs::write(sidecar_for(&photo, Some("a1b2c3")), b"{}").unwrap();
+        assert_eq!(headless_missing(&copy), None);
+    }
+
+    #[test]
+    fn each_photo_gets_a_json_line_naming_its_copy_and_file() {
+        let line = headless_result_line(
+            &format!("IMG.CR3{VIRTUAL_COPY}a1b2c3"),
+            &Ok(PathBuf::from("out/IMG_edited.jpg")),
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&line).unwrap(),
+            json!({ "source": "IMG.CR3", "copy": "a1b2c3", "output": "out/IMG_edited.jpg", "ok": true })
+        );
+
+        let line = headless_result_line("IMG.CR3", &Err("Failed to load".to_string()));
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&line).unwrap(),
+            json!({ "source": "IMG.CR3", "copy": null, "ok": false, "error": "Failed to load" })
+        );
+        assert!(!line.contains('\n'));
+    }
 }

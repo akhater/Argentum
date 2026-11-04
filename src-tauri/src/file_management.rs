@@ -292,6 +292,13 @@ pub struct ImageFile {
     group_id: Option<String>,
 }
 
+impl ImageFile {
+    /// The edited mark the thumbnails show.
+    pub fn is_edited(&self) -> bool {
+        self.edit.is_edited
+    }
+}
+
 fn make_group_key(source_path: &Path) -> String {
     let parent = source_path.parent().unwrap_or(Path::new(""));
     let stem = source_path.file_stem().unwrap_or_default();
