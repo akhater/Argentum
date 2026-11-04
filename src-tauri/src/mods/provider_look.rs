@@ -9,7 +9,8 @@
 //! - `agProviderLook` ([`KEY`]) names the camera, the look, any options away
 //!   from their default and the white balance its file was made for, if not the
 //!   camera's, and keeps what the look replaced, so taking it off restores the
-//!   rendering (src/argentum/looks/providerLook.ts).
+//!   rendering (src/argentum/looks/providerLook.ts). Its `grain`, if any, is
+//!   drawn over the LUT (mods/look_grain.rs) and has no part in the file.
 //!
 //! Every load of an edit's LUT goes through [`lut_of_edit`]. A path from an edit
 //! is refused if it could point anywhere (`parse_lut_file`); this one is built
@@ -30,6 +31,7 @@ use crate::exif_processing::peek_sidecar;
 use crate::file_management::parse_virtual_path;
 use crate::lut_processing::{self, Lut, get_or_load_lut};
 use crate::mods::file_ops::{self, LookOptions, OwnWb};
+use crate::mods::look_grain::LookGrain;
 use crate::mods::lut_cache::LutCache;
 use crate::mods::raw_tone::ToneCurvePoint;
 
@@ -56,6 +58,10 @@ pub struct ProviderLook {
     #[serde(default)]
     #[cfg_attr(test, ts(optional))]
     pub own_wb: Option<OwnWb>,
+    /// Grain over the look, when its provider offers it. Never part of its file.
+    #[serde(default)]
+    #[cfg_attr(test, ts(optional))]
+    pub grain: Option<LookGrain>,
     #[serde(default)]
     pub before: RenderingBefore,
 }
@@ -84,7 +90,7 @@ pub struct RenderingBefore {
 }
 
 /// The provider look `js` has on, or None: `lookOf` in providerLook.ts.
-fn look_of(js: &Value) -> Option<ProviderLook> {
+pub fn look_of(js: &Value) -> Option<ProviderLook> {
     if js["lutPath"].as_str() != Some(MARKER) {
         return None;
     }

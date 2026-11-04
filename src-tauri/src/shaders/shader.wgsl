@@ -129,6 +129,7 @@ struct GlobalAdjustments {
     ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
     ag_grade: AgGrade,           // Argentum: Lightroom's colour grading, see modules.wgsl
     ag_black_white: AgBlackWhite, // Argentum: B&W, see modules.wgsl
+    ag_look_grain: AgLookGrain,  // Argentum: a provider look's grain, see modules.wgsl
 }
 
 struct MaskAdjustments {

@@ -29,6 +29,7 @@ const OFFER: Offer = {
     { id: 'look2', name: 'Other Stock', group: null },
   ],
   options: [],
+  grain: null,
   on: true,
   photo: { camera: 'cam1', files: [], previews: [], clearable: 0, ownWb: null },
 };
@@ -120,6 +121,7 @@ describe('with the switch on', () => {
       job: 1,
       then: 'put',
       batch: false,
+      grain: null,
     } as const;
     offered({ waiting: { [OPEN]: { ...waited, spinning: false } } });
     expect(section()).not.toContain('agm-spin');
@@ -693,5 +695,74 @@ describe('the look on the photo', () => {
     expect(html).toContain('Look file missing');
     expect(html).not.toContain('Make it again');
     expect(html).not.toContain('Remake');
+  });
+});
+
+describe('grain', () => {
+  const GRAIN = { label: 'Invented grain', default: false, amount: { min: 1, max: 4, step: 1, default: 2 } };
+  const look = (grain?: object) => ({
+    lutPath: 'provider-look',
+    agProviderLook: { camera: 'cam1', look: 'look1', ...(grain && { grain }), before: {} },
+  });
+
+  function edited(adjustments: object) {
+    Object.assign(useEditorStore.getInitialState(), { adjustments });
+    useEditorStore.setState({ adjustments } as never);
+  }
+
+  const FIRST_ADJUSTMENTS = useEditorStore.getState().adjustments;
+  afterEach(() => edited(FIRST_ADJUSTMENTS));
+
+  const row = (html: string) => html.match(/<div class="agm-provider-grain[^"]*">.*?<\/div><\/div>/)?.[0] ?? '';
+
+  it('has no row when the provider offers none', () => {
+    offered({ offer: OFFER });
+    edited(look());
+    expect(section()).not.toContain('agm-provider-grain');
+  });
+
+  it('shows under the options, before Preview all, off with no slider', () => {
+    offered({
+      offer: {
+        ...OFFER,
+        grain: GRAIN,
+        options: [{ id: 'optionA', label: 'Invented choice', default: false, sendsCurrentWb: false }],
+      },
+    });
+    edited(look());
+    const html = section();
+    expect(html.indexOf('Invented choice')).toBeLessThan(html.indexOf('Invented grain'));
+    expect(html.indexOf('Invented grain')).toBeLessThan(html.indexOf('Preview all'));
+    expect(row(html)).toContain('aria-checked="false"');
+    expect(row(html)).not.toContain('agm-look-dim');
+    expect(html).not.toContain('Amount');
+  });
+
+  it('on shows the amount the edit holds, from 1 to 4', () => {
+    offered({ offer: { ...OFFER, grain: GRAIN } });
+    edited(look({ on: true, amount: 3 }));
+    const html = section();
+    expect(html).toContain('aria-checked="true" aria-label="Invented grain"');
+    expect(html).toContain('Amount');
+    expect(html).toContain('value="3"');
+    expect(html).toContain('<span>1</span><span>2</span><span>3</span><span>4</span>');
+  });
+
+  it('is dimmed with no look on the photo, or with the switch off', () => {
+    offered({ offer: { ...OFFER, grain: GRAIN } });
+    edited({});
+    expect(section()).toContain('agm-provider-grain agm-look-dim');
+    offered({ offer: { ...OFFER, grain: GRAIN, on: false } });
+    edited(look());
+    expect(section()).toContain('agm-provider-grain agm-look-dim');
+  });
+
+  it('has no place in the grid, where there is no one photo', () => {
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: OPEN });
+    offered({ offer: { ...OFFER, grain: GRAIN } });
+    const html = renderToStaticMarkup(<ProviderLooks photo={null} ready={false} onTakeOff={() => {}} />);
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
+    expect(html).toContain('Invented Stock');
+    expect(html).not.toContain('Invented grain');
   });
 });

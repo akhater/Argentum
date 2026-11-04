@@ -11,6 +11,7 @@ let answerOffer: ProviderLooks | null = null;
 /** None for a refusal. */
 let answerDeleted: LooksDeleted | null = null;
 let fileThere = false;
+let grainReady = true;
 let hear: ((event: { payload: LookProgress }) => void) | null = null;
 const listened = vi.fn();
 let makeJob = 7;
@@ -23,6 +24,7 @@ vi.mock('../ag', () => ({
     if (name === 'provider_look_make') return makeJob;
     if (name === 'provider_look_preview') return PREVIEW_JOB;
     if (name === 'provider_look_file') return fileThere;
+    if (name === 'provider_look_grain') return grainReady;
     if (name === 'provider_look_delete') {
       if (!answerDeleted) throw new Error('refused');
       return answerDeleted;
@@ -62,6 +64,7 @@ const OFFER: ProviderLooks = {
     { id: 'look2', name: 'Other Stock', group: null },
   ],
   options: [],
+  grain: null,
   on: true,
   photo: { camera: 'cam1', files: [], previews: [], clearable: 0, ownWb: null },
 };
@@ -113,6 +116,7 @@ beforeEach(() => {
   makeJob = 7;
   useProviderLooks.getState().reset();
   fileThere = false;
+  grainReady = true;
   openPhoto();
 });
 
@@ -1272,5 +1276,90 @@ describe('a look that follows the white balance', () => {
       name: 'provider_looks',
       args: { path: OPEN, options: { optionW: true }, changes: { temperature: 40, tint: 0 } },
     });
+  });
+});
+
+describe('grain', () => {
+  const GRAIN = { label: 'Invented grain', default: false, amount: { min: 1, max: 4, step: 1, default: 2 } };
+  const BEFORE = { rawToneRendering: 'dngStandard', rawToneCurve: null, rawToneCurveMode: null };
+  const look = (grain?: object) => ({
+    lutPath: PROVIDER_LOOK_PATH,
+    lutName: 'Invented Stock',
+    agProviderLook: { camera: 'cam1', look: 'look1', ...(grain && { grain }), before: BEFORE },
+  });
+  const onPhoto = () => useEditorStore.getState().adjustments as unknown as ReturnType<typeof look>;
+
+  beforeEach(() => offered({ ...OFFER, grain: GRAIN }));
+
+  it('goes on the look on the photo as one step of History, and makes no file', async () => {
+    openPhoto(look());
+    useEditorStore.setState({ history: [], historyIndex: -1 } as never);
+    useProviderLooks.getState().chooseGrain(OPEN, { on: true, amount: 2 });
+    expect(onPhoto().agProviderLook).toEqual({
+      camera: 'cam1',
+      look: 'look1',
+      grain: { on: true, amount: 2 },
+      before: BEFORE,
+    });
+    expect(onPhoto().lutName).toBe('Invented Stock');
+    expect(useEditorStore.getState().history).toHaveLength(1);
+    useProviderLooks.getState().chooseGrain(OPEN, { on: true, amount: 4 });
+    expect(onPhoto().agProviderLook).toMatchObject({ grain: { on: true, amount: 4 } });
+    await settled();
+    expect(namesCalled()).not.toContain('provider_look_make');
+    expect(namesCalled()).not.toContain('provider_look_preview');
+  });
+
+  it('does nothing with no look on the photo', () => {
+    const before = useEditorStore.getState().adjustments;
+    useProviderLooks.getState().chooseGrain(OPEN, { on: true, amount: 2 });
+    expect(useEditorStore.getState().adjustments).toBe(before);
+  });
+
+  it('stays when another look is picked', async () => {
+    openPhoto(look({ on: true, amount: 3 }));
+    await useProviderLooks.getState().pick(OPEN, OFFER.looks[1], 'cam1', {});
+    expect(calls.find((c) => c.name === 'provider_look_make')?.args).not.toHaveProperty('grain');
+    hear?.({ payload: progress(OPEN, 'done', 'look2') });
+    await settled();
+    expect(onPhoto().agProviderLook).toMatchObject({ look: 'look2', grain: { on: true, amount: 3 } });
+  });
+
+  it('is pasted with the look', async () => {
+    const pasted = { ...look({ on: true, amount: 4 }), exposure: 1 };
+    expect(takeFromPaste([OTHER], pasted)).toEqual({ exposure: 1 });
+    await settled();
+    hear?.({ payload: { ...progress(OTHER, 'done'), camera: 'cam1' } });
+    await settled();
+    const put = invoked.filter((c) => c.name === 'apply_adjustments_to_paths').at(-1)?.args as {
+      adjustments: { agProviderLook: ProviderLook };
+    };
+    expect(put.adjustments.agProviderLook.grain).toEqual({ on: true, amount: 4 });
+  });
+
+  it('on asks for its map once, and draws the photo again when it comes', async () => {
+    openPhoto(look({ on: true, amount: 2 }));
+    const before = useEditorStore.getState().adjustments;
+    await settled();
+    expect(calls).toContainEqual({ name: 'provider_look_grain', args: { look: 'look1' } });
+    expect(useEditorStore.getState().adjustments).not.toBe(before);
+    expect(useEditorStore.getState().adjustments).toEqual(before);
+    openPhoto(look({ on: true, amount: 3 }));
+    await settled();
+    expect(calls.filter((c) => c.name === 'provider_look_grain')).toHaveLength(1);
+  });
+
+  it('a map that does not come leaves the photo as it is', async () => {
+    grainReady = false;
+    openPhoto(look({ on: true, amount: 2 }));
+    const before = useEditorStore.getState().adjustments;
+    await settled();
+    expect(useEditorStore.getState().adjustments).toBe(before);
+  });
+
+  it('off asks for no map', async () => {
+    openPhoto(look({ on: false, amount: 2 }));
+    await settled();
+    expect(namesCalled()).not.toContain('provider_look_grain');
   });
 });

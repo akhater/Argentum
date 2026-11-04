@@ -700,6 +700,8 @@ pub struct GpuProcessor {
     ag_grade_curves_buffer: wgpu::Buffer,
     // Argentum: B&W's grid, written when a render asks for B&W (mods/black_white.rs).
     ag_gray_grid_buffer: wgpu::Buffer,
+    // Argentum: a provider look's grain map (mods/look_grain.rs).
+    ag_look_grain: crate::mods::look_grain::Gpu,
     dummy_blur_view: wgpu::TextureView,
     dummy_lut_view: wgpu::TextureView,
     dummy_lut_sampler: wgpu::Sampler,
@@ -1295,6 +1297,9 @@ impl GpuProcessor {
             count: None,
         });
 
+        // Argentum: a provider look's grain map, ag_grain_map in modules.wgsl.
+        bind_group_layout_entries.extend(crate::mods::look_grain::Gpu::layout_entries());
+
         let main_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Main BGL"),
             entries: &bind_group_layout_entries,
@@ -1451,6 +1456,7 @@ impl GpuProcessor {
             view_formats: &[],
         });
         let tile_output_texture_view = tile_output_texture.create_view(&Default::default());
+        let ag_look_grain = crate::mods::look_grain::Gpu::new(device);
 
         Ok(Self {
             context,
@@ -1480,6 +1486,7 @@ impl GpuProcessor {
             adjustments_buffer,
             ag_grade_curves_buffer,
             ag_gray_grid_buffer,
+            ag_look_grain,
             dummy_blur_view,
             dummy_lut_view,
             dummy_lut_sampler,
@@ -1942,6 +1949,10 @@ impl GpuProcessor {
             let grid = crate::mods::black_white::gray_grid(black_white.mix);
             queue.write_buffer(&self.ag_gray_grid_buffer, 0, bytemuck::cast_slice(&grid));
         }
+        // Argentum: a provider look's grain, fitted to this frame (mods/look_grain.rs).
+        let grain_map = crate::mods::look_grain::fit(&mut adjustments.global.ag_look_grain, width, height);
+        let grain = adjustments.global.ag_look_grain;
+        let grain_bound = self.ag_look_grain.bind(device, queue, &grain, grain_map.as_deref());
         if adjustments.global.flare_amount > 0.0 {
             let mut encoder = device.create_command_encoder(&Default::default());
 
@@ -2317,6 +2328,7 @@ impl GpuProcessor {
                     binding: 13 + MAX_MASK_BINDINGS,
                     resource: self.ag_gray_grid_buffer.as_entire_binding(),
                 });
+                bind_group_entries.extend(self.ag_look_grain.bind_entries(&grain_bound));
 
                 let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Tile Bind Group"),

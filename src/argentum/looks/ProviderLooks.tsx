@@ -14,7 +14,9 @@
  * head folds the section away, switch left in place, and that stops nothing.
  * A click on the switch folds it too, off folded and on open, and the head has
  * the say again until the next click; only a click does, never a load.
- * The looks show under the groups the provider names (LookGroup.tsx).
+ * The looks show under the groups the provider names (LookGroup.tsx). A
+ * provider that offers grain gets a Grain row under the options, for the look
+ * on the open photo (GrainRow.tsx).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -28,8 +30,18 @@ import { useUIStore } from '../../store/useUIStore';
 import { ag } from '../ag';
 import type { OfferedLook } from '../ag.generated';
 import { useAgTranslation } from '../locales';
+import GrainRow from './GrainRow';
 import LookGroup, { groupsOf } from './LookGroup';
-import { hoverEdit, lookKeys, lookOf, offeredOptions, optionIsOn, sameOptions } from './providerLook';
+import {
+  grainOf,
+  grainShown,
+  hoverEdit,
+  lookKeys,
+  lookOf,
+  offeredOptions,
+  optionIsOn,
+  sameOptions,
+} from './providerLook';
 import { previewsFor, restoreLook, useProviderLooks } from './providerLooksStore';
 
 /** How long the pointer rests on a look before the photo shows it, as in the lists below. */
@@ -105,6 +117,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
     chooseCamera,
     optionsOf,
     chooseOption,
+    chooseGrain,
     pick,
     putOnSelection,
     cancelBatch,
@@ -293,6 +306,15 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
               <span className="min-w-0">{option.label}</span>
             </label>
           ))}
+          {photo && offer.grain && (
+            <GrainRow
+              amount={offer.grain.amount}
+              disabled={!on || !onPhoto}
+              grain={grainShown(offer.grain, grainOf(adjustments))}
+              label={offer.grain.label}
+              onChange={(grain) => chooseGrain(photo, grain)}
+            />
+          )}
           {photo && (
             <div className={clsx('agm-provider-tools', !on && 'agm-look-dim')}>
               <button disabled={!on || !ready || !!previewing} onClick={() => previewAll(photo, camera, options)}>

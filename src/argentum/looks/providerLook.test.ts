@@ -8,6 +8,8 @@ import {
 import { EDIT_SECTION_KEYS } from '../editSections';
 import { presetAt } from './presetAmount';
 import {
+  grainOf,
+  grainShown,
   hoverEdit,
   lookKeys,
   lookOf,
@@ -20,6 +22,7 @@ import {
   sameOptions,
   sameProviderLook,
   whiteBalanceKeys,
+  withGrain,
   withOption,
   withOwnWb,
 } from './providerLook';
@@ -335,5 +338,43 @@ describe('a white balance of its own', () => {
       sectionVisibility: null,
     });
     expect(madeForWhiteBalance(null).whiteBalance).toBeNull();
+  });
+});
+
+describe('grain on a look', () => {
+  const GRAIN = { label: 'Grain', default: false, amount: { min: 1, max: 4, step: 1, default: 2 } };
+
+  it('starts off at the offer’s amount, then is what the edit holds', () => {
+    expect(grainShown(GRAIN, grainOf(withLook()))).toEqual({ on: false, amount: 2 });
+    const grained = withGrain(withLook(), { on: true, amount: 3 });
+    expect(grainShown(GRAIN, grainOf(grained ?? {}))).toEqual({ on: true, amount: 3 });
+  });
+
+  it('changes only the look’s grain: its name, its file and the rest stay', () => {
+    const grained = withGrain(withLook(), { on: true, amount: 4 });
+    expect(grained).toEqual({
+      ...withLook(),
+      agProviderLook: { ...withLook().agProviderLook, grain: { on: true, amount: 4 } },
+    });
+    expect(sameProviderLook(grained ?? {}, withLook())).toBe(true);
+  });
+
+  it('needs a look on the photo', () => {
+    expect(withGrain({}, { on: true, amount: 2 })).toBeNull();
+    expect(withGrain(realLut, { on: true, amount: 2 })).toBeNull();
+    expect(grainOf(realLut)).toBeNull();
+  });
+
+  it('goes on with the look, and none goes with none', () => {
+    expect(lookKeys('cam1', 'abc', 'Invented Stock', {}, null, { on: true, amount: 1 }).agProviderLook?.grain).toEqual({
+      on: true,
+      amount: 1,
+    });
+    expect(lookKeys('cam1', 'abc', 'Invented Stock').agProviderLook).not.toHaveProperty('grain');
+  });
+
+  it('a look from elsewhere brings its own grain', () => {
+    const pasted = withGrain(withLook('cam2', 'xyz'), { on: true, amount: 2 }) ?? {};
+    expect(lookOnto(withLook(), pasted).agProviderLook?.grain).toEqual({ on: true, amount: 2 });
   });
 });

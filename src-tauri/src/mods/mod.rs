@@ -65,6 +65,7 @@ pub mod lens_name;
 pub mod lens_shot;
 #[cfg(test)]
 mod look_check;
+pub mod look_grain;
 pub mod look_picks;
 pub mod looks;
 pub mod lut_cache;
