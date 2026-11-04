@@ -9,7 +9,7 @@
 //
 // Run:  node scripts/tauri-macos.mjs build [--target <triple>] ...   (build.yml, macOS only)
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -25,7 +25,10 @@ if (dmgs.length === 0) {
 }
 for (const name of dmgs) {
   const dmg = join(dmgDir, name);
-  execFileSync('codesign', ['--remove-signature', dmg], { stdio: 'inherit' });
+  // `codesign --remove-signature` refuses disk images; a converted copy is a new image, unsigned.
+  const unsigned = join(dmgDir, `unsigned-${name}`);
+  execFileSync('hdiutil', ['convert', dmg, '-format', 'UDZO', '-o', unsigned], { stdio: 'inherit' });
+  renameSync(unsigned, dmg);
   const shown = spawnSync('codesign', ['-d', dmg], { encoding: 'utf8' });
   if (!/not signed at all/.test(shown.stderr)) {
     console.error(`::error::${dmg} is still signed:\n${shown.stderr}`);
