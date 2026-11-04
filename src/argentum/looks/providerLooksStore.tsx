@@ -10,6 +10,10 @@
  * balance the open photo settles on: only that look, never while a slider moves,
  * and the photo keeps the file it has until the new one is ready.
  *
+ * A look's grain goes on with it, the photo's own when it is picked here and
+ * what a paste brings otherwise, and its map is asked for once the open photo
+ * has grain on: a render draws grain only once the map is ready.
+ *
  * With no provider `offer` stays null: nothing shows, nothing listens, and what
  * is passed through here comes back as it was.
  */
@@ -26,6 +30,7 @@ import { globalImageCache } from '../../utils/ImageLRUCache';
 import { ag } from '../ag';
 import type {
   LookFile,
+  LookGrain,
   LookProgress,
   OfferedLook,
   OfferedOption,
@@ -35,6 +40,7 @@ import type {
 } from '../ag.generated';
 import { type AgKey, agText } from '../locales';
 import {
+  grainOf,
   LOOK_KEYS,
   lookKeys,
   lookOf,
@@ -44,6 +50,7 @@ import {
   offeredOptions,
   sameOptions,
   whiteBalanceKeys,
+  withGrain,
   withOption,
   withOwnWb,
 } from './providerLook';
@@ -74,6 +81,8 @@ interface Waiting {
    */
   then: 'put' | 'keep' | 'follow';
   batch: boolean;
+  /** What goes on with the look. */
+  grain: LookGrain | null;
 }
 
 interface Note {
@@ -150,7 +159,10 @@ interface ProviderLooksState {
     camera: string | null,
     options: LookOptions,
     changes?: Edit | null,
+    grain?: LookGrain | null,
   ) => Promise<void>;
+  /** The open photo's look with this grain, as one step of its History. */
+  chooseGrain: (photo: string, grain: LookGrain) => void;
   /** The open photo's look, for the white balance its edit has now. */
   followWhiteBalance: (photo: string) => Promise<void>;
   /** Every look of this photo as a temporary file, to compare: only the button asks. */
@@ -180,6 +192,8 @@ const FIRST = {
 
 /** A photo's missing file is asked for once a session: never in a loop. */
 const asked = new Set<string>();
+/** So is a look's grain map: whether it came. */
+const grainMaps = new Map<string, Promise<boolean>>();
 let listening = false;
 let loads = 0;
 let previewRuns = 0;
@@ -236,7 +250,14 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     camera: string | null,
     look: OfferedLook,
     options: LookOptions,
-    how: { remake?: boolean; front: boolean; then: Waiting['then']; batch?: boolean; changes: Edit | null },
+    how: {
+      remake?: boolean;
+      front: boolean;
+      then: Waiting['then'];
+      batch?: boolean;
+      changes: Edit | null;
+      grain?: LookGrain | null;
+    },
   ) {
     const ticket = ++tickets;
     const entry = {
@@ -248,6 +269,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       spinning: false,
       then: how.then,
       batch: !!how.batch,
+      grain: how.grain ?? null,
     };
     const stillWanted = (path: string) => get().waiting[path]?.ticket === ticket;
     set((state) => ({
@@ -296,8 +318,8 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
   }
 
   /** The look onto its photo, open or left, with what it changed kept for a batch. */
-  async function putOn(progress: LookProgress, name: string, batch: boolean) {
-    const keys = lookKeys(progress.camera, progress.look, name, progress.options, progress.ownWb);
+  async function putOn(progress: LookProgress, name: string, batch: boolean, grain: LookGrain | null) {
+    const keys = lookKeys(progress.camera, progress.look, name, progress.options, progress.ownWb, grain);
     const keep = (was: Edit, own: Edit) => {
       if (!batch) return;
       const values = Object.fromEntries(Object.keys(own).map((k) => [k, was[k] ?? INITIAL_ADJUSTMENTS[k] ?? null]));
@@ -394,7 +416,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     if (progress.outcome === 'done') {
       set((state) => ({ filesMade: state.filesMade + 1 }));
       if (waited.then === 'put') {
-        await putOn(progress, waited.name, waited.batch);
+        await putOn(progress, waited.name, waited.batch, waited.grain);
         // The edit has them now, so an Undo shows on the checkbox.
         if (!waited.batch) forgetChosenOptions(progress.path);
       } else if (waited.then === 'follow') {
@@ -449,6 +471,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 
     reset: () => {
       asked.clear();
+      grainMaps.clear();
       stopWatching();
       stopFollowing();
       early = [];
@@ -488,7 +511,12 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     },
 
     pick: (photo, look, camera, options) =>
-      ask([photo], camera, look, options, { front: true, then: 'put', changes: unsavedWhiteBalance(photo) }),
+      ask([photo], camera, look, options, {
+        front: true,
+        then: 'put',
+        changes: unsavedWhiteBalance(photo),
+        grain: photo === openPhoto() ? grainOf(useEditorStore.getState().adjustments) : null,
+      }),
 
     keepLook: (paths, look, camera, options, remake = false, ownWb = null) =>
       ask(paths, camera, look, options, {
@@ -498,9 +526,14 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
         changes: madeForWhiteBalance(ownWb),
       }),
 
-    putOnSelection: async (paths, look, camera, options, changes = null) => {
+    putOnSelection: async (paths, look, camera, options, changes = null, grain = null) => {
       set({ batch: { name: look.name, job: null, done: 0, ended: 0, total: paths.length, before: [] } });
-      await ask(paths, camera, look, options, { front: false, then: 'put', batch: true, changes });
+      await ask(paths, camera, look, options, { front: false, then: 'put', batch: true, changes, grain });
+    },
+
+    chooseGrain: (photo, grain) => {
+      if (photo !== openPhoto()) return;
+      changeOpenPhoto((now) => (withGrain(now, grain) as Adjustments | null) ?? now);
     },
 
     followWhiteBalance: async (photo) => {
@@ -640,7 +673,8 @@ export function takeFromPaste(paths: string[], changes: Edit): Edit {
   if (!offer || !on) return changes;
   const look = offer.looks.find((l) => l.id === on.look);
   if (look) {
-    void putOnSelection(paths, look, on.camera, offeredOptions(offer.options, on.options), whiteBalanceKeys(changes));
+    const options = offeredOptions(offer.options, on.options);
+    void putOnSelection(paths, look, on.camera, options, whiteBalanceKeys(changes), on.grain ?? null);
   }
   return Object.fromEntries(Object.entries(changes).filter(([key]) => !LOOK_KEYS.includes(key)));
 }
@@ -711,4 +745,23 @@ useEditorStore.subscribe((editor, before) => {
       before.isSliderDragging ? 0 : WB_SETTLES_MS,
     );
   }
+});
+
+/**
+ * The open photo's look has grain on: its map is asked for once a session, and
+ * the photo drawn again when it arrives. Without grain this ends at its first test.
+ */
+useEditorStore.subscribe((editor) => {
+  const photo = editor.selectedImage?.path;
+  const on = lookOf(editor.adjustments);
+  if (!photo || !on?.grain?.on || grainMaps.has(on.look)) return;
+  const look = on.look;
+  const asked = ag('provider_look_grain', { look }).catch(() => false);
+  grainMaps.set(look, asked);
+  void asked.then((ready) => {
+    const now = useEditorStore.getState();
+    if (!ready || now.selectedImage?.path !== photo || lookOf(now.adjustments)?.look !== look) return;
+    // The same edit, with its picture to draw again.
+    now.setEditor({ adjustments: { ...now.adjustments } });
+  });
 });

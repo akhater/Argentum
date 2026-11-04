@@ -892,6 +892,12 @@ commands! {
     "provider_look_file" => (a: crate::mods::lut_provider::ProviderLookFileArgs) -> bool {
         crate::mods::lut_provider::file_is_there(&a)
     }
+    "provider_look_grain" => (a: crate::mods::lut_provider::ProviderLookGrainArgs) -> bool {
+        let app = app_handle.clone();
+        tauri::async_runtime::spawn_blocking(move || crate::mods::lut_provider::grain_ready(&app, &a.look))
+            .await
+            .map_err(|e| e.to_string())?
+    }
     "provider_look_cancel" => (a: crate::mods::lut_provider::ProviderLookCancelArgs) -> () {
         crate::mods::lut_provider::cancel(a.job_id);
     }

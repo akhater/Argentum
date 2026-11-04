@@ -1771,6 +1771,9 @@ pub struct GlobalAdjustments {
     pub ag_grade: crate::mods::color_grade::Params,
     // Argentum: B&W, read by ag_stage_color in modules.wgsl (mods/black_white.rs).
     pub ag_black_white: crate::mods::black_white::Params,
+    // Argentum: a provider look's grain, read by ag_stage_grade in modules.wgsl
+    // (mods/look_grain.rs).
+    pub ag_look_grain: crate::mods::look_grain::Params,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -2723,6 +2726,7 @@ fn get_global_adjustments_from_json(
             js_adjustments,
             is_visible("color"),
         ),
+        ag_look_grain: crate::mods::look_grain::Params::of(js_adjustments, photo),
     };
     crate::mods::black_white::leave_out_colour_controls(&mut global); // Argentum: B&W
     global

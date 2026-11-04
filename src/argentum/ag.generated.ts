@@ -227,6 +227,11 @@ export type FolderRenameArgs = { oldPath: string, newPath: string, };
 export type GapArgs = { gap: number, };
 
 /**
+ * Its amount's slider: 1 is the film's own strength.
+ */
+export type GrainAmount = { min: number, max: number, step: number, default: number, };
+
+/**
  * A camera mode that recorded the photo darker, and by how many stops.
  */
 export type HeldBack = { mode: Mode, ev: number, };
@@ -432,6 +437,15 @@ downloading: Progress | null, };
 export type LookFile = { camera: string, look: string, path: string, };
 
 /**
+ * Grain on a provider look, as the edit holds it under `agProviderLook`.
+ */
+export type LookGrain = { on: boolean, 
+/**
+ * `k`: 1 is the film's own strength.
+ */
+amount: number, };
+
+/**
  * What became of one photo's request.
  */
 export type LookOutcome = "done" | "cancelled" | "failed" | "unsupported" | "folder";
@@ -560,6 +574,16 @@ jsAdjustments: unknown, clicks: Array<Click>, bounds: Bounds | null, rotation: n
  * A camera the program offers.
  */
 export type OfferedCamera = { id: string, name: string, make: string, model: string, };
+
+/**
+ * Grain the program offers over its looks, from an option marked
+ * `makesGrain`: a switch and an amount, never a LUT option.
+ */
+export type OfferedGrain = { label: string, 
+/**
+ * Whether it starts on.
+ */
+default: boolean, amount: GrainAmount, };
 
 /**
  * A look the program offers.
@@ -697,7 +721,11 @@ options?: { [key in string]?: boolean },
  * keeps the file this names until a new one is ready, however the sliders
  * have moved since.
  */
-ownWb?: OwnWb, before: RenderingBefore, };
+ownWb?: OwnWb, 
+/**
+ * Grain over the look, when its provider offers it. Never part of its file.
+ */
+grain?: LookGrain, before: RenderingBefore, };
 
 export type ProviderLookCancelArgs = { jobId: number, };
 
@@ -708,6 +736,8 @@ export type ProviderLookDeleteArgs = { path: string,
 onPhoto: ProviderLook | null, };
 
 export type ProviderLookFileArgs = { path: string, camera: string, look: string, options: { [key in string]?: boolean }, ownWb: OwnWb | null, };
+
+export type ProviderLookGrainArgs = { look: string, };
 
 export type ProviderLookMakeArgs = { paths: Array<string>, 
 /**
@@ -728,7 +758,7 @@ changes: unknown, };
 /**
  * What the provider offers.
  */
-export type ProviderLooks = { cameras: Array<OfferedCamera>, looks: Array<OfferedLook>, options: Array<OfferedOption>, 
+export type ProviderLooks = { cameras: Array<OfferedCamera>, looks: Array<OfferedLook>, options: Array<OfferedOption>, grain: OfferedGrain | null, 
 /**
  * The switch.
  */
@@ -927,6 +957,7 @@ export interface AgCommands {
   provider_look_cancel: { args: ProviderLookCancelArgs; answer: null };
   provider_look_delete: { args: ProviderLookDeleteArgs; answer: LooksDeleted };
   provider_look_file: { args: ProviderLookFileArgs; answer: boolean };
+  provider_look_grain: { args: ProviderLookGrainArgs; answer: boolean };
   provider_look_make: { args: ProviderLookMakeArgs; answer: number };
   provider_look_preview: { args: ProviderLookPreviewArgs; answer: number };
   provider_looks: { args: ProviderLooksArgs; answer: ProviderLooks | null };

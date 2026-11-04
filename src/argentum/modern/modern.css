@@ -1531,6 +1531,48 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   accent-color: var(--agm-knob);
 }
 
+.agm-provider-grain {
+  margin: 4px 10px 6px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--agm-surface);
+}
+
+.agm-provider-grain-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--agm-text);
+  font-size: calc(12px * var(--agm-text-scale, 1));
+}
+
+.agm-provider-grain-amount {
+  margin-top: 6px;
+}
+
+.agm-provider-grain-ticks {
+  margin-top: -4px;
+  color: var(--agm-dim);
+  font-size: calc(10px * var(--agm-text-scale, 1));
+}
+
+.agm-provider-grain-ticks > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+/* Under the bar of a compact slider: its columns (compactSliders.css). */
+html[data-ag-sliders='compact'] .agm-provider-grain-ticks {
+  display: grid;
+  grid-template-columns: max(5.5rem, 34%) minmax(0, 1fr) 2.75rem;
+  column-gap: 0.5rem;
+}
+
+html[data-ag-sliders='compact'] .agm-provider-grain-ticks > div {
+  grid-column: 2;
+}
+
 .agm-spin {
   flex: none;
   width: 13px;

@@ -309,8 +309,9 @@ mod tests {
     /// two sides are kept in step by hand. A field added to one and not the
     /// other - or added with a different size - shifts everything after it,
     /// and the shader reads garbage with no error anywhere. Argentum adds
-    /// fields to their struct (the camera profile, RAW tone, sharpening, grading, B&W), so
-    /// this compares the sizes naga computes with the sizes Rust lays out.
+    /// fields to their struct (the camera profile, RAW tone, sharpening,
+    /// grading, B&W, look grain), so this compares the sizes naga computes with
+    /// the sizes Rust lays out.
     #[test]
     fn the_adjustments_have_the_same_layout_on_both_sides() {
         let module = wgpu::naga::front::wgsl::parse_str(SOURCE).expect("parses");
@@ -335,6 +336,10 @@ mod tests {
         assert_eq!(
             size_of("AgBlackWhite"),
             std::mem::size_of::<crate::mods::black_white::Params>()
+        );
+        assert_eq!(
+            size_of("AgLookGrain"),
+            std::mem::size_of::<crate::mods::look_grain::Params>()
         );
         assert_eq!(
             size_of("GlobalAdjustments"),

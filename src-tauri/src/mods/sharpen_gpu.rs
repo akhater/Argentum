@@ -2208,6 +2208,26 @@ mod tests {
                 theirs(None);
                 let alone = gpu_ms(&ctx, started);
 
+                // Theirs with a provider look's grain on, its map already here.
+                let grain = super::super::look_grain::tests::speed_params();
+                let grained = || {
+                    let mut adjustments = adjustments();
+                    adjustments.global.ag_look_grain = grain;
+                    let request = crate::gpu_processing::RenderRequest {
+                        adjustments,
+                        mask_bitmaps: &[],
+                        lut: None,
+                        roi: None,
+                    };
+                    processor
+                        .run(&input, &gf, &dehaze, w, h, request, true)
+                        .expect("renders");
+                };
+                grained();
+                let started = Instant::now();
+                grained();
+                let look_grain = gpu_ms(&ctx, started);
+
                 let params = adjustments().global.ag_sharpen;
                 photo += 1;
                 let started = Instant::now();
@@ -2311,6 +2331,7 @@ mod tests {
                     pan_step,
                     eyes,
                     frame,
+                    look_grain,
                 ];
                 rounds.push((name, [w, h], measured));
                 reset();

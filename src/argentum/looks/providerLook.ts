@@ -19,10 +19,14 @@
  * A look goes on with Linear (its LUT is made for that), so whatever takes it
  * off also gives the photo its own rendering back, from `before`, which belongs
  * to that photo: it never travels to another.
+ *
+ * A provider can offer grain over its looks: `grain`, on or off and how strong.
+ * It is drawn over the LUT and is no option, so it names no file and makes none.
+ * It travels with the look, as its options do.
  */
 
 import type { Adjustments } from '../../utils/adjustments';
-import type { OfferedOption, OwnWb, ProviderLook, RenderingBefore } from '../ag.generated';
+import type { LookGrain, OfferedGrain, OfferedOption, OwnWb, ProviderLook, RenderingBefore } from '../ag.generated';
 
 /** As `MARKER` in mods/provider_look.rs. */
 export const PROVIDER_LOOK_PATH = 'provider-look';
@@ -70,6 +74,7 @@ export const lookKeys = (
   name: string,
   options: LookOptions = {},
   ownWb?: OwnWb | null,
+  grain?: LookGrain | null,
 ): Edit => ({
   lutPath: PROVIDER_LOOK_PATH,
   lutName: name,
@@ -82,6 +87,7 @@ export const lookKeys = (
     look,
     ...(Object.keys(options).length > 0 && { options }),
     ...(ownWb && { ownWb }),
+    ...(grain && { grain }),
     before: LINEAR,
   },
 });
@@ -154,4 +160,17 @@ export function withOwnWb(edit: Edit, camera: string, look: string, ownWb: OwnWb
   if (on?.camera !== camera || on.look !== look) return null;
   if (JSON.stringify(on.ownWb ?? null) === JSON.stringify(ownWb)) return null;
   return { ...edit, agProviderLook: { ...on, ...(ownWb && { ownWb }) } };
+}
+
+/** The grain on the edit's look, or null for a look without it, or no look. */
+export const grainOf = (edit: Edit): LookGrain | null => lookOf(edit)?.grain ?? null;
+
+/** The grain the switch and the slider show: the look's, else the offer's start. */
+export const grainShown = (offered: OfferedGrain, grain: LookGrain | null): LookGrain =>
+  grain ?? { on: offered.default, amount: offered.amount.default };
+
+/** `edit` with `grain` on its look; null with no look on it. One change of History, no new file. */
+export function withGrain(edit: Edit, grain: LookGrain): Edit | null {
+  const on = lookOf(edit);
+  return on ? { ...edit, agProviderLook: { ...on, grain } } : null;
 }

@@ -295,6 +295,7 @@
   "looksProvider": "Provider looks",
   "looksProviderOn": "On",
   "looksProviderOff": "Off",
+  "looksProviderGrainAmount": "Amount",
   "looksProviderOnNote": "Presets and LUTs are off while this is on.",
   "looksProviderOffNote": "Turn on to use these. Presets and LUTs go off.",
   "looksProviderCamera": "Camera",

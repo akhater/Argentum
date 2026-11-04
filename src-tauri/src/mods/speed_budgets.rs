@@ -15,6 +15,9 @@
 //! one of two speeds: DirectX 12's first mask view at 6960 px is 119 ms in
 //! most runs and 175 in some.
 //!
+//! "look grain" (their render with a provider look's grain on, look_grain.rs)
+//! was measured the same way on 2026-11-04, ten runs on mains power.
+//!
 //! A slower GPU fails them, so the test stays `#[ignore]`d and is run by hand
 //! on that laptop before every release (docs/RELEASING.md). Anywhere else,
 //! `AG_SPEED_BUDGETS=report` prints the rows over budget without failing.
@@ -29,7 +32,7 @@
 pub mod full_speed;
 
 /// What `where_the_time_goes` times, in this order everywhere below.
-pub const ROWS: [&str; 10] = [
+pub const ROWS: [&str; 11] = [
     "theirs alone",
     "measure first",
     "measure again",
@@ -40,21 +43,22 @@ pub const ROWS: [&str; 10] = [
     "pan step",
     "two eye masks",
     "whole-frame mask",
+    "look grain",
 ];
 
 /// Milliseconds per row of `ROWS`, by backend and photo size.
 #[rustfmt::skip]
 const BUDGETS_MS: [(&str, [u32; 2], [u32; ROWS.len()]); 8] = [
     //                            their  measure    sharpening   mask view    pan   masks:
-    //                            alone  1st again  1st   kept   on    off    step  eyes  frame
-    ("Auto",       [3328, 2219], [  41,   36,  5,   197,   23,   21,   21,   21,   213,  224]),
-    ("Auto",       [6960, 4640], [ 186,  150,  5,   929,  107,  159,  186,   93,   909,  962]),
-    ("DirectX 12", [3328, 2219], [  32,   36,  5,   462,   26,   27,   24,   24,   218,  234]),
-    ("DirectX 12", [6960, 4640], [ 162,  152,  5,   962,  119,  210,  197,  105,   963, 1023]),
-    ("OpenGL",     [3328, 2219], [  75,   36,  5,   290,   44,   54,   39,   41,   254,  284]),
-    ("OpenGL",     [6960, 4640], [ 342,  152,  5,  1047,  165,  239,  167,  165,  1089, 1193]),
-    ("Vulkan",     [3328, 2219], [  38,   36,  5,   207,   23,   21,   21,   21,   218,  225]),
-    ("Vulkan",     [6960, 4640], [ 174,  152,  5,   906,  105,  158,  189,   93,   906,  965]),
+    //                            alone  1st again  1st   kept   on    off    step  eyes  frame  grain
+    ("Auto",       [3328, 2219], [  41,   36,  5,   197,   23,   21,   21,   21,   213,  224,   54]),
+    ("Auto",       [6960, 4640], [ 186,  150,  5,   929,  107,  159,  186,   93,   909,  962,  219]),
+    ("DirectX 12", [3328, 2219], [  32,   36,  5,   462,   26,   27,   24,   24,   218,  234,   52]),
+    ("DirectX 12", [6960, 4640], [ 162,  152,  5,   962,  119,  210,  197,  105,   963, 1023,  198]),
+    ("OpenGL",     [3328, 2219], [  75,   36,  5,   290,   44,   54,   39,   41,   254,  284,   54]),
+    ("OpenGL",     [6960, 4640], [ 342,  152,  5,  1047,  165,  239,  167,  165,  1089, 1193,  230]),
+    ("Vulkan",     [3328, 2219], [  38,   36,  5,   207,   23,   21,   21,   21,   218,  225,   56]),
+    ("Vulkan",     [6960, 4640], [ 174,  152,  5,   906,  105,  158,  189,   93,   906,  965,  254]),
 ];
 
 /// Each row's fastest round.

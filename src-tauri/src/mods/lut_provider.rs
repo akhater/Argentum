@@ -39,6 +39,13 @@
 //! Delete all previews clears one photo when its button asks and never
 //! otherwise: its look files go to the Recycle Bin, but for those an edit uses,
 //! and its previews and what is on its way to them go too.
+//!
+//! `list` says what Argentum supports, and a program that makes grain then
+//! offers it as an option marked `makesGrain`. That one is kept apart from the
+//! rest ([`OfferedGrain`]): never sent with `lut`, never in a file's name, and
+//! no part of Preview all or Delete all previews. Its `grain` command makes one
+//! map per look, the first time a photo needs it ([`grain_ready`]), kept by
+//! mods/look_grain.rs.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Cursor, Read, Write};
@@ -60,6 +67,7 @@ use crate::lut_processing::{self, Lut};
 use crate::mods::ag_settings::Setting;
 use crate::mods::atomic_write::write_atomic;
 use crate::mods::file_ops::{LookOptions, LookWb, OwnWb};
+use crate::mods::look_grain::{self, MapFacts};
 use crate::mods::profiles::{self, same_model};
 use crate::mods::{dng_standard, file_ops, provider_look};
 use crate::white_balance::WhiteBalance;
@@ -74,6 +82,8 @@ const PROGRAM: Setting<String> = Setting::new("lutProvider");
 const SWITCH: Setting<bool> = Setting::new("providerLooksOn");
 
 const PROTOCOL: u32 = 1;
+/// What `list` is told Argentum can take besides LUTs.
+const SUPPORTS: [&str; 1] = ["grain"];
 /// Steps of the LUT; a PNG LUT must be square, so 65 cannot be stored as one.
 const GRID: u32 = 64;
 /// The side of a 64-step LUT's PNG, in pixels.
@@ -93,6 +103,8 @@ const RUNS_WITH_PREVIEWS: usize = 4;
 /// The folder under the app's cache: scratch files, and previews in `PREVIEW_FOLDER`.
 const SCRATCH_FOLDER: &str = "lut_provider";
 const PREVIEW_FOLDER: &str = "previews";
+/// Grain maps, under the app's cache folder: kept across sessions, unlike the scratch folder.
+const GRAIN_FOLDER: &str = "lut_provider_grain";
 /// Past this, a press of Preview all drops the oldest: a look's file is about
 /// 170 KB, so about 18 photos' sets of ten looks.
 const MAX_PREVIEW_BYTES: u64 = 32 * 1024 * 1024;
@@ -160,12 +172,54 @@ pub struct OfferedOption {
     pub sends_current_wb: bool,
 }
 
+/// Grain the program offers over its looks, from an option marked
+/// `makesGrain`: a switch and an amount, never a LUT option.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct OfferedGrain {
+    pub label: String,
+    /// Whether it starts on.
+    pub default: bool,
+    pub amount: GrainAmount,
+}
+
+/// Its amount's slider: 1 is the look's own strength.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct GrainAmount {
+    pub min: f32,
+    pub max: f32,
+    pub step: f32,
+    pub default: f32,
+}
+
+impl OfferedGrain {
+    fn is_sane(&self) -> bool {
+        let GrainAmount {
+            min,
+            max,
+            step,
+            default,
+        } = self.amount;
+        good_name(&self.label)
+            && [min, max, step, default].iter().all(|v| v.is_finite())
+            && 0.0 < min
+            && min <= default
+            && default <= max
+            && max <= look_grain::MAX_AMOUNT
+            && step > 0.0
+    }
+}
+
 /// What `list` answered, after validation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Catalog {
     pub cameras: Vec<OfferedCamera>,
     pub looks: Vec<OfferedLook>,
     pub options: Vec<OfferedOption>,
+    pub grain: Option<OfferedGrain>,
+    /// The program's own name and version, which a grain map is kept under.
+    pub generator: Option<String>,
 }
 
 impl Catalog {
@@ -310,7 +364,8 @@ fn keep_groups(looks: &mut [OfferedLook]) {
 
 /// What `list` answered. A bad entry is dropped and the rest stay; with no
 /// camera or no look left there is nothing to offer. Options are extra: anything
-/// but a list of them is none.
+/// but a list of them is none. The first good one marked `makesGrain` is the
+/// grain, and none of those is ever a LUT option.
 fn read_list(answer: &[u8]) -> Result<Catalog, String> {
     #[derive(Deserialize)]
     struct List {
@@ -343,11 +398,18 @@ fn read_list(answer: &[u8]) -> Result<Catalog, String> {
         |l| file_ops::is_look_name_part(&l.id) && good_name(&l.name),
     );
     keep_groups(&mut looks);
+    let (grain, options): (Vec<Value>, Vec<Value>) = match list.options {
+        Value::Array(entries) => entries,
+        _ => Vec::new(),
+    }
+    .into_iter()
+    .partition(|entry| entry["makesGrain"] == Value::Bool(true));
+    let grain = grain.into_iter().find_map(|entry| {
+        let grain = serde_json::from_value::<OfferedGrain>(entry).ok()?;
+        grain.is_sane().then_some(grain)
+    });
     let mut options = kept(
-        match list.options {
-            Value::Array(entries) => entries,
-            _ => Vec::new(),
-        },
+        options,
         |o: &OfferedOption| &o.id,
         |o| is_option_id(&o.id) && good_name(&o.label),
     );
@@ -355,20 +417,22 @@ fn read_list(answer: &[u8]) -> Result<Catalog, String> {
     if cameras.is_empty() || looks.is_empty() {
         return Err("no camera or no look on the list".to_string());
     }
-    if let Some(generator) = list.generator {
+    if let Some(generator) = &list.generator {
         log::info!("LUT provider: {generator}");
     }
     Ok(Catalog {
         cameras,
         looks,
         options,
+        grain,
+        generator: list.generator,
     })
 }
 
 /// Checks the program and asks what it offers.
 fn validate(program: &str, limits: &Limits) -> Result<Catalog, String> {
     let exe = check_path(program)?;
-    let request = json!({ "protocol": PROTOCOL }).to_string();
+    let request = json!({ "protocol": PROTOCOL, "supports": SUPPORTS }).to_string();
     let never = AtomicBool::new(false);
     let answer = run(&exe, "list", request.as_bytes(), limits.list, &never)
         .map_err(|failure| format!("{failure:?}"))?;
@@ -639,6 +703,40 @@ impl Subject {
     }
 }
 
+/// What a `lut` or `grain` run answered.
+#[derive(Deserialize)]
+struct Answer {
+    ok: bool,
+    error: Option<String>,
+    message: Option<String>,
+    /// For `grain`.
+    scale: Option<f64>,
+    cells: Option<u32>,
+}
+
+/// `answer` if it says ok, else why not; `what` is for the log.
+fn answer_of(answer: &[u8], what: &str) -> Result<Answer, Failure> {
+    let answer: Answer = serde_json::from_slice(answer).map_err(|e| {
+        log::warn!("LUT provider: its answer is not JSON: {e}");
+        Failure::Crash
+    })?;
+    if !answer.ok {
+        log::info!(
+            "LUT provider: {what}: {:?} {:?}",
+            answer.error,
+            answer.message
+        );
+        return Err(Failure::Refused(match answer.error.as_deref() {
+            Some("unsupported_camera") => Refusal::UnsupportedCamera,
+            Some("unknown_look") => Refusal::UnknownLook,
+            Some("bad_request") => Refusal::BadRequest,
+            Some("data_missing") => Refusal::DataMissing,
+            _ => Refusal::Internal,
+        }));
+    }
+    Ok(answer)
+}
+
 /// The file the run left, or why not.
 fn ask_for_lut(
     exe: &Path,
@@ -680,33 +778,7 @@ fn ask_for_lut(
         limits.lut,
         cancel,
     )?;
-
-    #[derive(Deserialize)]
-    struct Answer {
-        ok: bool,
-        error: Option<String>,
-        message: Option<String>,
-    }
-    let answer: Answer = serde_json::from_slice(&answer).map_err(|e| {
-        log::warn!("LUT provider: its answer is not JSON: {e}");
-        Failure::Crash
-    })?;
-    if !answer.ok {
-        log::info!(
-            "LUT provider: {} {}: {:?} {:?}",
-            key.camera,
-            key.look,
-            answer.error,
-            answer.message
-        );
-        return Err(Failure::Refused(match answer.error.as_deref() {
-            Some("unsupported_camera") => Refusal::UnsupportedCamera,
-            Some("unknown_look") => Refusal::UnknownLook,
-            Some("bad_request") => Refusal::BadRequest,
-            Some("data_missing") => Refusal::DataMissing,
-            _ => Refusal::Internal,
-        }));
-    }
+    answer_of(&answer, &format!("{} {}", key.camera, key.look))?;
     let bytes = std::fs::read(scratch).map_err(|_| Failure::BadFile)?;
     let lut = checked_file(&bytes)?;
     Ok((bytes, lut))
@@ -725,6 +797,53 @@ fn make_lut(
     let made = ask_for_lut(exe, limits, subject, key, options, scratch, cancel);
     let _ = std::fs::remove_file(scratch);
     made
+}
+
+/// `look`'s grain map, written to `output`, and what the program says of it.
+fn ask_for_grain(
+    exe: &Path,
+    limits: &Limits,
+    look: &str,
+    output: &Path,
+    cancel: &AtomicBool,
+) -> Result<MapFacts, Failure> {
+    let request = json!({ "protocol": PROTOCOL, "look": look, "output": output });
+    let answer = run(
+        exe,
+        "grain",
+        request.to_string().as_bytes(),
+        limits.lut,
+        cancel,
+    )?;
+    let answer = answer_of(&answer, &format!("grain {look}"))?;
+    match (answer.scale, answer.cells) {
+        (Some(scale), Some(cells)) => Ok(MapFacts { scale, cells }),
+        _ => Err(Failure::BadFile),
+    }
+}
+
+/// [`look_grain::ready`] for `look` of the program `exe`, which says it is
+/// `generator`: a map is kept under both, so a new version makes its own.
+fn grain_from(
+    exe: &Path,
+    generator: Option<&str>,
+    limits: &Limits,
+    folder: &Path,
+    look: &str,
+) -> Result<(), Failure> {
+    let key = format!(
+        "{}\n{}\n{look}",
+        exe.display(),
+        generator.unwrap_or_default()
+    );
+    let mut failure = Failure::BadFile;
+    let never = AtomicBool::new(false);
+    let ready = look_grain::ready(folder, &key, look, |output| {
+        ask_for_grain(exe, limits, look, output, &never)
+            .map_err(|why| failure = why)
+            .ok()
+    });
+    if ready { Ok(()) } else { Err(failure) }
 }
 
 // ------------------------------------------------------------------ the queue
@@ -1065,7 +1184,7 @@ impl Queue {
     ) {
         let folder = self.scratch.join(PREVIEW_FOLDER);
         let _ = std::fs::create_dir_all(&folder);
-        trim_previews(&folder, MAX_PREVIEW_BYTES);
+        trim_folder(&folder, MAX_PREVIEW_BYTES);
         let chosen = Some(args.camera.as_str());
         let camera = subject
             .as_ref()
@@ -1372,8 +1491,8 @@ fn previews_of(folder: &Path, photo: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Drops the oldest previews in `folder` until it is within `budget_bytes`.
-fn trim_previews(folder: &Path, budget_bytes: u64) {
+/// Drops the oldest files in `folder` until it is within `budget_bytes`.
+pub(crate) fn trim_folder(folder: &Path, budget_bytes: u64) {
     let Ok(entries) = std::fs::read_dir(folder) else {
         return;
     };
@@ -1429,6 +1548,8 @@ fn camera_for<'a>(
 struct Provider {
     catalog: Catalog,
     queue: Arc<Queue>,
+    /// Looks whose grain map it would not make, not asked again this session.
+    no_grain: Mutex<HashSet<String>>,
 }
 
 /// A good provider, kept until the app closes.
@@ -1466,6 +1587,7 @@ fn provider(app: &AppHandle) -> Option<&'static Provider> {
             placed,
         ),
         catalog,
+        no_grain: Mutex::new(HashSet::new()),
     }))
 }
 
@@ -1564,6 +1686,7 @@ pub struct ProviderLooks {
     pub cameras: Vec<OfferedCamera>,
     pub looks: Vec<OfferedLook>,
     pub options: Vec<OfferedOption>,
+    pub grain: Option<OfferedGrain>,
     /// The switch.
     pub on: bool,
     /// None for no photo, a photo that is not a RAW, or one from no camera on
@@ -1706,6 +1829,7 @@ pub fn looks(app: &AppHandle, args: &ProviderLooksArgs) -> Option<ProviderLooks>
         cameras: catalog.cameras.clone(),
         looks: catalog.looks.clone(),
         options: catalog.options.clone(),
+        grain: catalog.grain.clone(),
         on: is_on(profiles::library()?),
         photo,
     })
@@ -1784,10 +1908,60 @@ pub fn file_is_there(args: &ProviderLookFileArgs) -> bool {
         .is_some_and(|file| file.is_file())
 }
 
+#[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct ProviderLookGrainArgs {
+    pub look: String,
+}
+
+/// Whether `look`'s grain map is ready to draw, made now if the provider can:
+/// a render draws grain only once it is. Runs the program the first time, so
+/// call it off the UI thread.
+pub fn grain_ready(app: &AppHandle, look: &str) -> bool {
+    let Some(provider) = provider(app) else {
+        return false;
+    };
+    let catalog = &provider.catalog;
+    if catalog.grain.is_none() || !catalog.looks.iter().any(|l| l.id == look) {
+        return false;
+    }
+    if look_grain::loaded(look).is_some() {
+        return true;
+    }
+    if lock(&provider.no_grain).contains(look) {
+        return false;
+    }
+    let Ok(cache) = app.path().app_cache_dir() else {
+        return false;
+    };
+    let exe = &provider.queue.exe;
+    let generator = catalog.generator.as_deref();
+    match grain_from(exe, generator, &LIMITS, &cache.join(GRAIN_FOLDER), look) {
+        Ok(()) => true,
+        Err(failure) => {
+            if failure.is_final() || failure == Failure::BadFile {
+                lock(&provider.no_grain).insert(look.to_string());
+            }
+            false
+        }
+    }
+}
+
 /// For an export: whether the look the edit names is there to render, made
-/// now if the provider can. False means it renders without its look, and
-/// `cancel` stops the wait. An edit with no provider look needs nothing.
+/// now if the provider can, with its grain. False means it renders without its
+/// look, and `cancel` stops the wait. An edit with no provider look needs
+/// nothing.
 pub fn look_file_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &AtomicBool) -> bool {
+    let ready = lut_ready(app, js, photo, cancel);
+    let grain = provider_look::look_of(js).filter(|l| l.grain.is_some_and(|g| g.on));
+    if let Some(look) = grain.filter(|_| ready) {
+        grain_ready(app, &look.look);
+    }
+    ready
+}
+
+/// [`look_file_ready`] for the LUT alone.
+fn lut_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &AtomicBool) -> bool {
     if js["lutPath"].as_str() != Some(provider_look::MARKER) {
         return true;
     }
@@ -1885,6 +2059,15 @@ fn main() {
             print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}},{{\"id\":\"optionW\",\"label\":\"Invented follow\",\"default\":false,\"sendsCurrentWb\":true}}]}}");
             return;
         }
+        if kind == "grainy" {
+            let grain = if request.contains("\"supports\":[\"grain\"]") {
+                ",{\"id\":\"grain\",\"label\":\"Invented grain\",\"default\":false,\"amount\":{\"min\":1,\"max\":4,\"step\":1,\"default\":2},\"makesGrain\":true}"
+            } else {
+                ""
+            };
+            print!("{{\"protocol\":1,\"generator\":\"fake 1\",\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}}{grain}]}}");
+            return;
+        }
         if kind == "optioned" {
             print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}}]}}");
             return;
@@ -1895,7 +2078,22 @@ fn main() {
     let output = output_of(&request);
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
+    if word == "grain" {
+        match kind.as_str() {
+            "grainy" => {
+                std::fs::copy(dir.join("grain.png"), &output).unwrap();
+                write!(out, "{{\"ok\":true,\"seconds\":0.1,\"scale\":0.001,\"cells\":2040}}").unwrap();
+            }
+            "unknown" => write!(out, "{{\"ok\":false,\"error\":\"unknown_look\"}}").unwrap(),
+            other => panic!("{other}"),
+        }
+        return;
+    }
     match kind.as_str() {
+        "grainy" => {
+            std::fs::copy(dir.join("good.png"), &output).unwrap();
+            write!(out, "{{\"ok\":true,\"seconds\":0.1}}").unwrap();
+        }
         "onebad" if request.contains("\"look\":\"look2\"") => std::process::exit(3),
         "good" | "optioned" | "followswb" | "onebad" => {
             std::fs::copy(dir.join("good.png"), &output).unwrap();
@@ -2295,6 +2493,48 @@ fn main() {
         assert_eq!(kept[1].label, "First");
     }
 
+    const GRAIN_OFFER: &str = r#"{ "id": "grain", "label": "Invented grain", "default": false,
+        "amount": { "min": 1, "max": 4, "step": 1, "default": 2 }, "makesGrain": true }"#;
+
+    #[test]
+    fn grain_is_offered_apart_from_the_options() {
+        let list = list_with_options(&format!(
+            r#"[{{ "id": "optionA", "label": "First", "default": false }}, {GRAIN_OFFER}]"#
+        ));
+        let catalog = read_list(list.as_bytes()).expect("a list");
+        let ids: Vec<&str> = catalog.options.iter().map(|o| o.id.as_str()).collect();
+        assert_eq!(ids, ["optionA"]);
+        let grain = catalog.grain.expect("grain");
+        assert_eq!(
+            (grain.label.as_str(), grain.default),
+            ("Invented grain", false)
+        );
+        let GrainAmount {
+            min,
+            max,
+            step,
+            default,
+        } = grain.amount;
+        assert_eq!([min, max, step, default], [1.0, 4.0, 1.0, 2.0]);
+        assert_eq!(read_list(GOOD_LIST.as_bytes()).expect("a list").grain, None);
+    }
+
+    /// One marked `makesGrain` is never a LUT option, even one that is no good.
+    #[test]
+    fn a_bad_grain_offer_is_no_grain_and_no_option() {
+        for bad in [
+            GRAIN_OFFER.replace(r#""min": 1"#, r#""min": 5"#),
+            GRAIN_OFFER.replace(r#""max": 4"#, r#""max": 400"#),
+            GRAIN_OFFER.replace(r#""step": 1"#, r#""step": 0"#),
+            GRAIN_OFFER.replace(r#""label": "Invented grain""#, r#""label": " ""#),
+            GRAIN_OFFER.replace(r#""amount""#, r#""size""#),
+        ] {
+            let catalog =
+                read_list(list_with_options(&format!("[{bad}]")).as_bytes()).expect("a list");
+            assert_eq!((catalog.grain, catalog.options), (None, vec![]), "{bad}");
+        }
+    }
+
     #[test]
     fn a_list_with_no_options_is_as_it_was() {
         assert_eq!(read_list(GOOD_LIST.as_bytes()).expect("a list").options, []);
@@ -2364,6 +2604,20 @@ fn main() {
         let catalog = validate(&exe.to_string_lossy(), &ROOMY).expect("a list");
         assert_eq!(catalog.options.len(), 1);
         assert_eq!(catalog.options[0].id, "optionA");
+    }
+
+    /// A program offers grain only when the list says Argentum takes it.
+    #[test]
+    fn the_list_says_argentum_takes_grain() {
+        let exe = fake("grainy");
+        let catalog = validate(&exe.to_string_lossy(), &ROOMY).expect("a list");
+        assert!(catalog.grain.is_some());
+        assert_eq!(catalog.generator.as_deref(), Some("fake 1"));
+        assert_eq!(last_request(&exe)["supports"], json!(["grain"]));
+        assert!(
+            !catalog.option_defaults().contains_key("grain"),
+            "no LUT option"
+        );
     }
 
     #[test]
@@ -2496,6 +2750,7 @@ fn main() {
             look: "look1".to_string(),
             options,
             own_wb: None,
+            grain: None,
             before: Default::default(),
         }
     }
@@ -2609,6 +2864,86 @@ fn main() {
             last_request(&exe)["options"],
             json!({ "optionA": true, "optionB": false })
         );
+    }
+
+    /// Grain is never sent with `lut`, and a look's file is the same whatever
+    /// its grain.
+    #[test]
+    fn grain_is_no_part_of_a_lut() {
+        let exe = fake("grainy");
+        let catalog = validate(&exe.to_string_lossy(), &ROOMY).expect("a list");
+        let defaults = catalog.option_defaults();
+        let offered: Vec<(&str, bool)> =
+            defaults.iter().map(|(id, on)| (id.as_str(), *on)).collect();
+        let heard = queue_offering(&exe, &offered);
+        heard.ask_with(&photo_beside(&exe, "A.CR3"), &LookOptions::new(), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        let request = last_request(&exe);
+        assert_eq!(request["options"], json!({ "optionA": false }));
+        assert!(!request.to_string().contains("grain"), "{request}");
+
+        let photo = Path::new("C:/photos/A.CR3");
+        let plain = look_with(LookOptions::new()).file(photo);
+        for grain in [
+            Some(look_grain::LookGrain {
+                on: false,
+                amount: 2.0,
+            }),
+            Some(look_grain::LookGrain {
+                on: true,
+                amount: 1.0,
+            }),
+            Some(look_grain::LookGrain {
+                on: true,
+                amount: 4.0,
+            }),
+        ] {
+            let look = provider_look::ProviderLook {
+                grain,
+                ..look_with(LookOptions::new())
+            };
+            assert_eq!(look.file(photo), plain, "{grain:?}");
+        }
+    }
+
+    /// The fake's grain map: flat, 3 levels a unit.
+    fn grainy() -> Fake {
+        let exe = fake("grainy");
+        let png = look_grain::tests::flat_png([3.0; 3], [3.0; 3], look_grain::tests::SCALE);
+        std::fs::write(exe.with_file_name("grain.png"), png).expect("grain.png");
+        exe
+    }
+
+    #[test]
+    fn a_grain_map_is_made_once_and_kept_in_its_folder() {
+        let _turn = look_grain::tests::one_at_a_time();
+        let exe = grainy();
+        let folder = tempfile::tempdir().expect("folder");
+        let ask = || grain_from(&exe, Some("fake 1"), &ROOMY, folder.path(), "look1");
+        assert_eq!(ask(), Ok(()));
+        assert_eq!(calls(&exe), 1);
+        let request = last_request(&exe);
+        assert_eq!(
+            (request["protocol"].clone(), request["look"].clone()),
+            (json!(1), json!("look1"))
+        );
+        assert!(look_grain::loaded("look1").is_some());
+        look_grain::tests::forget_all();
+        assert_eq!(ask(), Ok(()));
+        assert_eq!(calls(&exe), 1, "read from the folder, not made again");
+        assert!(std::fs::read_dir(folder.path()).expect("folder").count() == 2);
+        look_grain::tests::forget_all();
+    }
+
+    #[test]
+    fn a_refused_grain_map_is_none() {
+        let _turn = look_grain::tests::one_at_a_time();
+        let exe = fake("unknown");
+        let folder = tempfile::tempdir().expect("folder");
+        let refused = grain_from(&exe, None, &ROOMY, folder.path(), "refused-look");
+        assert_eq!(refused, Err(Failure::Refused(Refusal::UnknownLook)));
+        assert!(look_grain::loaded("refused-look").is_none());
+        assert_eq!(std::fs::read_dir(folder.path()).expect("folder").count(), 0);
     }
 
     /// An edit can name anything; only what the program offers reaches it.
@@ -4139,9 +4474,9 @@ fn main() {
             file.set_modified(now - Duration::from_secs(3600 * n))
                 .expect("date");
         }
-        trim_previews(dir.path(), 400);
+        trim_folder(dir.path(), 400);
         assert_eq!(std::fs::read_dir(dir.path()).expect("folder").count(), 4);
-        trim_previews(dir.path(), 250);
+        trim_folder(dir.path(), 250);
         assert!(dir.path().join("0.lut.png").exists());
         assert!(dir.path().join("1.lut.png").exists());
         assert!(!dir.path().join("2.lut.png").exists());
@@ -4221,6 +4556,8 @@ fn main() {
                 default: false,
                 sends_current_wb: false,
             }],
+            grain: None,
+            generator: None,
         }
     }
 
@@ -4802,5 +5139,133 @@ fn main() {
             camera_for(&catalog(), Some("gone"), "Acme", "Two"),
             Some("cam2")
         );
+    }
+
+    /// A sheet of grain to judge by eye: one RAW, each look of `AG_LOOKS` with
+    /// no grain and at each amount, from the real provider `AG_PROVIDER`, as an
+    /// export renders it at full size. Each tile is a part of `AG_CROPS` (x, y,
+    /// w, h, fractions, `;` between parts) at 200%, a PNG in `AG_OUT`; with none
+    /// it is the whole photo small, to choose the parts from.
+    #[test]
+    #[ignore = "runs a real provider on a RAW file; run by hand"]
+    fn grain_sheet() {
+        let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("set {name}"));
+        let (photo, exe) = (var("AG_RAW"), PathBuf::from(var("AG_PROVIDER")));
+        let out = PathBuf::from(var("AG_OUT"));
+        std::fs::create_dir_all(&out).unwrap();
+        let catalog = validate(&exe.to_string_lossy(), &ROOMY).expect("a provider");
+        let subject = subject_of(&photo).expect("a RAW");
+        let camera = camera_for(&catalog, None, &subject.make, &subject.model).expect("its camera");
+        let ctx = crate::mods::dng_standard::gpu::device().expect("no wgpu adapter");
+        let bytes = std::fs::read(&photo).unwrap();
+        let as_shot = crate::as_shot::as_shot(&photo);
+        let linear = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "default".to_string(),
+            None,
+            Some(&photo),
+        )
+        .expect("decodes");
+        let (w, h) = image::GenericImageView::dimensions(&linear);
+        let parts = std::env::var("AG_CROPS").unwrap_or_default();
+        let mut rois: Vec<Option<crate::gpu_processing::Roi>> = parts
+            .split(';')
+            .filter_map(|part| {
+                let f: Vec<f32> = part
+                    .split(',')
+                    .filter_map(|v| v.trim().parse().ok())
+                    .collect();
+                (f.len() == 4).then(|| {
+                    Some(crate::gpu_processing::Roi {
+                        x: (f[0] * w as f32) as u32,
+                        y: (f[1] * h as f32) as u32,
+                        width: (f[2] * w as f32) as u32,
+                        height: (f[3] * h as f32) as u32,
+                    })
+                })
+            })
+            .collect();
+        if rois.is_empty() {
+            rois.push(None);
+        }
+        let folder = tempfile::tempdir().unwrap();
+        let _turn = look_grain::tests::one_at_a_time();
+        for look in var("AG_LOOKS").split(',') {
+            let key = Key::of(&subject, camera, look, &LookOptions::new(), None);
+            let scratch = folder.path().join(format!("{look}.lut.png"));
+            let never = AtomicBool::new(false);
+            let made = make_lut(
+                &exe,
+                &ROOMY,
+                &subject,
+                &key,
+                &catalog.option_defaults(),
+                &scratch,
+                &never,
+            );
+            let lut = Arc::new(made.expect("a LUT").1);
+            let generator = catalog.generator.as_deref();
+            grain_from(&exe, generator, &ROOMY, folder.path(), look).expect("a grain map");
+            for (part, roi) in rois.iter().copied().enumerate() {
+                for amount in [0.0, 1.0, 2.0, 3.0, 4.0] {
+                    let js = json!({
+                        "lutPath": provider_look::MARKER,
+                        "lutIntensity": 100,
+                        "lutIsSceneReferred": false,
+                        "agLutDeclaredInput": true,
+                        "rawToneRendering": "linear",
+                        "agProviderLook": {
+                            "camera": camera,
+                            "look": look,
+                            "grain": { "on": amount > 0.0, "amount": amount },
+                            "before": {},
+                        },
+                    });
+                    let adjustments = crate::image_processing::get_all_adjustments_from_json(
+                        &js,
+                        true,
+                        as_shot,
+                        Default::default(),
+                        Some(&photo),
+                    );
+                    assert_eq!(adjustments.global.ag_look_grain.on, u32::from(amount > 0.0));
+                    let rendered = crate::mods::export_precision::render_high_precision(
+                        &ctx,
+                        &linear,
+                        crate::gpu_processing::RenderRequest {
+                            adjustments,
+                            mask_bitmaps: &[],
+                            lut: Some(Arc::clone(&lut)),
+                            roi,
+                        },
+                    )
+                    .expect("renders")
+                    .to_rgb8();
+                    let (rw, rh) = rendered.dimensions();
+                    let tile = match roi {
+                        Some(_) => image::imageops::resize(
+                            &rendered,
+                            rw * 2,
+                            rh * 2,
+                            image::imageops::FilterType::Nearest,
+                        ),
+                        None => image::imageops::resize(
+                            &rendered,
+                            1600,
+                            1600 * rh / rw,
+                            image::imageops::FilterType::Triangle,
+                        ),
+                    };
+                    tile.save(out.join(format!("{look}-{part}-{amount}.png")))
+                        .unwrap();
+                    eprintln!("{look}, part {part}, at {amount}: {rw} x {rh}");
+                    if roi.is_none() {
+                        break;
+                    }
+                }
+            }
+        }
     }
 }

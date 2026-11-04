@@ -65,7 +65,8 @@
 //   ag_stage_tone          right after their tone mapper, which it can replace
 //                          for a RAW: the RAW tone renderings (see below).
 //   ag_stage_grade         after the Curves panel and a LUT, before grain:
-//                          Lightroom's colour grading (see below).
+//                          a provider look's grain, then Lightroom's colour
+//                          grading (see below).
 //   ag_stage_display       after tone mapping, on display-referred data.
 //
 // A tool joins the stage it belongs to here, so adding it never touches their
@@ -456,10 +457,95 @@ fn rm_grade(rgb: vec3<f32>, slot: u32) -> vec3<f32> {
     );
 }
 
-/// Grading stage: `srgb` is display-encoded, as the Curves panel leaves it.
-/// The photo's block grades it, then each marked mask's block is mixed in by
+// ============================================================================
+// A PROVIDER LOOK'S GRAIN - ours (mods/look_grain.rs)
+//
+// Three layers of normal noise on a lattice tied to the frame, smoothed with
+// [1, 7, 1] / sqrt(51), enlarged with bicubic and scaled to measure 1 at the
+// lattice's size; the map, indexed by the colour right after the LUT, says how
+// much of each layer each channel gets. The smoothed lattice is made once for a
+// photo's seed and size (shaders/look_grain.wgsl), so every render of a photo
+// has the same grain and a render reads 16 of its nodes a pixel.
+// ============================================================================
+
+/// As `look_grain::Params` lays it out, 48 bytes.
+struct AgLookGrain {
+    on: u32,
+    seed: u32,
+    amount: f32,
+    norm: f32,
+    frame_x: f32,
+    frame_y: f32,
+    cells_x: f32,
+    cells_y: f32,
+    map: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+}
+
+/// Both cubes of the map, cube 2 (e, f, g) above cube 1 (a, b, d) in depth,
+/// in output units per unit of noise.
+@group(0) @binding(16) var ag_grain_map: texture_3d<f32>;
+@group(0) @binding(17) var ag_grain_sampler: sampler;
+/// The smoothed lattice, layers A, B and C; texel (0, 0) is node (-2, -2).
+@group(0) @binding(18) var ag_grain_lattice: texture_2d<f32>;
+
+/// `look_grain::bicubic`: OpenCV's (A = -0.75), the weights of the nodes at
+/// -1, 0, 1 and 2 for `t` past a node.
+fn ag_grain_bicubic(t: f32) -> array<f32, 4> {
+    let a = -0.75;
+    let n0 = t + 1.0;
+    let n1 = t;
+    let n2 = 1.0 - t;
+    let c0 = ((a * n0 - 5.0 * a) * n0 + 8.0 * a) * n0 - 4.0 * a;
+    let c1 = ((a + 2.0) * n1 - (a + 3.0)) * n1 * n1 + 1.0;
+    let c2 = ((a + 2.0) * n2 - (a + 3.0)) * n2 * n2 + 1.0;
+    return array<f32, 4>(c0, c1, c2, 1.0 - c0 - c1 - c2);
+}
+
+/// Layers A, B and C at pixel `coord` of the frame, each measuring 1.
+fn ag_grain_noise(coord: vec2<u32>, g: AgLookGrain) -> vec3<f32> {
+    let cells = vec2<f32>(g.cells_x, g.cells_y);
+    let at = (vec2<f32>(coord) + 0.5) * cells / vec2<f32>(g.frame_x, g.frame_y) - 0.5;
+    let node = floor(at);
+    var wx = ag_grain_bicubic(at.x - node.x);
+    var wy = ag_grain_bicubic(at.y - node.y);
+    // Node floor(at) - 1 is texel floor(at) + 1.
+    let first = vec2<i32>(node) + 1;
+    var sum = vec3<f32>(0.0);
+    for (var j = 0; j < 4; j = j + 1) {
+        var row = vec3<f32>(0.0);
+        for (var i = 0; i < 4; i = i + 1) {
+            row += wx[i] * textureLoad(ag_grain_lattice, first + vec2<i32>(i, j), 0).rgb;
+        }
+        sum += wy[j] * row;
+    }
+    return sum * g.norm;
+}
+
+/// The grain over `srgb`, the colour right after the LUT, then a clip:
+/// R += k a A, G += k (b A + d B), B += k (e A + f B + g C).
+fn ag_look_grain(srgb: vec3<f32>, coord: vec2<u32>) -> vec3<f32> {
+    let g = adjustments.global.ag_look_grain;
+    if (g.on == 0u) {
+        return srgb;
+    }
+    let n = ag_grain_noise(coord, g);
+    // Texel centres of each 64-step cube, so cube 1 and cube 2 never blend.
+    let at = (clamp(srgb, vec3<f32>(0.0), vec3<f32>(1.0)) * 63.0 + 0.5) / vec3<f32>(64.0, 64.0, 128.0);
+    let abd = textureSampleLevel(ag_grain_map, ag_grain_sampler, at, 0.0).rgb;
+    let efg = textureSampleLevel(ag_grain_map, ag_grain_sampler, at + vec3<f32>(0.0, 0.0, 0.5), 0.0).rgb;
+    let grain = vec3<f32>(abd.x * n.x, abd.y * n.x + abd.z * n.y, efg.x * n.x + efg.y * n.y + efg.z * n.z);
+    return clamp(srgb + g.amount * grain, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+/// Grading stage: `color` is display-encoded, as the Curves panel and a LUT
+/// leave it. A provider look's grain goes on first, right after its LUT. Then
+/// the photo's block grades it, and each marked mask's block is mixed in by
 /// the mask's influence, as their grading does.
-fn ag_stage_grade(srgb: vec3<f32>, coord: vec2<u32>) -> vec3<f32> {
+fn ag_stage_grade(color: vec3<f32>, coord: vec2<u32>) -> vec3<f32> {
+    let srgb = ag_look_grain(color, coord);
     let marked = adjustments.global.ag_grade;
     if (marked.global == 0u && marked.masks == 0u) {
         return srgb;
