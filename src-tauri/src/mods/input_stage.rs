@@ -314,8 +314,9 @@ fn render_scale(
     transform_hash: u64,
     width: u32,
 ) -> (f32, Option<Arc<DynamicImage>>) {
+    let unmatched = || (EXPORT_SCALE.get(), None);
     let Some(key) = open_photo_key(state, transform_hash) else {
-        return (1.0, None);
+        return unmatched();
     };
     let kept = FULL_PICTURE.lock().unwrap_or_else(|e| e.into_inner());
     match kept.as_ref() {
@@ -323,6 +324,22 @@ fn render_scale(
             (width as f32 / full.width() as f32).min(1.0),
             Some(Arc::clone(full)),
         ),
-        _ => (1.0, None),
+        _ => unmatched(),
     }
+}
+
+thread_local! {
+    /// Render pixels per full-resolution pixel of an export developed below
+    /// full size; 1.0 for every other render.
+    static EXPORT_SCALE: std::cell::Cell<f32> = const { std::cell::Cell::new(1.0) };
+}
+
+/// Run `render` as an export developed at `px_scale` of full resolution - the
+/// headless export, which develops at the size it writes - so sharpening's
+/// radii shrink with the picture, as they do for the editor's preview.
+pub fn at_export_scale<R>(px_scale: f32, render: impl FnOnce() -> R) -> R {
+    let previous = EXPORT_SCALE.replace(px_scale.clamp(1.0e-3, 1.0));
+    let result = render();
+    EXPORT_SCALE.set(previous);
+    result
 }
