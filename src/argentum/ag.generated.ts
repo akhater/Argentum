@@ -227,7 +227,7 @@ export type FolderRenameArgs = { oldPath: string, newPath: string, };
 export type GapArgs = { gap: number, };
 
 /**
- * Its amount's slider: 1 is the film's own strength.
+ * Its amount's slider: 1 is the look's own strength.
  */
 export type GrainAmount = { min: number, max: number, step: number, default: number, };
 
@@ -441,7 +441,7 @@ export type LookFile = { camera: string, look: string, path: string, };
  */
 export type LookGrain = { on: boolean, 
 /**
- * `k`: 1 is the film's own strength.
+ * `k`: 1 is the look's own strength.
  */
 amount: number, };
 
