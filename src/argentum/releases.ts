@@ -32,6 +32,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.45.3',
+    date: '2026-11-04',
+    notes: [
+      'Photos edited before 26.44.1 now get the same camera colour as new ones, so their colours can shift slightly.',
+      'The Mac download opens again.',
+      'For scripts: the command-line export can set a size, take a list of photos or only the edited ones, and reports on each photo.',
+    ],
+  },
+  {
     version: '26.45.2',
     date: '2026-11-03',
     notes: [
