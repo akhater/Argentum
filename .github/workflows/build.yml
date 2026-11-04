@@ -140,6 +140,8 @@ jobs:
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           releaseId: ${{ inputs.release-id }}
           retryAttempts: 3
+          # macOS: the DMG stays unsigned, or Gatekeeper refuses to open it (the script says why).
+          tauriScript: ${{ runner.os == 'macOS' && 'node scripts/tauri-macos.mjs' || '' }}
 
       # `cdhash` here means the certificate did not reach the build: every Mac would ask again.
       - name: Check the signature and the privacy prompts (macOS)
