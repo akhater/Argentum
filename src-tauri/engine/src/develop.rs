@@ -29,7 +29,7 @@ pub(crate) enum Scale {
 
 /// Bumped whenever `develop` would give a different picture, so cached
 /// results made by an older one are not reused.
-pub(crate) const DEVELOP_VERSION: u32 = 2;
+pub(crate) const DEVELOP_VERSION: u32 = 3;
 
 /// The ceiling on a developed value. The app's full-quality decode keeps
 /// scene-linear values far above white for its tone mapping, and so does the
