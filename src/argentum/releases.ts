@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.45.4',
+    date: '2026-11-05',
+    notes: [
+      'Automatic lens correction picks the right lens more often.',
+      'Select Sky keeps the sky behind leaves and branches along the top of the photo.',
+      'JPEG exports from photos with a lot of camera data are no longer broken.',
+      'For scripts: the command-line export is much faster, with the same look.',
+    ],
+  },
+  {
     version: '26.45.3',
     date: '2026-11-04',
     notes: [
