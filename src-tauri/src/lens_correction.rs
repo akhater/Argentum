@@ -130,8 +130,21 @@ pub struct Camera {
     pub cropfactor: f32,
 }
 
+/// Argentum: a Lensfun `<mount>`, with the mounts whose lenses fit a camera of
+/// it (`<compat>`, one way), for `mods/lens_match.rs`.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct Mount {
+    // Some mounts carry translated names too (slr-pentax.xml).
+    pub name: Vec<MultiName>,
+    #[serde(default)]
+    pub compat: Vec<String>,
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct LensDatabase {
+    // Argentum: read for the strict matcher (mods/lens_match.rs).
+    #[serde(rename = "mount", default)]
+    pub mounts: Vec<Mount>,
     #[serde(rename = "camera", default)]
     pub cameras: Vec<Camera>,
     #[serde(rename = "lens", default)]
@@ -144,6 +157,16 @@ pub struct MultiName {
     lang: Option<String>,
     #[serde(rename = "$value")]
     value: String,
+}
+
+/// Argentum: the untranslated name of `names`, Lensfun's own (the one without a
+/// `lang`), which is the name a file's EXIF writes.
+pub fn untranslated(names: &[MultiName]) -> &str {
+    names
+        .iter()
+        .find(|n| n.lang.is_none())
+        .or_else(|| names.first())
+        .map_or("", |n| n.value.trim())
 }
 
 #[derive(Serialize)]
@@ -549,49 +572,59 @@ fn lenses_for_maker<'a>(db: &'a LensDatabase, maker: &str) -> Vec<&'a Lens> {
 }
 
 pub fn load_lensfun_db(app_handle: &tauri::AppHandle) -> LensDatabase {
-    let mut combined_db = LensDatabase {
-        cameras: Vec::new(),
-        lenses: Vec::new(),
-    };
+    let resource_path = app_handle
+        .path()
+        .resolve("lensfun_db", tauri::path::BaseDirectory::Resource)
+        .expect("failed to resolve lensfun_db directory");
 
-    {
-        let resource_path = app_handle
-            .path()
-            .resolve("lensfun_db", tauri::path::BaseDirectory::Resource)
-            .expect("failed to resolve lensfun_db directory");
-
-        if !resource_path.exists() {
-            log::error!("Lensfun DB directory not found at: {:?}", resource_path);
-            return combined_db;
-        }
-
-        for entry in WalkDir::new(resource_path)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.path().extension().is_some_and(|ext| ext == "xml"))
-        {
-            let path = entry.path();
-            log::info!("Processing file: {:?}", path);
-            match fs::read_to_string(path) {
-                Ok(xml_content) => match quick_xml::de::from_str::<LensDatabase>(&xml_content) {
-                    Ok(mut db) => {
-                        combined_db.cameras.append(&mut db.cameras);
-                        combined_db.lenses.append(&mut db.lenses);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to parse Lensfun XML file {:?}: {}", path, e);
-                    }
-                },
-                Err(e) => log::error!("Failed to read Lensfun XML file {:?}: {}", path, e),
-            }
-        }
+    if !resource_path.exists() {
+        log::error!("Lensfun DB directory not found at: {:?}", resource_path);
+        return LensDatabase {
+            mounts: Vec::new(),
+            cameras: Vec::new(),
+            lenses: Vec::new(),
+        };
     }
+
+    let combined_db = read_lensfun_dir(&resource_path);
 
     log::info!(
         "Loaded {} lenses and {} cameras from Lensfun database.",
         combined_db.lenses.len(),
         combined_db.cameras.len()
     );
+    combined_db
+}
+
+/// Every Lensfun XML file under `dir`, read into one database. A file that fails
+/// to read or parse is logged and left out.
+pub fn read_lensfun_dir(dir: &std::path::Path) -> LensDatabase {
+    let mut combined_db = LensDatabase {
+        mounts: Vec::new(),
+        cameras: Vec::new(),
+        lenses: Vec::new(),
+    };
+    for entry in WalkDir::new(dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "xml"))
+    {
+        let path = entry.path();
+        log::info!("Processing file: {:?}", path);
+        match fs::read_to_string(path) {
+            Ok(xml_content) => match quick_xml::de::from_str::<LensDatabase>(&xml_content) {
+                Ok(mut db) => {
+                    combined_db.mounts.append(&mut db.mounts);
+                    combined_db.cameras.append(&mut db.cameras);
+                    combined_db.lenses.append(&mut db.lenses);
+                }
+                Err(e) => {
+                    log::error!("Failed to parse Lensfun XML file {:?}: {}", path, e);
+                }
+            },
+            Err(e) => log::error!("Failed to read Lensfun XML file {:?}: {}", path, e),
+        }
+    }
     combined_db
 }
 
@@ -691,13 +724,29 @@ pub fn find_lens_by_camera_mount<'a>(
     Some(lens)
 }
 
-fn lens_result(db: &LensDatabase, lens: &Lens) -> (String, String) {
+pub(crate) fn lens_result(db: &LensDatabase, lens: &Lens) -> (String, String) {
     let lens_maker = lens.get_maker();
     let maker_lenses = lenses_for_maker(db, &lens_maker);
     (lens_maker, lens.get_display_name(&maker_lenses))
 }
 
 pub fn find_best_lens_match(
+    db: &LensDatabase,
+    maker: &str,
+    model: &str,
+    camera_model: &str,
+) -> Option<(String, String)> {
+    // Argentum: when the strict matcher finds exactly one lens, it decides;
+    // otherwise the matcher below answers as it always has (mods/lens_match.rs).
+    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model) {
+        return Some(lens_result(db, lens));
+    }
+    loose_lens_match(db, maker, model, camera_model)
+}
+
+/// The matcher as it was before the strict one (`mods/lens_match.rs`): kept as
+/// the answer wherever that one is not sure.
+pub fn loose_lens_match(
     db: &LensDatabase,
     maker: &str,
     model: &str,
@@ -846,14 +895,16 @@ pub fn resolve_lens_params(
     model: &str,
     exif: &HashMap<String, String>,
 ) -> Option<LensDistortionParams> {
+    let lens = lens_named(db, maker, model)?;
+    let shot = LensShot::from_exif(exif);
+    lens.get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)
+}
+
+/// The lens an edit names: its maker and the display name `lens_result` gave it.
+pub(crate) fn lens_named<'a>(db: &'a LensDatabase, maker: &str, model: &str) -> Option<&'a Lens> {
     let maker_lenses = lenses_for_maker(db, maker);
-    if let Some(lens) = maker_lenses
+    maker_lenses
         .iter()
         .find(|l| l.get_display_name(&maker_lenses) == model)
-    {
-        let shot = LensShot::from_exif(exif);
-        lens.get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)
-    } else {
-        None
-    }
+        .copied()
 }
