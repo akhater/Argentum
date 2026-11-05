@@ -926,9 +926,14 @@ fn process_image_for_export_pipeline(
 ) -> Result<DynamicImage, String> {
     let (transformed_image, unscaled_crop_offset) =
         apply_all_transformations(Cow::Borrowed(base_image), js_adjustments);
+    // The size the photo is written at, as the full-size export's resize makes it.
+    let (full_w, full_h) = transformed_image.dimensions();
+    let written = export_at_size::fit_within(
+        (full_w, full_h),
+        export_photo_size(full_w, full_h, export_settings),
+    );
     let (transformed_image, px_scale) = if export_settings.develop_at_output_size {
-        let (full_w, full_h) = transformed_image.dimensions();
-        export_at_size::shrink_to(transformed_image, export_photo_size(full_w, full_h, export_settings))
+        export_at_size::shrink_to(transformed_image, export_at_size::develop_size(written))
     } else {
         (transformed_image, 1.0)
     };
@@ -937,9 +942,11 @@ fn process_image_for_export_pipeline(
         unscaled_crop_offset.1 * px_scale,
     );
     let (img_w, img_h) = transformed_image.dimensions();
-    if px_scale < 1.0 {
-        // One processor for the batch, landscape or portrait.
-        let long_edge = img_w.max(img_h);
+    if export_settings.develop_at_output_size {
+        // One processor for the batch, landscape or portrait: the most any of
+        // its photos, all written at this long edge, is developed at.
+        let (develop_w, develop_h) = export_at_size::develop_size(written);
+        let long_edge = develop_w.max(develop_h).max(img_w).max(img_h);
         crate::gpu_processing::reserve_processor(context, state, long_edge, long_edge)?;
     }
 
@@ -980,7 +987,7 @@ fn process_image_for_export_pipeline(
         roi: None,
     };
 
-    crate::mods::input_stage::at_export_scale(px_scale, || {
+    let developed = crate::mods::input_stage::at_export_scale(px_scale, || {
         render_for_export(
             context,
             state,
@@ -990,6 +997,11 @@ fn process_image_for_export_pipeline(
             debug_tag,
             precision,
         )
+    })?;
+    Ok(if export_settings.develop_at_output_size {
+        export_at_size::lanczos3_to(developed, written)
+    } else {
+        developed
     })
 }
 

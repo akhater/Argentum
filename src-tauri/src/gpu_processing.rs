@@ -211,6 +211,13 @@ pub fn get_or_init_gpu_context(
     if std::env::var("WGPU_BACKEND").is_err() {
         instance_desc.backends = wgpu::Backends::PRIMARY;
     }
+    #[cfg(target_os = "windows")]
+    if let Ok(resources) = app_handle
+        .path()
+        .resolve("resources", tauri::path::BaseDirectory::Resource)
+    {
+        crate::mods::dx12_compiler::choose(&mut instance_desc, &resources); // Argentum: DXC when the app ships it
+    }
 
     state.gpu_setup_mark.begin();
 
