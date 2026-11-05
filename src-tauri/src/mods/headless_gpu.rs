@@ -1,13 +1,16 @@
-//! The GPU backend of a headless export: Vulkan, then DirectX 12, then
-//! OpenGL, whatever the editor's saved setting says. Ours.
+//! The GPU backend of a headless export: Vulkan, then Metal, then DirectX 12,
+//! then OpenGL - the first this computer has - whatever the editor's saved
+//! setting says. Ours.
 //!
 //! On DirectX 12, wgpu compiles every pipeline with FXC, the compiler in
-//! every Windows, and building the processor took 15 s (Intel Arc 140V,
-//! 2026-11-05), at every launch. Shoebox starts one export per batch, so a
-//! user whose editor runs on DirectX 12 - or on OpenGL after a crash
-//! fallback - paid it for every batch. Vulkan builds the same processor in
-//! well under a second, and the export's pictures are the same within the
-//! look bar on either. The editor's own setting is not touched.
+//! every Windows, on the CPU and with nothing kept between launches: whatever
+//! the graphics card, every launch pays it again (15 s on one test machine,
+//! 2026-11-05). Shoebox starts one export per batch, so a Windows user whose
+//! editor runs on DirectX 12 - or on OpenGL after a crash fallback - paid it
+//! for every batch. Vulkan and Metal hand their shaders to the driver, which
+//! keeps its own cache. The pictures are the same within the look bar on
+//! every backend (mods/export_at_size.rs). The editor's setting is not
+//! touched, and a computer with none of the first ones still gets OpenGL.
 //!
 //! `WGPU_BACKEND`, when set from outside, still decides.
 
@@ -16,8 +19,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static HEADLESS: AtomicBool = AtomicBool::new(false);
 
 /// The order a headless export tries the backends in.
-const ORDER: [wgpu::Backends; 3] = [
+const ORDER: [wgpu::Backends; 4] = [
     wgpu::Backends::VULKAN,
+    wgpu::Backends::METAL,
     wgpu::Backends::DX12,
     wgpu::Backends::GL,
 ];
