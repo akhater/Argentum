@@ -40,6 +40,7 @@ use crate::mask_generation::{MaskDefinition, build_warped_image_for_masks, gener
 use crate::as_shot::as_shot;
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
 use crate::mods::{
+    export_at_size,
     export_metadata::write_export_metadata,
     export_precision::{
         Precision, TiffDepth, encode_tiff, overlay_preserving_precision, render_for_estimate,
@@ -123,6 +124,11 @@ pub struct ExportSettings {
     pub subfolder: Option<String>,
     #[serde(default)]
     pub dpi: Option<u16>,
+    /// Develop the photo at the size it is written rather than at full size
+    /// and then shrink it (mods/export_at_size.rs). The headless export's
+    /// previews only; the export dialog keeps the full-size render.
+    #[serde(skip)]
+    pub develop_at_output_size: bool,
 }
 
 #[derive(Clone)]
@@ -916,10 +922,33 @@ fn process_image_for_export_pipeline(
     debug_tag: &str,
     app_handle: &tauri::AppHandle,
     precision: Precision,
+    export_settings: &ExportSettings,
 ) -> Result<DynamicImage, String> {
     let (transformed_image, unscaled_crop_offset) =
         apply_all_transformations(Cow::Borrowed(base_image), js_adjustments);
+    // The size the photo is written at, as the full-size export's resize makes it.
+    let (full_w, full_h) = transformed_image.dimensions();
+    let written = export_at_size::fit_within(
+        (full_w, full_h),
+        export_photo_size(full_w, full_h, export_settings),
+    );
+    let (transformed_image, px_scale) = if export_settings.develop_at_output_size {
+        export_at_size::shrink_to(transformed_image, export_at_size::develop_size(written))
+    } else {
+        (transformed_image, 1.0)
+    };
+    let crop_offset = (
+        unscaled_crop_offset.0 * px_scale,
+        unscaled_crop_offset.1 * px_scale,
+    );
     let (img_w, img_h) = transformed_image.dimensions();
+    if export_settings.develop_at_output_size {
+        // One processor for the batch, landscape or portrait: the most any of
+        // its photos, all written at this long edge, is developed at.
+        let (develop_w, develop_h) = export_at_size::develop_size(written);
+        let long_edge = develop_w.max(develop_h).max(img_w).max(img_h);
+        crate::gpu_processing::reserve_processor(context, state, long_edge, long_edge)?;
+    }
 
     let mask_definitions: Vec<MaskDefinition> = js_adjustments
         .get("masks")
@@ -935,8 +964,8 @@ fn process_image_for_export_pipeline(
                 def,
                 img_w,
                 img_h,
-                1.0,
-                unscaled_crop_offset,
+                px_scale,
+                crop_offset,
                 warped_image.as_deref(),
             )
         })
@@ -958,15 +987,31 @@ fn process_image_for_export_pipeline(
         roi: None,
     };
 
-    render_for_export(
-        context,
-        state,
-        transformed_image.as_ref(),
-        unique_hash,
-        request,
-        debug_tag,
-        precision,
-    )
+    let developed = crate::mods::input_stage::at_export_scale(px_scale, || {
+        render_for_export(
+            context,
+            state,
+            transformed_image.as_ref(),
+            unique_hash,
+            request,
+            debug_tag,
+            precision,
+        )
+    })?;
+    Ok(if export_settings.develop_at_output_size {
+        export_at_size::lanczos3_to(developed, written)
+    } else {
+        developed
+    })
+}
+
+/// The size the photo itself is written at. With a border or pad the photo is
+/// placed on a canvas at its own size: that render stays full size.
+fn export_photo_size(src_w: u32, src_h: u32, settings: &ExportSettings) -> (u32, u32) {
+    match compute_export_geometry(src_w, src_h, settings) {
+        Some(_) => (src_w, src_h),
+        None => resize_target(src_w, src_h, settings.resize.as_ref()),
+    }
 }
 
 fn set_timestamps_from_exif(src: &Path, dst: &Path) {
@@ -1042,6 +1087,7 @@ fn process_image_for_export(
         "process_image_for_export",
         app_handle,
         precision,
+        export_settings,
     )?;
 
     apply_export_geometry_and_watermark(processed_image, export_settings).map(|(image, _)| image)
@@ -1375,7 +1421,8 @@ pub(crate) async fn export_images_impl(
     adjustments_mode: ExportAdjustmentsMode,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
-    completion_tx: Option<tokio::sync::oneshot::Sender<Vec<ExportOutcome>>>,
+    // Each photo's outcome as soon as it is written; closed when the export ends.
+    outcome_tx: Option<tokio::sync::mpsc::UnboundedSender<ExportOutcome>>,
 ) -> Result<(), String> {
     let cancellation_token = register_export_task(&state.export_task_token)?;
     let task_guard = ExportTaskGuard::with_app_handle(
@@ -1411,12 +1458,19 @@ pub(crate) async fn export_images_impl(
     sys.refresh_memory();
 
     let available_ram_gb = sys.available_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
-    let ram_based_limit = (available_ram_gb / 4.0).floor() as usize;
+    // Argentum: a photo developed at output size takes less memory, and past
+    // two at once only the first photo waits longer (mods/export_at_size.rs).
+    let (gb_per_photo, most_at_once) = if export_settings.develop_at_output_size {
+        (export_at_size::GB_PER_PHOTO, export_at_size::MOST_AT_ONCE)
+    } else {
+        (4.0, 4)
+    };
+    let ram_based_limit = (available_ram_gb / gb_per_photo).floor() as usize;
 
     let num_threads = if paths.len() == 1 {
         1
     } else {
-        available_cores.min(ram_based_limit).clamp(1, 4)
+        available_cores.min(ram_based_limit).clamp(1, most_at_once)
     };
 
     log::info!(
@@ -1490,8 +1544,12 @@ pub(crate) async fn export_images_impl(
             let adjustments_mode = adjustments_mode.clone();
             let used_paths_clone = Arc::clone(&used_paths);
             let asked_path = image_path_str.clone();
+            let outcome_tx = outcome_tx.clone();
 
             let handle = tokio::task::spawn_blocking(move || {
+                let asked_as = image_path_str.clone();
+                // The photo's whole export, as one result to send on (below).
+                let output = (move || {
                 ensure_export_not_cancelled(&cancellation_token_clone)?;
 
                 let state = app_handle_clone.state::<AppState>();
@@ -1644,6 +1702,7 @@ pub(crate) async fn export_images_impl(
                         return Ok(());
                     }
 
+                    let started = std::time::Instant::now();
                     let loaded_image = if is_current_edit {
                         state
                             .original_image
@@ -1688,6 +1747,7 @@ pub(crate) async fn export_images_impl(
                         }
                     };
                     ensure_export_not_cancelled(&cancellation_token_clone)?;
+                    let decoded = started.elapsed();
 
                     let mut main_export_adjustments = js_adjustments.clone();
                     if export_settings.export_masks
@@ -1708,6 +1768,7 @@ pub(crate) async fn export_images_impl(
                         Precision::for_path(&output_path),
                     )?;
                     ensure_export_not_cancelled(&cancellation_token_clone)?;
+                    let developed = started.elapsed();
                     save_image_with_metadata(
                         &final_image,
                         &output_path,
@@ -1715,6 +1776,13 @@ pub(crate) async fn export_images_impl(
                         &export_xmp,
                         &export_settings,
                     )?;
+                    log::info!(
+                        "[export] {}: decode {} ms, develop {} ms, encode and write {} ms",
+                        output_path.display(),
+                        decoded.as_millis(),
+                        (developed - decoded).as_millis(),
+                        (started.elapsed() - developed).as_millis(),
+                    );
                     ensure_export_not_cancelled(&cancellation_token_clone)?;
 
                     if export_settings.preserve_timestamps {
@@ -1760,6 +1828,15 @@ pub(crate) async fn export_images_impl(
                 } else {
                     result.map(|()| output_path)
                 }
+                })();
+                // Each photo told the moment it is written, not when the batch ends.
+                if let Some(tx) = &outcome_tx {
+                    let _ = tx.send(ExportOutcome {
+                        path: asked_as,
+                        output: output.clone(),
+                    });
+                }
+                output
             });
 
             join_handles.push((asked_path, handle));
@@ -1767,9 +1844,19 @@ pub(crate) async fn export_images_impl(
 
         let mut outcomes = Vec::new();
         for (path, handle) in join_handles {
-            let output = handle
-                .await
-                .unwrap_or_else(|e| Err(format!("Thread crashed: {}", e)));
+            let output = match handle.await {
+                Ok(output) => output,
+                Err(e) => {
+                    let crashed = Err(format!("Thread crashed: {}", e));
+                    if let Some(tx) = &outcome_tx {
+                        let _ = tx.send(ExportOutcome {
+                            path: path.clone(),
+                            output: crashed.clone(),
+                        });
+                    }
+                    crashed
+                }
+            };
             outcomes.push(ExportOutcome { path, output });
         }
 
@@ -1819,10 +1906,8 @@ pub(crate) async fn export_images_impl(
         if !finalized {
             log::warn!("Ignoring terminal events from a stale export task");
         }
-
-        if let Some(tx) = completion_tx {
-            let _ = tx.send(outcomes);
-        }
+        // Dropping the sender here closes the channel: the export is over.
+        drop(outcome_tx);
     });
 
     Ok(())
@@ -2004,6 +2089,7 @@ pub async fn run_headless_export(
         destination_type: None,
         subfolder: None,
         dpi: None,
+        develop_at_output_size: true,
     };
 
     let mut custom_adjustments = None;
@@ -2019,7 +2105,7 @@ pub async fn run_headless_export(
         );
     }
 
-    let (tx, rx) = tokio::sync::oneshot::channel();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
     let mode = if let Some(adj) = custom_adjustments {
         ExportAdjustmentsMode::GlobalOverride(adj)
@@ -2036,6 +2122,7 @@ pub async fn run_headless_export(
         None => vec![session.source],
     };
 
+    let exporting = paths.len();
     export_images_impl(
         paths,
         session.output,
@@ -2050,12 +2137,15 @@ pub async fn run_headless_export(
     )
     .await?;
 
-    let outcomes = rx
-        .await
-        .map_err(|_| "Export task panicked or was cancelled.".to_string())?;
-    for outcome in &outcomes {
+    // One line per photo as it is written, so Shoebox can show it at once.
+    let mut reported = 0;
+    while let Some(outcome) = rx.recv().await {
         cli_println!("{}", headless_result_line(&outcome.path, &outcome.output));
         failed += usize::from(outcome.output.is_err());
+        reported += 1;
+    }
+    if reported < exporting {
+        return Err("Export task panicked or was cancelled.".to_string());
     }
     if failed > 0 {
         return Err(format!("{} of {} exports failed.", failed, asked));

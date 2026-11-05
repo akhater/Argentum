@@ -214,10 +214,21 @@ pub fn get_or_init_gpu_context(
 
     state.gpu_setup_mark.begin();
 
-    let instance = wgpu::Instance::new(instance_desc);
+    // Argentum: a headless export picks its own backend (mods/headless_gpu.rs)
+    let headless = if crate::mods::headless_gpu::picks_its_own() {
+        crate::mods::headless_gpu::first_adapter()
+    } else {
+        None
+    };
+    let instance = match &headless {
+        Some((instance, _)) => instance.clone(),
+        None => wgpu::Instance::new(instance_desc),
+    };
 
     #[cfg(not(target_os = "linux"))]
-    let surface_opt = {
+    let surface_opt = if headless.is_some() {
+        None
+    } else {
         let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
         let use_wgpu_renderer = settings.use_wgpu_renderer.unwrap_or(true);
 
@@ -245,15 +256,18 @@ pub fn get_or_init_gpu_context(
     #[cfg(target_os = "linux")]
     let surface_opt: Option<wgpu::Surface> = None;
 
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::HighPerformance,
-        compatible_surface: surface_opt.as_ref(),
-        ..Default::default()
-    }))
-    .map_err(|e| {
-        state.gpu_setup_mark.clear();
-        format!("Failed to find a wgpu adapter: {}", e)
-    })?;
+    let adapter = match headless {
+        Some((_, adapter)) => adapter,
+        None => pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: surface_opt.as_ref(),
+            ..Default::default()
+        }))
+        .map_err(|e| {
+            state.gpu_setup_mark.clear();
+            format!("Failed to find a wgpu adapter: {}", e)
+        })?,
+    };
 
     // Argentum: from RapidRAW 1f1b1ae0, src-tauri/src/gpu_processing.rs - which backend draws
     let adapter_info = adapter.get_info();
@@ -2467,6 +2481,71 @@ pub fn process_and_get_dynamic_image_with_analytics(
     )
 }
 
+fn lock_processor<'a>(
+    state: &'a tauri::State<'_, AppState>,
+) -> std::sync::MutexGuard<'a, Option<crate::GpuProcessorState>> {
+    match state.gpu_processor.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            log::warn!("GPU processor lock was poisoned. Resetting to self-heal.");
+            let mut guard = poisoned.into_inner();
+            *guard = None;
+            guard
+        }
+    }
+}
+
+/// Keep the processor, or build a bigger one when it cannot hold `width`x`height`.
+fn ensure_processor_fits(
+    slot: &mut Option<crate::GpuProcessorState>,
+    context: &GpuContext,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    if slot
+        .as_ref()
+        .is_some_and(|p| p.width >= width && p.height >= height)
+    {
+        return Ok(());
+    }
+    let new_width = (width + 255) & !255;
+    let new_height = (height + 255) & !255;
+    log::info!(
+        "Creating new GPU Processor for dimensions up to {}x{}",
+        new_width,
+        new_height
+    );
+
+    let old_processor = slot.take();
+    drop(old_processor);
+
+    let _ = context.device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: Some(std::time::Duration::from_millis(500)),
+    });
+
+    let new_processor = GpuProcessor::new(context.clone(), new_width, new_height)?;
+
+    *slot = Some(crate::GpuProcessorState {
+        processor: new_processor,
+        width: new_width,
+        height: new_height,
+    });
+    Ok(())
+}
+
+/// Make the kept processor hold `width`x`height` now, so a batch whose photos
+/// turn between landscape and portrait builds it once (Argentum: the headless
+/// export reserves its long edge squared).
+pub fn reserve_processor(
+    context: &GpuContext,
+    state: &tauri::State<AppState>,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    ensure_processor_fits(&mut lock_processor(state), context, width, height)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn process_and_get_dynamic_image_inner(
     context: &GpuContext,
@@ -2494,50 +2573,8 @@ fn process_and_get_dynamic_image_inner(
         return Ok(base_image.clone());
     }
 
-    let mut processor_lock = match state.gpu_processor.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            log::warn!("GPU processor lock was poisoned. Resetting to self-heal.");
-            let mut guard = poisoned.into_inner();
-            *guard = None;
-            guard
-        }
-    };
-    let mut needs_new_processor = false;
-    let new_width = (width + 255) & !255;
-    let new_height = (height + 255) & !255;
-
-    if let Some(p) = processor_lock.as_ref() {
-        if p.width < width || p.height < height {
-            needs_new_processor = true;
-        }
-    } else {
-        needs_new_processor = true;
-    }
-
-    if needs_new_processor {
-        log::info!(
-            "Creating new GPU Processor for dimensions up to {}x{}",
-            new_width,
-            new_height
-        );
-
-        let old_processor = processor_lock.take();
-        drop(old_processor);
-
-        let _ = context.device.poll(wgpu::PollType::Wait {
-            submission_index: None,
-            timeout: Some(std::time::Duration::from_millis(500)),
-        });
-
-        let new_processor = GpuProcessor::new(context.clone(), new_width, new_height)?;
-
-        *processor_lock = Some(crate::GpuProcessorState {
-            processor: new_processor,
-            width: new_width,
-            height: new_height,
-        });
-    }
+    let mut processor_lock = lock_processor(state);
+    ensure_processor_fits(&mut processor_lock, context, width, height)?;
 
     let processor_state = processor_lock.as_ref().unwrap();
     let processor = &processor_state.processor;
