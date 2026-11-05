@@ -1670,6 +1670,11 @@ fn write_exif_metadata(
         metadata.set_tag(ExifTag::ExifImageHeight(vec![height]));
     }
 
+    // Argentum: a JPEG's EXIF has to fit one segment (mods/jpeg_exif_fit.rs).
+    if matches!(file_type, FileExtension::JPEG) {
+        crate::mods::jpeg_exif_fit::fit_for_jpeg(&mut metadata, original_path_str);
+    }
+
     if let Err(e) = metadata.write_to_vec(image_bytes, file_type) {
         log::warn!("Failed to write metadata: {}", e);
     }
