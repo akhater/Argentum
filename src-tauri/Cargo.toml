@@ -33,7 +33,7 @@ pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 anyhow = "1.0.104"
 kamadak-exif = "0.6.1"
-rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "734763ba431111d0cfaa01b02152a5b6e7b834d3" }
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "dc8b144ace0de9b519ce2812f505028684be6fa6" }
 # The camera's autofocus points, read from the maker note (MIT, Shoebox's; mods/focus_points.rs).
 focus-points = { git = "https://github.com/akhater/shoebox", rev = "580c5a6ddb4274d3209b397d779271a9ba072807" }
 tokio = { version = "1", features = ["full"] }

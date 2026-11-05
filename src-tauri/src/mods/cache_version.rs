@@ -70,7 +70,10 @@ use std::path::{Path, PathBuf};
 ///     RAWmakase 4d3f6f8c: `crates/rawmakase-decode/src/demosaic.rs`).
 /// 12. Edits saved before 10 take the camera colour the DNG way too
 ///     (`mods/dng_colour.rs`).
-pub const PIPELINE: u32 = 13;
+/// 13. Linear DNGs with a black level for each sample of a repeating pattern,
+///     such as phone DNGs, are scaled to their white level instead of coming
+///     out white (rawler fork, following dnglab 0f645aa6).
+pub const PIPELINE: u32 = 14;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";
