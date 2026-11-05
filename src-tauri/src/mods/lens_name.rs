@@ -314,22 +314,14 @@ mod tests {
     #[test]
     #[ignore = "reads the folder named by AG_LENS_DIR"]
     fn every_file_in_a_folder() {
-        use crate::lens_correction::{LensDatabase, find_best_lens_match};
+        use crate::lens_correction::{find_best_lens_match, read_lensfun_dir};
 
         let dir = std::env::var("AG_LENS_DIR").expect("set AG_LENS_DIR to a folder of photos");
 
-        let mut db = LensDatabase {
-            cameras: Vec::new(),
-            lenses: Vec::new(),
-        };
-        let lensfun = concat!(env!("CARGO_MANIFEST_DIR"), "/lensfun_db");
-        for entry in std::fs::read_dir(lensfun).expect("lensfun_db").flatten() {
-            let xml = std::fs::read_to_string(entry.path()).unwrap_or_default();
-            if let Ok(mut part) = quick_xml::de::from_str::<LensDatabase>(&xml) {
-                db.cameras.append(&mut part.cameras);
-                db.lenses.append(&mut part.lenses);
-            }
-        }
+        let db = read_lensfun_dir(std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/lensfun_db"
+        )));
 
         let (mut found, mut missing) = (0, 0);
         for entry in std::fs::read_dir(&dir).expect("read folder").flatten() {
