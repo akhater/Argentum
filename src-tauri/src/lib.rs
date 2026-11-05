@@ -2010,7 +2010,9 @@ pub fn run() {
             }
 
             unsafe {
-                if gpu_backend != "auto" {
+                if is_headless {
+                    mods::headless_gpu::mark_headless(); // Argentum: picks its own backend
+                } else if gpu_backend != "auto" {
                     std::env::set_var("WGPU_BACKEND", &gpu_backend);
                 }
 

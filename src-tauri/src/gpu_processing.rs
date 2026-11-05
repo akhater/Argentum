@@ -211,20 +211,24 @@ pub fn get_or_init_gpu_context(
     if std::env::var("WGPU_BACKEND").is_err() {
         instance_desc.backends = wgpu::Backends::PRIMARY;
     }
-    #[cfg(target_os = "windows")]
-    if let Ok(resources) = app_handle
-        .path()
-        .resolve("resources", tauri::path::BaseDirectory::Resource)
-    {
-        crate::mods::dx12_compiler::choose(&mut instance_desc, &resources); // Argentum: DXC when the app ships it
-    }
 
     state.gpu_setup_mark.begin();
 
-    let instance = wgpu::Instance::new(instance_desc);
+    // Argentum: a headless export picks its own backend (mods/headless_gpu.rs)
+    let headless = if crate::mods::headless_gpu::picks_its_own() {
+        crate::mods::headless_gpu::first_adapter()
+    } else {
+        None
+    };
+    let instance = match &headless {
+        Some((instance, _)) => instance.clone(),
+        None => wgpu::Instance::new(instance_desc),
+    };
 
     #[cfg(not(target_os = "linux"))]
-    let surface_opt = {
+    let surface_opt = if headless.is_some() {
+        None
+    } else {
         let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
         let use_wgpu_renderer = settings.use_wgpu_renderer.unwrap_or(true);
 
@@ -252,15 +256,18 @@ pub fn get_or_init_gpu_context(
     #[cfg(target_os = "linux")]
     let surface_opt: Option<wgpu::Surface> = None;
 
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::HighPerformance,
-        compatible_surface: surface_opt.as_ref(),
-        ..Default::default()
-    }))
-    .map_err(|e| {
-        state.gpu_setup_mark.clear();
-        format!("Failed to find a wgpu adapter: {}", e)
-    })?;
+    let adapter = match headless {
+        Some((_, adapter)) => adapter,
+        None => pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: surface_opt.as_ref(),
+            ..Default::default()
+        }))
+        .map_err(|e| {
+            state.gpu_setup_mark.clear();
+            format!("Failed to find a wgpu adapter: {}", e)
+        })?,
+    };
 
     // Argentum: from RapidRAW 1f1b1ae0, src-tauri/src/gpu_processing.rs - which backend draws
     let adapter_info = adapter.get_info();
