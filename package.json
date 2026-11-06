@@ -10,7 +10,7 @@
     "check:sources": "node scripts/check-sources.mjs",
     "check:wiring": "node scripts/check-wiring.mjs",
     "check:ui": "node scripts/ui-walk/check-ui.mjs",
-    "test:checks": "node scripts/test-check-sources.mjs && node scripts/test-check-wiring.mjs && node scripts/test-rawmakase-cameras.mjs && node scripts/test-rawmakase-gray-chart.mjs && node scripts/test-rawmakase-grade-curves.mjs && node scripts/test-rawmakase-lens-baselines.mjs && node scripts/test-rawmakase-camera-names.mjs && node scripts/ui-walk/test-ui-walk.mjs && node scripts/test-release-downloads.mjs && node scripts/test-changelog.mjs && node scripts/test-installer-size.mjs",
+    "test:checks": "node scripts/test-check-sources.mjs && node scripts/test-check-wiring.mjs && node scripts/test-rawmakase-cameras.mjs && node scripts/test-rawmakase-gray-chart.mjs && node scripts/test-rawmakase-grade-curves.mjs && node scripts/test-rawmakase-lens-baselines.mjs && node scripts/test-rawmakase-camera-names.mjs && node scripts/test-rawtherapee-profiles.mjs && node scripts/ui-walk/test-ui-walk.mjs && node scripts/test-release-downloads.mjs && node scripts/test-changelog.mjs && node scripts/test-installer-size.mjs",
     "test:shell": "vitest run src/shell",
     "test:frontend": "vitest run",
     "check:frontend": "node scripts/check-frontend.mjs",

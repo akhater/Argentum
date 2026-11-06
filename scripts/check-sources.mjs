@@ -12,7 +12,9 @@
 //     once a real test covers its feature;
 //   * warns when RapidRAW has released past the version the last harvest
 //     review read (the CHANGELOG's "read up to" line): a review is due;
-//   * warns when RAWmakase has released past a table generated from it (DEC-34);
+//   * warns when RAWmakase has released past a table generated from it (DEC-34),
+//     and when RawTherapee changes the camera profiles after the commit
+//     src-tauri/src/mods/rt_profiles.tsv names;
 //   * warns when FlashRaw has released past the version the engine pins: a new
 //     version is measured against rawler's image before the pin moves;
 //   * warns when Shoebox's main pins a different rawler commit: the two apps
@@ -33,6 +35,7 @@ import { chartWarning } from './rawmakase-gray-chart.mjs';
 import { curvesWarning } from './rawmakase-grade-curves.mjs';
 import { lensWarning } from './rawmakase-lens-baselines.mjs';
 import { namesWarning } from './rawmakase-camera-names.mjs';
+import { profilesWarning } from './rawtherapee-profiles.mjs';
 
 export const RAPIDRAW = 'https://github.com/CyberTimon/RapidRAW';
 export const FLASHRAW = 'https://github.com/ybouane/flashraw';
@@ -215,6 +218,7 @@ async function main() {
       curvesWarning(root).catch((error) => `colour grading curves not checked against RAWmakase: ${error.message}`),
       lensWarning(root).catch((error) => `lens baselines not checked against RAWmakase: ${error.message}`),
       namesWarning(root).catch((error) => `camera names not checked against RAWmakase: ${error.message}`),
+      profilesWarning(root).catch((error) => `camera profiles not checked against RawTherapee: ${error.message}`),
       flashrawWarning(root),
       rawlerWarning(root),
     ])

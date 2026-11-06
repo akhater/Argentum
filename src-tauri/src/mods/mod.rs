@@ -95,6 +95,7 @@ pub mod redecode;
 #[cfg(test)]
 mod render_check;
 pub mod restore;
+pub mod rt_profiles;
 pub mod salvage;
 pub mod selection;
 pub mod selection_models;
