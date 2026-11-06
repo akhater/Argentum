@@ -19,28 +19,25 @@
 //! using it did not ask for and cannot see, and "it was convenient" is not a
 //! good enough reason.
 //!
+//! WHAT IS OFFERED, AND WHAT IS DOWNLOADED
+//!
+//! Which profiles exist comes from the table built into the app
+//! (`rt_profiles.tsv`, mods/rt_profiles.rs): RawTherapee's profiles at one
+//! commit, with each file's size and git blob hash, and the other names of each
+//! body. Asking GitHub's API for the folder at click time failed for whole
+//! offices and campuses once its 60 calls an hour per address ran out.
+//!
+//! The file is downloaded from that commit, not from whatever the folder holds
+//! today, and is refused unless its size and hash are the ones listed. A
+//! profile RawTherapee adds later appears when the table is regenerated;
+//! `npm run check:sources` says when it is due.
+//!
 //! IF IT BREAKS
 //!
-//! It depends on a directory listing in someone else's repository, which they
-//! are free to rearrange. Every failure here is soft: the button reports that it
+//! Every failure here is soft: the button reports what went wrong or that it
 //! found nothing, and importing a file by hand still works exactly as before.
 
-use std::sync::Mutex;
-
-use super::profiles;
-
-/// RawTherapee's published profiles.
-///
-/// The canonical path, not the old `Beep6581/RawTherapee` one: that repository
-/// was renamed and now answers with a redirect. It happens to work because
-/// reqwest follows redirects, which is a thing to depend on by accident rather
-/// than on purpose.
-///
-/// One profile per camera, as of 161 files listed — so there is nothing to
-/// choose between here, and "Find one" means what it says. Several profiles for
-/// one body come from importing them.
-const LISTING: &str =
-    "https://api.github.com/repos/RawTherapee/RawTherapee/contents/rtdata/dcpprofiles?per_page=200";
+use super::{profiles, rt_profiles};
 
 /// GitHub refuses requests without one.
 const AGENT: &str = "Argentum";
@@ -51,19 +48,6 @@ pub struct Found {
     pub file: String,
     pub url: String,
 }
-
-#[derive(serde::Deserialize)]
-struct Item {
-    name: String,
-    download_url: Option<String>,
-}
-
-/// The listing, kept for the session.
-///
-/// It is a few hundred entries and does not change hour to hour; fetching it
-/// once per camera the user asks about would be rude to a service that is doing
-/// us a favour.
-static CACHE: Mutex<Option<Vec<Item>>> = Mutex::new(None);
 
 /// What actually went wrong, not just where.
 ///
@@ -154,70 +138,49 @@ async fn get(url: &str, seconds: u64) -> Result<reqwest::Response, String> {
         .map_err(|_| why(&e))
 }
 
-async fn listing() -> Result<Vec<Item>, String> {
-    if let Ok(guard) = CACHE.lock()
-        && let Some(items) = guard.as_ref()
-    {
-        return Ok(items
-            .iter()
-            .map(|i| Item {
-                name: i.name.clone(),
-                download_url: i.download_url.clone(),
-            })
-            .collect());
-    }
-
-    let items: Vec<Item> = get(LISTING, 20)
-        .await
-        .map_err(|e| format!("could not reach RawTherapee's profile list — {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("could not read the profile list — {}", why(&e)))?;
-
-    if let Ok(mut guard) = CACHE.lock() {
-        *guard = Some(
-            items
-                .iter()
-                .map(|i| Item {
-                    name: i.name.clone(),
-                    download_url: i.download_url.clone(),
-                })
-                .collect(),
-        );
-    }
-    Ok(items)
-}
-
 /// Is there a profile published for this body?
 ///
-/// Matched with the same rule the library uses, on the file's stem, so a
-/// near-miss like EOS 7D against EOS 7D Mark II cannot be offered.
+/// Matched with the same rule the library uses (`profiles::matches`, its other
+/// names included), on the file's stem, so a near-miss like EOS 7D against
+/// EOS 7D Mark II cannot be offered. Nothing is asked of the network.
 pub async fn search(make: &str, model: &str) -> Result<Option<Found>, String> {
-    let items = listing().await?;
-    Ok(items.into_iter().find_map(|item| {
-        let stem = item.name.strip_suffix(".dcp")?;
-        profiles::matches(stem, make, model).then(|| Found {
-            file: item.name.clone(),
-            url: item.download_url.clone().unwrap_or_default(),
-        })
-    }))
+    Ok(rt_profiles::all()
+        .iter()
+        .find(|p| profiles::matches(p.body(), make, model))
+        .map(|p| Found {
+            file: p.file.to_string(),
+            url: rt_profiles::url(p.file),
+        }))
 }
 
 /// Download one and put it in the library.
+///
+/// Only a profile the table lists, from its commit, and only its exact bytes.
 pub async fn fetch_into(library: &std::path::Path, found: &Found) -> Result<(), String> {
-    if found.url.is_empty() {
-        return Err("that profile has no download link".to_string());
-    }
+    let Some(published) = rt_profiles::all().iter().find(|p| p.file == found.file) else {
+        return Err(format!(
+            "{} is not a profile RawTherapee published",
+            found.file
+        ));
+    };
 
-    let bytes = get(&found.url, 60)
+    let bytes = get(&rt_profiles::url(published.file), 60)
         .await
         .map_err(|e| format!("download failed — {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("download failed — {}", why(&e)))?
         .bytes()
         .await
         .map_err(|e| format!("download failed — {}", why(&e)))?;
 
-    // Parsed before it is written, so a truncated or moved file is refused
-    // rather than sitting in the library looking installed.
+    // Checked before anything is written, so a truncated, moved or changed file
+    // is refused rather than sitting in the library looking installed.
+    if !rt_profiles::is_published(published, &bytes) {
+        return Err(format!(
+            "the file downloaded is not the {} RawTherapee published",
+            published.file
+        ));
+    }
     super::dcp::parse(&bytes).map_err(|e| format!("what came back is not a profile: {e}"))?;
 
     std::fs::create_dir_all(library).map_err(|e| e.to_string())?;
@@ -300,44 +263,74 @@ mod tests {
         assert_eq!(why(&Same(Some(Box::new(Same(None))))), "dns error");
     }
 
-    /// A malformed entry must be refused before any network call.
+    /// A file the table does not list must be refused before any network call.
     #[tokio::test]
-    async fn a_download_without_a_link_is_refused() {
+    async fn a_file_not_published_is_refused() {
         let found = Found {
             file: "x.dcp".into(),
-            url: String::new(),
+            url: "https://example.com/x.dcp".into(),
         };
         let err = fetch_into(std::path::Path::new("."), &found)
             .await
             .unwrap_err();
-        assert!(err.contains("no download link"), "{err}");
+        assert!(err.contains("not a profile RawTherapee published"), "{err}");
+    }
+
+    /// Against the real file names, because the matching has been wrong twice in
+    /// a way no other test caught: both times the profile existed and the
+    /// comparison could not see it.
+    #[tokio::test]
+    async fn it_finds_the_profile_for_a_real_camera() {
+        let found = search("Canon", "EOS 5D Mark II").await.unwrap();
+        assert_eq!(
+            found.map(|f| f.file).as_deref(),
+            Some("Canon EOS 5D Mark II.dcp")
+        );
+        // The state a gear list written before the maker was recorded is in.
+        let blind = search("", "EOS 5D Mark II").await.unwrap();
+        assert_eq!(
+            blind.map(|f| f.file).as_deref(),
+            Some("Canon EOS 5D Mark II.dcp")
+        );
+    }
+
+    /// Another name of a body finds its profile; a newer body with an older
+    /// one's name in it does not.
+    #[tokio::test]
+    async fn other_names_find_their_body_s_profile_and_nothing_else() {
+        let file = |make: &'static str, model: &'static str| async move {
+            search(make, model).await.unwrap().map(|f| f.file)
+        };
+        assert_eq!(
+            file("Canon", "EOS Kiss X7").await.as_deref(),
+            Some("Canon EOS 100D.dcp")
+        );
+        assert_eq!(
+            file("Canon", "EOS REBEL SL1").await.as_deref(),
+            Some("Canon EOS 100D.dcp")
+        );
+        assert_eq!(
+            file("NIKON CORPORATION", "NIKON D800").await.as_deref(),
+            Some("NIKON D800.dcp")
+        );
+        assert_eq!(
+            file("Canon", "EOS R6").await.as_deref(),
+            Some("Canon EOS R6.dcp")
+        );
+        assert_eq!(file("Canon", "EOS R6 Mark III").await, None);
+    }
+
+    /// The URL is the pinned commit's, whatever the caller held.
+    #[tokio::test]
+    async fn the_download_is_from_the_pinned_commit() {
+        let found = search("Canon", "EOS 5D Mark II").await.unwrap().unwrap();
+        assert!(found.url.contains(rt_profiles::commit()), "{}", found.url);
     }
 }
 
 #[cfg(test)]
 mod live_tests {
     use super::*;
-
-    /// Against the real listing, because the matching has now been wrong twice
-    /// in a way no offline test caught: both times the profile existed and the
-    /// comparison could not see it. Only the actual filenames prove otherwise.
-    #[tokio::test]
-    #[ignore = "reaches the network; run by hand"]
-    async fn it_finds_the_profile_for_a_real_camera() {
-        let found = search("Canon", "EOS 5D Mark II")
-            .await
-            .expect("the listing should load");
-        println!("with maker: {found:?}");
-        assert!(found.is_some(), "no profile found with the maker known");
-
-        // The state a gear list written before the maker was recorded is in.
-        let blind = search("", "EOS 5D Mark II")
-            .await
-            .expect("the listing should load");
-        println!("without maker: {blind:?}");
-        assert!(blind.is_some(), "no profile found without the maker");
-        assert_eq!(blind.unwrap().file, "Canon EOS 5D Mark II.dcp");
-    }
 
     /// The whole path, not just the lookup: fetch it, parse it, and check the
     /// matrix is the shape a camera matrix should be. Downloading something

@@ -94,6 +94,23 @@ pub fn same_model(a: &str, b: &str) -> bool {
 /// are no more acceptable here than anywhere else: a profile for the wrong body
 /// renders worse than none and looks like nothing is wrong.
 pub fn matches(profile_camera: &str, make: &str, model: &str) -> bool {
+    if named_for(profile_camera, make, model) {
+        return true;
+    }
+
+    // The name Adobe profiles this body under, where it is not the decoder's.
+    if adobe_names(make, model).any(|name| same_model(profile_camera, &name)) {
+        return true;
+    }
+
+    // Another name of the profile's body, as RawTherapee gives it: a Kiss X7 or
+    // a Rebel SL1 takes the EOS 100D's profile (mods/rt_profiles.rs). A body
+    // with a profile of its own is never another body's other name there.
+    super::rt_profiles::other_names_of(profile_camera).any(|name| named_for(name, make, model))
+}
+
+/// Does the name `profile_camera` name this camera, with or without its maker?
+fn named_for(profile_camera: &str, make: &str, model: &str) -> bool {
     if same_model(profile_camera, model) {
         return true;
     }
@@ -121,12 +138,7 @@ pub fn matches(profile_camera: &str, make: &str, model: &str) -> bool {
         .skip(1)
         .collect::<Vec<_>>()
         .join(" ");
-    if !without_maker.is_empty() && same_model(&without_maker, model) {
-        return true;
-    }
-
-    // The name Adobe profiles this body under, where it is not the decoder's.
-    adobe_names(make, model).any(|name| same_model(profile_camera, &name))
+    !without_maker.is_empty() && same_model(&without_maker, model)
 }
 
 /// The names Adobe's profiles use for this camera where the decoder names it
