@@ -53,7 +53,7 @@ await test('one row per profile, with its other names, sorted by file name', () 
   ]);
 });
 
-await test('a name with a profile of its own is never another body\'s other name', () => {
+await test("a name with a profile of its own is never another body's other name", () => {
   const rows = tableRows(listing, aliases);
   assert.ok(!rows.some((r) => r.startsWith('NIKON D800E') && r.includes('NIKON D800\t')));
   assert.ok(!rows.join('\n').includes('Kiss X9'), 'an alias of a body with no profile');

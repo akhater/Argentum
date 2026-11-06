@@ -46,9 +46,7 @@ export function tableRows(listing, aliases) {
       if (!/^[0-9a-f]{40}$/.test(f.sha)) throw new Error(`${f.name}: no git hash`);
       if (/[\t;]/.test(f.name)) throw new Error(`${f.name}: a tab or ';' in a file name`);
       const stem = f.name.slice(0, -'.dcp'.length);
-      const other = (names.get(stem.toLowerCase()) ?? []).filter(
-        (n) => !/[\t;]/.test(n) && !own.has(n.toLowerCase()),
-      );
+      const other = (names.get(stem.toLowerCase()) ?? []).filter((n) => !/[\t;]/.test(n) && !own.has(n.toLowerCase()));
       return [f.name, f.size, f.sha, other.join(';')].join('\t');
     })
     .sort((a, b) => a.localeCompare(b, 'en'));
@@ -115,7 +113,8 @@ export async function profilesWarning(root) {
 }
 
 async function main(sha) {
-  if (!/^[0-9a-f]{40}$/.test(sha ?? '')) throw new Error('usage: node scripts/rawtherapee-profiles.mjs <full 40-character commit>');
+  if (!/^[0-9a-f]{40}$/.test(sha ?? ''))
+    throw new Error('usage: node scripts/rawtherapee-profiles.mjs <full 40-character commit>');
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const path = join(root, TABLE);
   const before = readFileSync(path, 'utf8');
