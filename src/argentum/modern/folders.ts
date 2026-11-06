@@ -21,6 +21,7 @@ import { create } from 'zustand';
 import { ag } from '../ag';
 import { forgetFolderCounts } from './folderCounts';
 import { rootContaining } from '../folderRoot';
+import { noLaterFolderRequest } from '../folderRequest';
 import { parentFolder } from '../photoStep';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
@@ -155,8 +156,11 @@ export function startModernLibrary(preloaded: { current: Preloaded | null }, sel
     const ahead = preloaded.current;
     let images: ImageFile[] | undefined;
     if (ahead?.currentPath === folder && ahead.images) {
+      // The window answers while this folder is listed: one opened meanwhile stays open.
+      const nothingOpenedSince = noLaterFolderRequest();
       images = await ahead.images.catch(() => undefined);
       ahead.images = undefined;
+      if (!nothingOpenedSince()) return;
     }
     const { initialFileToOpen, externalEditSession } = useProcessStore.getState();
     const keepEditor = !!(

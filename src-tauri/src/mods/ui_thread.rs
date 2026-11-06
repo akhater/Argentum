@@ -149,6 +149,24 @@ fn no_command_on_the_ui_thread_touches_a_render() {
     assert!(caught.is_empty(), "{caught:#?}");
 }
 
+/// The commands that list a folder's photos. A folder on a drive that stopped
+/// answering keeps them waiting, so they wait off the UI thread
+/// (`worker_thread.rs`).
+const LIST_A_FOLDER: [&str; 2] = ["list_images_in_dir", "list_images_recursive"];
+
+#[test]
+fn no_folder_is_listed_on_the_ui_thread() {
+    let mut caught = Vec::new();
+    for (path, source) in sources() {
+        for (name, _) in synchronous_commands(&source) {
+            if LIST_A_FOLDER.contains(&name) {
+                caught.push(format!("{} in {}", name, path.display()));
+            }
+        }
+    }
+    assert!(caught.is_empty(), "{caught:#?}");
+}
+
 /// What waits for the lock a new GPU context is made under. Making one asks the
 /// UI thread for the window twice over, so whoever makes it can hold that lock
 /// until the UI thread answers: a device lost mid-session is enough.
