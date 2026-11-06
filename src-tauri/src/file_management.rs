@@ -535,14 +535,33 @@ fn update_rotational_disk_flag(path: &str, app_handle: &AppHandle) {
     }
 }
 
+/// What [`images_in_dir`] does with a photo whose edit file is online-only:
+/// its metadata is read later, by the metadata queue.
+pub(crate) type EnqueueMetadata<'a> = &'a (dyn Fn(String, PathBuf, PathBuf) + Sync);
+
+/// The photos in the folder `path`. On a worker thread: a folder on a drive
+/// that stopped answering waits there, not on the UI thread.
 #[tauri::command]
-pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<ImageFile>, String> {
-    let settings = load_settings(app_handle.clone()).unwrap_or_default();
+pub async fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<ImageFile>, String> {
+    crate::mods::worker_thread::on_worker_thread(move || {
+        let settings = load_settings(app_handle.clone()).unwrap_or_default();
+        update_rotational_disk_flag(&path, &app_handle);
+        images_in_dir(&path, &settings, &|virtual_path, photo, sidecar| {
+            enqueue_metadata(&app_handle, virtual_path, photo, sidecar)
+        })
+    })
+    .await
+}
+
+/// [`list_images_in_dir`]'s listing, on the thread that calls it.
+pub(crate) fn images_in_dir(
+    path: &str,
+    settings: &AppSettings,
+    enqueue_metadata: EnqueueMetadata,
+) -> Result<Vec<ImageFile>, String> {
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
 
-    update_rotational_disk_flag(&path, &app_handle);
-
-    let entries = fs::read_dir(&path).map_err(|e| e.to_string())?;
+    let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     let mut images = Vec::new();
     let mut sidecars_by_filename: HashMap<String, Vec<Option<String>>> = HashMap::new();
 
@@ -603,7 +622,6 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                     || xmp_is_placeholder
                 {
                     enqueue_metadata(
-                        &app_handle,
                         virtual_path.clone(),
                         path_buf.clone(),
                         sidecar_path.clone(),
@@ -616,7 +634,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                         is_raw: crate::formats::is_raw_file(&path_buf),
                     }
                 } else {
-                    resolve_image_metadata(&path_buf, &sidecar_path, enable_xmp_sync, &settings)
+                    resolve_image_metadata(&path_buf, &sidecar_path, enable_xmp_sync, settings)
                 };
 
                 file_results.push(ImageFile {
@@ -642,15 +660,30 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
     Ok(result_list)
 }
 
+/// The photos in the folder `path` and every folder below it. On a worker
+/// thread, as [`list_images_in_dir`].
 #[tauri::command]
-pub fn list_images_recursive(
+pub async fn list_images_recursive(
     path: String,
     app_handle: AppHandle,
 ) -> Result<Vec<ImageFile>, String> {
-    let settings = load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
+    crate::mods::worker_thread::on_worker_thread(move || {
+        let settings = load_settings(app_handle.clone()).unwrap_or_default();
+        update_rotational_disk_flag(&path, &app_handle);
+        images_recursive(&path, &settings, &|virtual_path, photo, sidecar| {
+            enqueue_metadata(&app_handle, virtual_path, photo, sidecar)
+        })
+    })
+    .await
+}
 
-    update_rotational_disk_flag(&path, &app_handle);
+/// [`list_images_recursive`]'s listing, on the thread that calls it.
+pub(crate) fn images_recursive(
+    path: &str,
+    settings: &AppSettings,
+    enqueue_metadata: EnqueueMetadata,
+) -> Result<Vec<ImageFile>, String> {
+    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
 
     let root_path = Path::new(&path);
     let mut images = Vec::new();
@@ -719,7 +752,6 @@ pub fn list_images_recursive(
                     || xmp_is_placeholder
                 {
                     enqueue_metadata(
-                        &app_handle,
                         virtual_path.clone(),
                         path_buf.clone(),
                         sidecar_path.clone(),
@@ -732,7 +764,7 @@ pub fn list_images_recursive(
                         is_raw: crate::formats::is_raw_file(&path_buf),
                     }
                 } else {
-                    resolve_image_metadata(&path_buf, &sidecar_path, enable_xmp_sync, &settings)
+                    resolve_image_metadata(&path_buf, &sidecar_path, enable_xmp_sync, settings)
                 };
 
                 file_results.push(ImageFile {

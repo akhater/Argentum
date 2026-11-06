@@ -115,3 +115,4 @@ pub mod tif_raw;
 mod ui_thread;
 pub mod viewer_surface;
 pub mod wb_legacy;
+pub mod worker_thread;

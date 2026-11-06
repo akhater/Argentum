@@ -12,6 +12,8 @@ import { useLibraryStore } from '../../store/useLibraryStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { folderOfPhoto, openFromOutside, startModernLibrary } from './folders';
+import { newFolderRequest } from '../folderRequest';
+import type { ImageFile } from '../../components/ui/AppProperties';
 
 const openPhoto = vi.fn();
 const showFolder = vi.fn();
@@ -67,5 +69,35 @@ describe('a photo handed in from outside', () => {
     startModernLibrary({ current: null }, selectFolder);
     await vi.waitFor(() => expect(selectFolder).toHaveBeenCalled());
     expect(selectFolder).toHaveBeenCalledWith('C:\\Inbox\\Last', false, undefined, false, false);
+  });
+
+  /** The folder last open, listed while the app starts: the column waits on it. */
+  const readAhead = () => {
+    let answer: (files: ImageFile[]) => void = () => {};
+    const images = new Promise<ImageFile[]>((resolve) => (answer = resolve));
+    const waiting = vi.spyOn(images, 'catch');
+    return { answer: (files: ImageFile[]) => answer(files), waiting, images };
+  };
+
+  it('opens the folder last open with its photos read ahead', async () => {
+    const ahead = readAhead();
+    const selectFolder = vi.fn().mockResolvedValue(undefined);
+    startModernLibrary({ current: { currentPath: 'C:\\Inbox\\Last', images: ahead.images } }, selectFolder);
+    await vi.waitFor(() => expect(ahead.waiting).toHaveBeenCalled());
+    const files = [{ path: 'C:\\Inbox\\Last\\a.CR3' }] as ImageFile[];
+    ahead.answer(files);
+    await vi.waitFor(() => expect(selectFolder).toHaveBeenCalled());
+    expect(selectFolder).toHaveBeenCalledWith('C:\\Inbox\\Last', false, files, false, false);
+  });
+
+  it('keeps a folder opened while the one last open is still being listed', async () => {
+    const ahead = readAhead();
+    const selectFolder = vi.fn().mockResolvedValue(undefined);
+    startModernLibrary({ current: { currentPath: 'C:\\Inbox\\Last', images: ahead.images } }, selectFolder);
+    await vi.waitFor(() => expect(ahead.waiting).toHaveBeenCalled());
+    newFolderRequest(); // what opening another folder does
+    ahead.answer([]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(selectFolder).not.toHaveBeenCalled();
   });
 });

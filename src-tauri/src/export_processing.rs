@@ -2022,7 +2022,8 @@ pub async fn run_headless_export(
         let images = crate::file_management::list_images_recursive(
             session.source.clone(),
             app_handle.clone(),
-        )?;
+        )
+        .await?;
         (paths, skipped) = headless_folder_paths(images, session.edited_only);
     } else {
         paths.push(session.source.clone());

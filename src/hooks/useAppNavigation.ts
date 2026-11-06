@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { homeDir } from '@tauri-apps/api/path';
 import { rootContaining } from '../argentum/folderRoot';
+import { newFolderRequest, noLaterFolderRequest } from '../argentum/folderRequest';
 import { toast } from 'react-toastify';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useEditorStore } from '../store/useEditorStore';
@@ -36,6 +37,7 @@ const loadExifForImages = async (
   expectedFolderPath: string | null,
   sortKey: string,
   setLibrary: (updater: any) => void,
+  isLatest: () => boolean,
 ) => {
   const exifSortKeys = ['date_taken', 'iso', 'shutter_speed', 'aperture', 'focal_length'];
   const isExifSortActive = exifSortKeys.includes(sortKey);
@@ -61,6 +63,7 @@ const loadExifForImages = async (
       }
     }
 
+    if (!isLatest()) return;
     const finalImageList = files.map((image) => ({
       ...image,
       exif: combinedExifMap[image.path] || image.exif || null,
@@ -73,7 +76,7 @@ const loadExifForImages = async (
       const fetchExifInChunks = async () => {
         const chunkSize = 50;
         for (let i = 0; i < paths.length; i += chunkSize) {
-          if (useLibraryStore.getState().currentFolderPath !== expectedFolderPath) break;
+          if (useLibraryStore.getState().currentFolderPath !== expectedFolderPath || !isLatest()) break;
 
           const chunk = paths.slice(i, i + chunkSize);
           try {
@@ -346,6 +349,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       const { setProcess } = useProcessStore.getState();
       const { selectedImage, resetHistory, setEditor } = useEditorStore.getState();
       const libraryViewMode = appSettings?.libraryViewMode;
+      const isLatest = newFolderRequest();
 
       if (!skipHistory && path) {
         useLibraryStore.getState().pushNavHistory({ type: 'folder', path });
@@ -353,6 +357,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       if (!preserveEditor) {
         await invoke('cancel_thumbnail_generation');
+        if (!isLatest()) return;
         clearThumbnailQueue();
         setLibrary({ isViewLoading: true, activeAlbumId: null, libraryScrollTop: 0 });
         setProcess({ thumbnails: {} });
@@ -415,6 +420,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           files = preloadedImages;
         } else {
           files = await invoke(command, { path });
+          if (!isLatest()) return;
         }
 
         const initialRatings: Record<string, number> = {};
@@ -425,18 +431,18 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         });
         setLibrary({ imageRatings: initialRatings });
 
-        await loadExifForImages(files, path, sortCriteria.key, setLibrary);
+        await loadExifForImages(files, path, sortCriteria.key, setLibrary, isLatest);
 
-        if (!preserveEditor) {
+        if (!preserveEditor && isLatest()) {
           invoke(Invokes.StartBackgroundIndexing, { folderPath: path }).catch((err) => {
             console.error('Failed to start background indexing:', err);
           });
         }
       } catch (err) {
         console.error('Failed to load folder contents:', err);
-        toast.error('Failed to load images from the selected folder.');
+        if (isLatest()) toast.error('Failed to load images from the selected folder.');
       } finally {
-        useLibraryStore.getState().setLibrary({ isViewLoading: false });
+        if (isLatest()) useLibraryStore.getState().setLibrary({ isViewLoading: false });
       }
     },
     [clearThumbnailQueue, refs],
@@ -446,6 +452,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
     async (albumId: string, albumName: string, imagePaths: string[], preserveEditor = false, skipHistory = false) => {
       const { setLibrary, sortCriteria } = useLibraryStore.getState();
       const { setUI } = useUIStore.getState();
+      const isLatest = newFolderRequest();
 
       if (!skipHistory) {
         useLibraryStore.getState().pushNavHistory({ type: 'album', path: albumId, albumName, images: imagePaths });
@@ -453,6 +460,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       if (!preserveEditor) {
         await invoke('cancel_thumbnail_generation');
+        if (!isLatest()) return;
         clearThumbnailQueue();
         setLibrary({ libraryScrollTop: 0 });
         globalImageCache.clear();
@@ -469,6 +477,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       try {
         const files: ImageFile[] = await invoke(Invokes.GetAlbumImages, { paths: imagePaths });
+        if (!isLatest()) return;
 
         const initialRatings: Record<string, number> = {};
         files.forEach((f) => {
@@ -480,12 +489,12 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           ...(preserveEditor ? {} : { multiSelectedPaths: [], libraryActivePath: null }),
         });
 
-        await loadExifForImages(files, albumFolderPath, sortCriteria.key, setLibrary);
+        await loadExifForImages(files, albumFolderPath, sortCriteria.key, setLibrary, isLatest);
       } catch (err) {
         console.error('Failed to load album images:', err);
-        toast.error(`Failed to load album: ${err}`);
+        if (isLatest()) toast.error(`Failed to load album: ${err}`);
       } finally {
-        setLibrary({ isViewLoading: false });
+        if (isLatest()) setLibrary({ isViewLoading: false });
       }
     },
     [clearThumbnailQueue],
@@ -613,12 +622,15 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       let preloadedImages: ImageFile[] | undefined = undefined;
       if (preloadedDataRef.current?.currentPath === pathToSelect && preloadedDataRef.current.images) {
+        // The window answers while this folder is listed: one opened meanwhile stays open.
+        const nothingOpenedSince = noLaterFolderRequest();
         try {
           preloadedImages = await preloadedDataRef.current.images;
           preloadedDataRef.current.images = undefined;
         } catch (e) {
           console.error('Failed to retrieve preloaded images', e);
         }
+        if (!nothingOpenedSince()) return;
       }
 
       if (pathToSelect && pathToSelect.startsWith('Album: ')) {
