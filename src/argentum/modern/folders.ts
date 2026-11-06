@@ -44,6 +44,11 @@ export const useModernFolders = create<FoldersState>(() => ({ drives: [], recent
 /** How the library writes an album in `currentFolderPath`. */
 const ALBUM_PREFIX = 'Album: ';
 
+/** The folder on disk open in the library: none while nothing or an album is open. */
+export function folderOnDisk(currentFolderPath: string | null): string | null {
+  return currentFolderPath && !currentFolderPath.startsWith(ALBUM_PREFIX) ? currentFolderPath : null;
+}
+
 /** The disks and recent folders, as the backend sees them now. None if they could not be listed. */
 async function listDisks(lastFolder: string | null, expanded: string[]): Promise<ModernStart | null> {
   try {

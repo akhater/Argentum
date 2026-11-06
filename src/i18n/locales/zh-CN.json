@@ -1568,7 +1568,7 @@
     "data": {
       "clearSidecars": "清除所有附属文件",
       "clearSidecarsButton": "清除",
-      "clearSidecarsDesc": "这将删除您的根文件夹中的所有 .agdata 文件（包含您的编辑数据）：",
+      "clearSidecarsDesc": "这会将打开的文件夹及其子文件夹中的所有 .agdata 文件（您的编辑数据）移到回收站：",
       "clearThumbnail": "清除缩略图缓存",
       "clearThumbnailButton": "清除",
       "clearThumbnailDesc": "这将删除所有缓存的缩略图。在您浏览图库时，它们会自动重新生成。",
@@ -1577,8 +1577,8 @@
       "logsButton": "打开",
       "logsDesc": "查看应用程序的日志文件以进行故障排除。日志文件位于：",
       "modals": {
-        "aiMessage": "您确定要从所有活动根文件夹中的所有图像中移除所有 AI 生成的标签吗？\n\n这不会影响用户添加的标签。此操作无法撤销。",
-        "allMessage": "您确定要从所有活动根文件夹中的所有图像中移除所有 AI 生成和用户添加的标签吗？\n\n此操作无法撤销。",
+        "aiMessage": "您确定要从打开的文件夹及其子文件夹中的所有图像中移除所有 AI 生成的标签吗？\n\n这不会影响用户添加的标签。此操作无法撤销。",
+        "allMessage": "您确定要从打开的文件夹及其子文件夹中的所有图像中移除所有 AI 生成和用户添加的标签吗？\n\n此操作无法撤销。",
         "cacheMessage": "您确定要清除缩略图缓存吗？\n\n所有缩略图将需要重新生成，对于大型文件夹可能会很慢。",
         "confirmAiTitle": "确认删除 AI 标签",
         "confirmAllTitle": "确认删除所有标签",
@@ -1592,7 +1592,7 @@
         "confirmResetLayoutTitle": "重置工作区布局",
         "confirmTitle": "确认删除",
         "resetLayoutMessage": "是否确定要重置工作区布局？所有停靠的面板、宽度和切换器位置都将恢复为默认值。",
-        "sidecarMessage": "您确定要删除所有附属文件吗？\n\n这将永久删除所有活动根文件夹及其子文件夹中所有图像的所有编辑数据。"
+        "sidecarMessage": "您确定要清除所有附属文件吗？\n\n这将移除打开的文件夹及其子文件夹中所有图像的编辑数据。文件将移到回收站。"
       },
       "noFolders": "未选择文件夹",
       "resetLayoutButton": "重置布局",
@@ -1904,9 +1904,9 @@
       "amount": "数量",
       "automaticAiTagging": "自动 AI 标签",
       "clearAiTagsButton": "清除",
-      "clearAiTagsDesc": "这将从所有活动根文件夹中的 .agdata 文件中移除所有 AI 生成的标签。用户添加的标签将被保留。",
+      "clearAiTagsDesc": "这将从打开的文件夹及其子文件夹中的 .agdata 文件中移除所有 AI 生成的标签。用户添加的标签将被保留。",
       "clearAiTagsTitle": "清除 AI 标签",
-      "clearAllTagsDesc": "这将从所有活动根文件夹中的 .agdata 文件中移除所有 AI 生成和用户添加的标签。颜色标签将被保留。",
+      "clearAllTagsDesc": "这将从打开的文件夹及其子文件夹中的 .agdata 文件中移除所有 AI 生成和用户添加的标签。颜色标签将被保留。",
       "clearAllTagsTitle": "清除所有标签",
       "clearCustomTooltip": "清除 AI 标签列表",
       "clearShortcutsTooltip": "清除快捷方式标签列表",

@@ -199,8 +199,7 @@
     },
     "src/components/panel/SettingsPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 34,
-      "@typescript-eslint/no-unused-vars": 5,
-      "i18next/no-literal-string": 2
+      "@typescript-eslint/no-unused-vars": 5
     },
     "src/components/panel/editor/ImageCanvas.tsx": {
       "@typescript-eslint/no-explicit-any": 72,

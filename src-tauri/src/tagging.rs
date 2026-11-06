@@ -531,16 +531,14 @@ fn write_rrdata(rrdata_path: &Path, metadata: &ImageMetadata) -> std::io::Result
 
 #[tauri::command]
 pub fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
-    if !Path::new(&root_path).exists() {
-        return Err(format!("Root path does not exist: {}", root_path));
-    }
+    let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
 
     let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
     let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
 
     let mut updated_count = 0;
-    let walker = WalkDir::new(root_path).into_iter();
+    let walker = WalkDir::new(folder).into_iter();
 
     for entry in walker.filter_map(|e| e.ok()) {
         let path = entry.path();
@@ -572,16 +570,14 @@ pub fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, 
 
 #[tauri::command]
 pub fn clear_all_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
-    if !Path::new(&root_path).exists() {
-        return Err(format!("Root path does not exist: {}", root_path));
-    }
+    let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
 
     let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
     let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
 
     let mut updated_count = 0;
-    let walker = WalkDir::new(root_path).into_iter();
+    let walker = WalkDir::new(folder).into_iter();
 
     for entry in walker.filter_map(|e| e.ok()) {
         let path = entry.path();

@@ -1575,7 +1575,7 @@
     "data": {
       "clearSidecars": "Esborrar tots els fitxers sidecar",
       "clearSidecarsButton": "Esborrar",
-      "clearSidecarsDesc": "Això suprimirà tots els fitxers .agdata (que contenen les vostres edicions) dins de les carpetes arrel:",
+      "clearSidecarsDesc": "Això mourà tots els fitxers .agdata (les vostres edicions) de la carpeta oberta i les seves subcarpetes a la Paperera:",
       "clearThumbnail": "Esborrar memòria cau de miniatures",
       "clearThumbnailButton": "Esborrar",
       "clearThumbnailDesc": "Això eliminarà totes les imatges en miniatura de la memòria cau. Es regeneraran automàticament mentre navegueu per la biblioteca.",
@@ -1584,8 +1584,8 @@
       "logsButton": "Obrir",
       "logsDesc": "Consulteu el fitxer de registre de l'aplicació per solucionar problemes. El registre es troba a:",
       "modals": {
-        "aiMessage": "Esteu segur que voleu eliminar totes les etiquetes generades per IA de totes les imatges a totes les carpetes arrel actives?\n\nAixò no afectarà les etiquetes afegides pels usuaris. Aquesta acció no es pot desfer.",
-        "allMessage": "Esteu segur que voleu eliminar totes les etiquetes generades per IA i les afegides pels usuaris de totes les imatges a totes les carpetes arrel actives?\n\nAquesta acció no es pot desfer.",
+        "aiMessage": "Esteu segur que voleu eliminar totes les etiquetes generades per IA de totes les imatges de la carpeta oberta i les seves subcarpetes?\n\nAixò no afectarà les etiquetes afegides pels usuaris. Aquesta acció no es pot desfer.",
+        "allMessage": "Esteu segur que voleu eliminar totes les etiquetes generades per IA i les afegides pels usuaris de totes les imatges de la carpeta oberta i les seves subcarpetes?\n\nAquesta acció no es pot desfer.",
         "cacheMessage": "Esteu segur que voleu esborrar la memòria cau de miniatures?\n\nTotes les miniatures s'hauran de tornar a generar, la qual cosa pot ser lent en carpetes grans.",
         "confirmAiTitle": "Confirmar eliminació d'etiquetes d'IA",
         "confirmAllTitle": "Confirmar eliminació de totes les etiquetes",
@@ -1599,7 +1599,7 @@
         "confirmResetLayoutTitle": "Restablir el disseny de l'espai de treball",
         "confirmTitle": "Confirmar eliminació",
         "resetLayoutMessage": "Esteu segur que voleu restablir el disseny de l'espai de treball? Tots els panells acoblats, les amplades i les posicions dels commutadors es restauraran als seus valors predeterminats.",
-        "sidecarMessage": "Esteu segur que voleu suprimir tots els fitxers sidecar?\n\nAixò eliminarà permanentment totes les vostres edicions per a totes les imatges dins de totes les carpetes arrel actives i les seves subcarpetes."
+        "sidecarMessage": "Esteu segur que voleu esborrar tots els fitxers sidecar?\n\nAixò eliminarà les vostres edicions de totes les imatges de la carpeta oberta i les seves subcarpetes. Els fitxers aniran a la Paperera."
       },
       "noFolders": "No s'ha seleccionat cap carpeta",
       "resetLayoutButton": "Restablir disseny",
@@ -1911,9 +1911,9 @@
       "amount": "Quantitat",
       "automaticAiTagging": "Etiquetatge automàtic per IA",
       "clearAiTagsButton": "Esborrar",
-      "clearAiTagsDesc": "Això eliminarà totes les etiquetes generades per IA dels vostres fitxers .agdata a totes les carpetes arrel actives. Es mantindran les etiquetes afegides pels usuaris.",
+      "clearAiTagsDesc": "Això eliminarà totes les etiquetes generades per IA dels vostres fitxers .agdata de la carpeta oberta i les seves subcarpetes. Es mantindran les etiquetes afegides pels usuaris.",
       "clearAiTagsTitle": "Esborrar etiquetes d'IA",
-      "clearAllTagsDesc": "Això eliminarà totes les etiquetes generades per IA i les afegides pels usuaris dels vostres fitxers .agdata a totes les carpetes arrel actives. Es mantindran les etiquetes de color.",
+      "clearAllTagsDesc": "Això eliminarà totes les etiquetes generades per IA i les afegides pels usuaris dels vostres fitxers .agdata de la carpeta oberta i les seves subcarpetes. Es mantindran les etiquetes de color.",
       "clearAllTagsTitle": "Esborrar totes les etiquetes",
       "clearCustomTooltip": "Esborrar la llista d'etiquetes d'IA",
       "clearShortcutsTooltip": "Esborrar la llista d'etiquetes de drecera",

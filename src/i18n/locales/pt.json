@@ -1606,7 +1606,7 @@
     "data": {
       "clearSidecars": "Limpar Todos os Arquivos Sidecar",
       "clearSidecarsButton": "Limpar",
-      "clearSidecarsDesc": "Isso excluirá todos os arquivos .agdata (contendo suas edições) em suas pastas raiz:",
+      "clearSidecarsDesc": "Isso moverá todos os arquivos .agdata (suas edições) da pasta aberta e de suas subpastas para a Lixeira:",
       "clearThumbnail": "Limpar Cache de Miniaturas",
       "clearThumbnailButton": "Limpar",
       "clearThumbnailDesc": "Isso excluirá todas as imagens em miniatura em cache. Elas serão regeneradas automaticamente conforme você navega em sua biblioteca.",
@@ -1615,8 +1615,8 @@
       "logsButton": "Abrir",
       "logsDesc": "Visualize o arquivo de log do aplicativo para solução de problemas. O log está localizado em:",
       "modals": {
-        "aiMessage": "Tem certeza de que deseja remover todas as etiquetas geradas por IA de todas as imagens em todas as pastas raiz ativas?\n\nIsso não afetará as etiquetas adicionadas pelo usuário. Esta ação não pode ser desfeita.",
-        "allMessage": "Tem certeza de que deseja remover todas as etiquetas geradas por IA e adicionadas pelo usuário de todas as imagens em todas as pastas raiz ativas?\n\nEsta ação não pode ser desfeita.",
+        "aiMessage": "Tem certeza de que deseja remover todas as etiquetas geradas por IA de todas as imagens da pasta aberta e de suas subpastas?\n\nIsso não afetará as etiquetas adicionadas pelo usuário. Esta ação não pode ser desfeita.",
+        "allMessage": "Tem certeza de que deseja remover todas as etiquetas geradas por IA e adicionadas pelo usuário de todas as imagens da pasta aberta e de suas subpastas?\n\nEsta ação não pode ser desfeita.",
         "cacheMessage": "Tem certeza de que deseja limpar o cache de miniaturas?\n\nTodas as miniaturas precisarão ser regeneradas, o que pode ser lento para pastas grandes.",
         "confirmAiTitle": "Confirmar Exclusão de Etiquetas de IA",
         "confirmAllTitle": "Confirmar Exclusão de Todas as Etiquetas",
@@ -1630,7 +1630,7 @@
         "confirmResetLayoutTitle": "Redefinir layout do espaço de trabalho",
         "confirmTitle": "Confirmar Exclusão",
         "resetLayoutMessage": "Tem certeza de que deseja redefinir o layout do espaço de trabalho? Todos os painéis acoplados, larguras e posições dos seletores serão restaurados para os padrões originais.",
-        "sidecarMessage": "Tem certeza de que deseja excluir todos os arquivos sidecar?\n\nIsso removerá permanentemente todas as suas edições para todas as imagens dentro de todas as pastas raiz ativas e suas subpastas."
+        "sidecarMessage": "Tem certeza de que deseja limpar todos os arquivos sidecar?\n\nIsso removerá suas edições de todas as imagens da pasta aberta e de suas subpastas. Os arquivos irão para a Lixeira."
       },
       "noFolders": "Nenhuma pasta selecionada",
       "resetLayoutButton": "Redefinir layout",
@@ -1945,9 +1945,9 @@
       "amount": "Quantidade",
       "automaticAiTagging": "Tagging Automático por IA",
       "clearAiTagsButton": "Limpar",
-      "clearAiTagsDesc": "Isso removerá todas as etiquetas geradas por IA de seus arquivos .agdata em todas as pastas raiz ativas. As etiquetas adicionadas pelo usuário serão mantidas.",
+      "clearAiTagsDesc": "Isso removerá todas as etiquetas geradas por IA de seus arquivos .agdata da pasta aberta e de suas subpastas. As etiquetas adicionadas pelo usuário serão mantidas.",
       "clearAiTagsTitle": "Limpar Etiquetas de IA",
-      "clearAllTagsDesc": "Isso removerá todas as etiquetas geradas por IA e adicionadas pelo usuário de seus arquivos .agdata em todas as pastas raiz ativas. Os rótulos de cores serão mantidos.",
+      "clearAllTagsDesc": "Isso removerá todas as etiquetas geradas por IA e adicionadas pelo usuário de seus arquivos .agdata da pasta aberta e de suas subpastas. Os rótulos de cores serão mantidos.",
       "clearAllTagsTitle": "Limpar Todas as Etiquetas",
       "clearCustomTooltip": "Limpar Lista de Etiquetas de IA",
       "clearShortcutsTooltip": "Limpar Lista de Etiquetas de Atalho",

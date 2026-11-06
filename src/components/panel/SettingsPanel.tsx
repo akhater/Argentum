@@ -43,6 +43,8 @@ import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 import { useOsPlatform } from '../../hooks/useOsPlatform';
 import { RotateCcw } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
+import { useLibraryStore } from '../../store/useLibraryStore';
+import { folderOnDisk } from '../../argentum/modern/folders';
 import { useAgTranslation } from '../../argentum/locales';
 import { RawDecoderSetting } from '../../argentum/RawDecoder';
 import { getWhiteBalanceMode, WhiteBalanceMode } from '../../utils/whiteBalance';
@@ -87,7 +89,6 @@ interface SettingsPanelProps {
   appSettings: any;
   onLibraryRefresh(): void;
   onSettingsChange(settings: any): Promise<void>;
-  rootPaths: string[];
   /**
    * Argentum: the Modern window's section (general, ai, gear, processing,
    * shortcuts, about). It draws the list itself; AI and models is the General
@@ -410,7 +411,6 @@ export default function SettingsPanel({
   appSettings,
   onLibraryRefresh,
   onSettingsChange,
-  rootPaths,
   modernCategory,
 }: SettingsPanelProps) {
   const { t } = useTranslation();
@@ -667,22 +667,21 @@ export default function SettingsPanel({
     onSettingsChange({ ...appSettings, myLenses: newLenses });
   };
 
-  const effectiveRootPaths = rootPaths?.length > 0 ? rootPaths : appSettings?.rootFolders || [];
+  // The clear buttons work on the open folder and its subfolders, never on the disks in the folder column.
+  const openFolder = useLibraryStore((s) => folderOnDisk(s.currentFolderPath));
 
   const executeClearSidecars = async () => {
     setIsClearing(true);
     setClearMessage(t('settings.data.statuses.deleting'));
     try {
-      let totalCount = 0;
-      for (const root of effectiveRootPaths) {
-        const count: number = await invoke(Invokes.ClearAllSidecars, { rootPath: root });
-        totalCount += count;
-      }
-      setClearMessage(t('settings.data.statuses.sidecarSuccess', { count: totalCount }));
+      const count: number = await invoke(Invokes.ClearAllSidecars, { rootPath: openFolder });
+      setClearMessage(t('settings.data.statuses.sidecarSuccess', { count }));
       onLibraryRefresh();
     } catch (err: any) {
       console.error('Failed to clear sidecars:', err);
       setClearMessage(`Error: ${err}`);
+      // Some may have gone to the bin before one was refused.
+      onLibraryRefresh();
     } finally {
       setTimeout(() => {
         setIsClearing(false);
@@ -741,12 +740,8 @@ export default function SettingsPanel({
     setIsClearingAiTags(true);
     setAiTagsClearMessage(t('settings.data.statuses.clearingAi'));
     try {
-      let totalCount = 0;
-      for (const root of effectiveRootPaths) {
-        const count: number = await invoke(Invokes.ClearAiTags, { rootPath: root });
-        totalCount += count;
-      }
-      setAiTagsClearMessage(t('settings.data.statuses.aiSuccess', { count: totalCount }));
+      const count: number = await invoke(Invokes.ClearAiTags, { rootPath: openFolder });
+      setAiTagsClearMessage(t('settings.data.statuses.aiSuccess', { count }));
       onLibraryRefresh();
     } catch (err: any) {
       console.error('Failed to clear AI tags:', err);
@@ -774,12 +769,8 @@ export default function SettingsPanel({
     setIsClearingTags(true);
     setTagsClearMessage(t('settings.data.statuses.clearingAll'));
     try {
-      let totalCount = 0;
-      for (const root of effectiveRootPaths) {
-        const count: number = await invoke(Invokes.ClearAllTags, { rootPath: root });
-        totalCount += count;
-      }
-      setTagsClearMessage(t('settings.data.statuses.allSuccess', { count: totalCount }));
+      const count: number = await invoke(Invokes.ClearAllTags, { rootPath: openFolder });
+      setTagsClearMessage(t('settings.data.statuses.allSuccess', { count }));
       onLibraryRefresh();
     } catch (err: any) {
       console.error('Failed to clear tags:', err);
@@ -1446,7 +1437,7 @@ export default function SettingsPanel({
                             buttonAction={handleClearAiTags}
                             buttonText={t('settings.tagging.clearAiTagsButton')}
                             description={t('settings.tagging.clearAiTagsDesc')}
-                            disabled={effectiveRootPaths.length === 0}
+                            disabled={!openFolder}
                             icon={<Trash2 size={16} className="mr-2" />}
                             isProcessing={isClearingAiTags}
                             message={aiTagsClearMessage}
@@ -1456,7 +1447,7 @@ export default function SettingsPanel({
                             buttonAction={handleClearTags}
                             buttonText={t('settings.tagging.clearAiTagsButton')}
                             description={t('settings.tagging.clearAllTagsDesc')}
-                            disabled={effectiveRootPaths.length === 0}
+                            disabled={!openFolder}
                             icon={<Trash2 size={16} className="mr-2" />}
                             isProcessing={isClearingTags}
                             message={tagsClearMessage}
@@ -1944,17 +1935,13 @@ export default function SettingsPanel({
                         buttonText={t('settings.data.clearSidecarsButton')}
                         description={
                           <Text as="span" variant={TextVariants.small}>
-                            {t('settings.data.clearSidecarsDesc')}{' '}
-                            <code className="bg-bg-primary px-1 rounded-sm text-text-primary">.agdata</code> files
-                            (containing your edits) within your root folders:
+                            {t('settings.data.clearSidecarsDesc')}
                             <span className="block font-mono bg-bg-primary p-2 rounded-sm mt-2 break-all border border-border-color whitespace-pre-wrap">
-                              {effectiveRootPaths.length > 0
-                                ? effectiveRootPaths.join('\n')
-                                : t('settings.data.noFolders')}
+                              {openFolder ?? t('settings.data.noFolders')}
                             </span>
                           </Text>
                         }
-                        disabled={effectiveRootPaths.length === 0}
+                        disabled={!openFolder}
                         icon={<Trash2 size={16} className="mr-2" />}
                         isProcessing={isClearing}
                         message={clearMessage}

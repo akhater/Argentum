@@ -1574,7 +1574,7 @@
     "data": {
       "clearSidecars": "Vymazat všechny sidecar soubory",
       "clearSidecarsButton": "Vymazat",
-      "clearSidecarsDesc": "Tím smažete všechny soubory .agdata (obsahující vaše úpravy) ve vašich kořenových složkách:",
+      "clearSidecarsDesc": "Tím přesunete všechny soubory .agdata (vaše úpravy) v otevřené složce a jejích podsložkách do koše:",
       "clearThumbnail": "Vymazat mezipaměť miniatur",
       "clearThumbnailButton": "Vymazat",
       "clearThumbnailDesc": "Tím se vymažou všechny miniatury snímků uložené v mezipaměti. Při procházení knihovny se automaticky znovu vygenerují.",
@@ -1583,8 +1583,8 @@
       "logsButton": "Otevřít",
       "logsDesc": "Zobrazit soubor protokolu aplikace pro řešení potíží. Protokol se nachází v:",
       "modals": {
-        "aiMessage": "Opravdu chcete odstranit všechny značky generované AI ze všech snímků ve všech aktivních kořenových složkách?\n\nUživatelem přidané značky tím nebudou dotčeny. Tuto akci nelze vrátit.",
-        "allMessage": "Opravdu chcete odstranit všechny značky generované umělou inteligencí i přidané uživatelem ze všech snímků ve všech aktivních kořenových složkách?\n\nTuto akci nelze vrátit.",
+        "aiMessage": "Opravdu chcete odstranit všechny značky generované AI ze všech snímků v otevřené složce a jejích podsložkách?\n\nUživatelem přidané značky tím nebudou dotčeny. Tuto akci nelze vrátit.",
+        "allMessage": "Opravdu chcete odstranit všechny značky generované umělou inteligencí i přidané uživatelem ze všech snímků v otevřené složce a jejích podsložkách?\n\nTuto akci nelze vrátit.",
         "cacheMessage": "Opravdu chcete vymazat mezipaměť miniatur?\n\nVšechny miniatury bude nutné znovu vygenerovat, což může u velkých složek trvat dlouho.",
         "confirmAiTitle": "Potvrďte smazání značky AI",
         "confirmAllTitle": "Potvrďte smazání všech značek",
@@ -1598,7 +1598,7 @@
         "confirmResetLayoutTitle": "Obnovit rozložení pracovní plochy",
         "confirmTitle": "Potvrďte smazání",
         "resetLayoutMessage": "Opravdu chcete obnovit rozložení pracovní plochy? Všechny ukotvené panely, šířky a pozice přepínačů budou obnoveny na výchozí hodnoty.",
-        "sidecarMessage": "Opravdu chcete smazat všechny sidecar soubory?\n\nTím trvale odstraníte všechny úpravy všech snímků ve všech aktivních kořenových složkách a jejich podsložkách."
+        "sidecarMessage": "Opravdu chcete vymazat všechny sidecar soubory?\n\nTím odstraníte úpravy všech snímků v otevřené složce a jejích podsložkách. Soubory se přesunou do koše."
       },
       "noFolders": "Nejsou vybrány žádné složky",
       "resetLayoutButton": "Obnovit rozložení",
@@ -1910,9 +1910,9 @@
       "amount": "Počet",
       "automaticAiTagging": "Automatické značkování AI",
       "clearAiTagsButton": "Vymazat",
-      "clearAiTagsDesc": "Tím odstraníte všechny značky generované AI z vašich souborů .agdata ve všech aktivních kořenových složkách. Uživatelem přidané značky zůstanou zachovány.",
+      "clearAiTagsDesc": "Tím odstraníte všechny značky generované AI z vašich souborů .agdata v otevřené složce a jejích podsložkách. Uživatelem přidané značky zůstanou zachovány.",
       "clearAiTagsTitle": "Vymazat značky AI",
-      "clearAllTagsDesc": "Tím odstraníte všechny značky generované AI i přidané uživatelem z vašich souborů .agdata ve všech aktivních kořenových složkách. Barevné štítky zůstanou zachovány.",
+      "clearAllTagsDesc": "Tím odstraníte všechny značky generované AI i přidané uživatelem z vašich souborů .agdata v otevřené složce a jejích podsložkách. Barevné štítky zůstanou zachovány.",
       "clearAllTagsTitle": "Vymazat všechny značky",
       "clearCustomTooltip": "Vymazat seznam značek AI",
       "clearShortcutsTooltip": "Vymazat seznam značek zkratek",

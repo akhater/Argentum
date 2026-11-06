@@ -734,7 +734,6 @@ function App() {
                 appSettings,
                 onLibraryRefresh: handleLibraryRefresh,
                 onSettingsChange: handleSettingsChange,
-                rootPaths,
               }}
               externalEditBar={
                 selectedImage && externalEditSession ? (

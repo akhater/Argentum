@@ -1571,7 +1571,7 @@
     "data": {
       "clearSidecars": "Alle Filialdateien löschen",
       "clearSidecarsButton": "Löschen",
-      "clearSidecarsDesc": "Dies löscht alle .agdata-Dateien (die Ihre Bearbeitungen enthalten) in Ihren Stammordnern:",
+      "clearSidecarsDesc": "Dies verschiebt alle .agdata-Dateien (Ihre Bearbeitungen) im geöffneten Ordner und seinen Unterordnern in den Papierkorb:",
       "clearThumbnail": "Miniaturbild-Cache löschen",
       "clearThumbnailButton": "Löschen",
       "clearThumbnailDesc": "Dies löscht alle zwischengespeicherten Miniaturbilder. Sie werden beim Durchsuchen der Bibliothek automatisch neu generiert.",
@@ -1580,8 +1580,8 @@
       "logsButton": "Öffnen",
       "logsDesc": "Zeigen Sie die Protokolldatei der Anwendung zur Fehlerbehebung an. Das Protokoll befindet sich unter:",
       "modals": {
-        "aiMessage": "Sind Sie sicher, dass Sie alle KI-generierten Tags von allen Bildern in allen aktiven Stammordnern entfernen möchten?\n\nBenutzerdefinierte Tags sind nicht betroffen. Diese Aktion kann nicht rückgängig gemacht werden.",
-        "allMessage": "Sind Sie sicher, dass Sie alle KI-generierten und benutzerdefinierten Tags von allen Bildern in allen aktiven Stammordnern entfernen möchten?\n\nDiese Aktion kann nicht rückgängig gemacht werden.",
+        "aiMessage": "Sind Sie sicher, dass Sie alle KI-generierten Tags von allen Bildern im geöffneten Ordner und seinen Unterordnern entfernen möchten?\n\nBenutzerdefinierte Tags sind nicht betroffen. Diese Aktion kann nicht rückgängig gemacht werden.",
+        "allMessage": "Sind Sie sicher, dass Sie alle KI-generierten und benutzerdefinierten Tags von allen Bildern im geöffneten Ordner und seinen Unterordnern entfernen möchten?\n\nDiese Aktion kann nicht rückgängig gemacht werden.",
         "cacheMessage": "Sind Sie sicher, dass Sie den Miniaturbild-Cache löschen möchten?\n\nAlle Miniaturbilder müssen neu generiert werden, was bei großen Ordnern dauern kann.",
         "confirmAiTitle": "KI-Tags löschen bestätigen",
         "confirmAllTitle": "Alle Tags löschen bestätigen",
@@ -1595,7 +1595,7 @@
         "confirmResetLayoutTitle": "Arbeitsbereich-Layout zurücksetzen",
         "confirmTitle": "Löschen bestätigen",
         "resetLayoutMessage": "Möchten Sie das Layout des Arbeitsbereichs wirklich zurücksetzen? Alle angedockten Panels, Breiten und Umschalter-Positionen werden auf ihre Standardwerte zurückgesetzt.",
-        "sidecarMessage": "Sind Sie sicher, dass Sie alle Filialdateien löschen möchten?\n\nDies entfernt dauerhaft alle Ihre Bearbeitungen für alle Bilder in allen aktiven Stammordnern."
+        "sidecarMessage": "Sind Sie sicher, dass Sie alle Filialdateien entfernen möchten?\n\nDies entfernt Ihre Bearbeitungen für alle Bilder im geöffneten Ordner und seinen Unterordnern. Die Dateien kommen in den Papierkorb."
       },
       "noFolders": "Keine Ordner ausgewählt",
       "resetLayoutButton": "Layout zurücksetzen",

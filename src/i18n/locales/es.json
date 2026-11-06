@@ -1605,7 +1605,7 @@
     "data": {
       "clearSidecars": "Borrar todos los archivos sidecar",
       "clearSidecarsButton": "Borrar",
-      "clearSidecarsDesc": "Esto eliminará todos los archivos .agdata (que contienen tus ediciones) dentro de tus carpetas raíz:",
+      "clearSidecarsDesc": "Esto moverá todos los archivos .agdata (tus ediciones) de la carpeta abierta y sus subcarpetas a la Papelera:",
       "clearThumbnail": "Borrar caché de miniaturas",
       "clearThumbnailButton": "Borrar",
       "clearThumbnailDesc": "Esto eliminará todas las imágenes en miniatura en caché. Se regenerarán automáticamente a medida que explores tu biblioteca.",
@@ -1614,8 +1614,8 @@
       "logsButton": "Abrir",
       "logsDesc": "Consulta el archivo de registro de la aplicación para solucionar problemas. El registro se encuentra en:",
       "modals": {
-        "aiMessage": "¿Estás seguro de que quieres eliminar todas las etiquetas generadas por IA de todas las imágenes en todas las carpetas raíz activas?\n\nEsto no afectará a las etiquetas añadidas por el usuario. Esta acción no se puede deshacer.",
-        "allMessage": "¿Estás seguro de que quieres eliminar todas las etiquetas generadas por IA y las añadidas por el usuario de todas las imágenes en todas las carpetas raíz activas?\n\nEsta acción no se puede deshacer.",
+        "aiMessage": "¿Estás seguro de que quieres eliminar todas las etiquetas generadas por IA de todas las imágenes de la carpeta abierta y sus subcarpetas?\n\nEsto no afectará a las etiquetas añadidas por el usuario. Esta acción no se puede deshacer.",
+        "allMessage": "¿Estás seguro de que quieres eliminar todas las etiquetas generadas por IA y las añadidas por el usuario de todas las imágenes de la carpeta abierta y sus subcarpetas?\n\nEsta acción no se puede deshacer.",
         "cacheMessage": "¿Estás seguro de que quieres borrar la caché de miniaturas?\n\nTodas las miniaturas tendrán que regenerarse, lo que puede ser lento para carpetas grandes.",
         "confirmAiTitle": "Confirmar eliminación de etiquetas de IA",
         "confirmAllTitle": "Confirmar eliminación de todas las etiquetas",
@@ -1629,7 +1629,7 @@
         "confirmResetLayoutTitle": "Restablecer el diseño del espacio de trabajo",
         "confirmTitle": "Confirmar eliminación",
         "resetLayoutMessage": "¿Estás seguro de que deseas restablecer el diseño del espacio de trabajo? Todos los paneles acoplados, anchuras y posiciones de los selectores se restaurarán a sus valores predeterminados.",
-        "sidecarMessage": "¿Estás seguro de que quieres eliminar todos los archivos sidecar?\n\nEsto eliminará permanentemente todas tus ediciones para todas las imágenes dentro de todas las carpetas raíz activas y sus subcarpetas."
+        "sidecarMessage": "¿Estás seguro de que quieres borrar todos los archivos sidecar?\n\nEsto eliminará tus ediciones de todas las imágenes de la carpeta abierta y sus subcarpetas. Los archivos irán a la Papelera."
       },
       "noFolders": "No hay carpetas seleccionadas",
       "resetLayoutButton": "Restablecer diseño",
@@ -1944,9 +1944,9 @@
       "amount": "Cantidad",
       "automaticAiTagging": "Etiquetado automático por IA",
       "clearAiTagsButton": "Borrar",
-      "clearAiTagsDesc": "Esto eliminará todas las etiquetas generadas por IA de tus archivos .agdata en todas las carpetas raíz activas. Las etiquetas añadidas por los usuarios se mantendrán.",
+      "clearAiTagsDesc": "Esto eliminará todas las etiquetas generadas por IA de tus archivos .agdata de la carpeta abierta y sus subcarpetas. Las etiquetas añadidas por los usuarios se mantendrán.",
       "clearAiTagsTitle": "Borrar etiquetas de IA",
-      "clearAllTagsDesc": "Esto eliminará todas las etiquetas generadas por IA y las añadidas por los usuarios de tus archivos .agdata en todas las carpetas raíz activas. Se mantendrán las etiquetas de color.",
+      "clearAllTagsDesc": "Esto eliminará todas las etiquetas generadas por IA y las añadidas por los usuarios de tus archivos .agdata de la carpeta abierta y sus subcarpetas. Se mantendrán las etiquetas de color.",
       "clearAllTagsTitle": "Borrar todas las etiquetas",
       "clearCustomTooltip": "Borrar lista de etiquetas de IA",
       "clearShortcutsTooltip": "Borrar lista de etiquetas de atajos",
