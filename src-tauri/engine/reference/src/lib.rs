@@ -52,6 +52,7 @@ pub mod mods {
     pub mod highlight_protection;
     pub mod profiles;
     pub mod raw_tone;
+    pub mod rt_profiles;
     pub mod salvage;
 
     /// `mods::atomic_write`: how the preferences file is saved, which the
