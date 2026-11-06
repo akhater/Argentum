@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.45.5',
+    date: '2026-11-06',
+    notes: [
+      'DNGs from phones such as the Galaxy S23 Ultra no longer open completely white.',
+      'Opening a folder on a drive that does not answer no longer freezes the window.',
+      'Clear sidecars in Settings clears only the open folder, and sends the files to the Recycle Bin or Trash.',
+      'Finding a camera profile no longer runs out of GitHub lookups, and finds more cameras by their other names.',
+    ],
+  },
+  {
     version: '26.45.4',
     date: '2026-11-05',
     notes: [
