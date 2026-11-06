@@ -1548,7 +1548,7 @@
     "data": {
       "clearSidecars": "Alle sidecar-bestanden wissen",
       "clearSidecarsButton": "Wissen",
-      "clearSidecarsDesc": "Dit verwijdert alle .agdata-bestanden (met uw bewerkingen) in uw hoofdmappen:",
+      "clearSidecarsDesc": "Dit verplaatst alle .agdata-bestanden (uw bewerkingen) in de geopende map en de submappen naar de Prullenbak:",
       "clearThumbnail": "Miniatuurcache wissen",
       "clearThumbnailButton": "Wissen",
       "clearThumbnailDesc": "Dit verwijdert alle gecachte miniatuurafbeeldingen. Ze worden automatisch opnieuw gegenereerd terwijl u door uw bibliotheek bladert.",
@@ -1557,8 +1557,8 @@
       "logsButton": "Openen",
       "logsDesc": "Bekijk het logboekbestand van de toepassing voor probleemoplossing. Het logboek bevindt zich op:",
       "modals": {
-        "aiMessage": "Weet u zeker dat u alle door AI gegenereerde tags van alle afbeeldingen in alle actieve hoofdmappen wilt verwijderen?\n\nDit heeft geen invloed op door gebruikers toegevoegde tags. Deze actie kan niet ongedaan worden gemaakt.",
-        "allMessage": "Weet u zeker dat u alle door AI gegenereerde en door gebruikers toegevoegde tags van alle afbeeldingen in alle actieve hoofdmappen wilt verwijderen?\n\nDeze actie kan niet ongedaan worden gemaakt.",
+        "aiMessage": "Weet u zeker dat u alle door AI gegenereerde tags van alle afbeeldingen in de geopende map en de submappen wilt verwijderen?\n\nDit heeft geen invloed op door gebruikers toegevoegde tags. Deze actie kan niet ongedaan worden gemaakt.",
+        "allMessage": "Weet u zeker dat u alle door AI gegenereerde en door gebruikers toegevoegde tags van alle afbeeldingen in de geopende map en de submappen wilt verwijderen?\n\nDeze actie kan niet ongedaan worden gemaakt.",
         "cacheMessage": "Weet u zeker dat u de miniatuurcache wilt wissen?\n\nAlle miniaturen moeten opnieuw worden gegenereerd, wat langzaam kan zijn voor grote mappen.",
         "confirmAiTitle": "AI-tagverwijdering bevestigen",
         "confirmAllTitle": "Alle tagverwijdering bevestigen",
@@ -1572,7 +1572,7 @@
         "confirmResetLayoutTitle": "Werkruimte-indeling herstellen",
         "confirmTitle": "Verwijdering bevestigen",
         "resetLayoutMessage": "Weet u zeker dat u de werkruimte-indeling wilt herstellen? Alle gedockte panelen, breedtes en schakelposities worden teruggezet naar hun standaardwaarden.",
-        "sidecarMessage": "Weet u zeker dat u alle sidecar-bestanden wilt verwijderen?\n\nDit verwijdert permanent al uw bewerkingen voor alle afbeeldingen in alle actieve hoofdmappen en hun submappen."
+        "sidecarMessage": "Weet u zeker dat u alle sidecar-bestanden wilt wissen?\n\nDit verwijdert uw bewerkingen voor alle afbeeldingen in de geopende map en de submappen. De bestanden gaan naar de Prullenbak."
       },
       "noFolders": "Geen mappen geselecteerd",
       "resetLayoutButton": "Indeling herstellen",
@@ -1880,9 +1880,9 @@
       "amount": "Hoeveelheid",
       "automaticAiTagging": "Automatische AI-tagging",
       "clearAiTagsButton": "Wissen",
-      "clearAiTagsDesc": "Dit verwijdert alle door AI gegenereerde tags uit uw .agdata-bestanden in alle actieve hoofdmappen. Door gebruikers toegevoegde tags blijven behouden.",
+      "clearAiTagsDesc": "Dit verwijdert alle door AI gegenereerde tags uit uw .agdata-bestanden in de geopende map en de submappen. Door gebruikers toegevoegde tags blijven behouden.",
       "clearAiTagsTitle": "AI-tags wissen",
-      "clearAllTagsDesc": "Dit verwijdert alle door AI gegenereerde en door gebruikers toegevoegde tags uit uw .agdata-bestanden in alle actieve hoofdmappen. Kleurlabels blijven behouden.",
+      "clearAllTagsDesc": "Dit verwijdert alle door AI gegenereerde en door gebruikers toegevoegde tags uit uw .agdata-bestanden in de geopende map en de submappen. Kleurlabels blijven behouden.",
       "clearAllTagsTitle": "Alle tags wissen",
       "clearCustomTooltip": "Aangepaste AI-taglijst wissen",
       "clearShortcutsTooltip": "Snelkoppelingstaglijst wissen",

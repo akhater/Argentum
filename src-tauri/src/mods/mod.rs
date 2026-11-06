@@ -21,6 +21,7 @@ pub mod cache_version;
 pub mod canon_makernote;
 pub mod canon_old_wb;
 pub mod capture_bake;
+pub mod clear_scope;
 pub mod clipping;
 pub mod color_grade;
 pub mod colour_compare;

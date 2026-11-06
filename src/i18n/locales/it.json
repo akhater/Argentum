@@ -1608,7 +1608,7 @@
     "data": {
       "clearSidecars": "Cancella Tutti i File Sidecar",
       "clearSidecarsButton": "Cancella",
-      "clearSidecarsDesc": "Questo eliminerà tutti i file .agdata (contenenti le tue modifiche) all'interno delle cartelle principali:",
+      "clearSidecarsDesc": "Questo sposterà nel Cestino tutti i file .agdata (le tue modifiche) della cartella aperta e delle sue sottocartelle:",
       "clearThumbnail": "Cancella Cache Miniature",
       "clearThumbnailButton": "Cancella",
       "clearThumbnailDesc": "Questo eliminerà tutte le immagini miniatura memorizzate nella cache. Verranno rigenerate automaticamente sfogliando la libreria.",
@@ -1617,8 +1617,8 @@
       "logsButton": "Apri",
       "logsDesc": "Visualizza il file di log dell'applicazione per la risoluzione dei problemi. Il log si trova in:",
       "modals": {
-        "aiMessage": "Sei sicuro di voler rimuovere tutti i tag generati dall'AI da tutte le immagini in tutte le cartelle principali attive?\n\nQuesto non influirà sui tag aggiunti dall'utente. Questa azione non può essere annullata.",
-        "allMessage": "Sei sicuro di voler rimuovere tutti i tag generati dall'AI e aggiunti dall'utente da tutte le immagini in tutte le cartelle principali attive?\n\nQuesta azione non può essere annullata.",
+        "aiMessage": "Sei sicuro di voler rimuovere tutti i tag generati dall'AI da tutte le immagini della cartella aperta e delle sue sottocartelle?\n\nQuesto non influirà sui tag aggiunti dall'utente. Questa azione non può essere annullata.",
+        "allMessage": "Sei sicuro di voler rimuovere tutti i tag generati dall'AI e aggiunti dall'utente da tutte le immagini della cartella aperta e delle sue sottocartelle?\n\nQuesta azione non può essere annullata.",
         "cacheMessage": "Sei sicuro di voler cancellare la cache delle miniature?\n\nTutte le miniature dovranno essere rigenerate, operazione che potrebbe essere lenta per le cartelle di grandi dimensioni.",
         "confirmAiTitle": "Conferma Eliminazione Tag AI",
         "confirmAllTitle": "Conferma Eliminazione Tutti i Tag",
@@ -1632,7 +1632,7 @@
         "confirmResetLayoutTitle": "Ripristina layout spazio di lavoro",
         "confirmTitle": "Conferma Eliminazione",
         "resetLayoutMessage": "Sei sicuro di voler ripristinare il layout dello spazio di lavoro? Tutti i pannelli ancorati, le larghezze e le posizioni dei selettori verranno ripristinati ai valori predefiniti.",
-        "sidecarMessage": "Sei sicuro di voler eliminare tutti i file sidecar?\n\nQuesto rimuoverà permanentemente tutte le tue modifiche per tutte le immagini all'interno di tutte le cartelle principali attive e le relative sottocartelle."
+        "sidecarMessage": "Sei sicuro di voler cancellare tutti i file sidecar?\n\nQuesto rimuoverà le tue modifiche per tutte le immagini della cartella aperta e delle sue sottocartelle. I file andranno nel Cestino."
       },
       "noFolders": "Nessuna cartella selezionata",
       "resetLayoutButton": "Ripristina layout",
@@ -1947,9 +1947,9 @@
       "amount": "Quantità",
       "automaticAiTagging": "Tagging AI Automatico",
       "clearAiTagsButton": "Cancella",
-      "clearAiTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI dai file .agdata in tutte le cartelle principali attive. I tag aggiunti dall'utente verranno mantenuti.",
+      "clearAiTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI dai file .agdata della cartella aperta e delle sue sottocartelle. I tag aggiunti dall'utente verranno mantenuti.",
       "clearAiTagsTitle": "Cancella Tag AI",
-      "clearAllTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI e aggiunti dall'utente dai file .agdata in tutte le cartelle principali attive. Le etichette di colore verranno mantenute.",
+      "clearAllTagsDesc": "Questo rimuoverà tutti i tag generati dall'AI e aggiunti dall'utente dai file .agdata della cartella aperta e delle sue sottocartelle. Le etichette di colore verranno mantenute.",
       "clearAllTagsTitle": "Cancella Tutti i Tag",
       "clearCustomTooltip": "Cancella Lista Tag AI",
       "clearShortcutsTooltip": "Cancella Lista Tag Scorciatoie",

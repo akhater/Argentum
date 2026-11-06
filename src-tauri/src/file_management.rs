@@ -41,6 +41,7 @@ use crate::image_processing::{
     get_all_adjustments_from_json, perform_auto_analysis, resolve_render_options,
 };
 use crate::mask_generation::MaskDefinition;
+use crate::mods::clear_scope;
 use crate::mods::edit_status::EditStatus;
 use crate::mods::file_ops::{self, Destinations};
 use crate::mods::folder_walk::{self, Look, System, THIS_SYSTEM};
@@ -3329,30 +3330,31 @@ pub fn save_community_preset(
     save_presets(current_presets, app_handle)
 }
 
+/// Moves every sidecar and EXIF cache in the open folder and its subfolders to
+/// the Recycle Bin (mods/clear_scope.rs). Never a disk's root.
 #[tauri::command]
 pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
-    if !Path::new(&root_path).exists() {
-        return Err(format!("Root path does not exist: {}", root_path));
-    }
+    Ok(clear_sidecars_in(&root_path, clear_scope::system_bin)?)
+}
 
-    let mut deleted_count = 0;
-    let walker = WalkDir::new(root_path).into_iter();
-
-    for entry in walker.filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file()
-            && let Some(extension) = path.extension()
-            && (extension == SIDECAR_EXTENSION || extension == "agexif")
-        {
-            if fs::remove_file(path).is_ok() {
-                deleted_count += 1;
-            } else {
-                eprintln!("Failed to delete sidecar file: {:?}", path);
-            }
-        }
-    }
-
-    Ok(deleted_count)
+/// [`clear_all_sidecars`], with the bin given.
+pub(crate) fn clear_sidecars_in(
+    root_path: &str,
+    trash: impl Fn(&[PathBuf]) -> Result<(), String>,
+) -> Result<usize, clear_scope::ClearRefused> {
+    let folder = clear_scope::folder_to_clear(root_path)?;
+    let sidecars: Vec<PathBuf> = WalkDir::new(folder)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .map(|entry| entry.into_path())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| ext == SIDECAR_EXTENSION || ext == "agexif")
+        })
+        .collect();
+    clear_scope::move_to_bin(&sidecars, trash)
 }
 
 #[tauri::command]

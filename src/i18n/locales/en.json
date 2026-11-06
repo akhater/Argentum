@@ -1573,7 +1573,7 @@
     "data": {
       "clearSidecars": "Clear All Sidecar Files",
       "clearSidecarsButton": "Clear",
-      "clearSidecarsDesc": "This will delete all .agdata files (containing your edits) within your root folders:",
+      "clearSidecarsDesc": "This moves every .agdata file (your edits) in the open folder and its subfolders to the Recycle Bin or Trash:",
       "clearThumbnail": "Clear Thumbnail Cache",
       "clearThumbnailButton": "Clear",
       "clearThumbnailDesc": "This will delete all cached thumbnail images. They will be regenerated automatically as you browse your library.",
@@ -1582,8 +1582,8 @@
       "logsButton": "Open",
       "logsDesc": "View the application's log file for troubleshooting. The log is located at:",
       "modals": {
-        "aiMessage": "Are you sure you want to remove all AI-generated tags from all images in all active root folders?\n\nThis will not affect user-added tags. This action cannot be undone.",
-        "allMessage": "Are you sure you want to remove all AI-generated and user-added tags from all images in all active root folders?\n\nThis action cannot be undone.",
+        "aiMessage": "Are you sure you want to remove all AI-generated tags from every image in the open folder and its subfolders?\n\nThis will not affect user-added tags. This action cannot be undone.",
+        "allMessage": "Are you sure you want to remove all AI-generated and user-added tags from every image in the open folder and its subfolders?\n\nThis action cannot be undone.",
         "cacheMessage": "Are you sure you want to clear the thumbnail cache?\n\nAll thumbnails will need to be regenerated, which may be slow for large folders.",
         "confirmAiTitle": "Confirm AI Tag Deletion",
         "confirmAllTitle": "Confirm All Tag Deletion",
@@ -1597,9 +1597,9 @@
         "confirmResetLayoutTitle": "Reset Workspace Layout",
         "confirmTitle": "Confirm Deletion",
         "resetLayoutMessage": "Are you sure you want to reset the workspace layout? All docked panels, widths, and switcher positions will be restored to their defaults.",
-        "sidecarMessage": "Are you sure you want to delete all sidecar files?\n\nThis will permanently remove all your edits for all images inside all active root folders and their subfolders."
+        "sidecarMessage": "Are you sure you want to clear all sidecar files?\n\nThis removes your edits for every image in the open folder and its subfolders. The files go to the Recycle Bin or Trash."
       },
-      "noFolders": "No folders selected",
+      "noFolders": "No folder open",
       "resetLayoutButton": "Reset Layout",
       "resetLayoutDesc": "Restore panel docks, side splitters, heights, and panel switchers to the default layout.",
       "resetLayoutTitle": "Reset Workspace Layout",
@@ -1909,9 +1909,9 @@
       "amount": "Amount",
       "automaticAiTagging": "Automatic AI Tagging",
       "clearAiTagsButton": "Clear",
-      "clearAiTagsDesc": "This will remove all AI-generated tags from your .agdata files in all active root folders. User-added tags will be kept.",
+      "clearAiTagsDesc": "This will remove all AI-generated tags from your .agdata files in the open folder and its subfolders. User-added tags will be kept.",
       "clearAiTagsTitle": "Clear AI Tags",
-      "clearAllTagsDesc": "This will remove all AI-generated and user-added tags from your .agdata files in all active root folders. Color labels will be kept.",
+      "clearAllTagsDesc": "This will remove all AI-generated and user-added tags from your .agdata files in the open folder and its subfolders. Color labels will be kept.",
       "clearAllTagsTitle": "Clear All Tags",
       "clearCustomTooltip": "Clear AI Tag List",
       "clearShortcutsTooltip": "Clear Shortcuts Tag List",

@@ -1568,7 +1568,7 @@
     "data": {
       "clearSidecars": "모든 사이드카 파일 지우기",
       "clearSidecarsButton": "지우기",
-      "clearSidecarsDesc": "루트 폴더 내의 모든 .agdata 파일(편집 내용 포함)이 삭제됩니다:",
+      "clearSidecarsDesc": "열린 폴더와 하위 폴더의 모든 .agdata 파일(편집 내용)이 휴지통으로 이동됩니다:",
       "clearThumbnail": "썸네일 캐시 지우기",
       "clearThumbnailButton": "지우기",
       "clearThumbnailDesc": "캐시된 모든 썸네일 이미지가 삭제됩니다. 라이브러리를 탐색할 때 자동으로 다시 생성됩니다.",
@@ -1577,8 +1577,8 @@
       "logsButton": "열기",
       "logsDesc": "문제 해결을 위해 애플리케이션 로그 파일을 봅니다. 로그 위치:",
       "modals": {
-        "aiMessage": "모든 활성 루트 폴더의 모든 이미지에서 AI가 생성한 태그를 모두 제거하시겠습니까?\n\n사용자가 추가한 태그에는 영향을 주지 않습니다. 이 작업은 취소할 수 없습니다.",
-        "allMessage": "모든 활성 루트 폴더의 모든 이미지에서 AI가 생성한 태그와 사용자가 추가한 태그를 모두 제거하시겠습니까?\n\n이 작업은 취소할 수 없습니다.",
+        "aiMessage": "열린 폴더와 하위 폴더의 모든 이미지에서 AI가 생성한 태그를 모두 제거하시겠습니까?\n\n사용자가 추가한 태그에는 영향을 주지 않습니다. 이 작업은 취소할 수 없습니다.",
+        "allMessage": "열린 폴더와 하위 폴더의 모든 이미지에서 AI가 생성한 태그와 사용자가 추가한 태그를 모두 제거하시겠습니까?\n\n이 작업은 취소할 수 없습니다.",
         "cacheMessage": "썸네일 캐시를 지우시겠습니까?\n\n모든 썸네일을 다시 생성해야 하며, 대용량 폴더의 경우 느릴 수 있습니다.",
         "confirmAiTitle": "AI 태그 삭제 확인",
         "confirmAllTitle": "모든 태그 삭제 확인",
@@ -1592,7 +1592,7 @@
         "confirmResetLayoutTitle": "작업 공간 레이아웃 초기화",
         "confirmTitle": "삭제 확인",
         "resetLayoutMessage": "작업 공간 레이아웃을 초기화하시겠습니까? 도킹된 모든 패널, 너비 및 전환기 위치가 기본값으로 복원됩니다.",
-        "sidecarMessage": "모든 사이드카 파일을 삭제하시겠습니까?\n\n모든 활성 루트 폴더 및 하위 폴더 내의 모든 이미지에 대한 편집 내용이 영구적으로 제거됩니다."
+        "sidecarMessage": "모든 사이드카 파일을 지우시겠습니까?\n\n열린 폴더와 하위 폴더 내의 모든 이미지에 대한 편집 내용이 제거됩니다. 파일은 휴지통으로 이동됩니다."
       },
       "noFolders": "선택된 폴더 없음",
       "resetLayoutButton": "레이아웃 초기화",
@@ -1904,9 +1904,9 @@
       "amount": "양",
       "automaticAiTagging": "자동 AI 태그 지정",
       "clearAiTagsButton": "지우기",
-      "clearAiTagsDesc": "모든 활성 루트 폴더의 .agdata 파일에서 AI가 생성한 태그를 모두 제거합니다. 사용자가 추가한 태그는 유지됩니다.",
+      "clearAiTagsDesc": "열린 폴더와 하위 폴더의 .agdata 파일에서 AI가 생성한 태그를 모두 제거합니다. 사용자가 추가한 태그는 유지됩니다.",
       "clearAiTagsTitle": "AI 태그 지우기",
-      "clearAllTagsDesc": "모든 활성 루트 폴더의 .agdata 파일에서 AI가 생성한 태그와 사용자가 추가한 태그를 모두 제거합니다. 색상 레이블은 유지됩니다.",
+      "clearAllTagsDesc": "열린 폴더와 하위 폴더의 .agdata 파일에서 AI가 생성한 태그와 사용자가 추가한 태그를 모두 제거합니다. 색상 레이블은 유지됩니다.",
       "clearAllTagsTitle": "모든 태그 지우기",
       "clearCustomTooltip": "AI 태그 목록 지우기",
       "clearShortcutsTooltip": "단축키 태그 목록 지우기",

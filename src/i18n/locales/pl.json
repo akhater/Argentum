@@ -1641,7 +1641,7 @@
     "data": {
       "clearSidecars": "Wyczyść wszystkie pliki poboczne (Sidecar)",
       "clearSidecarsButton": "Wyczyść",
-      "clearSidecarsDesc": "Ta opcja usunie wszystkie pliki .agdata (zawierające twoje zmiany) wewnątrz twoich folderów głównych:",
+      "clearSidecarsDesc": "Ta opcja przeniesie do Kosza wszystkie pliki .agdata (twoje zmiany) z otwartego folderu i jego podfolderów:",
       "clearThumbnail": "Wyczyść pamięć podręczną miniatur",
       "clearThumbnailButton": "Wyczyść",
       "clearThumbnailDesc": "Zostaną usunięte wszystkie zbuforowane miniatury. Zostaną wygenerowane na nowo w trakcie przeglądania biblioteki.",
@@ -1650,8 +1650,8 @@
       "logsButton": "Otwórz",
       "logsDesc": "Zobacz plik dziennika aplikacji w celu rozwiązywania problemów. Plik znajduje się w:",
       "modals": {
-        "aiMessage": "Czy na pewno chcesz usunąć wszystkie tagi generowane przez AI z wszystkich obrazów we wszystkich aktywnych folderach głównych?\n\nTo nie wpłynie na tagi dodane przez użytkownika. Tej akcji nie można cofnąć.",
-        "allMessage": "Czy na pewno chcesz usunąć wszystkie tagi generowane przez AI i dodane przez użytkownika z wszystkich obrazów we wszystkich aktywnych folderach głównych?\n\nTej akcji nie można cofnąć.",
+        "aiMessage": "Czy na pewno chcesz usunąć wszystkie tagi generowane przez AI z wszystkich obrazów w otwartym folderze i jego podfolderach?\n\nTo nie wpłynie na tagi dodane przez użytkownika. Tej akcji nie można cofnąć.",
+        "allMessage": "Czy na pewno chcesz usunąć wszystkie tagi generowane przez AI i dodane przez użytkownika z wszystkich obrazów w otwartym folderze i jego podfolderach?\n\nTej akcji nie można cofnąć.",
         "cacheMessage": "Czy na pewno chcesz wyczyścić pamięć podręczną miniatur?\n\nWszystkie miniatury będą musiały zostać wygenerowane ponownie, co może zająć dużo czasu przy dużych folderach.",
         "confirmAiTitle": "Potwierdź usunięcie tagów AI",
         "confirmAllTitle": "Potwierdź usunięcie wszystkich tagów",
@@ -1665,7 +1665,7 @@
         "confirmResetLayoutTitle": "Zresetuj układ obszaru roboczego",
         "confirmTitle": "Potwierdź usunięcie",
         "resetLayoutMessage": "Czy na pewno chcesz zresetować układ obszaru roboczego? Wszystkie przypięte panele, szerokości i pozycje przełączników zostaną przywrócone do wartości domyślnych.",
-        "sidecarMessage": "Czy na pewno chcesz usunąć wszystkie pliki sidecar?\n\nTo trwale usunie wszystkie twoje edycje dla wszystkich obrazów wewnątrz wszystkich aktywnych folderów głównych oraz ich podfolderów."
+        "sidecarMessage": "Czy na pewno chcesz wyczyścić wszystkie pliki sidecar?\n\nTo usunie twoje edycje dla wszystkich obrazów w otwartym folderze i jego podfolderach. Pliki trafią do Kosza."
       },
       "noFolders": "Nie wybrano żadnych folderów",
       "resetLayoutButton": "Zresetuj układ",
@@ -1983,9 +1983,9 @@
       "amount": "Ilość",
       "automaticAiTagging": "Automatyczne tagowanie AI",
       "clearAiTagsButton": "Wyczyść",
-      "clearAiTagsDesc": "Ta opcja usunie wszystkie tagi wygenerowane przez AI z plików .agdata ze wszystkich aktywnych katalogów głównych. Ręczne tagi użytkownika zostaną zachowane.",
+      "clearAiTagsDesc": "Ta opcja usunie wszystkie tagi wygenerowane przez AI z plików .agdata w otwartym folderze i jego podfolderach. Ręczne tagi użytkownika zostaną zachowane.",
       "clearAiTagsTitle": "Wyczyść tagi AI",
-      "clearAllTagsDesc": "To usunie wszystkie tagi dodane przez użytkownika i wygenerowane przez AI z plików .agdata w aktywnych katalogach głównych. Etykiety kolorów zostaną zachowane.",
+      "clearAllTagsDesc": "To usunie wszystkie tagi dodane przez użytkownika i wygenerowane przez AI z plików .agdata w otwartym folderze i jego podfolderach. Etykiety kolorów zostaną zachowane.",
       "clearAllTagsTitle": "Wyczyść wszystkie tagi",
       "clearCustomTooltip": "Wyczyść listę tagów AI",
       "clearShortcutsTooltip": "Wyczyść listę skrótów do tagów",

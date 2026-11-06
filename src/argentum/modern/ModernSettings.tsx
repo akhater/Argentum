@@ -21,7 +21,6 @@ export interface SettingsProps {
   appSettings: AppSettings | null;
   onLibraryRefresh(): void;
   onSettingsChange(settings: AppSettings): Promise<void>;
-  rootPaths: string[];
 }
 
 const SECTIONS: { id: string; icon: LucideIcon; theirs?: string; ours?: AgKey }[] = [
