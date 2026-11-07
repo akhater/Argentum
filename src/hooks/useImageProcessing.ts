@@ -8,6 +8,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { Adjustments, COPYABLE_ADJUSTMENT_KEYS } from '../utils/adjustments';
 import { takeFromPaste } from '../argentum/looks/providerLooksStore';
+import { zoomRenderResolution } from '../argentum/zoomResolution';
 import { Invokes, Panel } from '../components/ui/AppProperties';
 import { debouncedSave } from './useEditorActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
@@ -373,7 +374,7 @@ export function useImageProcessing(
   const requestHiFiZoom = useMemo(
     () =>
       debounce((targetRes: number) => {
-        if (targetRes > currentResRef.current) {
+        if (zoomRenderResolution(targetRes, currentResRef.current) !== null) {
           currentResRef.current = targetRes;
           const { adjustments, previewOverride } = useEditorStore.getState();
           const renderAdjustments = previewOverride ?? adjustments;
@@ -392,7 +393,7 @@ export function useImageProcessing(
       }
       const finalRes = Math.round(baseRes);
 
-      if (finalRes > currentResRef.current) {
+      if (zoomRenderResolution(finalRes, currentResRef.current) !== null) {
         requestHiFiZoom(finalRes);
       }
     }
