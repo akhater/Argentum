@@ -35,6 +35,7 @@ mod compat_snapshot;
 pub mod copy_keys;
 pub mod dcp;
 pub mod decode;
+pub mod denoise_gpu;
 pub mod dispatch;
 pub mod display_monitor;
 pub mod display_profile;

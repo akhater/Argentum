@@ -162,6 +162,7 @@ pub struct Job<'a> {
     pub region: Option<[u32; 4]>,
 }
 
+#[derive(Clone, Copy)]
 pub enum Target {
     Kept,
     Fresh,
@@ -1230,7 +1231,7 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -1544,7 +1545,7 @@ mod tests {
     // On a real device: cargo test --lib sharpen_gpu -- --ignored
     // ------------------------------------------------------------------
 
-    fn device(fallback: bool) -> Option<GpuContext> {
+    pub(crate) fn device(fallback: bool) -> Option<GpuContext> {
         device_on(wgpu::Instance::default(), fallback)
     }
 
@@ -1583,7 +1584,7 @@ mod tests {
         })
     }
 
-    fn upload(ctx: &GpuContext, w: u32, h: u32, px: &[[f32; 4]]) -> wgpu::TextureView {
+    pub(crate) fn upload(ctx: &GpuContext, w: u32, h: u32, px: &[[f32; 4]]) -> wgpu::TextureView {
         use wgpu::util::DeviceExt;
         let data: Vec<half::f16> = px
             .iter()
@@ -1612,7 +1613,12 @@ mod tests {
         texture.create_view(&Default::default())
     }
 
-    fn read(ctx: &GpuContext, view: &wgpu::TextureView, w: u32, h: u32) -> Vec<[f32; 4]> {
+    pub(crate) fn read(
+        ctx: &GpuContext,
+        view: &wgpu::TextureView,
+        w: u32,
+        h: u32,
+    ) -> Vec<[f32; 4]> {
         let row = (w * 8).div_ceil(256) * 256;
         let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("sharpen test readback"),
@@ -2098,6 +2104,60 @@ mod tests {
         }
     }
 
+    /// The picture `where_the_time_goes` renders: texture everywhere, so the
+    /// iteration check stops nothing early, uploaded as the preview's input,
+    /// with their processor and guided-filter coefficients for it.
+    fn speed_photo(
+        ctx: &GpuContext,
+        w: u32,
+        h: u32,
+    ) -> (
+        image::DynamicImage,
+        crate::gpu_processing::GpuProcessor,
+        wgpu::TextureView,
+        wgpu::TextureView,
+        wgpu::TextureView,
+    ) {
+        let base = image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_fn(w, h, |x, y| {
+            let v = 0.2
+                + 0.1 * ((x as f32 * 0.7).sin() * (y as f32 * 0.4).cos())
+                + 0.05 * (((x * 7919 + y * 104729) % 97) as f32 / 97.0);
+            image::Rgb([v, v * 0.9, v * 1.1])
+        }));
+        let processor = crate::gpu_processing::GpuProcessor::new(
+            ctx.clone(),
+            (w + 255) & !255,
+            (h + 255) & !255,
+        )
+        .expect("processor");
+        let texels = crate::gpu_processing::to_rgba_f16(&base);
+        use wgpu::util::DeviceExt;
+        let input = ctx
+            .device
+            .create_texture_with_data(
+                &ctx.queue,
+                &wgpu::TextureDescriptor {
+                    label: Some("Input Texture"),
+                    size: wgpu::Extent3d {
+                        width: w,
+                        height: h,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                },
+                wgpu::util::TextureDataOrder::MipMajor,
+                bytemuck::cast_slice(&texels),
+            )
+            .create_view(&Default::default());
+        let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+        (base, processor, input, gf, dehaze)
+    }
+
     /// Where an editor render's time goes: their render alone, the auto
     /// contrast measurement, and sharpening the first time and once kept -
     /// each waited for on the GPU, which their log line is not. Every row is
@@ -2134,46 +2194,7 @@ mod tests {
                 continue;
             };
             for [w, h] in sizes {
-                // Texture everywhere, so the iteration check stops nothing early.
-                let base =
-                    image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_fn(w, h, |x, y| {
-                        let v = 0.2
-                            + 0.1 * ((x as f32 * 0.7).sin() * (y as f32 * 0.4).cos())
-                            + 0.05 * (((x * 7919 + y * 104729) % 97) as f32 / 97.0);
-                        image::Rgb([v, v * 0.9, v * 1.1])
-                    }));
-                let processor = crate::gpu_processing::GpuProcessor::new(
-                    ctx.clone(),
-                    (w + 255) & !255,
-                    (h + 255) & !255,
-                )
-                .expect("processor");
-                let texels = crate::gpu_processing::to_rgba_f16(&base);
-                use wgpu::util::DeviceExt;
-                let input = ctx
-                    .device
-                    .create_texture_with_data(
-                        &ctx.queue,
-                        &wgpu::TextureDescriptor {
-                            label: Some("Input Texture"),
-                            size: wgpu::Extent3d {
-                                width: w,
-                                height: h,
-                                depth_or_array_layers: 1,
-                            },
-                            mip_level_count: 1,
-                            sample_count: 1,
-                            dimension: wgpu::TextureDimension::D2,
-                            format: wgpu::TextureFormat::Rgba16Float,
-                            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                                | wgpu::TextureUsages::COPY_DST,
-                            view_formats: &[],
-                        },
-                        wgpu::util::TextureDataOrder::MipMajor,
-                        bytemuck::cast_slice(&texels),
-                    )
-                    .create_view(&Default::default());
-                let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+                let (base, processor, input, gf, dehaze) = speed_photo(&ctx, w, h);
                 let adjustments = || {
                     crate::image_processing::get_all_adjustments_from_json(
                         &serde_json::json!({ "agSharpen": { "amount": 50 } }),
@@ -2332,9 +2353,97 @@ mod tests {
                     eyes,
                     frame,
                     look_grain,
+                    // Noise Reduction's, measured below.
+                    0.0,
+                    0.0,
                 ];
                 rounds.push((name, [w, h], measured));
                 reset();
+            }
+        }
+        // Noise Reduction's rows, after every other row, on devices of their
+        // own: on OpenGL its passes left the driver holding memory, and the
+        // next device's first render in the same round (Vulkan's "theirs
+        // alone" at 6960 px) took twice as long. One person's app runs on one
+        // backend; that was this test's order, not the app's.
+        let mut to_fill = rounds.iter_mut();
+        for (name, backends) in std::iter::repeat_n(all_backends, 3).flatten() {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+            desc.backends = backends;
+            let Some(ctx) = device_on(wgpu::Instance::new(desc), false) else {
+                continue;
+            };
+            for [w, h] in sizes {
+                let (base, processor, input, gf, dehaze) = speed_photo(&ctx, w, h);
+                photo += 1;
+                // Moved with no region: its pass, sharpening again on what it
+                // made, theirs - a tick of its slider at fit, and its release
+                // at 100%. Then a tick of its drag at 100%, with a region,
+                // which leaves it to theirs (input_stage.rs).
+                let staged_ms = |nr: f32, roi: Option<crate::gpu_processing::Roi>| {
+                    let mut adjustments = crate::image_processing::get_all_adjustments_from_json(
+                        &serde_json::json!({ "agSharpen": { "amount": 50 } }),
+                        true,
+                        crate::as_shot::AsShot::reference(),
+                        Default::default(),
+                        None,
+                    );
+                    adjustments.global.luma_noise_reduction = nr;
+                    let at = super::super::input_stage::At {
+                        px_scale: 1.0,
+                        measure_on: &base,
+                        measure_key: photo,
+                        source: 7,
+                        family: 0,
+                    };
+                    let request = crate::gpu_processing::RenderRequest {
+                        adjustments,
+                        mask_bitmaps: &[],
+                        lut: None,
+                        roi,
+                    };
+                    let started = Instant::now();
+                    let (staged, _) = super::super::input_stage::develop(
+                        &ctx,
+                        &input,
+                        w,
+                        h,
+                        request,
+                        &at,
+                        Target::Kept,
+                    );
+                    processor
+                        .run(
+                            staged.view.as_ref().unwrap_or(&input),
+                            &gf,
+                            &dehaze,
+                            w,
+                            h,
+                            staged.request,
+                            true,
+                        )
+                        .expect("renders");
+                    gpu_ms(&ctx, started)
+                };
+                let _ = staged_ms(0.30, None);
+                let nr_moved = staged_ms(0.35, None);
+                let roi = crate::gpu_processing::Roi {
+                    x: w / 4,
+                    y: h / 4,
+                    width: w / 3,
+                    height: h / 3,
+                };
+                let _ = staged_ms(0.40, Some(roi));
+                let nr_drag = staged_ms(0.45, Some(roi));
+                eprintln!(
+                    "{name} {w}x{h}: noise reduction moved {nr_moved:.0} ms, a tick of its drag {nr_drag:.0} ms"
+                );
+                let (n, s, measured) = to_fill.next().expect("the same rounds as above");
+                assert_eq!((*n, *s), (name, [w, h]), "the same rounds as above");
+                let rows = speed_budgets::ROWS.len();
+                measured[rows - 2] = nr_moved;
+                measured[rows - 1] = nr_drag;
+                super::super::input_stage::reset();
             }
         }
         let mut breaches = Vec::new();
@@ -2363,6 +2472,10 @@ mod tests {
 
     fn all_checks(ctx: &GpuContext) {
         deconvolution_steepens_the_edge(ctx);
+        super::super::input_stage::tests::noise_reduction_runs_before_sharpening(ctx);
+        super::super::input_stage::tests::a_masks_own_noise_reduction_still_runs(ctx);
+        super::super::input_stage::tests::a_non_raw_photo_keeps_its_encoding(ctx);
+        super::super::input_stage::tests::a_noise_reduction_drag_leaves_it_to_their_shader(ctx);
 
         let (w, h) = (128u32, 32u32);
         let px = edge(w, h, 1.5);
