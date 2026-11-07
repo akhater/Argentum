@@ -23,6 +23,8 @@ on:
       - 'src-tauri/src/shaders/**'
       - 'src-tauri/src/gpu_processing.rs'
       - 'src-tauri/src/mods/sharpen_gpu.rs'
+      - 'src-tauri/src/mods/denoise_gpu.rs'
+      - 'src-tauri/src/mods/input_stage.rs'
       - 'src-tauri/src/mods/export_precision.rs'
       - '.github/workflows/dx12.yml'
   pull_request:
@@ -30,6 +32,8 @@ on:
       - 'src-tauri/src/shaders/**'
       - 'src-tauri/src/gpu_processing.rs'
       - 'src-tauri/src/mods/sharpen_gpu.rs'
+      - 'src-tauri/src/mods/denoise_gpu.rs'
+      - 'src-tauri/src/mods/input_stage.rs'
       - 'src-tauri/src/mods/export_precision.rs'
       - '.github/workflows/dx12.yml'
   workflow_dispatch:
@@ -53,9 +57,10 @@ jobs:
           rustflags: ''
           rust-src-dir: src-tauri
 
-      # Sharpening, a mask's own Sharpen and the whole render (main shader,
-      # blur, flare, guided filter) on every backend the machine has. Here that
-      # is WARP; the others say they are not on this machine.
+      # Noise Reduction, sharpening after it, a mask's own Sharpen and the
+      # whole render (main shader, blur, flare, guided filter) on every backend
+      # the machine has. Here that is WARP; the others say they are not on
+      # this machine.
       - name: Every backend we offer
         working-directory: src-tauri
         run: cargo test --lib mods::sharpen_gpu::tests::every_backend_we_offer -- --ignored --exact --nocapture

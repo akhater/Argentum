@@ -2,24 +2,27 @@
 //!
 //! `gpu_processing.rs` calls `run` once per render, after it has the input
 //! texture and before its own passes, and renders whatever comes back - or
-//! its own texture, untouched, when `None` does. That call is the whole
-//! upstream cost of every multi-pass tool Argentum will add: sharpening now,
-//! and the next thing that needs whole-image passes rather than one pixel at a
-//! time (denoise, diffuse or sharpen) goes in here, not in another line of
-//! theirs. See `modules.wgsl` for the per-pixel stages, which are the same
-//! idea one level down. Decided 2026-10-10.
+//! its own texture, untouched, when nothing does - with the request that
+//! comes back. That call is the whole upstream cost of every multi-pass tool
+//! Argentum will add: Noise Reduction and sharpening now, and the next thing
+//! that needs whole-image passes rather than one pixel at a time (diffuse or
+//! sharpen) goes in here, not in another line of theirs. See `modules.wgsl`
+//! for the per-pixel stages, which are the same idea one level down. Decided
+//! 2026-10-10.
 //!
 //! ORDER IS THE CONTRACT
 //!
-//! Tools run top to bottom as written in `run`, each on the previous one's
-//! output. Sharpening is first because capture sharpening undoes the lens; a
-//! denoiser would go before it, so it is not sharpening the noise.
+//! Tools run top to bottom as written in `develop`, each on the previous
+//! one's output. Noise Reduction is first, so sharpening does not sharpen
+//! the noise it would then fight (darktable's order; `denoise_gpu.rs`).
+//! Sharpening is next because capture sharpening undoes the lens.
 
 use std::sync::{Arc, Mutex};
 
 use image::DynamicImage;
 
 use super::clipping;
+use super::denoise_gpu;
 use super::sharpen;
 use super::sharpen_gpu::{self, Job, MaskView, Target};
 use crate::app_state::AppState;
@@ -27,13 +30,14 @@ use crate::gpu_processing::RenderRequest;
 use crate::image_processing::GpuContext;
 
 /// Renders that are thumbnails or small previews of a whole look - the photo
-/// at a few hundred pixels, where sharpening is below what the image can show
-/// - or not a photo at all. These are RapidRAW's own caller names.
+/// at a few hundred pixels, where sharpening is below what the image can
+/// show - or not a photo at all. These are RapidRAW's own caller names.
+/// Their Noise Reduction stays in RapidRAW's shader, where it was.
 ///
 /// The LUT export renders an identity cube laid out as an image; sharpening it
 /// would bend the colours of the exported LUT. Their export zeroes their own
 /// sharpness for the same reason.
-const NOT_SHARPENED: &[&str] = &[
+const NOT_STAGED: &[&str] = &[
     "generate_thumbnail_data",
     "generate_uncropped_preview",
     "generate_preset_preview",
@@ -42,10 +46,34 @@ const NOT_SHARPENED: &[&str] = &[
     "export_lut",
 ];
 
+/// What the stage hands RapidRAW's shader.
+pub struct Staged<'a> {
+    /// The texture to read instead of theirs, when the stage made one.
+    pub view: Option<wgpu::TextureView>,
+    /// The request to render it with: without the global Noise Reduction
+    /// when the stage has already run it.
+    pub request: RenderRequest<'a>,
+}
+
+/// Where one render sits in the photo, for the tools that work in the full
+/// picture's pixels.
+pub struct At<'p> {
+    /// Render pixels per full-resolution pixel.
+    pub px_scale: f32,
+    /// The full picture sharpening measures its contrast threshold on, and
+    /// the key that measurement is kept under.
+    pub measure_on: &'p DynamicImage,
+    pub measure_key: u64,
+    /// What the input's pixels are, and which photo: `sharpen_gpu::Job`'s
+    /// `source` and `family`. 0 is unknown.
+    pub source: u64,
+    pub family: u64,
+}
+
 /// The anchor. Called from `process_and_get_dynamic_image_inner`, under their
-/// processor lock, so the kept result can be reused between frames.
+/// processor lock, so the kept results can be reused between frames.
 #[allow(clippy::too_many_arguments)]
-pub fn run(
+pub fn run<'a>(
     context: &GpuContext,
     state: &tauri::State<AppState>,
     base_image: &DynamicImage,
@@ -54,81 +82,29 @@ pub fn run(
     input: &wgpu::TextureView,
     width: u32,
     height: u32,
-    request: &RenderRequest,
-) -> Option<wgpu::TextureView> {
-    if NOT_SHARPENED.contains(&caller_id) {
-        return None;
-    }
-    guarded(|| {
-        stage(
-            context,
-            state,
-            base_image,
-            transform_hash,
-            input,
-            width,
-            height,
+    request: RenderRequest<'a>,
+) -> Staged<'a> {
+    if NOT_STAGED.contains(&caller_id) {
+        return Staged {
+            view: None,
             request,
-        )
-    })
-}
-
-/// Never take their render down with ours.
-///
-/// This runs inside their preview worker, holding their processor lock. A
-/// panic here poisons that lock and ends the worker thread, after which no
-/// preview is drawn until the app restarts - which is what a bug in this
-/// stage did on 2026-10-10. So a failure skips sharpening for that frame,
-/// says why in the log, and lets the engine start clean next time; their
-/// render goes ahead on their own texture.
-fn guarded(stage: impl FnOnce() -> Option<wgpu::TextureView>) -> Option<wgpu::TextureView> {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(stage)) {
-        Ok(view) => view,
-        Err(payload) => {
-            let why = payload
-                .downcast_ref::<&str>()
-                .map(|s| s.to_string())
-                .or_else(|| payload.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "no message".into());
-            log::error!("[sharpen] skipped this frame, the input stage panicked: {why}");
-            sharpen_gpu::reset();
-            None
-        }
+        };
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn stage(
-    context: &GpuContext,
-    state: &tauri::State<AppState>,
-    base_image: &DynamicImage,
-    transform_hash: u64,
-    input: &wgpu::TextureView,
-    width: u32,
-    height: u32,
-    request: &RenderRequest,
-) -> Option<wgpu::TextureView> {
     let (px_scale, full) = render_scale(state, transform_hash, width);
-    let (view, contrast) = sharpening(
-        context,
-        input,
-        width,
-        height,
-        request,
+    let at = At {
         px_scale,
-        full.as_deref().unwrap_or(base_image),
-        transform_hash,
+        measure_on: full.as_deref().unwrap_or(base_image),
+        measure_key: transform_hash,
         // Which picture this is, whichever texture of theirs holds it: their
         // cache rebuilds the texture from the same image after every
         // thumbnail render.
-        (
-            sharpen::picture_key(base_image, transform_hash),
-            // The drag preview is a smaller copy of the same full picture.
-            full.as_deref()
-                .map_or(0, |full| sharpen::picture_key(full, transform_hash)),
-        ),
-        Target::Kept,
-    );
+        source: sharpen::picture_key(base_image, transform_hash),
+        // The drag preview is a smaller copy of the same full picture.
+        family: full
+            .as_deref()
+            .map_or(0, |full| sharpen::picture_key(full, transform_hash)),
+    };
+    let (staged, contrast) = develop(context, input, width, height, request, &at, Target::Kept);
     // The transform cache matched, so this is the editor's render of the open
     // photo: what auto found is what its slider should say. `try_lock`
     // because this runs under their processor lock, and a readout is not
@@ -140,35 +116,138 @@ fn stage(
     {
         sharpen::remember_shown_contrast(&open.path, threshold);
     }
-    view
+    staged
 }
 
 /// For a render that builds its own processor outside their lock - the 16-bit
-/// export. Always full resolution, and its texture is its own.
-pub fn run_for_export(
+/// export. Always full resolution, and its textures are its own.
+pub fn run_for_export<'a>(
     context: &GpuContext,
     base_image: &DynamicImage,
     input: &wgpu::TextureView,
-    request: &RenderRequest,
-) -> Option<wgpu::TextureView> {
+    request: RenderRequest<'a>,
+) -> Staged<'a> {
     let (width, height) = (base_image.width(), base_image.height());
     // Any hash will do for the measurement cache: its key holds a sample of
     // this image's bytes (sharpen::picture_key), which tells photos apart.
-    guarded(|| {
-        sharpening(
-            context,
-            input,
+    let at = At {
+        px_scale: 1.0,
+        measure_on: base_image,
+        measure_key: 0,
+        source: 0,
+        family: 0,
+    };
+    develop(context, input, width, height, request, &at, Target::Fresh).0
+}
+
+/// How many times a texture the stage handed back has been written over:
+/// RapidRAW's blurs, which read it, are kept between renders on that
+/// (`BlurSource`, gpu_processing.rs).
+pub fn writes() -> u64 {
+    denoise_gpu::writes() + sharpen_gpu::writes()
+}
+
+/// Forget every kept result, so the next render builds them afresh.
+pub fn reset() {
+    denoise_gpu::reset();
+    sharpen_gpu::reset();
+}
+
+/// The stage on one render of `input`: Noise Reduction, then sharpening.
+/// Also what auto found for sharpening's contrast threshold, when it looked.
+pub fn develop<'a>(
+    context: &GpuContext,
+    input: &wgpu::TextureView,
+    width: u32,
+    height: u32,
+    request: RenderRequest<'a>,
+    at: &At,
+    target: Target,
+) -> (Staged<'a>, Option<f32>) {
+    struct Made {
+        view: Option<wgpu::TextureView>,
+        denoised: bool,
+        contrast: Option<f32>,
+    }
+    let made = guarded(|| {
+        let global = &request.adjustments.global;
+        let denoise = denoise_gpu::Job {
+            src: input,
+            source: at.source,
+            family: at.family,
             width,
             height,
+            is_raw: global.is_raw_image == 1,
+            luma: global.luma_noise_reduction,
+            color: global.color_noise_reduction,
+            px_scale: at.px_scale,
+        };
+        let denoised = denoise_gpu::run(context, &denoise, target);
+        let (src, source) = match &denoised {
+            Some(view) => (view, denoise.result_source()),
+            None => (input, at.source),
+        };
+        let (sharpened, contrast) = sharpening(
+            context,
+            src,
+            width,
+            height,
+            &request,
+            at,
+            (source, at.family),
+            target,
+        );
+        Some(Made {
+            denoised: denoised.is_some(),
+            view: sharpened.or(denoised),
+            contrast,
+        })
+    });
+    let mut request = request;
+    let Some(made) = made else {
+        return (
+            Staged {
+                view: None,
+                request,
+            },
+            None,
+        );
+    };
+    if made.denoised {
+        request.adjustments.global.luma_noise_reduction = 0.0;
+        request.adjustments.global.color_noise_reduction = 0.0;
+    }
+    (
+        Staged {
+            view: made.view,
             request,
-            1.0,
-            base_image,
-            0,
-            (0, 0),
-            Target::Fresh,
-        )
-        .0
-    })
+        },
+        made.contrast,
+    )
+}
+
+/// Never take their render down with ours.
+///
+/// This runs inside their preview worker, holding their processor lock. A
+/// panic here poisons that lock and ends the worker thread, after which no
+/// preview is drawn until the app restarts - which is what a bug in this
+/// stage did on 2026-10-10. So a failure skips the stage for that frame,
+/// says why in the log, and lets the engines start clean next time; their
+/// render goes ahead on their own texture, with their own Noise Reduction.
+fn guarded<T>(stage: impl FnOnce() -> Option<T>) -> Option<T> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(stage)) {
+        Ok(made) => made,
+        Err(payload) => {
+            let why = payload
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "no message".into());
+            log::error!("[input stage] skipped this frame, it panicked: {why}");
+            reset();
+            None
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -178,14 +257,13 @@ fn sharpening(
     width: u32,
     height: u32,
     request: &RenderRequest,
-    px_scale: f32,
-    measure_on: &DynamicImage,
-    measure_key: u64,
+    at: &At,
     (source, family): (u64, u64),
     target: Target,
 ) -> (Option<wgpu::TextureView>, Option<f32>) {
     let global = &request.adjustments.global;
     let params = global.ag_sharpen;
+    let px_scale = at.px_scale;
     let mask_view = match global.show_clipping {
         clipping::SHARPEN_MASK => MaskView::Capture,
         clipping::SHARPEN_MASK_USM => MaskView::Sharpen,
@@ -223,7 +301,7 @@ fn sharpening(
         return (none, None);
     }
 
-    let thresholds = sharpen::thresholds(&params, measure_on, measure_key, is_raw);
+    let thresholds = sharpen::thresholds(&params, at.measure_on, at.measure_key, is_raw);
     let region = request.roi.as_ref().map(|r| [r.x, r.y, r.width, r.height]);
     let view = sharpen_gpu::run(
         context,
@@ -342,4 +420,198 @@ pub fn at_export_scale<R>(px_scale: f32, render: impl FnOnce() -> R) -> R {
     let result = render();
     EXPORT_SCALE.set(previous);
     result
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::mods::sharpen_gpu::tests::{device, read, upload};
+
+    /// A noisy grey field, the same every run.
+    fn noisy(w: u32, h: u32) -> (Vec<[f32; 4]>, DynamicImage) {
+        let px: Vec<[f32; 4]> = (0..w * h)
+            .map(|i| {
+                let n = ((i.wrapping_mul(2_654_435_761) >> 7) % 1000) as f32 / 1000.0 - 0.5;
+                let v = 0.2 + 0.04 * n;
+                [v, v, v, 1.0]
+            })
+            .collect();
+        let image = DynamicImage::ImageRgb32F(image::ImageBuffer::from_fn(w, h, |x, y| {
+            let [r, g, b, _] = px[(y * w + x) as usize];
+            image::Rgb([r, g, b])
+        }));
+        (px, image)
+    }
+
+    fn spread(px: &[[f32; 4]]) -> f32 {
+        let n = px.len() as f32;
+        let mean = px.iter().map(|p| p[1]).sum::<f32>() / n;
+        (px.iter().map(|p| (p[1] - mean).powi(2)).sum::<f32>() / n).sqrt()
+    }
+
+    fn request(luma_nr: u32) -> RenderRequest<'static> {
+        RenderRequest {
+            adjustments: crate::image_processing::get_all_adjustments_from_json(
+                &serde_json::json!({
+                    "agSharpen": { "amount": 100 },
+                    "lumaNoiseReduction": luma_nr,
+                }),
+                true,
+                crate::as_shot::AsShot::reference(),
+                Default::default(),
+                None,
+            ),
+            mask_bitmaps: &[],
+            lut: None,
+            roi: None,
+        }
+    }
+
+    /// Noise Reduction runs on the input, before sharpening sees it: the
+    /// staged texture of a noisy grey field is much quieter with it, and
+    /// RapidRAW's shader is told not to run it a second time. At 0 nothing
+    /// changes. Called by `sharpen_gpu`'s `every_backend_we_offer`.
+    pub(crate) fn noise_reduction_runs_before_sharpening(ctx: &GpuContext) {
+        let (w, h) = (96u32, 64u32);
+        let (px, image) = noisy(w, h);
+        let src = upload(ctx, w, h, &px);
+        let at = At {
+            px_scale: 1.0,
+            measure_on: &image,
+            measure_key: 0,
+            source: 0,
+            family: 0,
+        };
+        let stage = |luma_nr| develop(ctx, &src, w, h, request(luma_nr), &at, Target::Fresh).0;
+
+        let sharpened = stage(0);
+        assert_eq!(
+            sharpened.request.adjustments.global.luma_noise_reduction,
+            0.0
+        );
+        let sharpened = read(ctx, sharpened.view.as_ref().expect("sharpened"), w, h);
+
+        let denoised = stage(100);
+        assert_eq!(
+            denoised.request.adjustments.global.luma_noise_reduction, 0.0,
+            "their shader must not run the global amount again"
+        );
+        let denoised = read(ctx, denoised.view.as_ref().expect("staged"), w, h);
+        assert!(
+            spread(&denoised) < spread(&sharpened) * 0.5,
+            "denoised before sharpening: {} against {}",
+            spread(&denoised),
+            spread(&sharpened)
+        );
+    }
+
+    /// A mask's own Noise Reduction still runs, in RapidRAW's shader, on top
+    /// of a global amount the stage ran first: through the whole render, the
+    /// half of a noisy grey field under the mask comes out much quieter than
+    /// the other. Sharpening off: after it, this noise is past what RapidRAW's
+    /// maths smooths, which is why the global amounts moved before it.
+    /// Called by `sharpen_gpu`'s `every_backend_we_offer`.
+    pub(crate) fn a_masks_own_noise_reduction_still_runs(ctx: &GpuContext) {
+        let (w, h) = (128u32, 64u32);
+        let (_, image) = noisy(w, h);
+        let mask = sharpen_gpu::MaskBitmap::from_fn(w, h, |x, _| {
+            image::Luma([if x < w / 2 { 255 } else { 0 }])
+        });
+        let js = serde_json::json!({
+            "agSharpen": { "capture": false, "amount": 0 },
+            "lumaNoiseReduction": 20,
+            "masks": [{
+                "id": "m1",
+                "name": "Mask",
+                "visible": true,
+                "invert": false,
+                "adjustments": { "lumaNoiseReduction": 100 },
+                "subMasks": [{
+                    "id": "s1",
+                    "type": "radial",
+                    "visible": true,
+                    "mode": "additive",
+                    "parameters": {},
+                }],
+            }],
+        });
+        let request = RenderRequest {
+            adjustments: crate::image_processing::get_all_adjustments_from_json(
+                &js,
+                true,
+                crate::as_shot::AsShot::reference(),
+                Default::default(),
+                None,
+            ),
+            mask_bitmaps: std::slice::from_ref(&mask),
+            lut: None,
+            roi: None,
+        };
+        let out = crate::mods::export_precision::render_high_precision(ctx, &image, request)
+            .expect("renders");
+        let out = out.as_rgba32f().expect("float");
+        // Away from the frame's edge and the mask's.
+        let half = |x0: u32| -> Vec<[f32; 4]> {
+            (8..h - 8)
+                .flat_map(|y| (x0 + 8..x0 + w / 2 - 8).map(move |x| (x, y)))
+                .map(|(x, y)| out.get_pixel(x, y).0)
+                .collect()
+        };
+        let (inside, outside) = (spread(&half(0)), spread(&half(w / 2)));
+        assert!(
+            inside < outside * 0.6,
+            "the mask's own Noise Reduction: {inside} inside against {outside} outside"
+        );
+    }
+
+    /// A photo that is not a RAW (JPEG, HEIC, TIFF) comes in sRGB-encoded and
+    /// leaves the pass the same way: quieter, no brighter or darker.
+    /// Called by `sharpen_gpu`'s `every_backend_we_offer`.
+    pub(crate) fn a_non_raw_photo_keeps_its_encoding(ctx: &GpuContext) {
+        let (w, h) = (96u32, 64u32);
+        let (px, image) = noisy(w, h);
+        let src = upload(ctx, w, h, &px);
+        let at = At {
+            px_scale: 1.0,
+            measure_on: &image,
+            measure_key: 0,
+            source: 0,
+            family: 0,
+        };
+        let request = RenderRequest {
+            adjustments: crate::image_processing::get_all_adjustments_from_json(
+                &serde_json::json!({
+                    "agSharpen": { "capture": false, "amount": 0 },
+                    "lumaNoiseReduction": 100,
+                }),
+                false,
+                crate::as_shot::AsShot::reference(),
+                Default::default(),
+                None,
+            ),
+            mask_bitmaps: &[],
+            lut: None,
+            roi: None,
+        };
+        let staged = develop(ctx, &src, w, h, request, &at, Target::Fresh).0;
+        let out = read(ctx, staged.view.as_ref().expect("denoised"), w, h);
+        let mean = |px: &[[f32; 4]]| px.iter().map(|p| p[1]).sum::<f32>() / px.len() as f32;
+        assert!(
+            (mean(&out) - mean(&px)).abs() < 0.005,
+            "the level moved: {} from {}",
+            mean(&out),
+            mean(&px)
+        );
+        assert!(spread(&out) < spread(&px) * 0.5);
+        assert!(out.iter().all(|p| p[3] == 1.0), "alpha kept");
+    }
+
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn noise_reduction_runs_before_sharpening_here() {
+        let ctx = device(false).expect("a GPU");
+        noise_reduction_runs_before_sharpening(&ctx);
+        a_masks_own_noise_reduction_still_runs(&ctx);
+        a_non_raw_photo_keeps_its_encoding(&ctx);
+    }
 }

@@ -608,13 +608,13 @@ struct BlurParams {
 
 /// What a kept blur was made from. RapidRAW 707a78d6 keys it by their cached
 /// input and the pass's parameters; Argentum's blurs read the texture the
-/// input stage hands back (`mods/input_stage.rs`), which sharpening rewrites
-/// in place when its settings change, so the key is the texture read and
-/// sharpening's count of writes as well.
+/// input stage hands back (`mods/input_stage.rs`), which Noise Reduction and
+/// sharpening rewrite in place when their settings change, so the key is the
+/// texture read and the stage's count of writes as well.
 #[derive(Clone, PartialEq)]
 struct BlurSource {
     input: wgpu::TextureView,
-    sharpen_writes: u64,
+    stage_writes: u64,
     params: BlurParams,
 }
 
@@ -1946,8 +1946,8 @@ impl GpuProcessor {
             None => (self.dummy_lut_view.clone(), self.dummy_lut_sampler.clone()),
         };
         // Argentum: read after the input stage has run, so a blur kept from a texture that
-        // sharpening has since rewritten is not reused (BlurSource).
-        let sharpen_writes = crate::mods::sharpen_gpu::writes();
+        // the stage has since rewritten is not reused (BlurSource).
+        let stage_writes = crate::mods::input_stage::writes();
 
         let mut adjustments = request.adjustments;
         // Argentum: the edit can name a LUT that did not load; the dummy texture is black.
@@ -2131,7 +2131,7 @@ impl GpuProcessor {
                     };
                     let source = BlurSource {
                         input: input_texture_view.clone(),
-                        sharpen_writes,
+                        stage_writes,
                         params,
                     };
                     let mut sources = self.blur_sources.lock().unwrap_or_else(|e| e.into_inner());
@@ -2651,7 +2651,7 @@ fn process_and_get_dynamic_image_inner(
     }
 
     let cache = cache_lock.as_ref().unwrap();
-    let staged = crate::mods::input_stage::run(context, state, base_image, transform_hash, caller_id, &cache.texture_view, cache.width, cache.height, &request); // Argentum: the input stage, see mods/input_stage.rs
+    let crate::mods::input_stage::Staged { view: staged, request } = crate::mods::input_stage::run(context, state, base_image, transform_hash, caller_id, &cache.texture_view, cache.width, cache.height, request); // Argentum: the input stage, see mods/input_stage.rs; render with the request it hands back
 
     let (processed_pixels, out_w, out_h, out_x, out_y) = processor.run(
         staged.as_ref().unwrap_or(&cache.texture_view),

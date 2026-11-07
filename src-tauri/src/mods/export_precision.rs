@@ -88,7 +88,9 @@ use crate::AppState;
 use crate::gpu_processing::{GpuProcessor, RenderRequest, process_and_get_dynamic_image};
 use crate::image_processing::GpuContext;
 
-/// The shader the renderer actually compiles: our modules, then theirs.
+/// The shader the renderer actually compiles: our modules, the helpers and
+/// Noise Reduction it shares with the pass before it (`denoise_gpu.rs`),
+/// then theirs.
 ///
 /// Shared so the export variant is provably a transformation of the same text
 /// rather than a second copy that can drift. Upstream's own version of this
@@ -97,6 +99,8 @@ use crate::image_processing::GpuContext;
 /// would fail, previews included, not just a 16-bit export.
 pub const SHADER_SOURCE: &str = concat!(
     include_str!("../shaders/modules.wgsl"),
+    include_str!("../shaders/shared.wgsl"),
+    include_str!("../shaders/noise_reduction.wgsl"),
     include_str!("../shaders/shader.wgsl"),
 );
 
@@ -556,17 +560,18 @@ fn render_on(
     let is_raw = request.adjustments.global.is_raw_image;
     let (gf_coeffs_view, gf_dehaze_view) =
         processor.build_guided_coeffs(&input_view, width, height, is_raw);
-    // Sharpening, as the preview path gets it through their anchor - this
-    // render does not go through `process_and_get_dynamic_image`, so it asks
-    // for itself. A texture of its own: this runs outside their processor lock.
-    let staged = super::input_stage::run_for_export(context, base_image, &input_view, &request);
+    // Noise Reduction and sharpening, as the preview path gets them through
+    // their anchor - this render does not go through
+    // `process_and_get_dynamic_image`, so it asks for itself. Textures of its
+    // own: this runs outside their processor lock.
+    let staged = super::input_stage::run_for_export(context, base_image, &input_view, request);
     let (bytes, out_w, out_h, _, _) = processor.run(
-        staged.as_ref().unwrap_or(&input_view),
+        staged.view.as_ref().unwrap_or(&input_view),
         &gf_coeffs_view,
         &gf_dehaze_view,
         width,
         height,
-        request,
+        staged.request,
         false,
     )?;
 

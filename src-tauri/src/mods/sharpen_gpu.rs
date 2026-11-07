@@ -162,6 +162,7 @@ pub struct Job<'a> {
     pub region: Option<[u32; 4]>,
 }
 
+#[derive(Clone, Copy)]
 pub enum Target {
     Kept,
     Fresh,
@@ -1230,7 +1231,7 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -1544,7 +1545,7 @@ mod tests {
     // On a real device: cargo test --lib sharpen_gpu -- --ignored
     // ------------------------------------------------------------------
 
-    fn device(fallback: bool) -> Option<GpuContext> {
+    pub(crate) fn device(fallback: bool) -> Option<GpuContext> {
         device_on(wgpu::Instance::default(), fallback)
     }
 
@@ -1583,7 +1584,7 @@ mod tests {
         })
     }
 
-    fn upload(ctx: &GpuContext, w: u32, h: u32, px: &[[f32; 4]]) -> wgpu::TextureView {
+    pub(crate) fn upload(ctx: &GpuContext, w: u32, h: u32, px: &[[f32; 4]]) -> wgpu::TextureView {
         use wgpu::util::DeviceExt;
         let data: Vec<half::f16> = px
             .iter()
@@ -1612,7 +1613,12 @@ mod tests {
         texture.create_view(&Default::default())
     }
 
-    fn read(ctx: &GpuContext, view: &wgpu::TextureView, w: u32, h: u32) -> Vec<[f32; 4]> {
+    pub(crate) fn read(
+        ctx: &GpuContext,
+        view: &wgpu::TextureView,
+        w: u32,
+        h: u32,
+    ) -> Vec<[f32; 4]> {
         let row = (w * 8).div_ceil(256) * 256;
         let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("sharpen test readback"),
@@ -2363,6 +2369,9 @@ mod tests {
 
     fn all_checks(ctx: &GpuContext) {
         deconvolution_steepens_the_edge(ctx);
+        super::super::input_stage::tests::noise_reduction_runs_before_sharpening(ctx);
+        super::super::input_stage::tests::a_masks_own_noise_reduction_still_runs(ctx);
+        super::super::input_stage::tests::a_non_raw_photo_keeps_its_encoding(ctx);
 
         let (w, h) = (128u32, 32u32);
         let px = edge(w, h, 1.5);

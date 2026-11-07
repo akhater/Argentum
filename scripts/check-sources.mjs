@@ -66,6 +66,11 @@ export const WIRING = [
     why: 'the render has to read what the input stage returns, or sharpening silently does nothing',
   },
   {
+    file: 'src-tauri/src/gpu_processing.rs',
+    pattern: /input_stage::Staged { view: staged, request }/,
+    why: 'the render has to use the request the input stage returns, or Noise Reduction runs twice',
+  },
+  {
     file: 'src-tauri/src/export_processing.rs',
     pattern: /write_export_metadata\(/,
     why: 'the export has to go through ours or a TIFF silently loses its metadata',

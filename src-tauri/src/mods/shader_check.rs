@@ -62,6 +62,11 @@ mod tests {
     }
 
     #[test]
+    fn the_denoise_shader_compiles() {
+        compiles(crate::mods::denoise_gpu::SHADER, "denoise");
+    }
+
+    #[test]
     fn the_display_shader_compiles() {
         compiles(DISPLAY_SOURCE, "display");
     }
@@ -227,6 +232,7 @@ mod tests {
             ("render", SOURCE),
             ("display", DISPLAY_SOURCE),
             ("sharpen", crate::mods::sharpen_gpu::SHADER),
+            ("denoise", crate::mods::denoise_gpu::SHADER),
             ("blur", include_str!("../shaders/blur.wgsl")),
             ("flare", include_str!("../shaders/flare.wgsl")),
             ("guided", include_str!("../shaders/guided.wgsl")),

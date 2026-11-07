@@ -1,7 +1,8 @@
 //! The app's own shader functions, run on the GPU, for the parity tests.
 //!
-//! The app compiles `shaders/modules.wgsl` followed by `shaders/shader.wgsl`
-//! as one module (`SHADER` in `mods/export_precision.rs`). This does the
+//! The app compiles `shaders/modules.wgsl`, `shared.wgsl`,
+//! `noise_reduction.wgsl` and `shader.wgsl` as one module (`SHADER_SOURCE`
+//! in `mods/export_precision.rs`). This does the
 //! same with the files as they are on disk, adds an entry point that calls
 //! their functions once per element, and reads back what they return. A
 //! change to one of their functions shows up here the next time the tests
@@ -81,8 +82,10 @@ impl AppShader {
     /// element, `i` its index.
     pub fn new(gpu: Arc<Gpu>, body: &str) -> AppShader {
         let source = format!(
-            "{}{}{}",
+            "{}{}{}{}{}",
             read("modules.wgsl"),
+            read("shared.wgsl"),
+            read("noise_reduction.wgsl"),
             read("shader.wgsl"),
             ENTRY.replace("BODY", body)
         );
