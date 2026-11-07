@@ -4,5 +4,7 @@
   sharpness: on an ISO 8000 RAW at 100%, Luma 60 leaves about 17% less noise than before with
   edges as steep. Its neighbourhood is also sized from the full-resolution photo, so it means the
   same at every zoom and in export. Photos with Noise Reduction at 0 render exactly as before;
-  existing edits with it above 0 will look cleaner. A mask's own Noise Reduction still runs after
-  sharpening, as before.
+  existing edits with it above 0 will look cleaner. While its slider is dragged at 100% the
+  preview stays as fast as before and shows the old order; letting go renders the new one, which
+  sharpens the photo again, as letting go of Sharpen does. A mask's own Noise Reduction still
+  runs after sharpening, as before.

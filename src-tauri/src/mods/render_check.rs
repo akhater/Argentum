@@ -902,3 +902,199 @@ fn noise_reduction_order() {
         input_stage::reset();
     }
 }
+
+/// One picture the editor renders, uploaded once, as its preview cache keeps it.
+struct Shown {
+    image: DynamicImage,
+    input: wgpu::TextureView,
+    gf: wgpu::TextureView,
+    dehaze: wgpu::TextureView,
+    at_scale: f32,
+    source: u64,
+}
+
+impl Shown {
+    fn new(ctx: &GpuContext, processor: &GpuProcessor, full: &DynamicImage, long: u32) -> Self {
+        let image = if long >= full.width().max(full.height()) {
+            full.clone()
+        } else {
+            crate::image_processing::downscale_f32_image(full, long, long)
+        };
+        let (w, h) = image.dimensions();
+        let input = Bench::upload(ctx, &image);
+        let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+        Shown {
+            at_scale: (w as f32 / full.width() as f32).min(1.0),
+            source: sharpen::picture_key(&image, 0),
+            image,
+            input,
+            gf,
+            dehaze,
+        }
+    }
+}
+
+/// One editor render of `shown` with Luma Noise Reduction at `nr`, staged and
+/// kept as `input_stage::run` keeps it, drawn to the screen (no readback) and
+/// waited for on the GPU. Milliseconds.
+#[allow(clippy::too_many_arguments)]
+fn draw_nr(
+    ctx: &GpuContext,
+    processor: &GpuProcessor,
+    photo: &Photo,
+    shown: &Shown,
+    nr: u32,
+    roi: Option<Roi>,
+    order: NrOrder,
+) -> f32 {
+    let (w, h) = shown.image.dimensions();
+    let adjustments = crate::image_processing::get_all_adjustments_from_json(
+        &json!({ "lumaNoiseReduction": nr }),
+        true,
+        photo.shot,
+        crate::image_processing::resolve_render_options(&AppSettings::default(), true),
+        Some(&photo.path),
+    );
+    let request = |adjustments| RenderRequest {
+        adjustments,
+        mask_bitmaps: &[],
+        lut: None,
+        roi,
+    };
+    let at = input_stage::At {
+        px_scale: shown.at_scale,
+        measure_on: &photo.full,
+        measure_key: 0,
+        source: shown.source,
+        family: sharpen::picture_key(&photo.full, 0),
+    };
+    wait(ctx);
+    let started = Instant::now();
+    let (view, main) = match order {
+        NrOrder::BeforeSharpening => {
+            let (staged, _) = input_stage::develop(
+                ctx,
+                &shown.input,
+                w,
+                h,
+                request(adjustments),
+                &at,
+                Target::Kept,
+            );
+            (staged.view, staged.request)
+        }
+        NrOrder::AfterSharpening => {
+            let mut without = adjustments;
+            without.global.luma_noise_reduction = 0.0;
+            let (staged, _) =
+                input_stage::develop(ctx, &shown.input, w, h, request(without), &at, Target::Kept);
+            (staged.view, request(adjustments))
+        }
+    };
+    processor
+        .run(
+            view.as_ref().unwrap_or(&shown.input),
+            &shown.gf,
+            &shown.dehaze,
+            w,
+            h,
+            main,
+            true,
+        )
+        .expect("renders");
+    wait(ctx);
+    started.elapsed().as_secs_f32() * 1000.0
+}
+
+fn median(mut v: Vec<f32>) -> f32 {
+    v.sort_by(f32::total_cmp);
+    v[v.len() / 2]
+}
+
+/// Dragging the Noise Reduction slider as the editor renders it (lib.rs
+/// `process_preview_job`, live quality "high"), with Noise Reduction after
+/// sharpening (main until 2026-11-07) and before it. At fit: the fit picture,
+/// no region. At 100%: the drag preview, 1/1.4 of the photo, with the window's
+/// 1920 x 1200 px as its region; then the release, the whole photo with no
+/// region. Each photo's default edit; five drags of six ticks, the tick and
+/// release medians.
+#[test]
+#[ignore = "reads RAW files and needs a GPU; timing, run by hand"]
+fn noise_reduction_drag() {
+    const FIT: u32 = 1920;
+    const DIVISOR: f32 = 1.4;
+    let ctx = device();
+    for path in raws() {
+        let photo = open(&path);
+        let (fw, fh) = photo.full.dimensions();
+        let small = GpuProcessor::new(ctx.clone(), (FIT + 255) & !255, (FIT + 255) & !255)
+            .expect("processor");
+        let big = GpuProcessor::new(ctx.clone(), (fw + 255) & !255, (fh + 255) & !255)
+            .expect("processor");
+        let fit = Shown::new(&ctx, &small, &photo.full, FIT);
+        let still = Shown::new(&ctx, &big, &photo.full, fw.max(fh));
+        let drag = Shown::new(
+            &ctx,
+            &big,
+            &photo.full,
+            (fw.max(fh) as f32 / DIVISOR) as u32,
+        );
+        let (dw, dh) = drag.image.dimensions();
+        let (rw, rh) = (
+            ((1920.0 / DIVISOR) as u32).min(dw),
+            ((1200.0 / DIVISOR) as u32).min(dh),
+        );
+        let roi = Roi {
+            x: (dw - rw) / 2,
+            y: (dh - rh) / 2,
+            width: rw,
+            height: rh,
+        };
+        for order in [NrOrder::AfterSharpening, NrOrder::BeforeSharpening] {
+            let name = if order == NrOrder::AfterSharpening {
+                "after (main)"
+            } else {
+                "before (PR) "
+            };
+            let (mut fit_ticks, mut fit_release) = (Vec::new(), Vec::new());
+            let (mut ticks, mut releases) = (Vec::new(), Vec::new());
+            for round in 0..5u32 {
+                let base = 20 + round;
+                // Fit: the still picture, then the drag, then the release.
+                draw_nr(&ctx, &small, &photo, &fit, base, None, order);
+                for i in 1..=6 {
+                    fit_ticks.push(draw_nr(
+                        &ctx,
+                        &small,
+                        &photo,
+                        &fit,
+                        base + 5 * i,
+                        None,
+                        order,
+                    ));
+                }
+                fit_release.push(draw_nr(&ctx, &small, &photo, &fit, base + 30, None, order));
+                // 100%: the still photo, the drag preview's ticks, the release.
+                draw_nr(&ctx, &big, &photo, &still, base, None, order);
+                for i in 1..=6 {
+                    let t = draw_nr(&ctx, &big, &photo, &drag, base + 5 * i, Some(roi), order);
+                    // The first tick switches to the drag preview in both orders.
+                    if i > 1 {
+                        ticks.push(t);
+                    }
+                }
+                releases.push(draw_nr(&ctx, &big, &photo, &still, base + 30, None, order));
+                input_stage::reset();
+            }
+            println!(
+                "{path} {name}: fit {}x{} tick {:.1} ms, release {:.1} ms | 100% drag {dw}x{dh} region {rw}x{rh} tick {:.1} ms, release {fw}x{fh} {:.1} ms",
+                fit.image.width(),
+                fit.image.height(),
+                median(fit_ticks),
+                median(fit_release),
+                median(ticks),
+                median(releases),
+            );
+        }
+    }
+}

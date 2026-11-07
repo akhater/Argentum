@@ -18,6 +18,12 @@
 //! "look grain" (their render with a provider look's grain on, look_grain.rs)
 //! was measured the same way on 2026-11-04, ten runs on mains power.
 //!
+//! "noise reduction moved" (its pass before sharpening, sharpening again and
+//! their render: a tick of its slider at fit, its release at 100%) and "noise
+//! reduction drag" (a tick of its drag at 100%, a region, which leaves it to
+//! their shader; input_stage.rs) were measured the same way on 2026-11-07, ten
+//! runs on mains power, in a pass of their own after the other rows.
+//!
 //! A slower GPU fails them, so the test stays `#[ignore]`d and is run by hand
 //! on that laptop before every release (docs/RELEASING.md). Anywhere else,
 //! `AG_SPEED_BUDGETS=report` prints the rows over budget without failing.
@@ -32,7 +38,7 @@
 pub mod full_speed;
 
 /// What `where_the_time_goes` times, in this order everywhere below.
-pub const ROWS: [&str; 11] = [
+pub const ROWS: [&str; 13] = [
     "theirs alone",
     "measure first",
     "measure again",
@@ -44,21 +50,23 @@ pub const ROWS: [&str; 11] = [
     "two eye masks",
     "whole-frame mask",
     "look grain",
+    "noise reduction moved",
+    "noise reduction drag",
 ];
 
 /// Milliseconds per row of `ROWS`, by backend and photo size.
 #[rustfmt::skip]
 const BUDGETS_MS: [(&str, [u32; 2], [u32; ROWS.len()]); 8] = [
-    //                            their  measure    sharpening   mask view    pan   masks:
-    //                            alone  1st again  1st   kept   on    off    step  eyes  frame  grain
-    ("Auto",       [3328, 2219], [  41,   36,  5,   197,   23,   21,   21,   21,   213,  224,   54]),
-    ("Auto",       [6960, 4640], [ 186,  150,  5,   929,  107,  159,  186,   93,   909,  962,  219]),
-    ("DirectX 12", [3328, 2219], [  32,   36,  5,   462,   26,   27,   24,   24,   218,  234,   52]),
-    ("DirectX 12", [6960, 4640], [ 162,  152,  5,   962,  119,  210,  197,  105,   963, 1023,  198]),
-    ("OpenGL",     [3328, 2219], [  75,   36,  5,   290,   44,   54,   39,   41,   254,  284,   54]),
-    ("OpenGL",     [6960, 4640], [ 342,  152,  5,  1047,  165,  239,  167,  165,  1089, 1193,  230]),
-    ("Vulkan",     [3328, 2219], [  38,   36,  5,   207,   23,   21,   21,   21,   218,  225,   56]),
-    ("Vulkan",     [6960, 4640], [ 174,  152,  5,   906,  105,  158,  189,   93,   906,  965,  254]),
+    //                            their  measure    sharpening   mask view    pan   masks:              noise red.
+    //                            alone  1st again  1st   kept   on    off    step  eyes  frame  grain  moved  drag
+    ("Auto",       [3328, 2219], [  41,   36,  5,   197,   23,   21,   21,   21,   213,  224,   54,   197,     9]),
+    ("Auto",       [6960, 4640], [ 186,  150,  5,   929,  107,  159,  186,   93,   909,  962,  219,   857,    21]),
+    ("DirectX 12", [3328, 2219], [  32,   36,  5,   462,   26,   27,   24,   24,   218,  234,   52,   233,     9]),
+    ("DirectX 12", [6960, 4640], [ 162,  152,  5,   962,  119,  210,  197,  105,   963, 1023,  198,  1003,    23]),
+    ("OpenGL",     [3328, 2219], [  75,   36,  5,   290,   44,   54,   39,   41,   254,  284,   54,   243,    10]),
+    ("OpenGL",     [6960, 4640], [ 342,  152,  5,  1047,  165,  239,  167,  165,  1089, 1193,  230,  1013,    26]),
+    ("Vulkan",     [3328, 2219], [  38,   36,  5,   207,   23,   21,   21,   21,   218,  225,   56,   196,     9]),
+    ("Vulkan",     [6960, 4640], [ 174,  152,  5,   906,  105,  158,  189,   93,   906,  965,  254,   864,    21]),
 ];
 
 /// Each row's fastest round.

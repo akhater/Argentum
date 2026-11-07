@@ -182,7 +182,17 @@ pub fn develop<'a>(
             color: global.color_noise_reduction,
             px_scale: at.px_scale,
         };
-        let denoised = denoise_gpu::run(context, &denoise, target);
+        // Their renders with a region of interest are a slider's drag at 100%.
+        // When it is this slider, every tick would sharpen new input again:
+        // its amounts stay in their shader, after the kept sharpening, as
+        // they were before this stage ran them, and the release (no region)
+        // renders the whole order.
+        let moving = request.roi.is_some() && denoise.runs() && !denoise_gpu::settled(&denoise);
+        let denoised = if moving {
+            None
+        } else {
+            denoise_gpu::run(context, &denoise, target)
+        };
         let (src, source) = match &denoised {
             Some(view) => (view, denoise.result_source()),
             None => (input, at.source),
@@ -606,6 +616,58 @@ pub(crate) mod tests {
         assert!(out.iter().all(|p| p[3] == 1.0), "alpha kept");
     }
 
+    /// Dragged at 100% - a render with a region - to amounts not yet
+    /// settled, Noise Reduction is left to their shader, so the drag does not
+    /// sharpen again on every tick; with no region, or back at settled
+    /// amounts, the stage runs it. What is kept is at most two pictures, and
+    /// nothing once it is back at 0. Called by `sharpen_gpu`'s
+    /// `every_backend_we_offer`.
+    pub(crate) fn a_noise_reduction_drag_leaves_it_to_their_shader(ctx: &GpuContext) {
+        let (w, h) = (96u32, 64u32);
+        let (px, image) = noisy(w, h);
+        let src = upload(ctx, w, h, &px);
+        let at = At {
+            px_scale: 1.0,
+            measure_on: &image,
+            measure_key: 0,
+            source: 11,
+            family: 11,
+        };
+        let region = crate::gpu_processing::Roi {
+            x: 16,
+            y: 16,
+            width: 48,
+            height: 32,
+        };
+        let stage = |luma_nr: u32, roi: Option<crate::gpu_processing::Roi>| {
+            let request = RenderRequest {
+                roi,
+                ..request(luma_nr)
+            };
+            develop(ctx, &src, w, h, request, &at, Target::Kept)
+                .0
+                .request
+                .adjustments
+                .global
+                .luma_noise_reduction
+        };
+        assert_eq!(stage(50, None), 0.0, "no region: the stage runs it");
+        assert_eq!(
+            stage(60, Some(region)),
+            0.6,
+            "dragged: left to their shader"
+        );
+        assert_eq!(stage(50, Some(region)), 0.0, "back where it was settled");
+        let one = w as u64 * h as u64 * 8;
+        assert!(
+            denoise_gpu::kept_bytes() <= 2 * one,
+            "{}",
+            denoise_gpu::kept_bytes()
+        );
+        stage(0, None);
+        assert_eq!(denoise_gpu::kept_bytes(), 0, "at 0 nothing is kept");
+    }
+
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
     fn noise_reduction_runs_before_sharpening_here() {
@@ -613,5 +675,6 @@ pub(crate) mod tests {
         noise_reduction_runs_before_sharpening(&ctx);
         a_masks_own_noise_reduction_still_runs(&ctx);
         a_non_raw_photo_keeps_its_encoding(&ctx);
+        a_noise_reduction_drag_leaves_it_to_their_shader(&ctx);
     }
 }

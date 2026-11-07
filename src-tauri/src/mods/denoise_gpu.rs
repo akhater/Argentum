@@ -22,6 +22,21 @@
 //! is kept with what went into it, so dragging Exposure costs nothing here.
 //! Two are kept, for the editor's two pictures while zoomed in (the drag
 //! preview and the still one, see `sharpen_gpu.rs`).
+//!
+//! While its own slider is dragged at 100% it does not run at all
+//! (`input_stage::develop`): new input means sharpening again, and capture
+//! sharpening's iterations made each tick eight times slower than main.
+//!
+//! MEMORY
+//!
+//! A kept result is a texture the size of its render, 8 bytes a pixel
+//! (`Rgba16Float`, the smallest format with three float channels a shader can
+//! write), and it cannot be one that is already kept: it is what sharpening
+//! reads to sharpen again or to sharpen a strip panned into view, and their
+//! input texture, which it is made from, cannot be written. At most `KEEP`,
+//! only while an amount is above 0: 390 MB at 100% on a 32 MP photo (the photo
+//! and its drag preview), 20 MB at a 1920 px fit view. `kept_bytes` counts it
+//! and a test holds it.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -132,6 +147,34 @@ pub fn writes() -> u64 {
     WRITES.load(Ordering::Acquire)
 }
 
+/// Whether a result for this photo with these amounts is kept, at any size:
+/// the amounts were settled, not moving.
+pub fn settled(job: &Job) -> bool {
+    let slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
+    slot.as_ref().is_some_and(|engine| {
+        engine.kept.iter().any(|k| {
+            k.family == job.family
+                && (k.settings.luma, k.settings.color, k.settings.is_raw)
+                    == (job.luma, job.color, job.is_raw as u32)
+        })
+    })
+}
+
+/// The bytes the kept results take on the GPU, `Rgba16Float` at 8 a pixel:
+/// what the memory test holds.
+#[cfg(test)]
+pub fn kept_bytes() -> u64 {
+    const BYTES_PER_PIXEL: u64 = 8;
+    let slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
+    slot.as_ref().map_or(0, |engine| {
+        engine
+            .kept
+            .iter()
+            .map(|k| k.size.0 as u64 * k.size.1 as u64 * BYTES_PER_PIXEL)
+            .sum()
+    })
+}
+
 /// Forget everything kept, as `sharpen_gpu::reset`.
 pub fn reset() {
     *ENGINE.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -141,8 +184,9 @@ pub fn reset() {
 pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::TextureView> {
     let mut slot = ENGINE.lock().unwrap_or_else(|e| e.into_inner());
     if !job.runs() {
-        // Let go of what was kept: full-size textures.
-        if let Some(engine) = slot.as_mut() {
+        // The editor's photo is at 0: let go of what was kept, full-size
+        // textures. An export's answer says nothing about the editor's.
+        if let (Target::Kept, Some(engine)) = (target, slot.as_mut()) {
             engine.kept.clear();
         }
         return None;
