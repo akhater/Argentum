@@ -152,7 +152,10 @@ export const CREDITS: CreditGroup[] = [
           'G97 as the G99). Noise below black is clipped where RAWmakase clips it, after ' +
           'demosaicing. The presets that come with Argentum (Color, Creative, B&W, ' +
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +
-          'unchanged. RAWmakase is also where the comparison started. MIT.',
+          'unchanged. HEIC photos open as RAWmakase opens them: the file’s header read for its ' +
+          'size, crop, turn and colour, and its pixels decoded by the system’s own HEVC decoder ' +
+          '(Windows Imaging Component, macOS’s ImageIO, or libheif). RAWmakase is also where the ' +
+          'comparison started. MIT.',
       },
       {
         name: 'RawTherapee',

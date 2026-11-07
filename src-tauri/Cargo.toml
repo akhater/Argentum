@@ -80,6 +80,7 @@ filetime = "0.2"
 libc = "0.2.189"
 rgb = "0.8.53"
 imgref = "1.12.2"
+moxcms = "0.8.1" # Argentum: a HEIC photo's colour to sRGB (mods/heic.rs). Already built for image.
 sysinfo = "0.39.6"
 argentum-engine = { path = "engine" } # Argentum: the new engine, for the new interface (mods/engine_bridge.rs)
 rm-selection = { path = "rm_selection" } # Argentum: RAWmakase's Subject, Sky and Background masks (mods/selection.rs)
@@ -103,8 +104,10 @@ objc2-foundation = { version = "0.3.2", features = [
     "NSValue",
     "NSArray",
 ] }
-objc2-core-foundation = { version = "0.3.2", features = ["CFCGTypes"] }
-objc2-core-graphics = { version = "0.3.2", features = ["CGColorSpace"] }
+objc2-core-foundation = { version = "0.3.2", features = ["CFCGTypes", "CFData", "CFDictionary", "CFNumber"] }
+objc2-core-graphics = { version = "0.3.2", features = ["CGColorSpace", "CGBitmapContext", "CGContext", "CGImage"] }
+# Argentum: HEIC photos decoded by ImageIO (mods/heic/imageio.rs). Already in the tree.
+objc2-image-io = { version = "0.3.2", features = ["CGImageSource", "objc2-core-graphics"] }
 objc2-core-image = { version = "0.3.2", features = [
     "CIContext",
     "CIFilter",
@@ -149,9 +152,9 @@ strip = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
-# Argentum: the display's colour profile (mods/display_monitor.rs) and the disks the folder column lists (mods/drives.rs).
+# Argentum: the display's colour profile (mods/display_monitor.rs), the disks the folder column lists (mods/drives.rs) and HEIC photos (mods/heic/wic.rs).
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_Graphics_Imaging", "Win32_System_Com"] }
 # Argentum: AI enlargement on the GPU — see mods/gpu_runtime.rs. Same ort as above,
 # plus the DirectML entry point; flate2 unpacks the runtime from its NuGet package.
 ort = { version = "=2.0.0-rc.10", features = ["directml"] }

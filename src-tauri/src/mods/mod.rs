@@ -58,6 +58,7 @@ pub mod folder_walk;
 pub mod gpu_runtime;
 pub mod gpu_setup_mark;
 pub mod headless_gpu;
+pub mod heic;
 pub mod highlight_protection;
 pub mod highlights;
 pub mod history;

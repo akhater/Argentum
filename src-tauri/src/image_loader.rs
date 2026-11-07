@@ -384,6 +384,15 @@ pub fn load_image_with_orientation(
         Ok(())
     };
 
+    // Argentum: a HEIC, which `image` can't read, is decoded by the system,
+    // and comes back upright and in sRGB like everything below.
+    if crate::mods::heic::is_heif(bytes) {
+        check_cancel()?;
+        let image = crate::mods::heic::decode(bytes)?;
+        check_cancel()?;
+        return Ok(image);
+    }
+
     let cursor = Cursor::new(bytes);
     let mut reader = ImageReader::new(cursor.clone())
         .with_guessed_format()
