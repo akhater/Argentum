@@ -184,6 +184,16 @@ the DC-G99, the E-M10 Mark III S as the Mark III, and a few more - are RAWmakase
 Camera Raw installs, kept in Argentum as `src-tauri/src/mods/adobe_camera_names.tsv`
 and regenerated from each RAWmakase release, which the table names.
 
+**HEIC and HEIF photos open as RAWmakase opens them** (v0.4.12, `704ab207`):
+the header is read in Argentum for the primary image's size, clean-aperture crop,
+`irot` / `imir` turn and `colr` colour (`crates/rawmakase-decode/src/raster/heic.rs`
+and `heif.rs`, and the box reading of `crates/rawmakase-interop/src/isobmff.rs`),
+and the pixels are decoded by the system's own HEVC decoder: Windows Imaging
+Component, macOS's ImageIO or the system's libheif (`raster/heic/wic.rs`,
+`imageio.rs` and `libheif.rs`), so Argentum ships no HEVC decoder. Kept in
+`src-tauri/src/mods/heic.rs` and `src-tauri/src/mods/heic/`; the test files in
+`src-tauri/fixtures/heic/` are RAWmakase's, unchanged.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured

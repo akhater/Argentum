@@ -72,6 +72,7 @@ pub const RAW_EXTENSIONS: &[(&str, &str)] = &[
 
 pub const NON_RAW_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "webp", "jxl", // Standard formats
+    "heic", "heif", "hif", // Argentum: HEIF of HEVC, decoded by the system (mods/heic.rs)
     "exr", "hdr", // High Dynamic Range / Wide Gamut
     "tga", "ico", "dds", // Graphics & Icons
     "qoi", "ff", // Simple/Specialist formats
