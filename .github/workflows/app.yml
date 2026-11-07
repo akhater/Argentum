@@ -33,7 +33,9 @@ jobs:
           rust-src-dir: src-tauri
 
       # lint.yml's clippy job's list, without libgphoto2: tethering is a
-      # feature, off by default.
+      # feature, off by default. Plus libheif and its HEVC plugin, so the HEIC
+      # tests (src-tauri/src/mods/heic.rs) decode for real: AG_REQUIRE_HEIC
+      # below fails them if the decoder is missing rather than skipping.
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -42,10 +44,14 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            pkg-config
+            pkg-config \
+            libheif1 \
+            libheif-plugin-libde265
 
       - name: Test
         working-directory: src-tauri
+        env:
+          AG_REQUIRE_HEIC: '1'
         run: cargo test --lib
 
       # THE GOLDEN PHOTOS (src-tauri/src/mods/look_check.rs): ten CC0 RAWs
