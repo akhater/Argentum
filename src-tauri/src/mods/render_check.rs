@@ -1,7 +1,7 @@
 //! The editor's render on real photos: that what it keeps on the GPU between
 //! renders changes no pixel, and what one slider tick costs. Ours.
 //!
-//! Both read the RAWs in `AG_RAWS` (paths separated by ';'), decoded as the
+//! They read the RAWs in `AG_RAWS` (paths separated by ';'), decoded as the
 //! app opens them, and render through RapidRAW's processor the way the
 //! preview does (`GpuProcessor::run`), with sharpening staged by `sharpen_gpu`
 //! as the input stage stages it (`input_stage.rs`):
@@ -14,6 +14,8 @@
 //! the way an edit does: run it before and after a change to the render path,
 //! and the lines must match. `slider_tick` prints how long a tick takes at the
 //! editor's preview size, each waited for on the GPU.
+//! `fit_after_zoom_is_a_fresh_fit` holds the fit render after a zoom to 100%
+//! to the fresh one, byte for byte.
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -184,10 +186,26 @@ impl<'a> Bench<'a> {
         let (w, h) = image.dimensions();
         let processor =
             GpuProcessor::new(ctx.clone(), (w + 255) & !255, (h + 255) & !255).expect("processor");
-        let texels = crate::gpu_processing::to_rgba_f16(&image);
+        let input = Self::upload(ctx, &image);
+        let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+        Self {
+            ctx,
+            photo,
+            image,
+            processor,
+            input,
+            gf,
+            dehaze,
+            key,
+        }
+    }
+
+    /// `image` as the preview's input texture, as gpu_processing.rs makes it.
+    fn upload(ctx: &GpuContext, image: &DynamicImage) -> wgpu::TextureView {
+        let (w, h) = image.dimensions();
+        let texels = crate::gpu_processing::to_rgba_f16(image);
         use wgpu::util::DeviceExt;
-        let input = ctx
-            .device
+        ctx.device
             .create_texture_with_data(
                 &ctx.queue,
                 &wgpu::TextureDescriptor {
@@ -207,18 +225,7 @@ impl<'a> Bench<'a> {
                 wgpu::util::TextureDataOrder::MipMajor,
                 bytemuck::cast_slice(&texels),
             )
-            .create_view(&Default::default());
-        let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
-        Self {
-            ctx,
-            photo,
-            image,
-            processor,
-            input,
-            gf,
-            dehaze,
-            key,
-        }
+            .create_view(&Default::default())
     }
 
     fn request<'m>(
@@ -507,5 +514,122 @@ fn slider_tick() {
                 m.iter().sum::<f32>() / m.len() as f32
             );
         }
+    }
+}
+
+/// One editor render of `photo` at `long` px on `processor`, sharpening
+/// staged as `input_stage.rs` stages it: sized by render pixels per
+/// full-resolution pixel, kept between renders, measured on the full picture.
+fn render_at(
+    ctx: &GpuContext,
+    processor: &GpuProcessor,
+    photo: &Photo,
+    js: &Value,
+    long: u32,
+) -> Vec<u8> {
+    // At full size the preview is the full picture itself (lib.rs compute_transformed_preview).
+    let image = if long >= photo.full.width().max(photo.full.height()) {
+        photo.full.clone()
+    } else {
+        crate::image_processing::downscale_f32_image(&photo.full, long, long)
+    };
+    let (w, h) = image.dimensions();
+    let input = Bench::upload(ctx, &image);
+    let (gf, dehaze) = processor.build_guided_coeffs(&input, w, h, 1);
+    let adjustments = crate::image_processing::get_all_adjustments_from_json(
+        js,
+        true,
+        photo.shot,
+        crate::image_processing::resolve_render_options(&AppSettings::default(), true),
+        Some(&photo.path),
+    );
+    let params = adjustments.global.ag_sharpen;
+    let px_scale = (w as f32 / photo.full.width() as f32).min(1.0);
+    let mut job = Job {
+        src: &input,
+        source: 0,
+        family: 0,
+        width: w,
+        height: h,
+        is_raw: true,
+        params,
+        contrast: 0.0,
+        usm_contrast: 0.0,
+        local_contrast: [0.0; sharpen::MAX_LOCAL],
+        px_scale,
+        mask_view: MaskView::Off,
+        masks: &[],
+        region: None,
+    };
+    if sharpen_gpu::needs_work(&params, w, h, px_scale, MaskView::Off) {
+        let t = sharpen::thresholds(&params, &photo.full, 0, true);
+        job.source = sharpen::picture_key(&image, 0);
+        job.family = sharpen::picture_key(&photo.full, 0);
+        job.contrast = t.capture;
+        job.usm_contrast = t.usm;
+        job.local_contrast = t.local;
+    }
+    let staged = sharpen_gpu::run(ctx, &job, Target::Kept);
+    let request = RenderRequest {
+        adjustments,
+        mask_bitmaps: &[],
+        lut: None,
+        roi: None,
+    };
+    let (pixels, ..) = processor
+        .run(
+            staged.as_ref().unwrap_or(&input),
+            &gf,
+            &dehaze,
+            w,
+            h,
+            request,
+            false,
+        )
+        .expect("renders");
+    pixels
+}
+
+/// Zoomed to 100% and 50% and back, the fit render is the fresh one, byte for
+/// byte: the processor grown to full size and the sharpening kept from the
+/// zoomed renders change nothing. With the RAW's own edit when it has a
+/// sidecar, its masks left out. (Fit-to-window looking noisier after a zoom
+/// was the interface keeping the 100% frame, src/argentum/zoomResolution.ts.)
+#[test]
+#[ignore = "reads RAW files and needs a GPU; run by hand"]
+fn fit_after_zoom_is_a_fresh_fit() {
+    const FIT: u32 = 2048;
+    let ctx = device();
+    for path in raws() {
+        let photo = open(&path);
+        let mut js = std::fs::read_to_string(format!("{path}.agdata"))
+            .ok()
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+            .map_or_else(|| json!({}), |sidecar| sidecar["adjustments"].clone());
+        js["masks"] = json!([]);
+        let (fw, fh) = photo.full.dimensions();
+        let full_long = fw.max(fh);
+
+        let fresh = {
+            let small = GpuProcessor::new(ctx.clone(), (FIT + 255) & !255, (FIT + 255) & !255)
+                .expect("processor");
+            render_at(&ctx, &small, &photo, &js, FIT)
+        };
+        sharpen_gpu::reset();
+        let grown = GpuProcessor::new(ctx.clone(), (fw + 255) & !255, (fh + 255) & !255)
+            .expect("processor");
+        render_at(&ctx, &grown, &photo, &js, full_long);
+        render_at(&ctx, &grown, &photo, &js, full_long / 2);
+        let back = render_at(&ctx, &grown, &photo, &js, FIT);
+        let max = fresh
+            .iter()
+            .zip(&back)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap_or(0);
+        println!("{path}: fit after zoom vs fresh fit, max difference {max}");
+        assert_eq!(fresh.len(), back.len());
+        assert_eq!(max, 0, "{path}: the fit render after a zoom differs");
+        sharpen_gpu::reset();
     }
 }
