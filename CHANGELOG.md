@@ -4,6 +4,42 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.45.6 — 2026-11-07
+
+### Added
+
+- **HEIC and HEIF photos open.** iPhone photos (`.heic`, `.heif`, `.hif`) are listed, get
+  thumbnails, open in the editor and export like a JPEG, upright and with their EXIF. Their
+  Display P3 colour is converted to sRGB rather than shown as sRGB. Argentum ships no HEVC
+  decoder: it uses the system's own, so on Windows they need Microsoft's HEIF Image Extensions
+  and HEVC Video Extensions from the Microsoft Store, and on Linux libheif with its libde265
+  plugin; without them a HEIC photo is still listed, and opening it says what to install. HDR
+  HEIF photos are not opened yet; only the primary image of a file is shown (no depth map, Live
+  Photo video or burst). Adapted from RAWmakase v0.4.12 (`704ab207`):
+  `crates/rawmakase-decode/src/raster/heic.rs`, `raster/heif.rs`, `raster/heic/wic.rs`,
+  `raster/heic/imageio.rs`, `raster/heic/libheif.rs` and `crates/rawmakase-interop/src/isobmff.rs`.
+
+### Changed
+
+- **Noise Reduction now runs before sharpening.** Details > Noise Reduction used to smooth the
+  picture after capture sharpening and Sharpen had already made its noise stronger. Its global
+  sliders now run first, as in darktable, so a high-ISO photo comes out cleaner at the same
+  sharpness: on an ISO 8000 RAW at 100%, Luma 60 leaves about 17% less noise than before with
+  edges as steep. Its neighbourhood is also sized from the full-resolution photo, so it means the
+  same at every zoom and in export. Photos with Noise Reduction at 0 render exactly as before;
+  existing edits with it above 0 will look cleaner. While its slider is dragged at 100% the
+  preview stays as fast as before and shows the old order; letting go renders the new one, which
+  sharpens the photo again, as letting go of Sharpen does. A mask's own Noise Reduction still
+  runs after sharpening, as before.
+
+### Fixed
+
+- **Fit-to-window no longer looks noisier after zooming in and back out.** Zooming to 100% (or
+  50%) rendered the photo at full size, and zooming back out kept that frame on screen, scaled
+  down by the display, with sharpening sized for 100%, until another photo was opened. On a
+  high-ISO RAW that showed about three times the noise of a fit render. Zooming out now renders
+  again at the size the new zoom needs, the same render a fresh open of the photo makes.
+
 ## 26.45.5 — 2026-11-06
 
 ### Fixed
