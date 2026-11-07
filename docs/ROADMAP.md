@@ -14,6 +14,7 @@ Work that went out without being planned on this page, newest first.
 
 | Version | What |
 |---|---|
+| `26.45.6` | HEIC and HEIF photos open, through the system's own decoder. Noise Reduction runs before sharpening: cleaner high-ISO photos at the same sharpness. Fit-to-window no longer noisier after zooming in and out |
 | `26.45.5` | Phone linear DNGs (Galaxy S23 Ultra) no longer open white. Opening a folder on a drive that does not answer no longer freezes the window. Clear sidecars only in the open folder, to the Recycle Bin. Camera profile list built in, checked downloads, more camera names |
 | `26.45.4` | Lens correction picks the right lens more often. Select Sky keeps sky under leaves at the top. JPEGs with large EXIF no longer corrupt. Command-line export about 1 s per photo |
 | `26.45.3` | Older edits take the DNG camera colour too. Mac DMG opens again. Command-line export: `--long-edge`, `--edited-only`, `--files`, one JSON result per photo |

@@ -32,6 +32,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.45.6',
+    date: '2026-11-07',
+    notes: [
+      'New: iPhone HEIC and HEIF photos open, edit and export. On Windows they need the HEIF and HEVC extensions from the Microsoft Store.',
+      'Noise Reduction now runs before sharpening, so high-ISO photos come out cleaner at the same sharpness. Edits with Noise Reduction above 0 will look cleaner.',
+      'The photo no longer looks noisier after zooming in and back out to fit.',
+    ],
+  },
+  {
     version: '26.45.5',
     date: '2026-11-06',
     notes: [
