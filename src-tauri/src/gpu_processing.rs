@@ -360,6 +360,8 @@ pub fn get_or_init_gpu_context(
     {
         log::warn!("The backend WGPU_BACKEND chose ({}) failed to start.", chosen);
     }
+    // Linux runs compute-only, so the adapter and surface go unused there.
+    #[cfg_attr(target_os = "linux", allow(unused_variables))]
     let OpenedDevice {
         adapter,
         device,
