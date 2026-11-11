@@ -15,6 +15,7 @@ use crate::image_processing::{
 };
 use crate::lut_processing::Lut;
 use crate::mods::export_precision::Precision;
+use crate::mods::gpu_backend_fallback::{self, Refusal};
 use crate::{AppState, GpuImageCache};
 
 #[derive(Clone, Copy, Debug)]
@@ -172,6 +173,92 @@ fn lock_or_reset<'a, T>(
     })
 }
 
+/// What a try at GPU setup hands on when it worked.
+struct OpenedDevice {
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    limits: wgpu::Limits,
+    surface: Option<wgpu::Surface<'static>>,
+}
+
+/// An adapter from `instance`, which holds `backends`, able to draw to `surface`.
+fn request_adapter(
+    instance: &wgpu::Instance,
+    backends: wgpu::Backends,
+    surface: Option<&wgpu::Surface>,
+) -> Result<wgpu::Adapter, Refusal> {
+    pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: surface,
+        ..Default::default()
+    }))
+    .map_err(|e| Refusal {
+        backends,
+        error: format!("Failed to find a wgpu adapter: {}", e),
+    })
+}
+
+/// The processing device on `adapter`, with every limit the adapter has.
+fn request_device(
+    adapter: wgpu::Adapter,
+    surface: Option<wgpu::Surface<'static>>,
+) -> Result<OpenedDevice, Refusal> {
+    // Argentum: from RapidRAW 1f1b1ae0, src-tauri/src/gpu_processing.rs - which backend draws
+    let adapter_info = adapter.get_info();
+    log::info!(
+        "Using GPU adapter: {} ({:?}, {:?}, driver: {} {})",
+        adapter_info.name,
+        adapter_info.backend,
+        adapter_info.device_type,
+        adapter_info.driver,
+        adapter_info.driver_info
+    );
+
+    let mut required_features = wgpu::Features::empty();
+    if adapter
+        .features()
+        .contains(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
+    {
+        required_features |= wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+    }
+
+    let limits = adapter.limits();
+
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("Processing Device"),
+        required_features,
+        required_limits: limits.clone(),
+        experimental_features: wgpu::ExperimentalFeatures::default(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+    }))
+    .map_err(|e| Refusal {
+        backends: adapter_info.backend.into(),
+        error: format!("Failed to create the device: {}", e),
+    })?;
+    Ok(OpenedDevice {
+        adapter,
+        device,
+        queue,
+        limits,
+        surface,
+    })
+}
+
+/// A surface for `instance` on the main window, or `None` to run compute-only.
+#[cfg(not(target_os = "linux"))]
+fn window_surface(
+    app_handle: &tauri::AppHandle,
+    instance: &wgpu::Instance,
+) -> Option<wgpu::Surface<'static>> {
+    let window = app_handle.get_webview_window("main")?;
+    instance
+        .create_surface(window)
+        .map_err(|e| log::warn!("Failed to create surface, falling back to compute-only: {}", e))
+        .ok()
+}
+
 pub fn get_or_init_gpu_context(
     state: &tauri::State<AppState>,
     _app_handle: &tauri::AppHandle,
@@ -211,6 +298,7 @@ pub fn get_or_init_gpu_context(
     if std::env::var("WGPU_BACKEND").is_err() {
         instance_desc.backends = wgpu::Backends::PRIMARY;
     }
+    let first_backends = instance_desc.backends;
 
     state.gpu_setup_mark.begin();
 
@@ -256,52 +344,46 @@ pub fn get_or_init_gpu_context(
     #[cfg(target_os = "linux")]
     let surface_opt: Option<wgpu::Surface> = None;
 
-    let adapter = match headless {
-        Some((_, adapter)) => adapter,
-        None => pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: surface_opt.as_ref(),
-            ..Default::default()
-        }))
-        .map_err(|e| {
-            state.gpu_setup_mark.clear();
-            format!("Failed to find a wgpu adapter: {}", e)
-        })?,
-    };
-
-    // Argentum: from RapidRAW 1f1b1ae0, src-tauri/src/gpu_processing.rs - which backend draws
-    let adapter_info = adapter.get_info();
-    log::info!(
-        "Using GPU adapter: {} ({:?}, {:?}, driver: {} {})",
-        adapter_info.name,
-        adapter_info.backend,
-        adapter_info.device_type,
-        adapter_info.driver,
-        adapter_info.driver_info
-    );
-
-    let mut required_features = wgpu::Features::empty();
-    if adapter
-        .features()
-        .contains(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
-    {
-        required_features |= wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+    // Argentum: the first try is the one that always ran. Only when its adapter
+    // or device is refused do the other backends get a turn, each with an
+    // instance and surface of its own (mods/gpu_backend_fallback.rs). The mark
+    // stays through them, since a fallback driver can crash as well.
+    #[cfg(not(target_os = "linux"))]
+    let wants_surface = surface_opt.is_some();
+    let first = match headless {
+        Some((_, adapter)) => Ok(adapter),
+        None => request_adapter(&instance, first_backends, surface_opt.as_ref()),
     }
-
-    let limits = adapter.limits();
-
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-        label: Some("Processing Device"),
-        required_features,
-        required_limits: limits.clone(),
-        experimental_features: wgpu::ExperimentalFeatures::default(),
-        memory_hints: wgpu::MemoryHints::Performance,
-        trace: wgpu::Trace::Off,
-    }))
-    .map_err(|e| {
-        state.gpu_setup_mark.clear();
-        e.to_string()
-    })?;
+    .and_then(|adapter| request_device(adapter, surface_opt));
+    if first.is_err()
+        && let Ok(chosen) = std::env::var("WGPU_BACKEND")
+    {
+        log::warn!("The backend WGPU_BACKEND chose ({}) failed to start.", chosen);
+    }
+    let OpenedDevice {
+        adapter,
+        device,
+        queue,
+        limits,
+        surface: surface_opt,
+    } = gpu_backend_fallback::open_with_fallback(
+        first,
+        gpu_backend_fallback::ORDER,
+        |backends| {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+            desc.backends = backends;
+            let instance = wgpu::Instance::new(desc);
+            #[cfg(not(target_os = "linux"))]
+            let surface = wants_surface
+                .then(|| window_surface(app_handle, &instance))
+                .flatten();
+            #[cfg(target_os = "linux")]
+            let surface = None;
+            let adapter = request_adapter(&instance, backends, surface.as_ref())?;
+            request_device(adapter, surface)
+        },
+    )
+    .inspect_err(|_| state.gpu_setup_mark.clear())?;
 
     device.on_uncaptured_error(Arc::new(|err: wgpu::Error| {
         log::error!("[wgpu-error] {}", err);

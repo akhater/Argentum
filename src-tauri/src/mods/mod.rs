@@ -56,6 +56,7 @@ pub mod film_lut;
 pub mod focus_points;
 pub mod folder_counts;
 pub mod folder_walk;
+pub mod gpu_backend_fallback;
 pub mod gpu_runtime;
 pub mod gpu_setup_mark;
 pub mod headless_gpu;

@@ -194,6 +194,11 @@ Component, macOS's ImageIO or the system's libheif (`raster/heic/wic.rs`,
 `src-tauri/src/mods/heic.rs` and `src-tauri/src/mods/heic/`; the test files in
 `src-tauri/fixtures/heic/` are RAWmakase's, unchanged.
 
+**When a graphics driver refuses a GPU device**, Argentum tries the next backend
+in RAWmakase's order - DirectX 12, then Vulkan, then OpenGL on Windows - and names
+the call that failed in its error (`crates/rawmakase-engine/src/develop/gpu/mod.rs`
+@ `02c5335d`), kept in `src-tauri/src/mods/gpu_backend_fallback.rs`.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured

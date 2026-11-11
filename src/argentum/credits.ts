@@ -154,7 +154,9 @@ export const CREDITS: CreditGroup[] = [
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +
           'unchanged. HEIC photos open as RAWmakase opens them: the file’s header read for its ' +
           'size, crop, turn and colour, and its pixels decoded by the system’s own HEVC decoder ' +
-          '(Windows Imaging Component, macOS’s ImageIO, or libheif). RAWmakase is also where the ' +
+          '(Windows Imaging Component, macOS’s ImageIO, or libheif). When a graphics driver ' +
+          'refuses a GPU device, the next backend is tried in RAWmakase’s order. RAWmakase is ' +
+          'also where the ' +
           'comparison started. MIT.',
       },
       {
