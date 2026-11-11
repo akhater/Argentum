@@ -18,6 +18,10 @@ on:
       asset-name-pattern:
         required: false
         type: string
+      # Tauri bundle formats, comma-separated (e.g. 'deb,rpm'); empty = every format tauri.conf.json lists.
+      bundles:
+        required: false
+        type: string
       upload-artifacts:
         required: false
         type: boolean
@@ -136,7 +140,7 @@ jobs:
           # Argentum: shipped builds keep MSVC's linker; rust-lld (.cargo/config.toml) is for dev.
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
         with:
-          args: --verbose ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }}
+          args: --verbose ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }} ${{ inputs.bundles != '' && '--bundles' || '' }} ${{ inputs.bundles }}
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           releaseId: ${{ inputs.release-id }}
           retryAttempts: 3

@@ -36,9 +36,13 @@ jobs:
           - platform: 'ubuntu-24.04'
             target: ''
             asset-prefix: '03'
+            # No AppImage: built here it needs glibc 2.39 and fails on older Linux. The 22.04 one runs on both.
+            bundles: 'deb,rpm'
           - platform: 'ubuntu-24.04-arm'
             target: ''
             asset-prefix: '03'
+            # No AppImage: built here it needs glibc 2.39 and fails on older Linux. The 22.04 one runs on both.
+            bundles: 'deb,rpm'
     uses: ./.github/workflows/build.yml
     with:
       release-id: ${{ github.event.release.id }}
@@ -46,6 +50,7 @@ jobs:
       target: ${{ matrix.target }}
       asset-name-pattern: '[name]_v[version]_[platform]_[arch][ext]'
       asset-prefix: ${{ matrix.asset-prefix }}
+      bundles: ${{ matrix.bundles }}
     secrets: inherit
     permissions:
       contents: write

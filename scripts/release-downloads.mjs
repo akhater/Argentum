@@ -23,7 +23,7 @@ export const ROWS = [
 ];
 
 const LINUX =
-  '| Linux | the `.AppImage`, `.deb` or `.rpm` named for your Ubuntu version, x64 (`amd64`, `x86_64`) or ARM (`arm64`, `aarch64`) |';
+  '| Linux | the `.AppImage` (any distribution), or the `.deb` or `.rpm` named for your Ubuntu version; x64 (`amd64`, `x86_64`) or ARM (`arm64`, `aarch64`) |';
 
 const NOTES = [
   '- **Windows:** the installer is not signed yet, so SmartScreen may say "Windows protected your PC". Choose **More info**, then **Run anyway**.',
