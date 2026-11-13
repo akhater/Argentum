@@ -171,7 +171,8 @@ pub fn untranslated(names: &[MultiName]) -> &str {
 
 #[derive(Serialize)]
 pub struct LensDistortionParams {
-    // Argentum: crate-wide for mods/lens_units.rs, which puts them in the renderer's units.
+    // Argentum: crate-wide for mods/lens_units.rs and mods/lens_frame.rs, which put
+    // them in the renderer's units and on the photo's frame.
     pub(crate) k1: f64,
     pub(crate) k2: f64,
     pub(crate) k3: f64,
@@ -906,12 +907,15 @@ pub fn resolve_lens_params(
     let lens = lens_named(db, maker, model)?;
     let shot = LensShot::from_exif(exif);
     let params = lens.get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)?;
-    // Argentum: in the renderer's units, not Lensfun's (mods/lens_units.rs).
+    // Argentum: on the photo's frame, not the calibration's (mods/lens_frame.rs),
+    // and in the renderer's units, not Lensfun's (mods/lens_units.rs).
+    let frame = crate::mods::lens_frame::frame_scale(db, lens, exif);
+    let params = crate::mods::lens_frame::vignetting_on_photo_frame(params, frame);
     Some(crate::mods::lens_units::in_renderer_units(
         params,
         lens,
         shot.focal_mm,
-        1.,
+        frame,
     ))
 }
 
