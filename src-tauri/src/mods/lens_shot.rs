@@ -29,10 +29,34 @@ impl LensShot {
     }
 }
 
-/// The focal length a photo records (EXIF FocalLength), for choosing its lens:
-/// not its 35 mm equivalent, and nothing when it records none.
-pub fn recorded_focal_mm(exif: &HashMap<String, String>) -> Option<f32> {
-    recorded(exif, "FocalLength")
+/// What choosing a photo's lens reads of it besides its names.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MatchShot {
+    /// The focal length it records (EXIF FocalLength), not its 35 mm equivalent.
+    pub focal_mm: Option<f32>,
+    /// The crop factor its 35 mm equivalent focal length gives (RAWmakase's
+    /// `exif_crop`, `lens/lensfun/matching.rs` @ 1b2687c4).
+    pub exif_crop: Option<f32>,
+}
+
+impl MatchShot {
+    pub fn from_exif(exif: &HashMap<String, String>) -> Self {
+        let focal_mm = recorded(exif, "FocalLength");
+        // The EXIF reader copies FocalLength into FocalLengthIn35mmFilm when it
+        // reads the first, for the views that show the second. A 35 mm
+        // equivalent equal to the focal length says crop factor 1, which is
+        // what a full-frame body is anyway and impossible on a smaller one, so it
+        // tells nothing either way.
+        let exif_crop = focal_mm
+            .zip(recorded(exif, "FocalLengthIn35mmFilm"))
+            .filter(|(focal, equivalent)| focal != equivalent)
+            .map(|(focal, equivalent)| equivalent / focal)
+            .filter(|crop| (0.1..=20.).contains(crop));
+        Self {
+            focal_mm,
+            exif_crop,
+        }
+    }
 }
 
 /// The number in an EXIF value as the map holds it: `f/5.6`, `5.6`, `85 mm`,
@@ -122,6 +146,52 @@ mod tests {
         assert_eq!(shot(&[("FocalLength", "85 mm")]).focal_mm, 85.0);
         assert_eq!(shot(&[("FocalLength", "85")]).focal_mm, 85.0);
         assert_eq!(shot(&[("FocalLengthIn35mmFilm", "85")]).focal_mm, 85.0);
+    }
+
+    /// The crop factor the 35 mm equivalent gives; the EXIF reader's copy of the
+    /// focal length into it says nothing.
+    #[test]
+    fn a_35mm_equivalent_gives_a_crop_factor_unless_it_is_the_focal_length() {
+        let crop = |pairs| MatchShot::from_exif(&exif(pairs)).exif_crop;
+        assert_eq!(
+            crop(&[("FocalLength", "24"), ("FocalLengthIn35mmFilm", "36 mm")]),
+            Some(1.5)
+        );
+        assert_eq!(
+            crop(&[("FocalLength", "24"), ("FocalLengthIn35mmFilm", "24")]),
+            None
+        );
+        assert_eq!(crop(&[("FocalLengthIn35mmFilm", "36")]), None);
+        assert_eq!(crop(&[("FocalLength", "24")]), None);
+        assert_eq!(
+            MatchShot::from_exif(&exif(&[("FocalLength", "85 mm")])).focal_mm,
+            Some(85.)
+        );
+    }
+
+    /// Read as the app reads a file: a camera's own 35 mm equivalent survives the
+    /// reader's copy of the focal length, which comes first in the file. A JPEG
+    /// stands in for the TIFF-based RAWs the same reader opens (NEF, ARW, DNG).
+    #[test]
+    fn the_exif_reader_keeps_the_35mm_equivalent_a_camera_writes() {
+        use little_exif::{exif_tag::ExifTag, filetype::FileExtension, rational::uR64};
+        let mut jpeg = Vec::new();
+        image::DynamicImage::new_rgb8(8, 8)
+            .write_to(
+                &mut std::io::Cursor::new(&mut jpeg),
+                image::ImageFormat::Jpeg,
+            )
+            .unwrap();
+        let mut tags = little_exif::metadata::Metadata::new();
+        tags.set_tag(ExifTag::Make("SONY".into()));
+        tags.set_tag(ExifTag::FocalLength(vec![uR64 {
+            nominator: 24,
+            denominator: 1,
+        }]));
+        tags.set_tag(ExifTag::FocalLengthIn35mmFormat(vec![36]));
+        tags.write_to_vec(&mut jpeg, FileExtension::JPEG).unwrap();
+        let map = crate::exif_processing::extract_metadata(&jpeg).expect("its EXIF");
+        assert_eq!(MatchShot::from_exif(&map).exif_crop, Some(1.5), "{map:?}");
     }
 
     /// Wide open is dark in the corners; stopped down, and close, less so.

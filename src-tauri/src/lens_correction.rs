@@ -732,18 +732,18 @@ pub(crate) fn lens_result(db: &LensDatabase, lens: &Lens) -> (String, String) {
     (lens_maker, lens.get_display_name(&maker_lenses))
 }
 
-/// The lens a photo was taken with: its maker and display name. `focal_mm` is
-/// the focal length the photo records (`lens_shot::recorded_focal_mm`).
+/// The lens a photo was taken with: its maker and display name. `shot` is what
+/// the photo records of its focal length (`lens_shot::MatchShot`).
 pub fn find_best_lens_match(
     db: &LensDatabase,
     maker: &str,
     model: &str,
     camera_model: &str,
-    focal_mm: Option<f32>,
+    shot: &crate::mods::lens_shot::MatchShot,
 ) -> Option<(String, String)> {
     // Argentum: when the strict matcher finds exactly one lens, it decides;
     // otherwise the matcher below answers as it always has (mods/lens_match.rs).
-    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model, focal_mm)
+    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model, shot)
     {
         return Some(lens_result(db, lens));
     }
@@ -874,8 +874,10 @@ pub fn autodetect_lens(
             &maker,
             &model,
             camera_model.as_deref().unwrap_or(""),
-            exif.as_ref()
-                .and_then(crate::mods::lens_shot::recorded_focal_mm),
+            &exif
+                .as_ref()
+                .map(crate::mods::lens_shot::MatchShot::from_exif)
+                .unwrap_or_default(),
         ))
     } else {
         Ok(None)

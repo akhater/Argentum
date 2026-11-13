@@ -355,7 +355,7 @@ mod tests {
                 &make,
                 &lens,
                 &body,
-                crate::mods::lens_shot::recorded_focal_mm(&exif),
+                &crate::mods::lens_shot::MatchShot::from_exif(&exif),
             )
             .filter(|_| !lens.is_empty())
             {

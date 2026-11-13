@@ -326,7 +326,7 @@ mod tests {
                 &get("Make"),
                 &get("LensModel"),
                 &get("Model"),
-                crate::mods::lens_shot::recorded_focal_mm(&exif),
+                &crate::mods::lens_shot::MatchShot::from_exif(&exif),
             ) else {
                 println!("{name}: no lens");
                 continue;
