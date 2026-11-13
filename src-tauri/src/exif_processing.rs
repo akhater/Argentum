@@ -9,6 +9,7 @@ use std::time::Duration;
 use crate::file_management;
 use crate::formats::is_raw_file;
 use crate::image_processing::{ImageFlag, ImageMetadata};
+use crate::mods::apex_aperture::apex_aperture_text;
 use crate::tagging::{COLOR_TAG_PREFIX, USER_TAG_PREFIX};
 use chrono::{DateTime, Local, LocalResult, NaiveDateTime, TimeZone, Utc};
 use exif::{Exif, In, Value};
@@ -499,6 +500,23 @@ fn rational_to_f32_checked(r: &exif::Rational) -> Option<f32> {
     }
 }
 
+/// ApertureValue or MaxApertureValue as kamadak reads it, listed as an f-number.
+/// None for any other tag or a value that is not a number.
+fn apex_aperture_field_text(field: &exif::Field) -> Option<String> {
+    if !matches!(
+        field.tag,
+        exif::Tag::ApertureValue | exif::Tag::MaxApertureValue
+    ) {
+        return None;
+    }
+    let exif::Value::Rational(ref v) = field.value else {
+        return None;
+    };
+    v.first()
+        .and_then(rational_to_f32_checked)
+        .and_then(apex_aperture_text)
+}
+
 fn rawler_rational_to_f32_checked(r: &rawler::formats::tiff::Rational) -> Option<f32> {
     if r.d == 0 {
         None
@@ -725,13 +743,10 @@ pub fn extract_metadata(file_bytes: &[u8]) -> Option<HashMap<String, String>> {
                         map.insert("FNumber".to_string(), format!("f/{}", val));
                     }
                 }
-                exif::Tag::ApertureValue => {
-                    if let exif::Value::Rational(ref v) = field.value
-                        && !v.is_empty()
-                    {
-                        let val = v[0].num as f32 / v[0].denom as f32;
-                        map.insert("ApertureValue".to_string(), format!("f/{}", val));
-                    }
+                exif::Tag::ApertureValue | exif::Tag::MaxApertureValue
+                    if let Some(text) = apex_aperture_field_text(field) =>
+                {
+                    map.insert(field.tag.to_string(), text);
                 }
                 exif::Tag::FocalLength => {
                     if let exif::Value::Rational(ref v) = field.value
@@ -824,8 +839,12 @@ pub fn extract_metadata(file_bytes: &[u8]) -> Option<HashMap<String, String>> {
         return Some(map);
     }
 
-    let metadata = read_raw_metadata(file_bytes)?;
+    Some(map_from_raw_metadata(read_raw_metadata(file_bytes)?))
+}
 
+/// The EXIF list from rawler's reading, for a RAW kamadak cannot open (CR3, RAF).
+pub(crate) fn map_from_raw_metadata(metadata: RawMetadata) -> HashMap<String, String> {
+    let mut map = HashMap::new();
     let exif = metadata.exif;
 
     let fmt_rat = |r: &rawler::formats::tiff::Rational| -> f32 {
@@ -923,13 +942,17 @@ pub fn extract_metadata(file_bytes: &[u8]) -> Option<HashMap<String, String>> {
         insert_if_present("FNumber", format!("f/{}", val));
     }
 
-    if let Some(r) = exif.aperture_value {
-        let val = fmt_rat(&r);
-        insert_if_present("ApertureValue", format!("f/{}", val));
-    }
-
-    if let Some(r) = exif.max_aperture_value {
-        insert_if_present("MaxApertureValue", fmt_rat(&r).to_string());
+    for (key, av) in [
+        ("ApertureValue", exif.aperture_value),
+        ("MaxApertureValue", exif.max_aperture_value),
+    ] {
+        if let Some(text) = av
+            .as_ref()
+            .and_then(rawler_rational_to_f32_checked)
+            .and_then(apex_aperture_text)
+        {
+            insert_if_present(key, text);
+        }
     }
 
     if let Some(r) = exif.exposure_time {
@@ -1070,7 +1093,7 @@ pub fn extract_metadata(file_bytes: &[u8]) -> Option<HashMap<String, String>> {
         insert_missing_lens_fields(&mut map, lens);
     }
 
-    Some(map)
+    map
 }
 
 pub fn get_creation_date_from_path(path: &Path) -> DateTime<Utc> {
@@ -2044,7 +2067,8 @@ pub fn read_exif_data_from_bytes(path: &str, file_bytes: &[u8]) -> HashMap<Strin
                         None => continue,
                     }
                 }
-                _ => field.display_value().with_unit(&exif).to_string(),
+                _ => apex_aperture_field_text(field)
+                    .unwrap_or_else(|| field.display_value().with_unit(&exif).to_string()),
             };
             exif_data.insert(field.tag.to_string(), truncate_large_exif(&raw_val));
         }
