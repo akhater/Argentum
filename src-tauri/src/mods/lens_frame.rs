@@ -126,10 +126,7 @@ mod tests {
     /// times the calibration's radius, as `lens_units` converts them.
     fn converted(lens: &Lens, focal: f32, scale: f64) -> serde_json::Value {
         let raw = lens.get_distortion_params(focal, Some(2.8), None).unwrap();
-        serde_json::to_value(crate::mods::lens_units::in_renderer_units(
-            raw, lens, focal, scale,
-        ))
-        .unwrap()
+        serde_json::to_value(crate::mods::lens_units::in_renderer_units(raw, lens, scale)).unwrap()
     }
 
     /// On the camera it was calibrated on, a lens's coefficients are as they were.
@@ -416,8 +413,7 @@ mod tests {
                     // the calibration's frame (before) and on the photo's (after).
                     let sent = |scale: f64| {
                         let raw = lens.get_distortion_params(focal_mm, None, None).unwrap();
-                        let p =
-                            crate::mods::lens_units::in_renderer_units(raw, lens, focal_mm, scale);
+                        let p = crate::mods::lens_units::in_renderer_units(raw, lens, scale);
                         [p.k1, p.k2, p.k3]
                     };
                     let ag = bend(|r| ratio(false, model, sent(1.), r, at, s));

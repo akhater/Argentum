@@ -327,7 +327,7 @@ impl Lens {
     ) -> Option<LensDistortionParams> {
         let cal = self.calibration.as_ref()?;
 
-        let mut distortions: Vec<&Distortion> = cal
+        let distortions: Vec<&Distortion> = cal
             .elements
             .iter()
             .filter_map(|e| {
@@ -339,7 +339,7 @@ impl Lens {
             })
             .collect();
 
-        let mut tcas: Vec<&Tca> = cal
+        let tcas: Vec<&Tca> = cal
             .elements
             .iter()
             .filter_map(|e| {
@@ -363,80 +363,44 @@ impl Lens {
             })
             .collect();
 
-        let (k1, k2, k3, model) = if distortions.is_empty() {
-            (0.0, 0.0, 0.0, 0)
-        } else {
-            distortions.sort_by(|a, b| a.focal.partial_cmp(&b.focal).unwrap_or(Ordering::Equal));
-
-            if let Some(exact) = distortions
+        // Argentum: between focal lengths as Lensfun interpolates (mods/lens_interp.rs):
+        // the rows of the first model met, in the file's order.
+        let first_model = |models: Vec<&str>| models.first().map(|m| m.to_string());
+        let dist_model = first_model(
+            distortions
                 .iter()
-                .find(|d| (d.focal - focal_length).abs() < 1e-5)
-            {
-                extract_dist_params(exact)
-            } else if focal_length < distortions[0].focal {
-                extract_dist_params(distortions[0])
-            } else if focal_length > distortions.last().unwrap().focal {
-                extract_dist_params(distortions.last().unwrap())
-            } else {
-                let mut res = (0.0, 0.0, 0.0, 0);
-                for pair in distortions.windows(2) {
-                    let (d1, d2) = (&pair[0], &pair[1]);
+                .map(|d| d.model.as_str())
+                .filter(|m| *m != "none")
+                .collect(),
+        );
+        let dist_rows: Vec<(f32, [f64; 3])> = distortions
+            .iter()
+            .filter(|d| Some(d.model.as_str()) == dist_model.as_deref())
+            .map(|d| {
+                let (k1, k2, k3, _) = extract_dist_params(d);
+                (d.focal, [k1, k2, k3])
+            })
+            .collect();
+        let model = distortions
+            .iter()
+            .find(|d| Some(d.model.as_str()) == dist_model.as_deref())
+            .map_or(0, |d| extract_dist_params(d).3);
+        let [k1, k2, k3] = crate::mods::lens_interp::at_focal(&dist_rows, focal_length, [true; 3])
+            .unwrap_or([0.0; 3]);
 
-                    if focal_length >= d1.focal && focal_length <= d2.focal {
-                        let p1 = extract_dist_params(d1);
-                        let p2 = extract_dist_params(d2);
-
-                        let range = d2.focal - d1.focal;
-                        if range.abs() < 1e-5 || p1.3 != p2.3 {
-                            res = p1;
-                        } else {
-                            let t = (focal_length - d1.focal) / range;
-                            res = (
-                                p1.0 + t as f64 * (p2.0 - p1.0),
-                                p1.1 + t as f64 * (p2.1 - p1.1),
-                                p1.2 + t as f64 * (p2.2 - p1.2),
-                                p1.3,
-                            );
-                        }
-                        break;
-                    }
-                }
-                res
-            }
-        };
-
-        let [tca_vr, tca_vb, tca_cr, tca_cb, tca_br, tca_bb] = if tcas.is_empty() {
-            NO_TCA
-        } else {
-            tcas.sort_by(|a, b| a.focal.partial_cmp(&b.focal).unwrap_or(Ordering::Equal));
-
-            if let Some(exact) = tcas.iter().find(|d| (d.focal - focal_length).abs() < 1e-5) {
-                extract_tca_params(exact)
-            } else if focal_length < tcas[0].focal {
-                extract_tca_params(tcas[0])
-            } else if focal_length > tcas.last().unwrap().focal {
-                extract_tca_params(tcas.last().unwrap())
-            } else {
-                let mut res = NO_TCA;
-                for pair in tcas.windows(2) {
-                    let (d1, d2) = (&pair[0], &pair[1]);
-                    if focal_length >= d1.focal && focal_length <= d2.focal {
-                        let p1 = extract_tca_params(d1);
-                        let p2 = extract_tca_params(d2);
-
-                        let range = d2.focal - d1.focal;
-                        if range.abs() < 1e-5 {
-                            res = p1;
-                        } else {
-                            let t = (focal_length - d1.focal) / range;
-                            res = std::array::from_fn(|i| p1[i] + t as f64 * (p2[i] - p1[i]));
-                        }
-                        break;
-                    }
-                }
-                res
-            }
-        };
+        let tca_model = first_model(tcas.iter().map(|t| t.model.as_str()).collect());
+        let tca_rows: Vec<(f32, [f64; 6])> = tcas
+            .iter()
+            .filter(|t| Some(t.model.as_str()) == tca_model.as_deref())
+            .map(|t| (t.focal, extract_tca_params(t)))
+            .collect();
+        // v does not scale with the focal length; c and b do (`__parameter_scales`).
+        let [tca_vr, tca_vb, tca_cr, tca_cb, tca_br, tca_bb] = crate::mods::lens_interp::at_focal(
+            &tca_rows,
+            focal_length,
+            [false, false, true, true, true, true],
+        )
+        .unwrap_or(NO_TCA);
 
         let (vig_k1, vig_k2, vig_k3) = if vignettings.is_empty() {
             (0.0, 0.0, 0.0)
@@ -943,10 +907,7 @@ pub fn resolve_lens_params(
     let frame = crate::mods::lens_frame::frame_scale(db, lens, exif);
     let params = crate::mods::lens_frame::vignetting_on_photo_frame(params, frame);
     Some(crate::mods::lens_units::in_renderer_units(
-        params,
-        lens,
-        shot.focal_mm,
-        frame,
+        params, lens, frame,
     ))
 }
 

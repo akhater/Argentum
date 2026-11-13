@@ -47,13 +47,12 @@ pub const GAIN: f64 = 2.5;
 /// (`lfLensCalibAttributes`).
 const DEFAULT_ASPECT: f64 = 1.5;
 
-/// `params`, `lens`'s terms at `focal_mm` as Lensfun gives them, in the
-/// renderer's units. `frame_scale` is the photo's radius over the profile
-/// frame's (1 on the profile's own frame).
+/// `params`, `lens`'s terms as Lensfun gives them, in the renderer's units.
+/// `frame_scale` is the photo's radius over the profile frame's (1 on the
+/// profile's own frame).
 pub fn in_renderer_units(
     params: LensDistortionParams,
     lens: &Lens,
-    focal_mm: f32,
     frame_scale: f64,
 ) -> LensDistortionParams {
     let u = frame_scale * (aspect(lens).powi(2) + 1.).sqrt();
@@ -65,7 +64,7 @@ pub fn in_renderer_units(
         ..params
     };
     let [k1, k2, k3] = [params.k1, params.k2, params.k3];
-    let terms = match (params.model, distortion_model(lens, focal_mm)) {
+    let terms = match (params.model, distortion_model(lens)) {
         (1, _) => {
             let d = 1. - k1 - k2 - k3;
             let (a, b, c) = (
@@ -111,23 +110,17 @@ fn aspect(lens: &Lens) -> f64 {
     ratio.map_or(DEFAULT_ASPECT, |r| r.max(1. / r))
 }
 
-/// The distortion model of `lens`'s calibration nearest `focal_mm`, as
-/// `Lens::get_distortion_params` takes its terms.
-fn distortion_model(lens: &Lens, focal_mm: f32) -> Option<&str> {
+/// The distortion model of `lens`'s calibration: the first met, as Lensfun
+/// takes it (`lens_interp`).
+fn distortion_model(lens: &Lens) -> Option<&str> {
     lens.calibration
         .as_ref()?
         .elements
         .iter()
-        .filter_map(|e| match e {
-            CalibrationElement::Distortion(d) => Some(d),
+        .find_map(|e| match e {
+            CalibrationElement::Distortion(d) if d.model != "none" => Some(d.model.as_str()),
             _ => None,
         })
-        .min_by(|a, b| {
-            (a.focal - focal_mm)
-                .abs()
-                .total_cmp(&(b.focal - focal_mm).abs())
-        })
-        .map(|d| d.model.as_str())
 }
 
 #[cfg(test)]
@@ -334,7 +327,7 @@ mod tests {
             let before = lens.get_distortion_params(focal, None, None).unwrap();
             let ptlens = before.model == 1;
             let kb = [before.k1, before.k2, before.k3];
-            let after = in_renderer_units(before, lens, focal, 1.);
+            let after = in_renderer_units(before, lens, 1.);
             let ka = [after.k1, after.k2, after.k3];
             let at = aspect(lens);
             (
@@ -541,7 +534,6 @@ mod tests {
                 let p = in_renderer_units(
                     lens.get_distortion_params(row.focal, None, None).unwrap(),
                     lens,
-                    row.focal,
                     1.,
                 );
                 let now = [
@@ -673,6 +665,243 @@ mod tests {
                 de.iter().sum::<f64>() / n,
                 de[((n * 0.99) as usize).min(de.len() - 1)],
                 de[de.len() - 1],
+            );
+        }
+    }
+
+    /// Between calibrated focal lengths, against Lensfun's interpolation written
+    /// out here a second time (rows sorted by focal length, the spline through
+    /// the two on either side, `lens.cpp` and `auxfun.cpp` @ 52cf1a7b):
+    ///
+    /// - every lens of one distortion model and no two rows at one focal length,
+    ///   halfway between each pair of calibrated focal lengths: the bend at the
+    ///   corner Lensfun's model gives with Lensfun's interpolated terms, and with
+    ///   Argentum's before (linear in the raw terms) and now;
+    /// - the same for lateral CA, red's and blue's corner at 24 MP;
+    /// - the photos named in AG_RAWS: whether their focal length is a calibrated
+    ///   one (then nothing is interpolated and nothing changes).
+    ///
+    /// ```text
+    /// AG_RAWS=...;... cargo test --lib lens_units::tests::interpolation_against_lensfun -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "measurement over the bundled database"]
+    fn interpolation_against_lensfun() {
+        use crate::lens_correction::{CalibrationElement as E, Distortion, Tca};
+        let db = crate::lens_correction::read_lensfun_dir(std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/lensfun_db"
+        )));
+        let spline = |rows: &[(f64, f64)], i: usize, f: f64, by_focal: bool| {
+            // rows sorted by focal length; i and i + 1 bracket f.
+            let s = |j: usize| if by_focal { rows[j].0 } else { 1. };
+            let y = |j: Option<usize>| j.map(|j| rows[j].1 * s(j));
+            let t = (f - rows[i].0) / (rows[i + 1].0 - rows[i].0);
+            let h = |y0: Option<f64>, y1: f64, y2: f64, y3: Option<f64>| {
+                let tg1 = y0.map_or(y2 - y1, |y0| (y2 - y0) * 0.5);
+                let tg2 = y3.map_or(y2 - y1, |y3| (y3 - y1) * 0.5);
+                let (t2, t3) = (t * t, t * t * t);
+                (2. * t3 - 3. * t2 + 1.) * y1
+                    + (t3 - 2. * t2 + t) * tg1
+                    + (-2. * t3 + 3. * t2) * y2
+                    + (t3 - t2) * tg2
+            };
+            h(
+                i.checked_sub(1).and_then(|j| y(Some(j))),
+                y(Some(i)).unwrap(),
+                y(Some(i + 1)).unwrap(),
+                y((i + 2 < rows.len()).then_some(i + 2)),
+            ) / if by_focal { f } else { 1. }
+        };
+        let stats = |v: &mut Vec<f64>| {
+            v.sort_by(f64::total_cmp);
+            let n = v.len();
+            format!(
+                "median {:.4}, p95 {:.4}, max {:.4}",
+                v[n / 2],
+                v[(n * 95 / 100).min(n - 1)],
+                v[n - 1]
+            )
+        };
+        let (mut dist_before, mut dist_after, mut dist_further, mut dist_closer) =
+            (Vec::new(), Vec::new(), 0, 0);
+        let (mut tca_before, mut tca_after, mut tca_further, mut tca_closer) =
+            (Vec::new(), Vec::new(), 0, 0);
+        for lens in &db.lenses {
+            let at = aspect(lens);
+            let q = (at * at + 1.).sqrt();
+            let elements = lens.calibration.iter().flat_map(|c| &c.elements);
+            let mut dists: Vec<&Distortion> = elements
+                .clone()
+                .filter_map(|e| {
+                    if let E::Distortion(d) = e {
+                        Some(d)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let mut tcas: Vec<&Tca> = elements
+                .filter_map(|e| if let E::Tca(t) = e { Some(t) } else { None })
+                .collect();
+            dists.sort_by(|a, b| a.focal.total_cmp(&b.focal));
+            tcas.sort_by(|a, b| a.focal.total_cmp(&b.focal));
+            let clean = |focals: Vec<f32>, models: Vec<&str>| {
+                focals.windows(2).all(|w| w[0] != w[1]) && models.windows(2).all(|w| w[0] == w[1])
+            };
+            if dists.len() >= 2
+                && clean(
+                    dists.iter().map(|d| d.focal).collect(),
+                    dists.iter().map(|d| d.model.as_str()).collect(),
+                )
+                && ["poly3", "poly5", "ptlens"].contains(&dists[0].model.as_str())
+            {
+                let model = dists[0].model.as_str();
+                let terms = |d: &Distortion| {
+                    let t = |v: Option<f32>| f64::from(v.unwrap_or(0.));
+                    match model {
+                        "ptlens" => [t(d.a), t(d.b), t(d.c)],
+                        _ => [t(d.k1), t(d.k2), 0.],
+                    }
+                };
+                for i in 0..dists.len() - 1 {
+                    let f = (dists[i].focal + dists[i + 1].focal) / 2.;
+                    let lf_terms: [f64; 3] = std::array::from_fn(|k| {
+                        let rows: Vec<(f64, f64)> = dists
+                            .iter()
+                            .map(|d| (f64::from(d.focal), terms(d)[k]))
+                            .collect();
+                        spline(&rows, i, f64::from(f), true)
+                    });
+                    let lf = bend(|r| lensfun(model, lf_terms, at, r));
+                    // Before: linear in the raw terms between the two rows.
+                    let (a, b) = (terms(dists[i]), terms(dists[i + 1]));
+                    let was: [f64; 3] = std::array::from_fn(|k| (a[k] + b[k]) / 2.);
+                    let was_bend = bend(|r| lensfun(model, was, at, r));
+                    // Now: what get_distortion_params gives.
+                    let p = lens.get_distortion_params(f, None, None).unwrap();
+                    let now_bend = bend(|r| lensfun(model, [p.k1, p.k2, p.k3], at, r));
+                    let (eb, ea) = ((was_bend - lf).abs() * 100., (now_bend - lf).abs() * 100.);
+                    dist_before.push(eb);
+                    dist_after.push(ea);
+                    dist_closer += usize::from(ea < eb - 0.001);
+                    dist_further += usize::from(ea > eb + 0.001);
+                }
+            }
+            if tcas.len() >= 2
+                && clean(
+                    tcas.iter().map(|t| t.focal).collect(),
+                    tcas.iter().map(|t| t.model.as_str()).collect(),
+                )
+            {
+                fn v(x: Option<f32>, none: f32) -> f64 {
+                    f64::from(x.unwrap_or(none))
+                }
+                let corner = |vv: f64, c: f64, b: f64| vv + c * q + b * q * q;
+                for i in 0..tcas.len() - 1 {
+                    let f = (tcas[i].focal + tcas[i + 1].focal) / 2.;
+                    let p = lens.get_distortion_params(f, None, None).unwrap();
+                    for (vf, cf, bf, now_v, now_c, now_b) in [
+                        (
+                            (|t: &Tca| v(t.vr.or(t.kr), 1.)) as fn(&Tca) -> f64,
+                            (|t: &Tca| v(t.cr, 0.)) as fn(&Tca) -> f64,
+                            (|t: &Tca| v(t.br, 0.)) as fn(&Tca) -> f64,
+                            p.tca_vr,
+                            p.tca_cr,
+                            p.tca_br,
+                        ),
+                        (
+                            |t: &Tca| v(t.vb.or(t.kb), 1.),
+                            |t: &Tca| v(t.cb, 0.),
+                            |t: &Tca| v(t.bb, 0.),
+                            p.tca_vb,
+                            p.tca_cb,
+                            p.tca_bb,
+                        ),
+                    ] {
+                        let rows = |g: fn(&Tca) -> f64| -> Vec<(f64, f64)> {
+                            tcas.iter().map(|t| (f64::from(t.focal), g(t))).collect()
+                        };
+                        let ff = f64::from(f);
+                        let lf = corner(
+                            spline(&rows(vf), i, ff, false),
+                            spline(&rows(cf), i, ff, true),
+                            spline(&rows(bf), i, ff, true),
+                        );
+                        let mid = |g: fn(&Tca) -> f64| (g(tcas[i]) + g(tcas[i + 1])) / 2.;
+                        let was = corner(mid(vf), mid(cf), mid(bf));
+                        let now = corner(now_v, now_c, now_b);
+                        let (eb, ea) = ((was - lf).abs() * 3606., (now - lf).abs() * 3606.);
+                        tca_before.push(eb);
+                        tca_after.push(ea);
+                        tca_closer += usize::from(ea < eb - 0.01);
+                        tca_further += usize::from(ea > eb + 0.01);
+                    }
+                }
+            }
+        }
+        println!(
+            "distortion, {} midpoints: corner bend off Lensfun's, % of the radius: before {}, after {}; {dist_closer} closer, {dist_further} further",
+            dist_before.len(),
+            stats(&mut dist_before),
+            stats(&mut dist_after)
+        );
+        println!(
+            "lateral CA, {} midpoints (red and blue): corner off Lensfun's at 24 MP, px: before {}, after {}; {tca_closer} closer, {tca_further} further",
+            tca_before.len(),
+            stats(&mut tca_before),
+            stats(&mut tca_after)
+        );
+
+        let Ok(raws) = std::env::var("AG_RAWS") else {
+            return;
+        };
+        for photo in raws.split(';').filter(|p| !p.is_empty()) {
+            let bytes = std::fs::read(photo).expect("a photo");
+            let exif = crate::mods::lens_name::with_lens(
+                crate::exif_processing::read_exif_data_from_bytes(photo, &bytes),
+                &bytes,
+            );
+            let get = |k: &str| exif.get(k).cloned().unwrap_or_default();
+            let name = photo.rsplit(['/', '\\']).next().unwrap_or(photo);
+            let Some((maker, display)) = crate::lens_correction::find_best_lens_match(
+                &db,
+                &get("Make"),
+                &get("LensModel"),
+                &get("Model"),
+                &crate::mods::lens_shot::MatchShot::from_exif(&exif),
+            ) else {
+                println!("{name}: no lens");
+                continue;
+            };
+            let lens = crate::lens_correction::lens_named(&db, &maker, &display).unwrap();
+            let focal = crate::mods::lens_shot::LensShot::from_exif(&exif).focal_mm;
+            let calibrated = |pick: &dyn Fn(&E) -> Option<f32>| {
+                let focals: Vec<f32> = lens
+                    .calibration
+                    .iter()
+                    .flat_map(|c| &c.elements)
+                    .filter_map(pick)
+                    .collect();
+                focals.is_empty() || focals.contains(&focal) || focals.len() == 1
+            };
+            let dist = calibrated(&|e| {
+                if let E::Distortion(d) = e {
+                    Some(d.focal)
+                } else {
+                    None
+                }
+            });
+            let tca = calibrated(&|e| {
+                if let E::Tca(t) = e {
+                    Some(t.focal)
+                } else {
+                    None
+                }
+            });
+            println!(
+                "{name}: {} at {focal} mm; distortion at a calibrated focal length (or one row): {dist}; lateral CA: {tca}",
+                lens.get_full_model_name()
             );
         }
     }
