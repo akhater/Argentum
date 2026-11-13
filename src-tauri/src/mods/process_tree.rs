@@ -112,7 +112,6 @@ pub use windows_job::NO_WINDOW;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
     use std::process::Stdio;
     use std::time::{Duration, Instant};
 
@@ -156,6 +155,8 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn what_the_child_started_goes_with_it() {
+        use std::io::Read;
+
         let mut command = Command::new("cmd");
         command
             .args(["/c", "ping -n 30 127.0.0.1"])
