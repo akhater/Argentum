@@ -554,44 +554,72 @@ mod tests {
             );
         }
 
-        // 3. Named photos.
+        // 3. Named photos, read as the app reads them, against main: the body's
+        // crop factor, with nothing of a crop mode.
         if let Ok(raws) = std::env::var("AG_RAWS") {
             for photo in raws.split(';').filter(|p| !p.is_empty()) {
                 let bytes = std::fs::read(photo).expect("a photo");
-                let exif = crate::mods::lens_name::with_lens(
+                let mut exif = crate::mods::lens_name::with_lens(
                     crate::exif_processing::read_exif_data_from_bytes(photo, &bytes),
                     &bytes,
                 );
+                crate::mods::canon_crop_mode::fill(&mut exif, &bytes);
+                let mut plain = exif.clone();
+                plain.remove(crate::mods::canon_crop_mode::KEY);
+                plain.remove("FocalLengthIn35mmFilm");
                 let get = |k: &str| exif.get(k).cloned().unwrap_or_default();
-                let found = find_best_lens_match(
-                    &db,
-                    &get("Make"),
-                    &get("LensModel"),
-                    &get("Model"),
-                    &MatchShot::from_exif(&exif),
-                );
-                let Some((maker, display)) = found else {
-                    println!("{photo}: {} | {}: no lens", get("Model"), get("LensModel"));
+                let name = photo.rsplit(['/', '\\']).next().unwrap_or(photo);
+                let pick = |exif: &HashMap<String, String>| {
+                    find_best_lens_match(
+                        &db,
+                        &get("Make"),
+                        &get("LensModel"),
+                        &get("Model"),
+                        &MatchShot::from_exif(exif),
+                    )
+                };
+                let (Some(before), Some(after)) = (pick(&plain), pick(&exif)) else {
+                    println!("{name}: {} | {}: no lens", get("Model"), get("LensModel"));
                     continue;
                 };
-                let lens = lens_named(&db, &maker, &display).unwrap();
-                let shot = crate::mods::lens_shot::LensShot::from_exif(&exif);
-                // What main sends: the terms in the renderer's units on the profile's frame.
-                let own = lens
-                    .get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)
-                    .map(|p| {
-                        crate::mods::lens_units::in_renderer_units(p, lens, shot.focal_mm, 1.)
-                    });
-                let now = crate::lens_correction::resolve_lens_params(&db, &maker, &display, &exif);
-                let same =
-                    serde_json::to_string(&own).unwrap() == serde_json::to_string(&now).unwrap();
+                let send = |(maker, display): &(String, String), exif: &HashMap<String, String>| {
+                    crate::lens_correction::resolve_lens_params(&db, maker, display, exif)
+                };
+                let (was, now) = (send(&before, &plain), send(&after, &exif));
+                let same = before == after
+                    && serde_json::to_string(&was).unwrap() == serde_json::to_string(&now).unwrap();
+                let lens = lens_named(&db, &after.0, &after.1).unwrap();
+                let (s_was, s_now) = (
+                    frame_scale(&db, lens, &plain),
+                    frame_scale(&db, lens, &exif),
+                );
+                let focal_mm = crate::mods::lens_shot::LensShot::from_exif(&exif).focal_mm;
+                let bends = match (
+                    lens.get_distortion_params(focal_mm, None, None),
+                    model_of(lens),
+                ) {
+                    (Some(p), Some(model)) => {
+                        let k = [p.k1, p.k2, p.k3];
+                        let at = aspect(lens);
+                        let terms = |p: &Option<LensDistortionParams>| {
+                            p.as_ref().map_or([0.; 3], |p| [p.k1, p.k2, p.k3])
+                        };
+                        format!(
+                            "; corner bend Lensfun {:.3}%, main {:.3}%, now {:.3}%",
+                            bend(|r| ratio(true, model, k, r, at, s_now)) * 100.,
+                            bend(|r| ratio(false, model, terms(&was), r, at, s_now)) * 100.,
+                            bend(|r| ratio(false, model, terms(&now), r, at, s_now)) * 100.,
+                        )
+                    }
+                    _ => String::new(),
+                };
                 println!(
-                    "{photo}: {} | {} -> {} (crop {:?}), scale {}, correction the same bit for bit: {same}",
+                    "{name}: {} | {} -> {} (crop {:?}); lens the same: {}; scale {s_was:.3} -> {s_now:.3}; correction the same bit for bit: {same}{bends}",
                     get("Model"),
                     get("LensModel"),
                     lens.get_full_model_name(),
                     lens.cropfactor,
-                    frame_scale(&db, lens, &exif)
+                    before == after,
                 );
             }
         }

@@ -37,6 +37,9 @@ pub struct MatchShot {
     /// The crop factor its 35 mm equivalent focal length gives (RAWmakase's
     /// `exif_crop`, `lens/lensfun/matching.rs` @ 1b2687c4).
     pub exif_crop: Option<f32>,
+    /// A crop mode's crop factor over the sensor's, as the camera's maker note
+    /// records it (`canon_crop_mode`).
+    pub crop_mode: Option<f32>,
 }
 
 impl MatchShot {
@@ -52,9 +55,12 @@ impl MatchShot {
             .filter(|(focal, equivalent)| focal != equivalent)
             .map(|(focal, equivalent)| equivalent / focal)
             .filter(|crop| (0.1..=20.).contains(crop));
+        let crop_mode =
+            recorded(exif, super::canon_crop_mode::KEY).filter(|k| (1.0..=20.).contains(k));
         Self {
             focal_mm,
             exif_crop,
+            crop_mode,
         }
     }
 }

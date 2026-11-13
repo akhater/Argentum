@@ -22,10 +22,10 @@
 //! Anything else (several lenses, none, an unknown camera, no lens name)
 //! leaves the answer to the inherited matcher, as before, so a photo it is not
 //! sure of is corrected exactly as it was. The frame a lens must cover is the
-//! photo's ([`photo_crop`]): the camera's, or a crop mode the 35 mm equivalent
-//! focal length tells. Not taken (yet): Canon's crop mode, which only its maker
-//! note tells, the photo frame's own size, and Lensfun's aspect-ratio
-//! variants, which Argentum's database does not read.
+//! photo's ([`photo_crop`]): the camera's, or a crop mode its maker note or
+//! its 35 mm equivalent focal length tells. Not taken (yet): the photo frame's
+//! own size, and Lensfun's aspect-ratio variants, which Argentum's database
+//! does not read.
 
 use super::lens_names::{
     THIRD_PARTY, maker_words, same_generation, same_text, stated, stated_millimetres, words,
@@ -82,17 +82,21 @@ pub(crate) fn fits_mount(db: &LensDatabase, camera: &Camera, lens: &Lens) -> boo
     })
 }
 
-/// The crop factor of a photo's frame from `camera`: the one its 35 mm
-/// equivalent focal length gives where that disagrees with the camera's by more
-/// than rounding (10%), a crop mode the camera writes so (Nikon DX, Sony APS-C)
-/// or a readout of another aspect ratio (1:1); else the camera's. RAWmakase's
-/// `photo_crop` (`matching.rs` @ 1b2687c4) without the frame's size and Canon's
-/// crop mode, which Argentum does not read.
+/// The crop factor of a photo's frame from `camera`: the camera's times the
+/// crop mode its maker note records (Canon's APS-C and APS-H modes); else the
+/// one its 35 mm equivalent focal length gives where that disagrees with the
+/// camera's by more than rounding (10%), a crop mode the camera writes so (Nikon
+/// DX, Sony APS-C) or a readout of another aspect ratio (1:1); else the
+/// camera's. RAWmakase's `photo_crop` (`matching.rs` @ 1b2687c4) without the
+/// frame's size, which Argentum does not read here.
 ///
 /// Argentum: a fixed-lens camera keeps its own. Its lens was calibrated on its
 /// own frame, and some write a 35 mm equivalent of the processed picture: Sony's
 /// RX0 writes 24 mm at 7.7 mm (3.1x) for a frame Lensfun gives as 2.7x.
 pub fn photo_crop(camera: &Camera, shot: &MatchShot) -> f32 {
+    if let Some(mode) = shot.crop_mode {
+        return camera.cropfactor * mode;
+    }
     if fixed_lens(camera) {
         return camera.cropfactor;
     }
@@ -339,7 +343,7 @@ mod tests {
     fn at_focal(focal_mm: Option<f32>) -> MatchShot {
         MatchShot {
             focal_mm,
-            exif_crop: None,
+            ..MatchShot::default()
         }
     }
 
@@ -551,6 +555,7 @@ mod tests {
         let shot = |exif_crop| MatchShot {
             focal_mm: Some(19.),
             exif_crop,
+            crop_mode: None,
         };
         let a1 = |exif_crop| find(&db, "SONY", "ILCE-1M2", "19mm F2.8 DN", &shot(exif_crop));
         assert_eq!(a1(None), Outcome::NoMatch);
@@ -559,6 +564,14 @@ mod tests {
         assert_eq!(crop_or_35mm_equivalent(1., &shot(Some(1.05))), 1.);
         assert_eq!(crop_or_35mm_equivalent(1.534, &shot(Some(1.5))), 1.534);
         assert_eq!(crop_or_35mm_equivalent(1., &shot(Some(1.5))), 1.5);
+        // A crop mode the maker note records is the camera's times it, whatever
+        // the 35 mm equivalent says.
+        let five_d = camera(&db, "Canon", "Canon EOS 5D Mark III").unwrap();
+        let in_mode = MatchShot {
+            crop_mode: Some(1.6),
+            ..shot(None)
+        };
+        assert_eq!(photo_crop(five_d, &in_mode), 1.6);
         // A fixed-lens camera keeps its own: its lens was calibrated on its frame.
         let g12 = camera(&db, "Canon", "Canon PowerShot G12").unwrap();
         assert_eq!(photo_crop(g12, &shot(Some(5.5))), 4.6);

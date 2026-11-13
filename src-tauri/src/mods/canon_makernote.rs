@@ -1,4 +1,4 @@
-//! Reading a SHORT array straight out of the Canon MakerNote.
+//! Reading a SHORT or LONG array straight out of the Canon MakerNote.
 //!
 //! Two decode fixes need this â€” `sraw_levels` wants ColorData (0x4001), and
 //! `canon_old_wb` wants the old white balance table (0x00a4) â€” and rawler
@@ -24,6 +24,9 @@
 
 /// TIFF field type 3: SHORT.
 pub const TYPE_SHORT: u16 = 3;
+
+/// TIFF field type 4: LONG.
+const TYPE_LONG: u16 = 4;
 
 /// The byte order of a TIFF container, and of every IFD inside it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +73,31 @@ pub fn shorts(
     tag: u16,
     count: std::ops::RangeInclusive<usize>,
 ) -> Option<Vec<u16>> {
+    let (blob, endian) = maker_note(file_bytes)?;
+    parse(&blob, file_bytes, tag, count, endian)
+}
+
+/// The LONG array at `tag`, as [`shorts`] reads a SHORT one.
+pub fn longs(
+    file_bytes: &[u8],
+    tag: u16,
+    count: std::ops::RangeInclusive<usize>,
+) -> Option<Vec<u32>> {
+    let (blob, endian) = maker_note(file_bytes)?;
+    let (n, bytes) = entry(&blob, file_bytes, tag, TYPE_LONG, 4, count, endian)?;
+    Some(
+        bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .take(n)
+            .map(|b| endian.u32(*b))
+            .collect(),
+    )
+}
+
+/// A Canon file's MakerNote IFD and the byte order it is written in.
+fn maker_note(file_bytes: &[u8]) -> Option<(Vec<u8>, Endian)> {
     let mut cursor = std::io::Cursor::new(file_bytes);
     let exif = exif::Reader::new().read_from_container(&mut cursor).ok()?;
 
@@ -82,14 +110,14 @@ pub fn shorts(
 
     let field = exif.get_field(exif::Tag::MakerNote, exif::In::PRIMARY)?;
     let blob = match &field.value {
-        exif::Value::Undefined(bytes, _) => bytes.as_slice(),
+        exif::Value::Undefined(bytes, _) => bytes.clone(),
         _ => return None,
     };
     // A container with no TIFF magic — CR3 is ISO-BMFF, not TIFF — is read the
     // way this always read everything, so nothing that worked before can stop
     // working because the byte order became a question.
     let endian = Endian::of(file_bytes).unwrap_or(Endian::Little);
-    parse(blob, file_bytes, tag, count, endian)
+    Some((blob, endian))
 }
 
 /// Walk the IFD in `blob` for `tag` and decode its SHORT array out of the file.
@@ -100,6 +128,31 @@ pub fn parse(
     count: std::ops::RangeInclusive<usize>,
     endian: Endian,
 ) -> Option<Vec<u16>> {
+    let (n, bytes) = entry(blob, file_bytes, tag, TYPE_SHORT, 2, count, endian)?;
+    Some(
+        bytes
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .take(n)
+            .map(|b| endian.u16([b[0], b[1]]))
+            .collect(),
+    )
+}
+
+/// The count and value bytes of `tag`'s entry in the IFD in `blob`, when it is
+/// of type `kind` (`unit` bytes a value) and its count is within `count`. The
+/// values are read at their offset in the file.
+#[allow(clippy::too_many_arguments)]
+fn entry<'f>(
+    blob: &[u8],
+    file_bytes: &'f [u8],
+    tag: u16,
+    kind: u16,
+    unit: usize,
+    count: std::ops::RangeInclusive<usize>,
+    endian: Endian,
+) -> Option<(usize, &'f [u8])> {
     let u16_at = |i: usize| -> Option<u16> { Some(endian.u16([*blob.get(i)?, *blob.get(i + 1)?])) };
     let u32_at = |i: usize| -> Option<u32> {
         Some(endian.u32([
@@ -120,7 +173,7 @@ pub fn parse(
         if u16_at(entry)? != tag {
             continue;
         }
-        if u16_at(entry + 2)? != TYPE_SHORT {
+        if u16_at(entry + 2)? != kind {
             return None;
         }
         let n = u32_at(entry + 4)? as usize;
@@ -128,15 +181,8 @@ pub fn parse(
             return None;
         }
         let at = u32_at(entry + 8)? as usize;
-        let bytes = file_bytes.get(at..at.checked_add(n * 2)?)?;
-        return Some(
-            bytes
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|b| endian.u16([b[0], b[1]]))
-                .collect(),
-        );
+        let bytes = file_bytes.get(at..at.checked_add(n.checked_mul(unit)?)?)?;
+        return Some((n, bytes));
     }
     None
 }
@@ -181,6 +227,49 @@ mod tests {
             parse(&blob, &file, TAG, 64..=8192, Endian::Little),
             Some(values)
         );
+    }
+
+    /// A LONG array (AspectInfo's five values) through a file offset, either
+    /// byte order; a SHORT entry is not taken for one.
+    #[test]
+    fn reads_a_long_array_through_a_file_offset() {
+        for endian in [Endian::Little, Endian::Big] {
+            let values = [13u32, 5088, 3392, 0, 0];
+            let halves: Vec<u16> = values
+                .iter()
+                .flat_map(|v| {
+                    let b = match endian {
+                        Endian::Little => v.to_le_bytes(),
+                        Endian::Big => v.to_be_bytes(),
+                    };
+                    [b[..2].try_into().unwrap(), b[2..].try_into().unwrap()]
+                })
+                .map(|b: [u8; 2]| match endian {
+                    Endian::Little => u16::from_le_bytes(b),
+                    Endian::Big => u16::from_be_bytes(b),
+                })
+                .collect();
+            let (mut blob, file) = one_entry_ifd(0x9a, &halves, 64, endian);
+            assert_eq!(
+                entry(&blob, &file, 0x9a, TYPE_LONG, 4, 1..=16, endian),
+                None
+            );
+            let (kind, count) = match endian {
+                Endian::Little => (TYPE_LONG.to_le_bytes(), 5u32.to_le_bytes()),
+                Endian::Big => (TYPE_LONG.to_be_bytes(), 5u32.to_be_bytes()),
+            };
+            blob[4..6].copy_from_slice(&kind);
+            blob[6..10].copy_from_slice(&count);
+            let (n, bytes) = entry(&blob, &file, 0x9a, TYPE_LONG, 4, 1..=16, endian).unwrap();
+            let read: Vec<u32> = bytes
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .take(n)
+                .map(|b| endian.u32(*b))
+                .collect();
+            assert_eq!(read, values);
+        }
     }
 
     /// The EOS-1Ds case: the same IFD written the other way round. Reading it
