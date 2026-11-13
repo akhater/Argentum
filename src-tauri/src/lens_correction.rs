@@ -2,7 +2,6 @@ use crate::AppState;
 use crate::mods::lens_shot::LensShot;
 use fuzzy_matcher::FuzzyMatcher;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs;
 use tauri::{Manager, State};
@@ -351,7 +350,7 @@ impl Lens {
             })
             .collect();
 
-        let mut vignettings: Vec<&Vignetting> = cal
+        let vignettings: Vec<&Vignetting> = cal
             .elements
             .iter()
             .filter_map(|e| {
@@ -402,97 +401,18 @@ impl Lens {
         )
         .unwrap_or(NO_TCA);
 
-        let (vig_k1, vig_k2, vig_k3) = if vignettings.is_empty() {
-            (0.0, 0.0, 0.0)
-        } else {
-            let target_aperture = aperture.unwrap_or(3.5);
-            let target_distance = distance.unwrap_or(1000.0);
-
-            vignettings.sort_by(|a, b| a.focal.partial_cmp(&b.focal).unwrap_or(Ordering::Equal));
-
-            let find_best_vig = |items: &[&Vignetting]| -> (f64, f64, f64) {
-                let best_aperture_item = items.iter().min_by(|a, b| {
-                    (a.aperture - target_aperture)
-                        .abs()
-                        .partial_cmp(&(b.aperture - target_aperture).abs())
-                        .unwrap_or(Ordering::Equal)
-                });
-                if let Some(best_ap) = best_aperture_item {
-                    let candidates: Vec<&&Vignetting> = items
-                        .iter()
-                        .filter(|x| (x.aperture - best_ap.aperture).abs() < 0.01)
-                        .collect();
-                    let best_dist = candidates.into_iter().min_by(|a, b| {
-                        let da = a.distance.unwrap_or(1000.0);
-                        let db = b.distance.unwrap_or(1000.0);
-                        (da - target_distance)
-                            .abs()
-                            .partial_cmp(&(db - target_distance).abs())
-                            .unwrap_or(Ordering::Equal)
-                    });
-                    extract_vig_params(best_dist.unwrap_or(best_ap))
-                } else {
-                    (0.0, 0.0, 0.0)
-                }
-            };
-
-            if focal_length <= vignettings[0].focal + 0.01 {
-                let group: Vec<&Vignetting> = vignettings
-                    .iter()
-                    .filter(|x| (x.focal - vignettings[0].focal).abs() < 0.01)
-                    .copied()
-                    .collect();
-                find_best_vig(&group)
-            } else if focal_length >= vignettings.last().unwrap().focal - 0.01 {
-                let last_focal = vignettings.last().unwrap().focal;
-                let group: Vec<&Vignetting> = vignettings
-                    .iter()
-                    .filter(|x| (x.focal - last_focal).abs() < 0.01)
-                    .copied()
-                    .collect();
-                find_best_vig(&group)
-            } else {
-                let mut res = (0.0, 0.0, 0.0);
-                let unique_focals: Vec<f32> = {
-                    let mut f: Vec<f32> = vignettings.iter().map(|v| v.focal).collect();
-                    f.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-                    f.dedup_by(|a, b| (*a - *b).abs() < 0.01);
-                    f
-                };
-                for pair in unique_focals.windows(2) {
-                    let (f1, f2) = (pair[0], pair[1]);
-                    if focal_length >= f1 && focal_length <= f2 {
-                        let group1: Vec<&Vignetting> = vignettings
-                            .iter()
-                            .filter(|x| (x.focal - f1).abs() < 0.01)
-                            .copied()
-                            .collect();
-                        let group2: Vec<&Vignetting> = vignettings
-                            .iter()
-                            .filter(|x| (x.focal - f2).abs() < 0.01)
-                            .copied()
-                            .collect();
-
-                        let p1 = find_best_vig(&group1);
-                        let p2 = find_best_vig(&group2);
-
-                        let range = f2 - f1;
-                        if range.abs() > 0.01 {
-                            let t = (focal_length - f1) / range;
-                            res = (
-                                p1.0 + t as f64 * (p2.0 - p1.0),
-                                p1.1 + t as f64 * (p2.1 - p1.1),
-                                p1.2 + t as f64 * (p2.2 - p1.2),
-                            );
-                        } else {
-                            res = p1;
-                        }
-                        break;
-                    }
-                }
-                res
-            }
-        };
+        // Argentum: across focal length, aperture and distance as Lensfun weights
+        // them (mods/lens_interp.rs), the focal length over Lensfun's range for the
+        // lens (mods/lens_focal_span.rs). A photo with no subject distance is at
+        // 1000 m, as darktable assumes (src/iop/lens.cc, reload_defaults, @ f30f439f).
+        let [vig_k1, vig_k2, vig_k3] = crate::mods::lens_interp::vignetting_at(
+            &vignettings,
+            crate::mods::lens_focal_span::lensfun_focal_range(self),
+            focal_length,
+            aperture.unwrap_or(F_NUMBER_NOT_RECORDED),
+            distance.unwrap_or(DISTANCE_M_NOT_RECORDED),
+        )
+        .unwrap_or([0.0; 3]);
 
         Some(LensDistortionParams {
             k1,
@@ -530,6 +450,13 @@ fn extract_dist_params(dist: &Distortion) -> (f64, f64, f64, u32) {
     }
 }
 
+/// The f-number vignetting is read at for a photo that records none (RapidRAW's).
+const F_NUMBER_NOT_RECORDED: f32 = 3.5;
+
+/// The subject distance (m) vignetting is read at for a photo that records none:
+/// darktable's (src/iop/lens.cc, reload_defaults, @ f30f439f).
+const DISTANCE_M_NOT_RECORDED: f32 = 1000.0;
+
 /// A lens with no lateral CA calibration: red and blue at green's scale.
 const NO_TCA: [f64; 6] = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0];
 
@@ -544,14 +471,6 @@ fn extract_tca_params(tca: &Tca) -> [f64; 6] {
         term(tca.br, 0.0),
         term(tca.bb, 0.0),
     ]
-}
-
-fn extract_vig_params(vig: &Vignetting) -> (f64, f64, f64) {
-    (
-        vig.k1.unwrap_or(0.0) as f64,
-        vig.k2.unwrap_or(0.0) as f64,
-        vig.k3.unwrap_or(0.0) as f64,
-    )
 }
 
 fn lenses_for_maker<'a>(db: &'a LensDatabase, maker: &str) -> Vec<&'a Lens> {

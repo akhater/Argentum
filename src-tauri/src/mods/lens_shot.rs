@@ -241,7 +241,8 @@ mod tests {
         assert!((vignette_saved(&shot) - -0.1).abs() < 1e-6);
     }
 
-    /// The default is far away; 0 would pick the closest profile.
+    /// The default is far away, darktable's 1000 m; at 0 Lensfun finds every
+    /// profile infinitely far (0.1/distance) and corrects nothing.
     #[test]
     fn a_photo_with_no_distance_gets_the_default_not_zero() {
         let lens = &lens_database().lenses[0];
@@ -251,7 +252,8 @@ mod tests {
                 .as_f64()
                 .unwrap()
         };
-        assert!((at(Some(0.0)) - -0.4).abs() < 1e-6);
+        assert_eq!(at(Some(0.0)), 0.0);
+        assert!((at(None) - -0.3).abs() < 1e-6);
         let shot = [
             ("FNumber", "f/5.6"),
             ("FocalLength", "50"),

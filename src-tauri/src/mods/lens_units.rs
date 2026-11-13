@@ -1053,10 +1053,12 @@ mod tests {
             let v = 1. + p.vig_k1 + p.vig_k2 + p.vig_k3;
             let (now, was) = (vignetting_gain(v, 1.), vignetting_gain(v, 0.8));
             println!(
-                "{name}: {display} at {} mm {}: corner gain {was:.3} -> {now:.3}, {:+.3} EV",
+                "{name}: {display} at {} mm {}, distance {:?}: corner gain {was:.3} -> {now:.3}, {:+.3} EV; at 100% {:.5} EV",
                 get("FocalLength"),
                 get("FNumber"),
-                (now / was).log2()
+                get("SubjectDistance"),
+                (now / was).log2(),
+                now.log2()
             );
         }
     }

@@ -19,6 +19,12 @@
 //! Argentum interpolated linearly between the two nearest rows, terms as they
 //! are, which bends a zoom's correction away from Lensfun's between its
 //! calibrated focal lengths.
+//!
+//! Vignetting is calibrated over focal length, aperture and distance, and
+//! Lensfun weights all its rows by their distance from the photo instead
+//! (`vignetting_at`).
+
+use crate::lens_correction::Vignetting;
 
 /// `rows`' terms at `focal_mm`: `rows` are one model's (focal length, terms) in
 /// the file's order, `by_focal` says which terms scale with the focal length.
@@ -66,6 +72,82 @@ pub fn at_focal<const N: usize>(
         let y = |row: Option<usize>| row.map(|i| rows[i].1[k] * scale(rows[i].0));
         hermite([y(spline[0]), y(Some(s1)), y(Some(s2)), y(spline[3])], t) / scale(focal_mm)
     }))
+}
+
+/// The inverse distance weighting's power (`InterpolateVignetting`, "p = 3.5").
+const IDW_POWER: f64 = 3.5;
+
+/// `rows`' vignetting terms (k₁, k₂, k₃) at a photo's focal length, f-number
+/// and subject distance (m), as Lensfun interpolates them
+/// (`libs/lensfun/lens.cpp`: `lfLens::InterpolateVignetting`,
+/// `__vignetting_dist` and `__parameter_scales` @ 52cf1a7b), in single
+/// precision as Lensfun computes them:
+///
+/// - only the rows of the first model met, in the file's order;
+/// - each row's distance from the photo over the focal length, normalised by
+///   the lens's range `focal_range` (`mods/lens_focal_span.rs`), 4/f-number
+///   and 0.1/distance; a row at the photo's point (closer than 1e-4) is taken
+///   as it is;
+/// - otherwise every row weighted by 1/distance^3.5; pa terms do not scale
+///   with the focal length;
+/// - `None`, no correction, when no row is within 1 of the photo.
+///
+/// Argentum took the nearest aperture, then the nearest distance, at the two
+/// calibrated focal lengths around the photo's and drew a straight line.
+pub fn vignetting_at(
+    rows: &[&Vignetting],
+    focal_range: [f32; 2],
+    focal_mm: f32,
+    f_number: f32,
+    distance_m: f32,
+) -> Option<[f64; 3]> {
+    let [min_focal, max_focal] = focal_range;
+    let span = max_focal - min_focal;
+    let normalised = |focal: f32| {
+        let f = focal - min_focal;
+        if span != 0. { f / span } else { f }
+    };
+    // `4.0 / aperture` and `0.1 / distance` are double literals over floats,
+    // stored as floats.
+    let reciprocal = |scale: f64, x: f32| (scale / f64::from(x)) as f32;
+    let (f1, a1, d1) = (
+        normalised(focal_mm),
+        reciprocal(4.0, f_number),
+        reciprocal(0.1, distance_m),
+    );
+
+    let mut model: Option<&str> = None;
+    let mut terms = [0f32; 3];
+    let mut total_weighting = 0f32;
+    let mut smallest = f32::MAX;
+    for row in rows {
+        // A "none" row leaves the model unset, as LF_VIGNETTING_MODEL_NONE does.
+        match model {
+            None => model = Some(row.model.as_str()).filter(|m| *m != "none"),
+            Some(m) if m != row.model => continue,
+            Some(_) => {}
+        }
+        let row_terms = [row.k1, row.k2, row.k3].map(|k| k.unwrap_or(0.));
+        let f2 = normalised(row.focal);
+        let a2 = reciprocal(4.0, row.aperture);
+        // A row with no distance reads 0 (Lensfun's `memset`): infinitely far.
+        let d2 = reciprocal(0.1, row.distance.unwrap_or(0.));
+        let square = |x: f32| x * x;
+        let distance = (square(f2 - f1) + square(a2 - a1) + square(d2 - d1)).sqrt();
+        if f64::from(distance) < 0.0001 {
+            return Some(row_terms.map(f64::from));
+        }
+        smallest = smallest.min(distance);
+        let weighting = (1.0 / f64::from(distance).powf(IDW_POWER)).abs() as f32;
+        for (sum, k) in terms.iter_mut().zip(row_terms) {
+            *sum += weighting * k;
+        }
+        total_weighting += weighting;
+    }
+    if smallest > 1. || !(total_weighting > 0. && smallest < f32::MAX) {
+        return None;
+    }
+    Some(terms.map(|sum| f64::from(sum / total_weighting)))
 }
 
 /// `_lf_interpolate`: the cubic Hermite spline from `y[1]` (t = 0) to `y[2]`
@@ -132,5 +214,270 @@ mod tests {
         // `t` is single precision, as Lensfun computes it.
         let got = at_focal(&rows, 40., BY_FOCAL).unwrap()[0];
         assert!((got - want).abs() < 1e-8, "{got} against {want}");
+    }
+
+    /// A lens of `rows` (focal, f-number, distance, k₁) and a focal range.
+    fn vignetting_lens(
+        range: [f32; 2],
+        rows: &[(f32, f32, f32, f32)],
+    ) -> crate::lens_correction::Lens {
+        let rows: String = rows
+            .iter()
+            .map(|(f, a, d, k1)| {
+                format!(r#"<vignetting model="pa" focal="{f}" aperture="{a}" distance="{d}" k1="{k1}" k2="0" k3="0"/>"#)
+            })
+            .collect();
+        quick_xml::de::from_str(&format!(
+            r#"<lens><model>Test</model><focal min="{}" max="{}"/><calibration>{rows}</calibration></lens>"#,
+            range[0], range[1]
+        ))
+        .expect("a lens")
+    }
+
+    /// Lensfun's weighting over (focal over the range, 4/f-number, 0.1/distance)
+    /// in double precision, from `lens.cpp` as written, for the tests to hold
+    /// `vignetting_at` to.
+    fn lensfun_idw(
+        range: [f32; 2],
+        rows: &[(f32, f32, f32, [f64; 3])],
+        focal: f32,
+        f_number: f32,
+        distance: f32,
+    ) -> Option<[f64; 3]> {
+        let span = f64::from(range[1] - range[0]);
+        let at = |f: f32, a: f32, d: f32| {
+            [
+                f64::from(f - range[0]) / if span != 0. { span } else { 1. },
+                4. / f64::from(a),
+                0.1 / f64::from(d),
+            ]
+        };
+        let photo = at(focal, f_number, distance);
+        let (mut sum, mut total, mut smallest) = ([0.; 3], 0., f64::INFINITY);
+        for (f, a, d, k) in rows {
+            let row = at(*f, *a, *d);
+            let x = (0..3)
+                .map(|i| (row[i] - photo[i]).powi(2))
+                .sum::<f64>()
+                .sqrt();
+            if x < 1e-4 {
+                return Some(*k);
+            }
+            smallest = smallest.min(x);
+            let w = 1. / x.powf(3.5);
+            (0..3).for_each(|i| sum[i] += w * k[i]);
+            total += w;
+        }
+        (smallest <= 1.).then(|| sum.map(|s| s / total))
+    }
+
+    /// A photo at f/4 on a lens calibrated at f/2.8 and f/5.6: Lensfun weights
+    /// both rows by their distance over 4/f-number, where Argentum took f/2.8's
+    /// row alone.
+    #[test]
+    fn an_aperture_between_two_calibrations_weights_both() {
+        let lens = vignetting_lens(
+            [24., 70.],
+            &[(50., 2.8, 1000., -0.5), (50., 5.6, 1000., -0.1)],
+        );
+        let p = lens.get_distortion_params(50., Some(4.), None).unwrap();
+        let want = lensfun_idw(
+            [24., 70.],
+            &[
+                (50., 2.8, 1000., [-0.5, 0., 0.]),
+                (50., 5.6, 1000., [-0.1, 0., 0.]),
+            ],
+            50.,
+            4.,
+            1000.,
+        )
+        .unwrap()[0];
+        assert!(
+            (p.vig_k1 - want).abs() < 1e-6,
+            "{} against Lensfun's {want}",
+            p.vig_k1
+        );
+        // Between the two, nearer f/5.6 on Lensfun's 4/f-number axis.
+        assert!(want > -0.3 && want < -0.1, "{want}");
+    }
+
+    /// Focal length, aperture and distance together: every row counts, the
+    /// focal length over the lens's range, the distance as 0.1/distance; a
+    /// photo with no distance is at 1000 m, as darktable assumes.
+    #[test]
+    fn every_row_counts_by_its_distance_from_the_photo() {
+        let rows = [
+            (24., 2.8, 1., -0.6),
+            (24., 8., 1000., -0.2),
+            (70., 4., 10., -0.4),
+            (70., 11., 1000., -0.05),
+        ];
+        let lens = vignetting_lens([24., 70.], &rows);
+        let oracle: Vec<_> = rows
+            .iter()
+            .map(|(f, a, d, k)| (*f, *a, *d, [f64::from(*k), 0., 0.]))
+            .collect();
+        for (focal, f_number, distance) in [
+            (35., 5.6, None),
+            (50., 3.5, Some(2.)),
+            (24., 2.8, Some(1000.)),
+        ] {
+            let p = lens
+                .get_distortion_params(focal, Some(f_number), distance)
+                .unwrap();
+            let want = lensfun_idw(
+                [24., 70.],
+                &oracle,
+                focal,
+                f_number,
+                distance.unwrap_or(1000.),
+            )
+            .unwrap()[0];
+            assert!(
+                (p.vig_k1 - want).abs() < 1e-6,
+                "{focal} mm f/{f_number} {distance:?}: {} against Lensfun's {want}",
+                p.vig_k1
+            );
+        }
+    }
+
+    /// A row at the photo's point is taken as it is; a photo further than 1
+    /// from every row gets no correction, as Lensfun gives none.
+    #[test]
+    fn a_row_at_the_photo_or_none_within_reach() {
+        let lens = vignetting_lens(
+            [24., 70.],
+            &[(24., 1.4, 1000., -0.7), (70., 1.4, 1000., -0.6)],
+        );
+        let p = lens.get_distortion_params(24., Some(1.4), None).unwrap();
+        assert_eq!(p.vig_k1, f64::from(-0.7f32));
+        // 4/1.4 - 4/16 = 2.6 from both rows.
+        let p = lens.get_distortion_params(24., Some(16.), None).unwrap();
+        assert_eq!([p.vig_k1, p.vig_k2, p.vig_k3], [0.; 3]);
+    }
+
+    /// Lensfun's interpolation against Argentum's over the bundled database, at
+    /// each calibrated focal length and f-number and halfway between (focal
+    /// lengths linearly, f-numbers on 4/f-number), at 1000 m: the corner gain
+    /// `1/(1 + k₁ + k₂ + k₃)` off Lensfun's, in EV, and how many points move
+    /// further from it than `AG_BEFORE` (a file this writes when absent).
+    ///
+    /// ```text
+    /// AG_BEFORE=<file> cargo test --lib lens_interp::tests::vignetting_interpolation_against_lensfun -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "measurement over the bundled database"]
+    fn vignetting_interpolation_against_lensfun() {
+        use crate::lens_correction::CalibrationElement as E;
+        let db = crate::lens_correction::read_lensfun_dir(std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/lensfun_db"
+        )));
+        let gain = |k: [f64; 3]| 1. / (1. + k[0] + k[1] + k[2]);
+        let (mut errors, mut lenses, mut no_row, mut corrected_anyway) = (Vec::new(), 0, 0, 0);
+        let mut points = Vec::new();
+        for lens in &db.lenses {
+            let rows: Vec<(f32, f32, f32, [f64; 3])> = lens
+                .calibration
+                .iter()
+                .flat_map(|c| &c.elements)
+                .filter_map(|e| match e {
+                    E::Vignetting(v) if v.model == "pa" => Some((
+                        v.focal,
+                        v.aperture,
+                        v.distance.unwrap_or(0.),
+                        [v.k1, v.k2, v.k3].map(|k| f64::from(k.unwrap_or(0.))),
+                    )),
+                    _ => None,
+                })
+                .collect();
+            if rows.len() < 2 {
+                continue;
+            }
+            lenses += 1;
+            let range = crate::mods::lens_focal_span::lensfun_focal_range(lens);
+            let sorted = |mut v: Vec<f32>| {
+                v.sort_by(f32::total_cmp);
+                v.dedup();
+                v
+            };
+            let focals = sorted(rows.iter().map(|r| r.0).collect());
+            let apertures = sorted(rows.iter().map(|r| r.1).collect());
+            let mut focal_points = focals.clone();
+            focal_points.extend(focals.windows(2).map(|w| (w[0] + w[1]) / 2.));
+            let mut aperture_points = apertures.clone();
+            aperture_points.extend(
+                apertures
+                    .windows(2)
+                    .map(|w| 4. / ((4. / w[0] + 4. / w[1]) / 2.)),
+            );
+            for &f in &focal_points {
+                for &a in &aperture_points {
+                    let ours = lens.get_distortion_params(f, Some(a), None).unwrap();
+                    let ours = [ours.vig_k1, ours.vig_k2, ours.vig_k3];
+                    let Some(lensfun) = lensfun_idw(range, &rows, f, a, 1000.) else {
+                        no_row += 1;
+                        corrected_anyway += usize::from(ours != [0.; 3]);
+                        continue;
+                    };
+                    let (gl, ga) = (gain(lensfun), gain(ours));
+                    // NaN where a factor reaches 0: both sides' gains are unbounded.
+                    errors.push(if gl > 0. && ga > 0. {
+                        (gl / ga).log2().abs()
+                    } else {
+                        f64::NAN
+                    });
+                    points.push(format!(
+                        "{} at {f} mm f/{a}: Lensfun 1 + k = {:.6}, ours {:.6}",
+                        crate::lens_correction::untranslated(&lens.model),
+                        1. / gl,
+                        1. / ga
+                    ));
+                }
+            }
+        }
+        let path = std::env::var("AG_BEFORE").ok();
+        let before: Option<Vec<f64>> = path
+            .as_deref()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .map(|t| t.lines().map(|l| l.parse().unwrap()).collect());
+        let further = before.as_ref().map(|b| {
+            assert_eq!(b.len(), errors.len(), "the same points");
+            let further: Vec<usize> = (0..errors.len())
+                .filter(|&i| match (b[i].is_nan(), errors[i].is_nan()) {
+                    (false, false) => errors[i] > b[i] + 1e-6,
+                    (true, _) => false,
+                    (false, true) => true,
+                })
+                .collect();
+            for &i in &further {
+                println!("further: {} ({} -> {} EV)", points[i], b[i], errors[i]);
+            }
+            further.len()
+        });
+        if before.is_none()
+            && let Some(p) = &path
+        {
+            let text: Vec<String> = errors.iter().map(f64::to_string).collect();
+            std::fs::write(p, text.join("\n")).unwrap();
+        }
+        if let Some(worst) = (0..errors.len())
+            .filter(|&i| !errors[i].is_nan())
+            .max_by(|&i, &j| errors[i].total_cmp(&errors[j]))
+        {
+            println!("furthest: {} ({} EV)", points[worst], errors[worst]);
+        }
+        let mut finite: Vec<f64> = errors.iter().copied().filter(|e| !e.is_nan()).collect();
+        finite.sort_by(f64::total_cmp);
+        let n = finite.len();
+        println!(
+            "lenses {lenses}; points {n} ({} with a factor at or below 0; {no_row} where Lensfun has no row within reach, {corrected_anyway} of them corrected anyway); corner gain off Lensfun's, EV: median {:.4}, p95 {:.4}, max {:.4}; over 0.1 EV {}, over 3 EV {}; further than before: {further:?}",
+            errors.len() - n,
+            finite[n / 2],
+            finite[n * 95 / 100],
+            finite[n - 1],
+            finite.iter().filter(|e| **e > 0.1).count(),
+            finite.iter().filter(|e| **e > 3.).count(),
+        );
     }
 }
