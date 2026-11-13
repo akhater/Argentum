@@ -771,7 +771,12 @@ pub fn find_best_lens_match(
     {
         return Some(lens_result(db, lens));
     }
-    loose_lens_match(db, maker, model, camera_model)
+    // Argentum: never a lens that cannot be on the camera (mods/lens_match.rs).
+    loose_lens_match(db, maker, model, camera_model).filter(|(lens_maker, display)| {
+        lens_named(db, lens_maker, display).is_none_or(|lens| {
+            crate::mods::lens_match::can_be_on(db, maker, camera_model, lens)
+        })
+    })
 }
 
 /// The matcher as it was before the strict one (`mods/lens_match.rs`): kept as
