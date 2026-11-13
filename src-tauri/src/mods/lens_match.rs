@@ -112,6 +112,41 @@ pub fn crop_or_35mm_equivalent(crop: f32, shot: &MatchShot) -> f32 {
     }
 }
 
+/// Whether `lens` can be on the camera of the file's EXIF `make` and `model`,
+/// for an answer of the old matcher (`lens_correction::loose_lens_match`),
+/// which may take a lens of any maker or mount: when Lensfun knows the camera, a
+/// lens of its mount or one Lensfun says fits it ([`fits_mount`]), or one an
+/// adapter can put on it (`lens_flange::adaptable`: an EF lens on a Sony E
+/// body), and on a fixed-lens camera only its own lens. Of a camera's several entries (Lensfun's
+/// variants: four Sony compacts are all "Cybershot"), any will do. A camera Lensfun
+/// doesn't know keeps any lens.
+pub fn can_be_on(db: &LensDatabase, make: &str, model: &str, lens: &Lens) -> bool {
+    let clean = |s: &str| s.trim().trim_matches('"').trim().to_string();
+    let (make, model) = (clean(make), clean(model));
+    let mut entries = db.cameras.iter().filter(|c| {
+        let (maker, name) = (untranslated(&c.maker), untranslated(&c.model));
+        same_text(maker, &make)
+            && (same_text(name, &model) || same_text(name, &format!("{make} {model}")))
+    });
+    let fits = |cam: &Camera| {
+        if fixed_lens(cam) {
+            lens.mount
+                .iter()
+                .any(|m| m.trim().eq_ignore_ascii_case(cam.mount.trim()))
+        } else {
+            fits_mount(db, cam, lens)
+                || lens
+                    .mount
+                    .iter()
+                    .any(|m| super::lens_flange::adaptable(m, &cam.mount))
+        }
+    };
+    match entries.next() {
+        None => true,
+        Some(first) => fits(first) || entries.any(fits),
+    }
+}
+
 /// Whether `lens`'s calibration covers a frame of crop factor `crop`.
 fn covers(lens: &Lens, crop: f32) -> bool {
     lens.cropfactor
@@ -575,6 +610,45 @@ mod tests {
         // A fixed-lens camera keeps its own: its lens was calibrated on its frame.
         let g12 = camera(&db, "Canon", "Canon PowerShot G12").unwrap();
         assert_eq!(photo_crop(g12, &shot(Some(5.5))), 4.6);
+    }
+
+    /// The old matcher may answer a lens of another mount (a Sony E zoom on a
+    /// Micro Four Thirds body); that answer is refused. A camera Lensfun doesn't
+    /// know keeps it.
+    #[test]
+    fn a_lens_that_cannot_be_on_the_camera_is_never_the_answer() {
+        let db = db();
+        let shot = MatchShot::default();
+        let name = "FE 70-200mm F2.8 GM OSS";
+        assert!(
+            crate::lens_correction::loose_lens_match(&db, "Panasonic", name, "DMC-G6").is_some()
+        );
+        assert_eq!(
+            crate::lens_correction::find_best_lens_match(&db, "Panasonic", name, "DMC-G6", &shot),
+            None
+        );
+        let named = |n: &str| {
+            db.lenses
+                .iter()
+                .find(|l| untranslated(&l.model) == n)
+                .unwrap()
+        };
+        let fe = named("FE 70-200mm f/2.8 GM OSS");
+        assert!(!can_be_on(&db, "Panasonic", "DMC-G6", fe));
+        assert!(can_be_on(&db, "SONY", "ILCE-1M2", fe));
+        // Through an adapter: an EF lens on a Sony E body, never the other way.
+        let ef = named("Canon EF 70-200mm f/2.8L IS II USM");
+        assert!(can_be_on(&db, "SONY", "ILCE-1M2", ef));
+        assert!(!can_be_on(&db, "Canon", "Canon EOS 5D Mark III", fe));
+        assert!(can_be_on(&db, "Leica", "M10", fe));
+        // A fixed-lens camera: its own lens only.
+        assert!(can_be_on(
+            &db,
+            "Canon",
+            "Canon PowerShot G12",
+            named("PowerShot G12")
+        ));
+        assert!(!can_be_on(&db, "Canon", "Canon PowerShot G12", fe));
     }
 
     #[test]
