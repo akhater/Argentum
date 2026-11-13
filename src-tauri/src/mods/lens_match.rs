@@ -60,13 +60,13 @@ pub fn camera<'d>(db: &'d LensDatabase, make: &str, model: &str) -> Option<&'d C
 }
 
 /// A fixed-lens camera: Lensfun names its mount in lower case first.
-fn fixed_lens(camera: &Camera) -> bool {
+pub(crate) fn fixed_lens(camera: &Camera) -> bool {
     camera.mount.chars().next().is_some_and(char::is_lowercase)
 }
 
 /// Whether `lens` can be on `camera`: a mount in common with the camera's own
 /// and those Lensfun says fit it.
-fn fits_mount(db: &LensDatabase, camera: &Camera, lens: &Lens) -> bool {
+pub(crate) fn fits_mount(db: &LensDatabase, camera: &Camera, lens: &Lens) -> bool {
     let compat: &[String] = db
         .mounts
         .iter()

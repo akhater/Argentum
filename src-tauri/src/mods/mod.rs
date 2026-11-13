@@ -69,6 +69,7 @@ pub mod input_stage;
 pub mod jpeg_exif_fit;
 pub mod lens_builtin;
 pub mod lens_crop;
+pub mod lens_frame;
 pub mod lens_match;
 pub mod lens_name;
 pub mod lens_names;
