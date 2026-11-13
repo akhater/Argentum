@@ -713,8 +713,8 @@ fn answer_of(answer: &[u8], what: &str) -> Result<Answer, Failure> {
         Failure::Crash
     })?;
     if !answer.ok {
-        log::info!(
-            "LUT provider: {what}: {:?} {:?}",
+        log::warn!(
+            "LUT provider: {what} refused: {:?} {:?}",
             answer.error,
             answer.message
         );
@@ -757,11 +757,16 @@ fn ask_for_lut(
     if !options.is_empty() {
         request["options"] = json!(options);
     }
+    let what = format!("{} {}", key.camera, key.look);
     if let Some(own) = &key.own_wb {
         let current = own
             .wb
             .map_or(Some(subject.wb), |wb| subject.coefficients_of(wb));
-        request["currentWb"] = json!(current.ok_or(Failure::Refused(Refusal::BadRequest))?);
+        let Some(current) = current else {
+            log::warn!("LUT provider: {what}: its white balance can't be told; not asked");
+            return Err(Failure::Refused(Refusal::BadRequest));
+        };
+        request["currentWb"] = json!(current);
     }
     let answer = run(
         exe,
@@ -770,9 +775,17 @@ fn ask_for_lut(
         limits.lut,
         cancel,
     )?;
-    answer_of(&answer, &format!("{} {}", key.camera, key.look))?;
-    let bytes = std::fs::read(scratch).map_err(|_| Failure::BadFile)?;
-    let lut = checked_file(&bytes)?;
+    answer_of(&answer, &what)?;
+    let bytes = std::fs::read(scratch).map_err(|e| {
+        log::warn!("LUT provider: {what}: its file can't be read: {e}");
+        Failure::BadFile
+    })?;
+    let lut = checked_file(&bytes).inspect_err(|_| {
+        log::warn!(
+            "LUT provider: {what}: its file is no 64-step PNG LUT ({} bytes)",
+            bytes.len()
+        );
+    })?;
     Ok((bytes, lut))
 }
 
@@ -944,17 +957,21 @@ struct Started {
 }
 
 impl Started {
-    /// One line per run, at debug level: what it was for, how long it waited
-    /// and ran, and how it ended.
+    /// One line per run: what it was for, how long it waited and ran, and how
+    /// it ended. At debug level, but for a run whose look then fails, which
+    /// the user sees: that one is a warning, in the default log.
     fn log(&self, subject: &Subject, key: &Key, failure: Option<Failure>) {
-        let ended = match failure {
-            None => "made".to_string(),
-            Some(Failure::Cancelled) => "killed, nobody waits for it".to_string(),
-            Some(Failure::Timeout) => "timed out".to_string(),
-            Some(failure) => format!("failed: {failure:?}"),
+        let (level, ended) = match failure {
+            None => (log::Level::Debug, "made".to_string()),
+            Some(Failure::Cancelled) => {
+                (log::Level::Debug, "killed, nobody waits for it".to_string())
+            }
+            Some(Failure::Timeout) => (log::Level::Warn, "timed out".to_string()),
+            Some(failure) => (log::Level::Warn, format!("failed: {failure:?}")),
         };
         let photo = parse_virtual_path(&subject.photo).0;
-        log::debug!(
+        log::log!(
+            level,
             "LUT provider run: {} {} for {}{}: waited {} ms, ran {} ms, {ended}",
             key.camera,
             key.look,
@@ -1130,9 +1147,9 @@ impl Queue {
             waiter.tell(&key, LookOutcome::Done);
             return;
         }
-        if !folder_takes_files(&waiter.file) {
-            log::debug!(
-                "LUT provider: {}: its folder takes no file",
+        if let Err(why) = folder_takes_files(&waiter.file) {
+            log::warn!(
+                "LUT provider: {}: its folder takes no file: {why}",
                 waiter.file.display()
             );
             waiter.tell(&key, LookOutcome::Folder);
@@ -1153,7 +1170,7 @@ impl Queue {
         match (state.off, refused) {
             (true, _) => {
                 drop(state);
-                log::debug!(
+                log::warn!(
                     "LUT provider: {} {}: off until the app closes",
                     key.camera,
                     key.look
@@ -1163,7 +1180,7 @@ impl Queue {
             }
             (false, Some(outcome)) if !remake => {
                 drop(state);
-                log::debug!(
+                log::warn!(
                     "LUT provider: {} {}: refused earlier this session",
                     key.camera,
                     key.look
@@ -1578,10 +1595,12 @@ pub fn clear_leftovers(cache: &Path) {
     let _ = std::fs::remove_dir_all(cache.join(SCRATCH_FOLDER));
 }
 
-/// Whether a file can be created beside `file`: asked before any run.
-fn folder_takes_files(file: &Path) -> bool {
-    file.parent()
-        .is_some_and(|folder| tempfile::NamedTempFile::new_in(folder).is_ok())
+/// Whether a file can be created beside `file`, or why not: asked before any run.
+fn folder_takes_files(file: &Path) -> Result<(), String> {
+    let folder = file.parent().ok_or("no folder")?;
+    tempfile::NamedTempFile::new_in(folder)
+        .map(drop)
+        .map_err(|e| e.to_string())
 }
 
 /// The camera a photo gets: `chosen` while it is on the list, otherwise its own.
@@ -1690,21 +1709,21 @@ fn edit_of(photo: &str, changes: Option<&Value>) -> Value {
 /// One photo, read for a request; None for anything but a RAW with a white
 /// balance.
 fn subject_of(photo: &str) -> Option<Subject> {
+    read_subject(photo).ok()
+}
+
+/// [`subject_of`], with why not: for a request that would otherwise fail with
+/// nothing in the log.
+fn read_subject(photo: &str) -> Result<Subject, String> {
     let source = parse_virtual_path(photo).0;
     if !crate::formats::is_raw_file(&source) {
-        return None;
+        return Err("not a RAW".to_string());
     }
-    let unread = |why: String| log::debug!("LUT provider: {}: {why}", source.display());
-    let bytes = read_file_mapped(&source)
-        .map_err(|e| unread(format!("not read: {e}")))
-        .ok()?;
-    let facts = dng_standard::facts(&bytes).map_err(unread).ok()?;
+    let bytes = read_file_mapped(&source).map_err(|e| format!("not read: {e}"))?;
+    let facts = dng_standard::facts(&bytes)?;
     let as_shot = crate::as_shot::as_shot(photo);
-    let Some(wb) = wb_for_program(as_shot.wb_coeffs) else {
-        unread("no white balance".to_string());
-        return None;
-    };
-    Some(Subject {
+    let wb = wb_for_program(as_shot.wb_coeffs).ok_or("no white balance")?;
+    Ok(Subject {
         photo: photo.to_string(),
         make: facts.make,
         model: facts.model,
@@ -1909,12 +1928,23 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
             let _ = app.emit(EVENT, progress);
         });
         for path in args.paths {
-            let request = subject_of(&path).and_then(|subject| {
+            let request = read_subject(&path).and_then(|subject| {
                 let chosen = args.camera.as_deref();
-                let camera = camera_for(&provider.catalog, chosen, &subject.make, &subject.model)?;
-                let listed = provider.catalog.lists(&args.look, &args.options);
+                let camera = camera_for(&provider.catalog, chosen, &subject.make, &subject.model)
+                    .ok_or_else(|| {
+                    format!(
+                        "{} {} is no camera on the list",
+                        subject.make, subject.model
+                    )
+                })?;
+                if !provider.catalog.lists(&args.look, &args.options) {
+                    return Err(format!(
+                        "{} with these options is not on the list",
+                        args.look
+                    ));
+                }
                 let changes = args.changes.as_ref();
-                listed.then(|| Request {
+                Ok(Request {
                     camera: camera.to_string(),
                     look: args.look.clone(),
                     options: args.options.clone(),
@@ -1928,17 +1958,20 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                 })
             });
             match request {
-                Some(request) => provider.queue.request(request),
-                None => report(LookProgress {
-                    job_id: job,
-                    path,
-                    camera: args.camera.clone().unwrap_or_default(),
-                    look: args.look.clone(),
-                    options: args.options.clone(),
-                    own_wb: None,
-                    outcome: LookOutcome::Unsupported,
-                    preview: false,
-                }),
+                Ok(request) => provider.queue.request(request),
+                Err(why) => {
+                    log::warn!("LUT provider: {} for {path}: {why}", args.look);
+                    report(LookProgress {
+                        job_id: job,
+                        path,
+                        camera: args.camera.clone().unwrap_or_default(),
+                        look: args.look.clone(),
+                        options: args.options.clone(),
+                        own_wb: None,
+                        outcome: LookOutcome::Unsupported,
+                        preview: false,
+                    });
+                }
             }
         }
     });
@@ -1955,7 +1988,9 @@ pub fn preview_all(app: &AppHandle, args: ProviderLookPreviewArgs) -> Result<u64
     let report: Report = Arc::new(move |progress| {
         let _ = app.emit(EVENT, progress);
     });
-    let subject = subject_of(&args.path);
+    let subject = read_subject(&args.path)
+        .inspect_err(|why| log::warn!("LUT provider: no previews for {}: {why}", args.path))
+        .ok();
     provider
         .queue
         .preview_all(&provider.catalog, subject, &args, job, report);
@@ -2042,10 +2077,23 @@ fn lut_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &AtomicBool) -> b
     };
     let listed = provider.catalog.cameras.iter().any(|c| c.id == look.camera)
         && provider.catalog.lists(&look.look, &look.options);
-    let Some(subject) = subject_of(photo).filter(|_| listed) else {
-        return false;
+    let name = format!("{} {}", look.camera, look.look);
+    let subject = if listed {
+        read_subject(photo)
+    } else {
+        Err("not on the list".to_string())
     };
-    provider.queue.wait_for(subject, look, cancel) == LookOutcome::Done
+    let outcome = match subject {
+        Ok(subject) => provider.queue.wait_for(subject, look, cancel),
+        Err(why) => {
+            log::warn!("LUT provider: {name} for {photo}: {why}; exported without it");
+            return false;
+        }
+    };
+    if !matches!(outcome, LookOutcome::Done | LookOutcome::Cancelled) {
+        log::warn!("LUT provider: {name} for {photo}: {outcome:?}; exported without it");
+    }
+    outcome == LookOutcome::Done
 }
 
 /// [`Queue::delete_looks`], for someone with a provider.
@@ -2258,7 +2306,45 @@ fn main() {
         }
     }
 
+    /// The provider's lines of the log, printed into the output of the test whose
+    /// thread wrote them: a test that fails on a look's outcome shows its cause.
+    struct Lines;
+
+    impl log::Log for Lines {
+        fn enabled(&self, metadata: &log::Metadata) -> bool {
+            metadata.level() <= log::max_level()
+        }
+
+        fn log(&self, record: &log::Record) {
+            let text = record.args().to_string();
+            if text.starts_with("LUT provider") {
+                let at = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |t| t.as_millis() % 100_000);
+                eprintln!("{at} {} {text}", record.level());
+            }
+        }
+
+        fn flush(&self) {}
+    }
+
+    /// From the first fake on, warnings and worse; `LOAD_DETAIL` asks for debug.
+    pub(super) fn print_the_log() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            if log::set_logger(&Lines).is_ok() {
+                let detail = std::env::var_os("LOAD_DETAIL").is_some();
+                log::set_max_level(if detail {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Warn
+                });
+            }
+        });
+    }
+
     pub(super) fn fake(kind: &str) -> Fake {
+        print_the_log();
         let dir = tempfile::tempdir().expect("folder");
         write_png(&dir.path().join("good.png"), 512);
         write_png(&dir.path().join("small.png"), 64);
