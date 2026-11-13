@@ -754,7 +754,7 @@ fn compute_lens_auto_crop_scale(params: &GeometryParams, width: f32, height: f32
     let lk1 = params.lens_dist_k1 as f64;
     let lk2 = params.lens_dist_k2 as f64;
     let lk3 = params.lens_dist_k3 as f64;
-    let lens_dist_amt = (params.lens_distortion_amount as f64) * 2.5;
+    let lens_dist_amt = (params.lens_distortion_amount as f64) * crate::mods::lens_units::GAIN;
 
     let k_distortion = (params.distortion as f64 / 100.0) * 2.5;
 
@@ -864,7 +864,7 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
     let lk1 = params.lens_dist_k1 as f64;
     let lk2 = params.lens_dist_k2 as f64;
     let lk3 = params.lens_dist_k3 as f64;
-    let lens_dist_amt = (params.lens_distortion_amount as f64) * 2.5;
+    let lens_dist_amt = (params.lens_distortion_amount as f64) * crate::mods::lens_units::GAIN;
 
     let has_lens_correction = params.lens_distortion_enabled
         && (lk1.abs() > 1e-6 || lk2.abs() > 1e-6 || lk3.abs() > 1e-6);
@@ -1064,7 +1064,7 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
     let lk1 = params.lens_dist_k1 as f64;
     let lk2 = params.lens_dist_k2 as f64;
     let lk3 = params.lens_dist_k3 as f64;
-    let lens_dist_amt = (params.lens_distortion_amount as f64) * 2.5;
+    let lens_dist_amt = (params.lens_distortion_amount as f64) * crate::mods::lens_units::GAIN;
 
     let has_lens_correction = params.lens_distortion_enabled
         && (lk1.abs() > 1e-6 || lk2.abs() > 1e-6 || lk3.abs() > 1e-6);
@@ -1310,7 +1310,7 @@ pub fn inverse_transform_point(
         let lk1 = params.lens_dist_k1 as f64;
         let lk2 = params.lens_dist_k2 as f64;
         let lk3 = params.lens_dist_k3 as f64;
-        let lens_dist_amt = (params.lens_distortion_amount as f64) * 2.5;
+        let lens_dist_amt = (params.lens_distortion_amount as f64) * crate::mods::lens_units::GAIN;
 
         let has_lens_correction = params.lens_distortion_enabled
             && (lk1.abs() > 1e-6 || lk2.abs() > 1e-6 || lk3.abs() > 1e-6);
