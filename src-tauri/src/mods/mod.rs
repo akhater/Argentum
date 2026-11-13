@@ -90,6 +90,7 @@ pub mod model_download;
 pub mod model_manager;
 pub mod modern_start;
 pub mod preview_encode;
+pub mod process_tree;
 pub mod profile_correction;
 pub mod profile_matrix;
 pub mod profiles;

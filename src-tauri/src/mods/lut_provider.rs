@@ -50,7 +50,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Cursor, Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, mpsc};
 use std::time::{Duration, Instant};
@@ -68,6 +68,7 @@ use crate::mods::ag_settings::Setting;
 use crate::mods::atomic_write::write_atomic;
 use crate::mods::file_ops::{LookOptions, LookWb, OwnWb};
 use crate::mods::look_grain::{self, MapFacts};
+use crate::mods::process_tree::Tree;
 use crate::mods::profiles::{self, same_model};
 use crate::mods::{dng_standard, file_ops, provider_look};
 use crate::white_balance::WhiteBalance;
@@ -537,28 +538,6 @@ fn capped(pipe: impl Read + Send + 'static) -> mpsc::Receiver<(Vec<u8>, bool)> {
     told
 }
 
-/// The program and all it started, now.
-fn kill(child: &mut Child) {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let system = std::env::var_os("SystemRoot").map_or_else(PathBuf::new, PathBuf::from);
-        let _ = Command::new(system.join("System32").join("taskkill.exe"))
-            .args(["/T", "/F", "/PID", &child.id().to_string()])
-            .creation_flags(NO_WINDOW)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-    let _ = child.kill();
-    let _ = child.wait();
-}
-
-/// `CREATE_NO_WINDOW`.
-#[cfg(windows)]
-const NO_WINDOW: u32 = 0x0800_0000;
-
 /// One run of the program: no shell, one fixed word, `input` on stdin, in its
 /// own folder. What it wrote to stdout, or why not.
 fn run(
@@ -580,17 +559,19 @@ fn run(
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        command.creation_flags(NO_WINDOW);
+        command.creation_flags(crate::mods::process_tree::NO_WINDOW);
     }
-    let mut child = command.spawn().map_err(|e| {
+    // Killed whole and at once: one being killed holds its place in the queue.
+    let mut tree = Tree::spawn(&mut command).map_err(|e| {
         log::warn!("LUT provider: could not start: {e}");
         Failure::Crash
     })?;
+    let child = &mut tree.child;
 
     let (Some(mut stdin), Some(stdout), Some(stderr)) =
         (child.stdin.take(), child.stdout.take(), child.stderr.take())
     else {
-        kill(&mut child);
+        tree.kill();
         return Err(Failure::Crash);
     };
     let input = input.to_vec();
@@ -603,37 +584,48 @@ fn run(
     let started = Instant::now();
     let status = loop {
         if cancel.load(Ordering::SeqCst) {
-            kill(&mut child);
+            tree.kill();
             return Err(Failure::Cancelled);
         }
         if started.elapsed() >= timeout {
             log::warn!("LUT provider: no answer to {word} in {timeout:?}");
-            kill(&mut child);
+            tree.kill();
             return Err(Failure::Timeout);
         }
-        match child.try_wait() {
+        match tree.child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) => std::thread::sleep(Duration::from_millis(5)),
             Err(e) => {
                 log::warn!("LUT provider: {e}");
-                kill(&mut child);
+                tree.kill();
                 return Err(Failure::Crash);
             }
         }
     };
 
     // Something it started may still hold the pipes, so this does not wait long.
+    let ended = Instant::now();
     let pipe_wait = Duration::from_secs(1);
-    if let Ok((text, _)) = stderr.recv_timeout(pipe_wait)
-        && !text.is_empty()
-    {
-        log::info!("LUT provider: {}", String::from_utf8_lossy(&text));
+    match stderr.recv_timeout(pipe_wait) {
+        Ok((text, _)) if !text.is_empty() => {
+            log::info!("LUT provider: {}", String::from_utf8_lossy(&text));
+        }
+        Ok(_) => {}
+        Err(_) => log::debug!("LUT provider: {word} kept its stderr open past its end"),
     }
     if !status.success() {
         log::warn!("LUT provider: {word} ended with {status}");
         return Err(Failure::Crash);
     }
-    match stdout.recv_timeout(pipe_wait) {
+    let answer = stdout.recv_timeout(pipe_wait);
+    let late = ended.elapsed();
+    if late >= Duration::from_millis(50) {
+        log::debug!(
+            "LUT provider: {word} closed its output {} ms after it ended",
+            late.as_millis()
+        );
+    }
+    match answer {
         Ok((text, false)) => Ok(text),
         _ => {
             log::warn!("LUT provider: {word} answered too much or too late");
@@ -721,8 +713,8 @@ fn answer_of(answer: &[u8], what: &str) -> Result<Answer, Failure> {
         Failure::Crash
     })?;
     if !answer.ok {
-        log::info!(
-            "LUT provider: {what}: {:?} {:?}",
+        log::warn!(
+            "LUT provider: {what} refused: {:?} {:?}",
             answer.error,
             answer.message
         );
@@ -765,11 +757,16 @@ fn ask_for_lut(
     if !options.is_empty() {
         request["options"] = json!(options);
     }
+    let what = format!("{} {}", key.camera, key.look);
     if let Some(own) = &key.own_wb {
         let current = own
             .wb
             .map_or(Some(subject.wb), |wb| subject.coefficients_of(wb));
-        request["currentWb"] = json!(current.ok_or(Failure::Refused(Refusal::BadRequest))?);
+        let Some(current) = current else {
+            log::warn!("LUT provider: {what}: its white balance can't be told; not asked");
+            return Err(Failure::Refused(Refusal::BadRequest));
+        };
+        request["currentWb"] = json!(current);
     }
     let answer = run(
         exe,
@@ -778,9 +775,17 @@ fn ask_for_lut(
         limits.lut,
         cancel,
     )?;
-    answer_of(&answer, &format!("{} {}", key.camera, key.look))?;
-    let bytes = std::fs::read(scratch).map_err(|_| Failure::BadFile)?;
-    let lut = checked_file(&bytes)?;
+    answer_of(&answer, &what)?;
+    let bytes = std::fs::read(scratch).map_err(|e| {
+        log::warn!("LUT provider: {what}: its file can't be read: {e}");
+        Failure::BadFile
+    })?;
+    let lut = checked_file(&bytes).inspect_err(|_| {
+        log::warn!(
+            "LUT provider: {what}: its file is no 64-step PNG LUT ({} bytes)",
+            bytes.len()
+        );
+    })?;
     Ok((bytes, lut))
 }
 
@@ -944,6 +949,40 @@ impl Waiter {
     }
 }
 
+/// A run as it started, for its line in the log.
+struct Started {
+    waited: Duration,
+    preview: bool,
+    at: Instant,
+}
+
+impl Started {
+    /// One line per run: what it was for, how long it waited and ran, and how
+    /// it ended. At debug level, but for a run whose look then fails, which
+    /// the user sees: that one is a warning, in the default log.
+    fn log(&self, subject: &Subject, key: &Key, failure: Option<Failure>) {
+        let (level, ended) = match failure {
+            None => (log::Level::Debug, "made".to_string()),
+            Some(Failure::Cancelled) => {
+                (log::Level::Debug, "killed, nobody waits for it".to_string())
+            }
+            Some(Failure::Timeout) => (log::Level::Warn, "timed out".to_string()),
+            Some(failure) => (log::Level::Warn, format!("failed: {failure:?}")),
+        };
+        let photo = parse_virtual_path(&subject.photo).0;
+        log::log!(
+            level,
+            "LUT provider run: {} {} for {}{}: waited {} ms, ran {} ms, {ended}",
+            key.camera,
+            key.look,
+            photo.file_name().unwrap_or_default().to_string_lossy(),
+            if self.preview { " (preview)" } else { "" },
+            self.waited.as_millis(),
+            self.at.elapsed().as_millis(),
+        );
+    }
+}
+
 /// One run to make, and who is waiting for it.
 struct Item {
     key: Key,
@@ -951,6 +990,8 @@ struct Item {
     waiters: Vec<Waiter>,
     /// Set once nobody waits: the run is killed.
     cancel: Arc<AtomicBool>,
+    /// For the log: how long it waited for its run.
+    queued: Instant,
 }
 
 impl Item {
@@ -1078,6 +1119,7 @@ impl Queue {
             file_ops::look_file_for(&source, &camera, &look, &options, own_wb.as_ref()),
             self.preview_file(&source, &camera, &look, &options, own_wb.as_ref()),
         ) else {
+            log::warn!("LUT provider: {camera} {look} can't name a file; not asked");
             return;
         };
         let waiter = Waiter {
@@ -1105,7 +1147,11 @@ impl Queue {
             waiter.tell(&key, LookOutcome::Done);
             return;
         }
-        if !folder_takes_files(&waiter.file) {
+        if let Err(why) = folder_takes_files(&waiter.file) {
+            log::warn!(
+                "LUT provider: {}: its folder takes no file: {why}",
+                waiter.file.display()
+            );
             waiter.tell(&key, LookOutcome::Folder);
             return;
         }
@@ -1124,11 +1170,21 @@ impl Queue {
         match (state.off, refused) {
             (true, _) => {
                 drop(state);
+                log::warn!(
+                    "LUT provider: {} {}: off until the app closes",
+                    key.camera,
+                    key.look
+                );
                 waiter.tell(&key, LookOutcome::Failed);
                 return;
             }
             (false, Some(outcome)) if !remake => {
                 drop(state);
+                log::warn!(
+                    "LUT provider: {} {}: refused earlier this session",
+                    key.camera,
+                    key.look
+                );
                 waiter.tell(&key, outcome);
                 return;
             }
@@ -1146,6 +1202,7 @@ impl Queue {
                 subject,
                 waiters: vec![waiter],
                 cancel: Arc::new(AtomicBool::new(false)),
+                queued: Instant::now(),
             };
             state.waiting.push_back(item);
         }
@@ -1342,11 +1399,16 @@ impl Queue {
                 item.key.clone(),
                 Arc::clone(&item.cancel),
             );
+            let started = Started {
+                waited: item.queued.elapsed(),
+                preview: item.is_preview(),
+                at: Instant::now(),
+            };
             state.running.push(item);
             state.scratch_files += 1;
             let scratch = self.scratch.join(format!("{}.png", state.scratch_files));
             let queue = Arc::clone(self);
-            std::thread::spawn(move || queue.work(&subject, &key, &scratch, &cancel));
+            std::thread::spawn(move || queue.work(&subject, &key, &scratch, &cancel, &started));
         }
     }
 
@@ -1362,7 +1424,17 @@ impl Queue {
     /// Writes a checked LUT where `waiter` wants it. Beside a photo it also
     /// replaces any in memory; a preview is read when it is looked at.
     fn place(&self, waiter: &Waiter, bytes: &[u8], lut: &Arc<Lut>) -> LookOutcome {
-        match write_atomic(&waiter.file, bytes) {
+        let writing = Instant::now();
+        let written = write_atomic(&waiter.file, bytes);
+        if writing.elapsed() >= Duration::from_millis(100) {
+            // Something held the file and the write waited for it.
+            log::debug!(
+                "LUT provider: {} took {} ms to write",
+                waiter.file.display(),
+                writing.elapsed().as_millis()
+            );
+        }
+        match written {
             Ok(()) => {
                 if !waiter.preview {
                     (self.placed)(&waiter.photo, &waiter.file, Arc::clone(lut));
@@ -1383,6 +1455,7 @@ impl Queue {
         key: &Key,
         scratch: &Path,
         cancel: &Arc<AtomicBool>,
+        started: &Started,
     ) {
         let made = make_lut(
             &self.exe,
@@ -1393,6 +1466,7 @@ impl Queue {
             scratch,
             cancel,
         );
+        started.log(subject, key, made.as_ref().err().copied());
 
         let mut state = self.state();
         let at = state
@@ -1521,10 +1595,12 @@ pub fn clear_leftovers(cache: &Path) {
     let _ = std::fs::remove_dir_all(cache.join(SCRATCH_FOLDER));
 }
 
-/// Whether a file can be created beside `file`: asked before any run.
-fn folder_takes_files(file: &Path) -> bool {
-    file.parent()
-        .is_some_and(|folder| tempfile::NamedTempFile::new_in(folder).is_ok())
+/// Whether a file can be created beside `file`, or why not: asked before any run.
+fn folder_takes_files(file: &Path) -> Result<(), String> {
+    let folder = file.parent().ok_or("no folder")?;
+    tempfile::NamedTempFile::new_in(folder)
+        .map(drop)
+        .map_err(|e| e.to_string())
 }
 
 /// The camera a photo gets: `chosen` while it is on the list, otherwise its own.
@@ -1633,15 +1709,21 @@ fn edit_of(photo: &str, changes: Option<&Value>) -> Value {
 /// One photo, read for a request; None for anything but a RAW with a white
 /// balance.
 fn subject_of(photo: &str) -> Option<Subject> {
+    read_subject(photo).ok()
+}
+
+/// [`subject_of`], with why not: for a request that would otherwise fail with
+/// nothing in the log.
+fn read_subject(photo: &str) -> Result<Subject, String> {
     let source = parse_virtual_path(photo).0;
     if !crate::formats::is_raw_file(&source) {
-        return None;
+        return Err("not a RAW".to_string());
     }
-    let bytes = read_file_mapped(&source).ok()?;
-    let facts = dng_standard::facts(&bytes).ok()?;
+    let bytes = read_file_mapped(&source).map_err(|e| format!("not read: {e}"))?;
+    let facts = dng_standard::facts(&bytes)?;
     let as_shot = crate::as_shot::as_shot(photo);
-    let wb = wb_for_program(as_shot.wb_coeffs)?;
-    Some(Subject {
+    let wb = wb_for_program(as_shot.wb_coeffs).ok_or("no white balance")?;
+    Ok(Subject {
         photo: photo.to_string(),
         make: facts.make,
         model: facts.model,
@@ -1846,12 +1928,23 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
             let _ = app.emit(EVENT, progress);
         });
         for path in args.paths {
-            let request = subject_of(&path).and_then(|subject| {
+            let request = read_subject(&path).and_then(|subject| {
                 let chosen = args.camera.as_deref();
-                let camera = camera_for(&provider.catalog, chosen, &subject.make, &subject.model)?;
-                let listed = provider.catalog.lists(&args.look, &args.options);
+                let camera = camera_for(&provider.catalog, chosen, &subject.make, &subject.model)
+                    .ok_or_else(|| {
+                    format!(
+                        "{} {} is no camera on the list",
+                        subject.make, subject.model
+                    )
+                })?;
+                if !provider.catalog.lists(&args.look, &args.options) {
+                    return Err(format!(
+                        "{} with these options is not on the list",
+                        args.look
+                    ));
+                }
                 let changes = args.changes.as_ref();
-                listed.then(|| Request {
+                Ok(Request {
                     camera: camera.to_string(),
                     look: args.look.clone(),
                     options: args.options.clone(),
@@ -1865,17 +1958,20 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                 })
             });
             match request {
-                Some(request) => provider.queue.request(request),
-                None => report(LookProgress {
-                    job_id: job,
-                    path,
-                    camera: args.camera.clone().unwrap_or_default(),
-                    look: args.look.clone(),
-                    options: args.options.clone(),
-                    own_wb: None,
-                    outcome: LookOutcome::Unsupported,
-                    preview: false,
-                }),
+                Ok(request) => provider.queue.request(request),
+                Err(why) => {
+                    log::warn!("LUT provider: {} for {path}: {why}", args.look);
+                    report(LookProgress {
+                        job_id: job,
+                        path,
+                        camera: args.camera.clone().unwrap_or_default(),
+                        look: args.look.clone(),
+                        options: args.options.clone(),
+                        own_wb: None,
+                        outcome: LookOutcome::Unsupported,
+                        preview: false,
+                    });
+                }
             }
         }
     });
@@ -1892,7 +1988,9 @@ pub fn preview_all(app: &AppHandle, args: ProviderLookPreviewArgs) -> Result<u64
     let report: Report = Arc::new(move |progress| {
         let _ = app.emit(EVENT, progress);
     });
-    let subject = subject_of(&args.path);
+    let subject = read_subject(&args.path)
+        .inspect_err(|why| log::warn!("LUT provider: no previews for {}: {why}", args.path))
+        .ok();
     provider
         .queue
         .preview_all(&provider.catalog, subject, &args, job, report);
@@ -1979,10 +2077,23 @@ fn lut_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &AtomicBool) -> b
     };
     let listed = provider.catalog.cameras.iter().any(|c| c.id == look.camera)
         && provider.catalog.lists(&look.look, &look.options);
-    let Some(subject) = subject_of(photo).filter(|_| listed) else {
-        return false;
+    let name = format!("{} {}", look.camera, look.look);
+    let subject = if listed {
+        read_subject(photo)
+    } else {
+        Err("not on the list".to_string())
     };
-    provider.queue.wait_for(subject, look, cancel) == LookOutcome::Done
+    let outcome = match subject {
+        Ok(subject) => provider.queue.wait_for(subject, look, cancel),
+        Err(why) => {
+            log::warn!("LUT provider: {name} for {photo}: {why}; exported without it");
+            return false;
+        }
+    };
+    if !matches!(outcome, LookOutcome::Done | LookOutcome::Cancelled) {
+        log::warn!("LUT provider: {name} for {photo}: {outcome:?}; exported without it");
+    }
+    outcome == LookOutcome::Done
 }
 
 /// [`Queue::delete_looks`], for someone with a provider.
@@ -2109,6 +2220,20 @@ fn main() {
             std::fs::copy(dir.join("good.png"), &output).unwrap();
             write!(out, "{{\"ok\":true,\"seconds\":0.1}}").unwrap();
         }
+        "timed" => {
+            // A run as long as its look's number says, timed in timed.log.
+            let at = request.find("\"look\":\"look").expect("look") + 12;
+            let n: u64 = request[at..].chars().take_while(char::is_ascii_digit).collect::<String>().parse().expect("n");
+            let path = request.find("\"path\":\"").expect("path") + 8;
+            let photo = request[path..].split('"').next().expect("photo").rsplit(['\\', '/']).next().expect("name").to_string();
+            let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+            let start = now();
+            std::thread::sleep(std::time::Duration::from_millis(100 + n * 7919 % 1901));
+            std::fs::copy(dir.join("good.png"), &output).unwrap();
+            let mut log = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("timed.log")).unwrap();
+            writeln!(log, "{photo}\tlook{n}\t{start}\t{}", now()).unwrap();
+            write!(out, "{{\"ok\":true}}").unwrap();
+        }
         "crash" => { eprintln!("boom"); std::process::exit(3); }
         "ticking" => loop {
             let mut ticks = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("ticks.log")).unwrap();
@@ -2168,7 +2293,7 @@ fn main() {
 
     /// `kind` of the fake provider in a folder of its own, with a good PNG and
     /// a small one beside it. The folder goes with this.
-    struct Fake {
+    pub(super) struct Fake {
         _dir: tempfile::TempDir,
         exe: PathBuf,
     }
@@ -2181,7 +2306,45 @@ fn main() {
         }
     }
 
-    fn fake(kind: &str) -> Fake {
+    /// The provider's lines of the log, printed into the output of the test whose
+    /// thread wrote them: a test that fails on a look's outcome shows its cause.
+    struct Lines;
+
+    impl log::Log for Lines {
+        fn enabled(&self, metadata: &log::Metadata) -> bool {
+            metadata.level() <= log::max_level()
+        }
+
+        fn log(&self, record: &log::Record) {
+            let text = record.args().to_string();
+            if text.starts_with("LUT provider") {
+                let at = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |t| t.as_millis() % 100_000);
+                eprintln!("{at} {} {text}", record.level());
+            }
+        }
+
+        fn flush(&self) {}
+    }
+
+    /// From the first fake on, warnings and worse; `LOAD_DETAIL` asks for debug.
+    pub(super) fn print_the_log() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            if log::set_logger(&Lines).is_ok() {
+                let detail = std::env::var_os("LOAD_DETAIL").is_some();
+                log::set_max_level(if detail {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Warn
+                });
+            }
+        });
+    }
+
+    pub(super) fn fake(kind: &str) -> Fake {
+        print_the_log();
         let dir = tempfile::tempdir().expect("folder");
         write_png(&dir.path().join("good.png"), 512);
         write_png(&dir.path().join("small.png"), 64);
@@ -2209,7 +2372,7 @@ fn main() {
     };
 
     /// A new program can take seconds to start on a busy machine.
-    const ROOMY: Limits = Limits {
+    pub(super) const ROOMY: Limits = Limits {
         list: Duration::from_secs(60),
         lut: Duration::from_secs(60),
     };
@@ -2217,7 +2380,7 @@ fn main() {
     /// Under the 30 s the slow fakes sleep.
     const IN_TIME: Duration = Duration::from_secs(25);
 
-    fn wait_for(what: &str, done: impl Fn() -> bool) {
+    pub(super) fn wait_for(what: &str, done: impl Fn() -> bool) {
         let deadline = Instant::now() + Duration::from_secs(60);
         while !done() {
             assert!(Instant::now() < deadline, "{what}");
@@ -2225,7 +2388,7 @@ fn main() {
         }
     }
 
-    fn calls(exe: &Path) -> usize {
+    pub(super) fn calls(exe: &Path) -> usize {
         std::fs::read_to_string(exe.with_file_name("calls.log"))
             .map(|text| text.lines().count())
             .unwrap_or(0)
@@ -2703,7 +2866,7 @@ fn main() {
         0.4716, 0.0603, -0.0830, -0.7798, 1.5474, 0.2480, -0.1496, 0.1937, 0.6651,
     ];
 
-    fn subject(photo: &str) -> Subject {
+    pub(super) fn subject(photo: &str) -> Subject {
         Subject {
             photo: photo.to_string(),
             make: "Acme".to_string(),
@@ -3609,7 +3772,7 @@ fn main() {
 
     // ------------------------------------------------------------ Preview all
 
-    fn numbered(count: usize) -> Catalog {
+    pub(super) fn numbered(count: usize) -> Catalog {
         let look = |n: usize| OfferedLook {
             id: format!("look{n}"),
             name: format!("Invented Stock {n}"),
@@ -3621,7 +3784,7 @@ fn main() {
         }
     }
 
-    fn preview_args(photo: &Path) -> ProviderLookPreviewArgs {
+    pub(super) fn preview_args(photo: &Path) -> ProviderLookPreviewArgs {
         ProviderLookPreviewArgs {
             changes: None,
             path: photo.to_string_lossy().into_owned(),
@@ -5269,3 +5432,8 @@ fn main() {
         }
     }
 }
+
+/// The queue under a load like a session of clicks, Preview all and switching photos.
+#[cfg(test)]
+#[path = "lut_provider_load.rs"]
+mod load;
