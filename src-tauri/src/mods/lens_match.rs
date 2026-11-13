@@ -394,58 +394,72 @@ mod tests {
         assert!(db.mounts.len() >= 50, "{} mounts", db.mounts.len());
     }
 
-    /// What the app answers for a photo, before and after the strict matcher.
-    /// A matcher's answer: the lens's maker and display name.
+    /// What the app answers for a photo: the lens's maker and display name.
     type Answer = Option<(String, String)>;
 
-    fn answers(db: &LensDatabase, make: &str, lens: &str, model: &str) -> (Answer, Answer) {
-        (
-            crate::lens_correction::loose_lens_match(db, make, lens, model),
-            crate::lens_correction::find_best_lens_match(db, make, lens, model),
-        )
+    /// The answer `find_best_lens_match` gives a photo of `focal_mm`.
+    fn answer(
+        db: &LensDatabase,
+        make: &str,
+        lens: &str,
+        model: &str,
+        _focal_mm: Option<f32>,
+    ) -> Answer {
+        crate::lens_correction::find_best_lens_match(db, make, lens, model)
     }
 
     /// The untranslated name of the lens an answer names.
-    fn named(db: &LensDatabase, answer: &Option<(String, String)>) -> String {
+    fn named(db: &LensDatabase, answer: &Answer) -> String {
         answer
             .as_ref()
             .and_then(|(maker, model)| crate::lens_correction::lens_named(db, maker, model))
             .map_or_else(|| "-".to_string(), |l| untranslated(&l.model).to_string())
     }
 
-    /// Old against new on two corpora, every difference written out for review:
+    /// A focal length `lens` can be at: its declared one (the shortest of a
+    /// range), else the shortest it was calibrated at.
+    fn own_focal(lens: &Lens) -> Option<f32> {
+        use crate::lens_correction::CalibrationElement as E;
+        let declared = lens.focal.as_ref().and_then(|f| f.value.or(f.min));
+        let calibrated = lens.calibration.as_ref().and_then(|c| {
+            c.elements
+                .iter()
+                .map(|e| match e {
+                    E::Distortion(d) => d.focal,
+                    E::Tca(t) => t.focal,
+                    E::Vignetting(v) => v.focal,
+                })
+                .min_by(f32::total_cmp)
+        });
+        declared.or(calibrated)
+    }
+
+    /// The app's answer on two corpora, every answer written out so that two
+    /// runs (before and after a change) can be compared line by line:
     ///
     /// - every lens of the bundled database, named as its own entry names it, on
-    ///   a camera of its own mount whose frame it covers: the right answer is
-    ///   known, so a regression is a lens the old matcher found and the new one
-    ///   does not;
-    /// - the lens names of real files (RAWmakase's record of raw.pixls.us's CC0
-    ///   files, `tests/corpus/dataset/pixls-decode.json`, AG_LENS_CORPUS), each
-    ///   on its camera's Lensfun entry, whose make and model are the strings the
-    ///   files write.
+    ///   a camera of its own mount whose frame it covers, at a focal length it
+    ///   has: the right answer is known (`database-names.tsv`, and the count of
+    ///   right answers is printed);
+    /// - the lens names and focal lengths of real files (RAWmakase's record of
+    ///   raw.pixls.us's CC0 files, `tests/corpus/dataset/pixls-decode.json` @
+    ///   704ab207, AG_LENS_CORPUS), each on its camera's Lensfun entry, whose make
+    ///   and model are the strings the files write (`real-files.tsv`).
     ///
     /// ```text
-    /// AG_LENS_CORPUS=.../pixls-decode.json AG_OUT=.../dir cargo test --lib lens_match::tests::old_against_new -- --ignored --nocapture
+    /// AG_LENS_CORPUS=.../pixls-decode.json AG_OUT=.../dir cargo test --lib lens_match::tests::answers_on_both_corpora -- --ignored --nocapture
     /// ```
     #[test]
     #[ignore = "reads AG_LENS_CORPUS and writes to AG_OUT"]
-    fn old_against_new() {
+    fn answers_on_both_corpora() {
         use std::fmt::Write as _;
         let db = bundled();
         let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("AG_OUT"));
         std::fs::create_dir_all(&out).unwrap();
 
         // 1. The database's own names.
-        let (mut cases, mut old_right, mut new_right, mut regressions) = (0, 0, 0, 0);
-        let mut report =
-            String::from("lens\tcamera\tname\told\tnew\tcamera crop\told crop\tnew crop\n");
-        let crop_of = |answer: &Option<(String, String)>| {
-            answer
-                .as_ref()
-                .and_then(|(maker, model)| crate::lens_correction::lens_named(&db, maker, model))
-                .and_then(|l| l.cropfactor)
-                .map_or_else(|| "-".to_string(), |c| c.to_string())
-        };
+        let (mut cases, mut right) = (0, 0);
+        let mut report = String::from("lens\tcamera\tname\tfocal\tanswer\tright\n");
         for lens in &db.lenses {
             let truth = untranslated(&lens.model);
             let Some(cam) = db
@@ -471,32 +485,22 @@ mod tests {
                 .strip_prefix(maker)
                 .map(str::trim)
                 .filter(|s| !s.is_empty());
+            let focal = own_focal(lens);
             for name in std::iter::once(truth).chain(stripped) {
                 cases += 1;
-                let (old, new) = answers(&db, make, name, model);
-                let (o, n) = (named(&db, &old), named(&db, &new));
-                old_right += usize::from(o == truth);
-                new_right += usize::from(n == truth);
-                if o == truth && n != truth {
-                    regressions += 1;
-                }
-                if old != new {
-                    writeln!(
-                        report,
-                        "{truth}\t{make} {model}\t{name}\t{o}\t{n}\t{}\t{}\t{}",
-                        cam.cropfactor,
-                        crop_of(&old),
-                        crop_of(&new)
-                    )
-                    .unwrap();
-                }
+                let got = named(&db, &answer(&db, make, name, model, focal));
+                right += usize::from(got == truth);
+                writeln!(
+                    report,
+                    "{truth}\t{make} {model}\t{name}\t{}\t{got}\t{}",
+                    focal.map_or("-".into(), |f| f.to_string()),
+                    got == truth
+                )
+                .unwrap();
             }
         }
         std::fs::write(out.join("database-names.tsv"), &report).unwrap();
-        println!(
-            "database names: {cases} cases; right before {old_right}, after {new_right}; regressions {regressions}; {} answers changed",
-            report.lines().count() - 1
-        );
+        println!("database names: {cases} cases; right {right}");
 
         // 2. Real files.
         let Ok(path) = std::env::var("AG_LENS_CORPUS") else {
@@ -505,14 +509,15 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let mut seen = std::collections::BTreeSet::new();
-        let (mut files, mut same, mut known) = (0, 0, 0);
-        let mut changed = String::from("make\tmodel\tlens\told\tnew\tnew outcome\n");
+        let mut known = 0;
+        let mut report = String::from("make\tmodel\tlens\tfocal\tanswer\n");
         for file in json["files"].as_array().unwrap() {
             let md = &file["header"]["metadata"];
             let lens = md["lens_model"]
                 .as_str()
                 .or_else(|| md["lens"].as_str())
                 .unwrap_or("");
+            let focal = md["focal"].as_f64().map(|f| f as f32).filter(|f| *f > 0.);
             let (nmake, nmodel) = (
                 md["make"].as_str().unwrap_or(""),
                 md["model"].as_str().unwrap_or(""),
@@ -536,46 +541,28 @@ mod tests {
                     untranslated(&c.model).to_string(),
                 )
             });
-            if !seen.insert((make.clone(), model.clone(), lens.to_string())) {
+            let focal_key = focal.map_or("-".to_string(), |f| format!("{f:.1}"));
+            if !seen.insert((
+                make.clone(),
+                model.clone(),
+                lens.to_string(),
+                focal_key.clone(),
+            )) {
                 continue;
             }
-            files += 1;
             known += usize::from(entry.is_some());
-            let (old, new) = answers(&db, &make, lens, &model);
-            if old == new {
-                same += 1;
-                continue;
-            }
-            let outcome = find(&db, &make, &model, lens);
-            writeln!(
-                changed,
-                "{make}\t{model}\t{lens}\t{}\t{}\t{outcome:?}",
-                named(&db, &old),
-                named(&db, &new)
-            )
-            .unwrap();
+            let got = named(&db, &answer(&db, &make, lens, &model, focal));
+            writeln!(report, "{make}\t{model}\t{lens}\t{focal_key}\t{got}").unwrap();
         }
-        std::fs::write(out.join("real-files.tsv"), &changed).unwrap();
-        // What a call costs, over the same photos.
-        let time = |f: &dyn Fn(&str, &str, &str)| {
-            let started = std::time::Instant::now();
-            for (make, model, lens) in &seen {
-                f(make, lens, model);
-            }
-            started.elapsed().as_secs_f64() * 1000. / seen.len() as f64
-        };
-        let loose = time(&|make, lens, model| {
-            std::hint::black_box(crate::lens_correction::loose_lens_match(
-                &db, make, lens, model,
-            ));
-        });
-        let strict = time(&|make, lens, model| {
-            std::hint::black_box(confident(&db, make, lens, model));
-        });
-        println!("per photo: the old matcher {loose:.3} ms, the strict one {strict:.3} ms");
+        std::fs::write(out.join("real-files.tsv"), &report).unwrap();
+        let started = std::time::Instant::now();
+        for (make, model, lens, focal) in &seen {
+            std::hint::black_box(answer(&db, make, lens, model, focal.parse().ok()));
+        }
+        let per = started.elapsed().as_secs_f64() * 1000. / seen.len() as f64;
         println!(
-            "real files: {files} distinct camera and lens pairs ({known} cameras known to Lensfun); {same} answer as before; {} changed, listed in real-files.tsv",
-            files - same
+            "real files: {} distinct camera, lens and focal length cases ({known} cameras known to Lensfun); {per:.3} ms per call",
+            seen.len()
         );
     }
 }
