@@ -23,7 +23,7 @@ describe('whether a photo opens corrected', () => {
 });
 
 describe('the lens profile a new photo asks for', () => {
-  it('hands over the whole EXIF, so the app reads it as a save reads it', async () => {
+  it('hands over the whole EXIF to both calls, so the app reads it as a save reads it', async () => {
     const exif = { Make: 'Canon', Model: 'Canon EOS R6', LensModel: 'RF 50mm', FNumber: 'f/5.6', FocalLength: '50' };
     const lens: [string, string] = ['Canon', 'Canon RF 50mm'];
     vi.mocked(invoke).mockImplementation(async (command) => (command === 'autodetect_lens' ? lens : {}));
@@ -33,6 +33,7 @@ describe('the lens profile a new photo asks for', () => {
 
     await lensOnOpen('photo.CR3', exif, true, found(true));
 
+    expect(invoke).toHaveBeenCalledWith('autodetect_lens', expect.objectContaining({ exif }));
     expect(invoke).toHaveBeenCalledWith('get_lens_distortion_params', { maker: lens[0], model: lens[1], exif });
   });
 });

@@ -96,6 +96,7 @@ export async function lensOnOpen(path: string, exif: Record<string, string>, isR
     maker: make,
     model: lensName,
     cameraModel: exif.Model ?? '',
+    exif,
   }).catch(unanswered);
   const name = detected ?? [make, lensName || exif.Model?.trim()];
   if (!name[1]) {

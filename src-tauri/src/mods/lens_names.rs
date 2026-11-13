@@ -1,6 +1,5 @@
 // From RAWmakase, crates/rawmakase-model/src/lens/lensfun/names.rs @ 704ab207 (v0.4.12, MIT,
 // see rm_selection/LICENSE). Unchanged unless a comment below says "Argentum:".
-// Argentum: `stated_millimetres` is left out; nothing here reads a lens's focal range yet.
 //! Lens and camera names as the matcher compares them.
 //!
 //! A name is split into words of one kind of character, as Lensfun documents:
@@ -298,4 +297,13 @@ pub fn same_text(a: &str, b: &str) -> bool {
             .to_lowercase()
     };
     norm(a) == norm(b)
+}
+
+/// The focal range `name` states in millimetres ("70-200mm", "35–80mm"), as a range
+/// read before any other number; `None` for a name that says no "mm" (a compact's
+/// model number).
+pub fn stated_millimetres(name: &str) -> Option<[f32; 2]> {
+    let s = stated(name);
+    let lower = name.to_lowercase();
+    s.focal.filter(|_| lower.contains("mm"))
 }
