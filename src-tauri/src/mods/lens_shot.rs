@@ -22,9 +22,8 @@ impl LensShot {
             focal_mm: recorded(exif, "FocalLength")
                 .or_else(|| recorded(exif, "FocalLengthIn35mmFilm"))
                 .unwrap_or(FOCAL_MM_NOT_RECORDED),
-            // ApertureValue is APEX, 2 log2(N), printed with the same `f/`.
-            f_number: recorded(exif, "FNumber")
-                .or_else(|| recorded(exif, "ApertureValue").map(|av| 2f32.powf(av / 2.0))),
+            // The list holds ApertureValue as an f-number (mods/apex_aperture.rs).
+            f_number: recorded(exif, "FNumber").or_else(|| recorded(exif, "ApertureValue")),
             distance_m: recorded(exif, "SubjectDistance"),
         }
     }
@@ -100,12 +99,12 @@ mod tests {
         assert_eq!(shot.f_number, Some(16.0));
     }
 
-    /// ApertureValue is 2 log2(N), printed with the same `f/`.
+    /// The list holds ApertureValue as the f-number it stands for.
     #[test]
-    fn the_apex_value_alone_is_converted() {
+    fn the_aperture_value_alone_reads_as_listed() {
         let of = |av| LensShot::from_exif(&exif(&[("ApertureValue", av)])).f_number;
-        assert!(close(of("f/8"), 16.0), "{:?}", of("f/8"));
-        assert!(close(of("f/4.97"), 5.6), "{:?}", of("f/4.97"));
+        assert!(close(of("f/16"), 16.0), "{:?}", of("f/16"));
+        assert!(close(of("f/5.6"), 5.6), "{:?}", of("f/5.6"));
         assert_eq!(of("f/0"), None);
     }
 

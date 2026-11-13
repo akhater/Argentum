@@ -12,6 +12,7 @@
 mod ag_contract;
 pub mod ag_settings;
 pub mod ai_session;
+pub mod apex_aperture;
 pub mod atomic_write;
 pub mod auto_wb;
 pub mod auto_wb_photo;
