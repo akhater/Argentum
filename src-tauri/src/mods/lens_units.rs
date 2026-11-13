@@ -915,6 +915,22 @@ mod tests {
         }
     }
 
+    /// Neither Lensfun (`mod-color.cpp`, `apply_multiplier`: no upper bound on a
+    /// float pixel @ 52cf1a7b) nor darktable (`src/iop/lens.cc`, which multiplies
+    /// by Lensfun's factor @ f30f439f) caps the gain where a profile's factor
+    /// nears zero, and neither does the renderer, beyond leaving a factor of 1e-6
+    /// or less uncorrected. Against the 0.8 it had, the whole gain lifts a pixel
+    /// by at most a quarter (0.32 EV), wherever the factor goes.
+    #[test]
+    fn the_whole_gain_lifts_at_most_a_quarter_over_four_fifths_of_it() {
+        let mut highest: f64 = 0.;
+        for i in 1..=100_000 {
+            let v = f64::from(i) / 100_000.;
+            highest = highest.max(vignetting_gain(v, 1.) / vignetting_gain(v, 0.8));
+        }
+        assert!(highest <= 1.25 && highest > 1.249, "{highest}");
+    }
+
     /// A flat grey frame through the renderer with a vignetting profile alone:
     /// at 100% the corner gets Lensfun's whole gain, `1/v`, and the centre none;
     /// at 50%, half the difference.
