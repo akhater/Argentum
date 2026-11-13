@@ -350,7 +350,15 @@ mod tests {
             let get = |key: &str| exif.get(key).cloned().unwrap_or_default();
             let (make, lens, body) = (get("Make"), get("LensModel"), get("Model"));
 
-            match find_best_lens_match(&db, &make, &lens, &body).filter(|_| !lens.is_empty()) {
+            match find_best_lens_match(
+                &db,
+                &make,
+                &lens,
+                &body,
+                crate::mods::lens_shot::recorded_focal_mm(&exif),
+            )
+            .filter(|_| !lens.is_empty())
+            {
                 Some((maker, model)) => {
                     found += 1;
                     println!("OK      {name}  {body} | {lens}  ->  {maker} {model}  ({read:?})");

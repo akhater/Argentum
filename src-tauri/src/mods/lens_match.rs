@@ -12,21 +12,23 @@
 //! when a mount of the lens is the camera's or one Lensfun says fits it, and
 //! when its calibration covers the camera's frame; a lens name matches when
 //! every word of it is among the lens's (makers' names aside), with the same
-//! generation, focal lengths and aperture, and no other maker's name. The best
-//! is the one whose name the photo's explains most of, and only a single best
-//! of a name that says more than numbers counts.
+//! generation, focal lengths and aperture, and no other maker's name, and when
+//! the photo's focal length is within the lens's range (RAWmakase main @
+//! 1b2687c4: `matching.rs::score`, and the range as `lensfun/mod.rs::lens`
+//! reads it). The best is the one whose name the photo's explains most of, and
+//! only a single best of a name that says more than numbers counts.
 //!
 //! Argentum: it decides only when it finds exactly one lens ([`confident`]).
 //! Anything else (several lenses, none, an unknown camera, no lens name)
 //! leaves the answer to the inherited matcher, as before, so a photo it is not
-//! sure of is corrected exactly as it was. Not taken (yet): the photo's focal
-//! length (RAWmakase refuses a lens whose range does not hold it) and crop
-//! modes (an R6 in APS-C mode), which need the focal lengths every caller of
-//! `find_best_lens_match` would have to pass; and Lensfun's aspect-ratio
-//! variants, which Argentum's database does not read.
+//! sure of is corrected exactly as it was. Not taken (yet): crop modes (an R6
+//! in APS-C mode) and Lensfun's aspect-ratio variants, which Argentum's
+//! database does not read.
 
-use super::lens_names::{THIRD_PARTY, maker_words, same_generation, same_text, stated, words};
-use crate::lens_correction::{Camera, Lens, LensDatabase, untranslated};
+use super::lens_names::{
+    THIRD_PARTY, maker_words, same_generation, same_text, stated, stated_millimetres, words,
+};
+use crate::lens_correction::{CalibrationElement, Camera, Lens, LensDatabase, untranslated};
 
 /// A lens calibrated on a camera of a larger crop factor than the photo's, by
 /// more than this, doesn't cover the photo (`optics::lensfun::CROP_TOLERANCE`).
@@ -83,8 +85,60 @@ fn covers(lens: &Lens, crop: f32) -> bool {
         .is_none_or(|own| crop > 0. && own > 0. && crop / own >= CROP_TOLERANCE)
 }
 
-/// The lens a photo was taken with, as far as the database tells.
-pub fn find(db: &LensDatabase, make: &str, model: &str, lens_name: &str) -> Outcome {
+/// The focal lengths (mm) `lens` has, shortest and longest: its `<focal>`, else
+/// the range its name states when its calibration lies inside it (a converter's,
+/// "+ 1.4x", lies outside the name's), else the focal lengths it was calibrated
+/// at. `None` for a lens listed for its name only.
+fn focal_range(lens: &Lens) -> Option<[f32; 2]> {
+    let (lo, hi) = lens
+        .calibration
+        .iter()
+        .flat_map(|c| &c.elements)
+        .map(|e| match e {
+            CalibrationElement::Distortion(d) => d.focal,
+            CalibrationElement::Tca(t) => t.focal,
+            CalibrationElement::Vignetting(v) => v.focal,
+        })
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), f| {
+            (lo.min(f), hi.max(f))
+        });
+    let range = match &lens.focal {
+        Some(f) if f.value.is_some() => f.value.map(|v| [v, v]),
+        Some(f) => {
+            let min = f.min.unwrap_or(lo);
+            Some([min, f.max.unwrap_or(hi.max(min))])
+        }
+        None => match stated_millimetres(untranslated(&lens.model)) {
+            Some([a, b])
+                if a > 0. && b >= a && (!lo.is_finite() || (lo >= a * 0.97 && hi <= b * 1.03)) =>
+            {
+                Some([a, b])
+            }
+            _ => Some([lo, hi]),
+        },
+    };
+    range.filter(|[lo, hi]| lo.is_finite() && *lo > 0. && hi >= lo)
+}
+
+/// Whether `lens` can have been at `focal_mm`: within its range, give or take
+/// rounding (3% and half a millimetre). A lens of no known range, or a photo of no
+/// recorded focal length, can.
+fn holds_focal(lens: &Lens, focal_mm: Option<f32>) -> bool {
+    match (focal_range(lens), focal_mm.filter(|f| *f > 0.)) {
+        (Some([lo, hi]), Some(f)) => (lo * 0.97 - 0.5..=hi * 1.03 + 0.5).contains(&f),
+        _ => true,
+    }
+}
+
+/// The lens a photo was taken with, as far as the database tells. `focal_mm`
+/// is the photo's focal length, `None` when it records none.
+pub fn find(
+    db: &LensDatabase,
+    make: &str,
+    model: &str,
+    lens_name: &str,
+    focal_mm: Option<f32>,
+) -> Outcome {
     let Some(cam) = camera(db, make, model) else {
         return Outcome::UnknownCamera;
     };
@@ -112,6 +166,7 @@ pub fn find(db: &LensDatabase, make: &str, model: &str, lens_name: &str) -> Outc
         return Outcome::NoLensName;
     }
     let mut scored: Vec<(usize, f32)> = fitting
+        .filter(|(_, l)| holds_focal(l, focal_mm))
         .filter_map(|(i, l)| score(cam, l, lens_name).map(|s| (i, s)))
         .collect();
     scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
@@ -127,15 +182,16 @@ pub fn find(db: &LensDatabase, make: &str, model: &str, lens_name: &str) -> Outc
 }
 
 /// The lens, when [`find`] finds exactly one. Inputs as `find_best_lens_match`
-/// takes them: EXIF Make, the lens name, EXIF Model.
+/// takes them: EXIF Make, the lens name, EXIF Model, the focal length.
 pub fn confident<'d>(
     db: &'d LensDatabase,
     make: &str,
     lens_name: &str,
     model: &str,
+    focal_mm: Option<f32>,
 ) -> Option<&'d Lens> {
     let clean = |s: &str| s.trim().trim_matches('"').trim().to_string();
-    match find(db, &clean(make), &clean(model), &clean(lens_name)) {
+    match find(db, &clean(make), &clean(model), &clean(lens_name), focal_mm) {
         Outcome::Unique(i) => db.lenses.get(i),
         _ => None,
     }
@@ -227,7 +283,8 @@ mod tests {
   <camera><maker>Panasonic</maker><model>DMC-G6</model><mount>Micro 4/3 System</mount><cropfactor>2</cropfactor></camera>
   <camera><maker>Canon</maker><model>Canon PowerShot G12</model><mount>canonG12</mount><cropfactor>4.6</cropfactor></camera>
   <camera><maker>Sony</maker><model>ILCE-1M2</model><mount>Sony E</mount><cropfactor>1</cropfactor></camera>
-  <lens><maker>Canon</maker><model>Canon EF 70-200mm f/2.8L IS II USM</model><mount>Canon EF</mount><cropfactor>1</cropfactor></lens>
+  <lens><maker>Canon</maker><model>Canon EF 70-200mm f/2.8L IS II USM</model><mount>Canon EF</mount><cropfactor>1</cropfactor>
+    <calibration><distortion model="ptlens" focal="70" a="0" b="0.01" c="0"/><distortion model="ptlens" focal="200" a="0" b="0.02" c="0"/></calibration></lens>
   <lens><maker>Canon</maker><model>Canon EF 70-200mm f/2.8L IS USM</model><mount>Canon EF</mount><cropfactor>1</cropfactor></lens>
   <lens><maker>Canon</maker><model>Canon EF 24-70mm f/2.8L USM</model><mount>Canon EF</mount><cropfactor>1</cropfactor></lens>
   <lens><maker>Canon</maker><model>Canon EF-M 15-45mm f/3.5-6.3 IS STM</model><mount>Canon EF-M</mount><cropfactor>1.6</cropfactor></lens>
@@ -238,7 +295,13 @@ mod tests {
   <lens><maker>Canon</maker><model>PowerShot G12</model><mount>canonG12</mount><cropfactor>4.6</cropfactor></lens>
   <lens><maker>Sony</maker><model>FE 70-200mm f/2.8 GM OSS</model><mount>Sony E</mount><cropfactor>1</cropfactor></lens>
   <lens><maker>Pentacon</maker><model>Pentacon 50mm f/1.8</model><mount>M42</mount><cropfactor>1</cropfactor></lens>
-  <lens><maker>Test</maker><model>Test Zoom 24-70mm f/2.8</model><mount>Canon EF</mount><cropfactor>1</cropfactor></lens>
+  <lens><maker>Test</maker><model>Test Zoom 24-70mm f/2.8</model><mount>Canon EF</mount><cropfactor>1</cropfactor>
+    <calibration><distortion model="poly3" focal="35" k1="0.01"/></calibration></lens>
+  <lens><maker>Minolta</maker><model>Minolta AF 70-210mm f/4 Macro</model><mount>Canon EF</mount><cropfactor>1</cropfactor>
+    <calibration><distortion model="poly3" focal="75" k1="0.01"/><distortion model="poly3" focal="210" k1="0.02"/></calibration></lens>
+  <lens><maker>Fujifilm</maker><model>XF70-300mmF4-5.6 R LM OIS WR + 1.4x</model><mount>Canon EF</mount><cropfactor>1</cropfactor>
+    <calibration><distortion model="poly3" focal="98" k1="0.01"/><distortion model="poly3" focal="420" k1="0.02"/></calibration></lens>
+  <lens><maker>Test</maker><model>Test Prime 35</model><mount>Canon EF</mount><cropfactor>1</cropfactor><focal value="35"/></lens>
 </lensdatabase>"#;
 
     fn db() -> LensDatabase {
@@ -258,7 +321,7 @@ mod tests {
         let db = db();
         assert_eq!(db.mounts.len(), 3);
         assert_eq!(db.mounts[1].compat, ["Canon EF", "Canon EF-S"]);
-        assert_eq!((db.cameras.len(), db.lenses.len()), (6, 12));
+        assert_eq!((db.cameras.len(), db.lenses.len()), (6, 15));
     }
 
     #[test]
@@ -280,37 +343,40 @@ mod tests {
     #[test]
     fn a_lens_matches_by_its_words_mount_and_coverage() {
         let db = db();
-        let five_d = |name| find(&db, "Canon", "Canon EOS 5D Mark III", name);
+        let five_d = |name| find(&db, "Canon", "Canon EOS 5D Mark III", name, None);
         let m = five_d("EF70-200mm f/2.8L IS II USM");
         assert_eq!(names(&db, &m), ["Canon EF 70-200mm f/2.8L IS II USM"]);
         assert!(matches!(m, Outcome::Unique(_)));
         // The first version is not the second: the generation must agree both ways.
         let m = five_d("EF70-200mm f/2.8L IS USM");
         assert_eq!(names(&db, &m), ["Canon EF 70-200mm f/2.8L IS USM"]);
-        let m = find(&db, "SONY", "ILCE-1M2", "FE 70-200mm F2.8 GM OSS II");
+        let m = find(&db, "SONY", "ILCE-1M2", "FE 70-200mm F2.8 GM OSS II", None);
         assert_eq!(m, Outcome::NoMatch);
         // A Nikon name without the maker's words.
-        let m = find(&db, "NIKON CORPORATION", "NIKON D6", "50mm f/1.4G");
+        let m = find(&db, "NIKON CORPORATION", "NIKON D6", "50mm f/1.4G", None);
         assert_eq!(names(&db, &m), ["Nikon AF-S Nikkor 50mm f/1.4G"]);
     }
 
     #[test]
     fn bare_and_tied_names_stay_a_choice() {
         let db = db();
-        let m = find(&db, "Canon", "Canon EOS 5D Mark III", "24-70mm");
+        let m = find(&db, "Canon", "Canon EOS 5D Mark III", "24-70mm", None);
         assert_eq!(
             names(&db, &m),
             ["Test Zoom 24-70mm f/2.8", "Canon EF 24-70mm f/2.8L USM"]
         );
         // The same lens calibrated on two cameras: both fit a Micro Four Thirds body.
-        let m = find(&db, "Panasonic", "DMC-G6", "SIGMA 19mm F2.8 DN");
+        let m = find(&db, "Panasonic", "DMC-G6", "SIGMA 19mm F2.8 DN", None);
         assert_eq!(m, Outcome::Ambiguous(vec![6, 7]));
         // Another maker's lens is never this one.
-        let m = find(&db, "Canon", "Canon EOS M", "TAMRON 17-50mm F/2.8");
+        let m = find(&db, "Canon", "Canon EOS M", "TAMRON 17-50mm F/2.8", None);
         assert_eq!(m, Outcome::NoMatch);
-        assert_eq!(find(&db, "Canon", "Canon EOS M", ""), Outcome::NoLensName);
         assert_eq!(
-            find(&db, "Leica", "M10", "Summicron"),
+            find(&db, "Canon", "Canon EOS M", "", None),
+            Outcome::NoLensName
+        );
+        assert_eq!(
+            find(&db, "Leica", "M10", "Summicron", None),
             Outcome::UnknownCamera
         );
     }
@@ -318,8 +384,8 @@ mod tests {
     #[test]
     fn mounts_fit_one_way_and_coverage_counts() {
         let db = db();
-        let eos_m = |name| find(&db, "Canon", "Canon EOS M", name);
-        let five_d = |name| find(&db, "Canon", "Canon EOS 5D Mark III", name);
+        let eos_m = |name| find(&db, "Canon", "Canon EOS M", name, None);
+        let five_d = |name| find(&db, "Canon", "Canon EOS 5D Mark III", name, None);
         let m = eos_m("EF-M15-45mm f/3.5-6.3 IS STM");
         assert_eq!(names(&db, &m), ["Canon EF-M 15-45mm f/3.5-6.3 IS STM"]);
         let m = eos_m("EF70-200mm f/2.8L IS II USM");
@@ -329,10 +395,72 @@ mod tests {
         assert_eq!(five_d("17-50mm F2.8 EX DC OS HSM"), Outcome::NoMatch);
     }
 
+    /// RAWmakase's `a_lens_matches_by_its_words_mount_and_coverage` (main @
+    /// 1b2687c4): a focal length outside the lens's range is another lens.
+    #[test]
+    fn a_focal_length_outside_the_range_is_another_lens() {
+        let db = db();
+        let at = |focal| {
+            find(
+                &db,
+                "Canon",
+                "Canon EOS 5D Mark III",
+                "EF70-200mm f/2.8L IS II USM",
+                focal,
+            )
+        };
+        assert_eq!(at(Some(24.)), Outcome::NoMatch);
+        assert!(matches!(at(Some(200.)), Outcome::Unique(_)));
+        // Rounding: a 70-200mm records 69 or 206 mm.
+        assert!(matches!(at(Some(69.)), Outcome::Unique(_)));
+        assert!(matches!(at(Some(206.)), Outcome::Unique(_)));
+        // A photo that records no focal length keeps every lens.
+        assert!(matches!(at(None), Outcome::Unique(_)));
+    }
+
+    /// RAWmakase's `a_lens_s_focal_range_comes_from_its_name_before_its_calibration`
+    /// (`lens/lensfun/tests.rs` @ 1b2687c4): a zoom calibrated at one focal
+    /// length is still a zoom.
+    #[test]
+    fn a_lens_s_focal_range_comes_from_its_name_before_its_calibration() {
+        let db = db();
+        let range = |name: &str| {
+            focal_range(
+                db.lenses
+                    .iter()
+                    .find(|l| untranslated(&l.model) == name)
+                    .unwrap(),
+            )
+        };
+        assert_eq!(range("Minolta AF 70-210mm f/4 Macro"), Some([70., 210.]));
+        assert_eq!(range("Test Zoom 24-70mm f/2.8"), Some([24., 70.]));
+        // A converter's calibration lies outside the name's range: the calibration's.
+        assert_eq!(
+            range("XF70-300mmF4-5.6 R LM OIS WR + 1.4x"),
+            Some([98., 420.])
+        );
+        assert_eq!(range("Test Prime 35"), Some([35., 35.]));
+        assert_eq!(range("Pentacon 50mm f/1.8"), Some([50., 50.]));
+        assert_eq!(
+            range("Canon EF-M 15-45mm f/3.5-6.3 IS STM"),
+            Some([15., 45.])
+        );
+        // No name range, no calibration, no `<focal>`.
+        assert_eq!(range("PowerShot G12"), None);
+        let m = find(
+            &db,
+            "Canon",
+            "Canon EOS 5D Mark III",
+            "AF 70-210mm f/4 Macro",
+            Some(70.),
+        );
+        assert_eq!(names(&db, &m), ["Minolta AF 70-210mm f/4 Macro"]);
+    }
+
     #[test]
     fn a_fixed_lens_camera_needs_no_lens_name() {
         let db = db();
-        let m = find(&db, "Canon", "Canon PowerShot G12", "");
+        let m = find(&db, "Canon", "Canon PowerShot G12", "", None);
         assert_eq!(names(&db, &m), ["PowerShot G12"]);
     }
 
@@ -342,9 +470,24 @@ mod tests {
     #[test]
     fn a_maker_and_numbers_is_still_a_bare_name() {
         let db = db();
-        let m = find(&db, "Canon", "Canon EOS 5D Mark III", "Canon 50mm f/1.8");
+        let m = find(
+            &db,
+            "Canon",
+            "Canon EOS 5D Mark III",
+            "Canon 50mm f/1.8",
+            None,
+        );
         assert!(!matches!(m, Outcome::Unique(_)), "{:?}", names(&db, &m));
-        assert!(confident(&db, "Canon", "Canon 50mm f/1.8", "Canon EOS 5D Mark III").is_none());
+        assert!(
+            confident(
+                &db,
+                "Canon",
+                "Canon 50mm f/1.8",
+                "Canon EOS 5D Mark III",
+                None
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -355,6 +498,7 @@ mod tests {
             "\"Canon\"",
             " EF70-200mm f/2.8L IS II USM ",
             "Canon EOS 5D Mark III",
+            None,
         );
         assert_eq!(
             lens.map(|l| untranslated(&l.model)),
@@ -403,9 +547,9 @@ mod tests {
         make: &str,
         lens: &str,
         model: &str,
-        _focal_mm: Option<f32>,
+        focal_mm: Option<f32>,
     ) -> Answer {
-        crate::lens_correction::find_best_lens_match(db, make, lens, model)
+        crate::lens_correction::find_best_lens_match(db, make, lens, model, focal_mm)
     }
 
     /// The untranslated name of the lens an answer names.
@@ -414,6 +558,23 @@ mod tests {
             .as_ref()
             .and_then(|(maker, model)| crate::lens_correction::lens_named(db, maker, model))
             .map_or_else(|| "-".to_string(), |l| untranslated(&l.model).to_string())
+    }
+
+    /// A camera of `lens`'s own mount whose frame it covers, the nearest its
+    /// calibration's crop factor.
+    fn home_camera<'d>(db: &'d LensDatabase, lens: &Lens) -> Option<&'d Camera> {
+        db.cameras
+            .iter()
+            .filter(|c| {
+                lens.mount
+                    .iter()
+                    .any(|m| m.trim().eq_ignore_ascii_case(c.mount.trim()))
+                    && covers(lens, c.cropfactor)
+            })
+            .min_by(|a, b| {
+                let d = |c: &Camera| (c.cropfactor - lens.cropfactor.unwrap_or(c.cropfactor)).abs();
+                d(a).total_cmp(&d(b))
+            })
     }
 
     /// A focal length `lens` can be at: its declared one (the shortest of a
@@ -434,13 +595,15 @@ mod tests {
         declared.or(calibrated)
     }
 
-    /// The app's answer on two corpora, every answer written out so that two
+    /// The app's answer on three corpora, every answer written out so that two
     /// runs (before and after a change) can be compared line by line:
     ///
     /// - every lens of the bundled database, named as its own entry names it, on
     ///   a camera of its own mount whose frame it covers, at a focal length it
     ///   has: the right answer is known (`database-names.tsv`, and the count of
     ///   right answers is printed);
+    /// - a lens with an extender, named as its base lens, at the extender's focal
+    ///   length and at the base lens's (`extenders.tsv`);
     /// - the lens names and focal lengths of real files (RAWmakase's record of
     ///   raw.pixls.us's CC0 files, `tests/corpus/dataset/pixls-decode.json` @
     ///   704ab207, AG_LENS_CORPUS), each on its camera's Lensfun entry, whose make
@@ -462,21 +625,7 @@ mod tests {
         let mut report = String::from("lens\tcamera\tname\tfocal\tanswer\tright\n");
         for lens in &db.lenses {
             let truth = untranslated(&lens.model);
-            let Some(cam) = db
-                .cameras
-                .iter()
-                .filter(|c| {
-                    lens.mount
-                        .iter()
-                        .any(|m| m.trim().eq_ignore_ascii_case(c.mount.trim()))
-                        && covers(lens, c.cropfactor)
-                })
-                .min_by(|a, b| {
-                    let d =
-                        |c: &Camera| (c.cropfactor - lens.cropfactor.unwrap_or(c.cropfactor)).abs();
-                    d(a).total_cmp(&d(b))
-                })
-            else {
+            let Some(cam) = home_camera(&db, lens) else {
                 continue;
             };
             let (make, model) = (untranslated(&cam.maker), untranslated(&cam.model));
@@ -502,7 +651,55 @@ mod tests {
         std::fs::write(out.join("database-names.tsv"), &report).unwrap();
         println!("database names: {cases} cases; right {right}");
 
-        // 2. Real files.
+        // 2. A lens with an extender, which Lensfun lists as its own entry ("+ 1.4x
+        // extender"), writes the lens's own name: told apart by the focal length
+        // alone. Each such entry, on a camera of its mount, named as its base lens
+        // at the extender's focal length and at the base lens's own. Without a
+        // focal length the matcher is as it was before the focal filter.
+        let (mut cases, mut before, mut after, mut lost) = (0, 0, 0, 0);
+        let mut report = String::from(
+            "truth	camera	name	focal	before	after
+",
+        );
+        for extended in &db.lenses {
+            let full = untranslated(&extended.model);
+            let Some((base_name, _)) = full.split_once('+') else {
+                continue;
+            };
+            let base_name = base_name.trim();
+            let Some(base) = db
+                .lenses
+                .iter()
+                .find(|l| untranslated(&l.model) == base_name && l.mount == extended.mount)
+            else {
+                continue;
+            };
+            let Some(cam) = home_camera(&db, extended) else {
+                continue;
+            };
+            let (make, model) = (untranslated(&cam.maker), untranslated(&cam.model));
+            for (truth, focal) in [
+                (full, focal_range(extended).map(|r| r[1])),
+                (base_name, own_focal(base)),
+            ] {
+                cases += 1;
+                let old = named(&db, &answer(&db, make, base_name, model, None));
+                let new = named(&db, &answer(&db, make, base_name, model, focal));
+                before += usize::from(old == truth);
+                after += usize::from(new == truth);
+                lost += usize::from(old == truth && new != truth);
+                writeln!(
+                    report,
+                    "{truth}	{make} {model}	{base_name}	{}	{old}	{new}",
+                    focal.map_or("-".into(), |f| f.to_string())
+                )
+                .unwrap();
+            }
+        }
+        std::fs::write(out.join("extenders.tsv"), &report).unwrap();
+        println!("extenders: {cases} cases; right before {before}, after {after}; lost {lost}");
+
+        // 3. Real files.
         let Ok(path) = std::env::var("AG_LENS_CORPUS") else {
             return;
         };

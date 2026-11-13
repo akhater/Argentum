@@ -660,6 +660,7 @@ export default function CropPanel() {
         maker: exifMaker,
         model: exifModel ?? '',
         cameraModel: exifCameraModel ?? '',
+        exif: selectedImage?.exif ?? {},
       });
 
       if (result) {

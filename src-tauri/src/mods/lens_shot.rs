@@ -30,6 +30,12 @@ impl LensShot {
     }
 }
 
+/// The focal length a photo records (EXIF FocalLength), for choosing its lens:
+/// not its 35 mm equivalent, and nothing when it records none.
+pub fn recorded_focal_mm(exif: &HashMap<String, String>) -> Option<f32> {
+    recorded(exif, "FocalLength")
+}
+
 /// The number in an EXIF value as the map holds it: `f/5.6`, `5.6`, `85 mm`,
 /// `3.2 m`. None for anything else and for 0, which EXIF uses for "unknown".
 fn recorded(exif: &HashMap<String, String>, key: &str) -> Option<f32> {
