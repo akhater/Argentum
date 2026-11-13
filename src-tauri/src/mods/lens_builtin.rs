@@ -317,7 +317,7 @@ mod tests {
             (
                 "lensfun",
                 json!({ "lensDistortionParams": lensfun }),
-                [9_956_633_457_548_040_988, 7_218_553_381_868_940_216],
+                [12_547_794_342_902_090_592, 11_362_195_639_387_376_797],
             ),
             // Read with its optical centre: framed by green's edge, and an
             // off-centre one turning about its own centre.
@@ -348,7 +348,7 @@ mod tests {
         let edit = json!({ "lensBuiltin": true, "lensBuiltinParams": ca_only, "lensDistortionParams": lensfun });
         assert_eq!(
             pinned(edit),
-            [10_808_183_446_704_905_961, 2_460_932_479_767_228_929],
+            [2_546_953_749_071_934_686, 3_693_751_942_350_972_944],
             "camera CA, lensfun distortion and vignetting"
         );
     }

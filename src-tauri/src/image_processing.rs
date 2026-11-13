@@ -920,7 +920,8 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
     let vk1 = params.vig_k1 as f64;
     let vk2 = params.vig_k2 as f64;
     let vk3 = params.vig_k3 as f64;
-    let lens_vig_amt = (params.lens_vignette_amount as f64) * 0.8;
+    // Argentum: 100% is Lensfun's whole correction (mods/lens_units.rs).
+    let lens_vig_amt = params.lens_vignette_amount as f64;
     let has_vignetting = params.lens_vignette_enabled
         && (vk1.abs() > 1e-6 || vk2.abs() > 1e-6 || vk3.abs() > 1e-6)
         && lens_vig_amt > 0.01;
@@ -1064,8 +1065,8 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                             + vk3 * (ru_norm2 * ru_norm2 * ru_norm2);
 
                         if v_factor > 1e-6 {
-                            let correction_gain = 1.0 / v_factor;
-                            let final_gain = 1.0 + (correction_gain - 1.0) * lens_vig_amt;
+                            let final_gain =
+                                crate::mods::lens_units::vignetting_gain(v_factor, lens_vig_amt);
 
                             pixel[0] *= final_gain as f32;
                             pixel[1] *= final_gain as f32;

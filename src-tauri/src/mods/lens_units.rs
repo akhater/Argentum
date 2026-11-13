@@ -97,6 +97,15 @@ pub fn tca_scale(v_blended: f32, c: f32, b: f32, r: f32, amount: f32) -> f32 {
     v_blended + (c * r + b * r * r) * amount
 }
 
+/// The gain that corrects a pa vignetting factor `v` (`1 + k₁r² + k₂r⁴ + k₃r⁶`
+/// of the radius over the photo's half-diagonal) at the Vignetting `amount` (1
+/// at 100%): Lensfun's `1/v` at 100%, none at 0. Until now the renderer took
+/// 0.8 of the amount, a factor RapidRAW added with its distortion gain
+/// ("hack to align it", 147d52e6), so 100% corrected a fifth too little.
+pub fn vignetting_gain(v: f64, amount: f64) -> f64 {
+    1.0 + (1.0 / v - 1.0) * amount
+}
+
 /// The aspect ratio of `lens`'s profile frame, long edge over short.
 fn aspect(lens: &Lens) -> f64 {
     let ratio = lens
@@ -902,6 +911,136 @@ mod tests {
             println!(
                 "{name}: {} at {focal} mm; distortion at a calibrated focal length (or one row): {dist}; lateral CA: {tca}",
                 lens.get_full_model_name()
+            );
+        }
+    }
+
+    /// A flat grey frame through the renderer with a vignetting profile alone:
+    /// at 100% the corner gets Lensfun's whole gain, `1/v`, and the centre none;
+    /// at 50%, half the difference.
+    #[test]
+    fn the_renderer_corrects_vignetting_by_lensfun_s_whole_gain() {
+        let image = image::DynamicImage::ImageRgb32F(image::Rgb32FImage::from_pixel(
+            201,
+            135,
+            image::Rgb([0.25, 0.25, 0.25]),
+        ));
+        let corner = |amount: f64| {
+            let edit = serde_json::json!({
+                "lensMaker": "Test",
+                "lensModel": "Vignetting",
+                "lensCorrectionMode": "auto",
+                "lensVignetteAmount": amount,
+                "lensDistortionParams": {
+                    "k1": 0.0, "k2": 0.0, "k3": 0.0, "model": 0,
+                    "tca_vr": 1.0, "tca_vb": 1.0,
+                    "vig_k1": -0.5, "vig_k2": 0.0, "vig_k3": 0.0,
+                },
+            });
+            let geometry = crate::image_processing::get_geometry_params_from_json(&edit);
+            let out = crate::image_processing::warp_image_geometry(&image, geometry).to_rgb32f();
+            let (w, h) = (out.width(), out.height());
+            // The renderer places a pixel at its top-left coordinate: (0, 0) is the
+            // corner, a half-diagonal from the frame's centre.
+            let r: f64 = 1.;
+            let v = 1. - 0.5 * r * r;
+            (
+                f64::from(out.get_pixel(0, 0)[0]) / 0.25,
+                1. / v,
+                f64::from(out.get_pixel(w / 2, h / 2)[0]),
+            )
+        };
+        let (got, want, centre) = corner(100.);
+        assert!((got - want).abs() < 2e-3, "{got} against Lensfun's {want}");
+        assert!((centre - 0.25).abs() < 1e-3, "{centre}");
+        let (half, want, _) = corner(50.);
+        assert!((half - (1. + (want - 1.) / 2.)).abs() < 2e-3, "{half}");
+    }
+
+    /// Vignetting against Lensfun: every pa row of the bundled database at its
+    /// own frame's corner, the gain at 100% before (0.8 of Lensfun's) and now,
+    /// in EV from Lensfun's `1/v`; and for the photos named in AG_RAWS, how much
+    /// their corner's correction changes, in EV.
+    ///
+    /// ```text
+    /// AG_RAWS=...;... cargo test --lib lens_units::tests::vignetting_against_lensfun -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "measurement over the bundled database"]
+    fn vignetting_against_lensfun() {
+        use crate::lens_correction::CalibrationElement as E;
+        let db = crate::lens_correction::read_lensfun_dir(std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/lensfun_db"
+        )));
+        let (mut before, mut after, mut skipped) = (Vec::new(), Vec::new(), 0);
+        for lens in &db.lenses {
+            for e in lens.calibration.iter().flat_map(|c| &c.elements) {
+                let E::Vignetting(row) = e else { continue };
+                let k = [row.k1, row.k2, row.k3].map(|x| f64::from(x.unwrap_or(0.)));
+                let v = 1. + k[0] + k[1] + k[2];
+                if k == [0.; 3] {
+                    continue;
+                }
+                if v <= 0. {
+                    // A row whose factor reaches 0 before the corner: no gain there.
+                    skipped += 1;
+                    continue;
+                }
+                let lensfun = 1. / v;
+                let was = 1. + (lensfun - 1.) * 0.8;
+                let now = vignetting_gain(v, 1.);
+                before.push((lensfun / was).log2().abs());
+                after.push((lensfun / now).log2().abs());
+            }
+        }
+        let stats = |v: &mut Vec<f64>| {
+            v.sort_by(f64::total_cmp);
+            let n = v.len();
+            format!(
+                "median {:.4}, p95 {:.4}, max {:.4}",
+                v[n / 2],
+                v[(n * 95 / 100).min(n - 1)],
+                v[n - 1]
+            )
+        };
+        println!(
+            "vignetting rows: {} ({skipped} reaching 0 before the corner left out); corner gain off Lensfun's, EV: before {}, after {}",
+            before.len(),
+            stats(&mut before),
+            stats(&mut after)
+        );
+
+        let Ok(raws) = std::env::var("AG_RAWS") else {
+            return;
+        };
+        for photo in raws.split(';').filter(|p| !p.is_empty()) {
+            let bytes = std::fs::read(photo).expect("a photo");
+            let name = photo.rsplit(['/', '\\']).next().unwrap_or(photo);
+            let exif = crate::mods::lens_name::with_lens(
+                crate::exif_processing::read_exif_data_from_bytes(photo, &bytes),
+                &bytes,
+            );
+            let get = |k: &str| exif.get(k).cloned().unwrap_or_default();
+            let Some((maker, display)) = crate::lens_correction::find_best_lens_match(
+                &db,
+                &get("Make"),
+                &get("LensModel"),
+                &get("Model"),
+                &crate::mods::lens_shot::MatchShot::from_exif(&exif),
+            ) else {
+                println!("{name}: no lens");
+                continue;
+            };
+            let p =
+                crate::lens_correction::resolve_lens_params(&db, &maker, &display, &exif).unwrap();
+            let v = 1. + p.vig_k1 + p.vig_k2 + p.vig_k3;
+            let (now, was) = (vignetting_gain(v, 1.), vignetting_gain(v, 0.8));
+            println!(
+                "{name}: {display} at {} mm {}: corner gain {was:.3} -> {now:.3}, {:+.3} EV",
+                get("FocalLength"),
+                get("FNumber"),
+                (now / was).log2()
             );
         }
     }
