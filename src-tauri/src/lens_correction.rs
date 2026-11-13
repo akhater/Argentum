@@ -171,15 +171,16 @@ pub fn untranslated(names: &[MultiName]) -> &str {
 
 #[derive(Serialize)]
 pub struct LensDistortionParams {
-    k1: f64,
-    k2: f64,
-    k3: f64,
-    model: u32,
-    tca_vr: f64,
-    tca_vb: f64,
-    vig_k1: f64,
-    vig_k2: f64,
-    vig_k3: f64,
+    // Argentum: crate-wide for mods/lens_units.rs, which puts them in the renderer's units.
+    pub(crate) k1: f64,
+    pub(crate) k2: f64,
+    pub(crate) k3: f64,
+    pub(crate) model: u32,
+    pub(crate) tca_vr: f64,
+    pub(crate) tca_vb: f64,
+    pub(crate) vig_k1: f64,
+    pub(crate) vig_k2: f64,
+    pub(crate) vig_k3: f64,
 }
 
 fn strip_maker_prefix(name: &str, maker: &str) -> String {
@@ -904,7 +905,14 @@ pub fn resolve_lens_params(
 ) -> Option<LensDistortionParams> {
     let lens = lens_named(db, maker, model)?;
     let shot = LensShot::from_exif(exif);
-    lens.get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)
+    let params = lens.get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)?;
+    // Argentum: in the renderer's units, not Lensfun's (mods/lens_units.rs).
+    Some(crate::mods::lens_units::in_renderer_units(
+        params,
+        lens,
+        shot.focal_mm,
+        1.,
+    ))
 }
 
 /// The lens an edit names: its maker and the display name `lens_result` gave it.

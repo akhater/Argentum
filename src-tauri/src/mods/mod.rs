@@ -73,6 +73,7 @@ pub mod lens_match;
 pub mod lens_name;
 pub mod lens_names;
 pub mod lens_shot;
+pub mod lens_units;
 #[cfg(test)]
 mod look_check;
 pub mod look_grain;
