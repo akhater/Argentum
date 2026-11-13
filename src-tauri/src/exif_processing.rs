@@ -2083,7 +2083,9 @@ pub fn read_exif_data(path: &str, file_bytes: &[u8]) -> HashMap<String, String> 
         return cached_exif;
     }
 
-    let exif_map = crate::mods::lens_name::with_lens(read_exif_data_from_bytes(path, file_bytes), file_bytes);
+    let mut exif_map = crate::mods::lens_name::with_lens(read_exif_data_from_bytes(path, file_bytes), file_bytes);
+    // Argentum: a Canon crop mode, which only the maker note records (mods/canon_crop_mode.rs).
+    crate::mods::canon_crop_mode::fill(&mut exif_map, file_bytes);
     if !exif_map.is_empty() {
         let primary = crate::file_management::sidecar_for(source_path, None);
         if primary.exists() {

@@ -2101,7 +2101,7 @@ pub fn resolve_lens_params_in_adjustments(
                             exif_maker,
                             exif_model,
                             exif_camera_model,
-                            crate::mods::lens_shot::recorded_focal_mm(exif),
+                            &crate::mods::lens_shot::MatchShot::from_exif(exif),
                         )
                     {
                         map.insert(

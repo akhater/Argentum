@@ -186,10 +186,13 @@ fn embedded(file_bytes: &[u8]) -> impl Iterator<Item = exif::Exif> + '_ {
     (0..end.saturating_sub(8))
         .filter(move |&at| matches!(&file_bytes[at..at + 4], b"II*\0" | b"MM\0*"))
         .take(MAX_BLOCKS)
-        .filter_map(move |at| {
-            let block = &file_bytes[at..file_bytes.len().min(at + BLOCK_LIMIT)];
-            parse(reader().read_raw(block.to_vec()))
-        })
+        .filter_map(move |at| tiff_block_at(file_bytes, at))
+}
+
+/// The TIFF block that starts at `at` in the file, read as `embedded` reads one.
+pub(crate) fn tiff_block_at(file_bytes: &[u8], at: usize) -> Option<exif::Exif> {
+    let block = file_bytes.get(at..file_bytes.len().min(at.saturating_add(BLOCK_LIMIT)))?;
+    parse(reader().read_raw(block.to_vec()))
 }
 
 /// Lenient: a block whose last field runs off the end, or that we cut short at
@@ -355,7 +358,7 @@ mod tests {
                 &make,
                 &lens,
                 &body,
-                crate::mods::lens_shot::recorded_focal_mm(&exif),
+                &crate::mods::lens_shot::MatchShot::from_exif(&exif),
             )
             .filter(|_| !lens.is_empty())
             {
