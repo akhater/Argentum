@@ -48,6 +48,11 @@ pub struct Tca {
     pub br: Option<f32>,
     #[serde(rename = "@bb")]
     pub bb: Option<f32>,
+    // Argentum: the linear model's two terms (`<tca model="linear" kr kb>`).
+    #[serde(rename = "@kr")]
+    pub kr: Option<f32>,
+    #[serde(rename = "@kb")]
+    pub kb: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -179,6 +184,12 @@ pub struct LensDistortionParams {
     pub(crate) model: u32,
     pub(crate) tca_vr: f64,
     pub(crate) tca_vb: f64,
+    // Argentum: Lensfun's poly3 lateral CA terms of the radius (red and blue
+    // scale by v + c·r + b·r²), in the renderer's units (mods/lens_units.rs).
+    pub(crate) tca_cr: f64,
+    pub(crate) tca_cb: f64,
+    pub(crate) tca_br: f64,
+    pub(crate) tca_bb: f64,
     pub(crate) vig_k1: f64,
     pub(crate) vig_k2: f64,
     pub(crate) vig_k3: f64,
@@ -394,8 +405,8 @@ impl Lens {
             }
         };
 
-        let (tca_vr, tca_vb) = if tcas.is_empty() {
-            (1.0, 1.0)
+        let [tca_vr, tca_vb, tca_cr, tca_cb, tca_br, tca_bb] = if tcas.is_empty() {
+            NO_TCA
         } else {
             tcas.sort_by(|a, b| a.focal.partial_cmp(&b.focal).unwrap_or(Ordering::Equal));
 
@@ -406,7 +417,7 @@ impl Lens {
             } else if focal_length > tcas.last().unwrap().focal {
                 extract_tca_params(tcas.last().unwrap())
             } else {
-                let mut res = (1.0, 1.0);
+                let mut res = NO_TCA;
                 for pair in tcas.windows(2) {
                     let (d1, d2) = (&pair[0], &pair[1]);
                     if focal_length >= d1.focal && focal_length <= d2.focal {
@@ -418,10 +429,7 @@ impl Lens {
                             res = p1;
                         } else {
                             let t = (focal_length - d1.focal) / range;
-                            res = (
-                                p1.0 + t as f64 * (p2.0 - p1.0),
-                                p1.1 + t as f64 * (p2.1 - p1.1),
-                            );
+                            res = std::array::from_fn(|i| p1[i] + t as f64 * (p2[i] - p1[i]));
                         }
                         break;
                     }
@@ -529,6 +537,10 @@ impl Lens {
             model,
             tca_vr,
             tca_vb,
+            tca_cr,
+            tca_cb,
+            tca_br,
+            tca_bb,
             vig_k1,
             vig_k2,
             vig_k3,
@@ -554,8 +566,20 @@ fn extract_dist_params(dist: &Distortion) -> (f64, f64, f64, u32) {
     }
 }
 
-fn extract_tca_params(tca: &Tca) -> (f64, f64) {
-    (tca.vr.unwrap_or(1.0) as f64, tca.vb.unwrap_or(1.0) as f64)
+/// A lens with no lateral CA calibration: red and blue at green's scale.
+const NO_TCA: [f64; 6] = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+
+/// A TCA row's terms: vr, vb (or the linear model's kr, kb), cr, cb, br, bb.
+fn extract_tca_params(tca: &Tca) -> [f64; 6] {
+    let term = |v: Option<f32>, none: f32| v.unwrap_or(none) as f64;
+    [
+        term(tca.vr.or(tca.kr), 1.0),
+        term(tca.vb.or(tca.kb), 1.0),
+        term(tca.cr, 0.0),
+        term(tca.cb, 0.0),
+        term(tca.br, 0.0),
+        term(tca.bb, 0.0),
+    ]
 }
 
 fn extract_vig_params(vig: &Vignetting) -> (f64, f64, f64) {

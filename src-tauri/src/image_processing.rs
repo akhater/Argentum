@@ -238,6 +238,15 @@ pub struct GeometryParams {
     pub lens_model: u32,
     pub tca_vr: f32,
     pub tca_vb: f32,
+    // Argentum: Lensfun's poly3 lateral CA terms of the radius (mods/lens_units.rs).
+    #[serde(default)]
+    pub tca_cr: f32,
+    #[serde(default)]
+    pub tca_cb: f32,
+    #[serde(default)]
+    pub tca_br: f32,
+    #[serde(default)]
+    pub tca_bb: f32,
     pub vig_k1: f32,
     pub vig_k2: f32,
     pub vig_k3: f32,
@@ -274,6 +283,10 @@ impl Default for GeometryParams {
             lens_model: 0,
             tca_vr: 1.0,
             tca_vb: 1.0,
+            tca_cr: 0.0,
+            tca_cb: 0.0,
+            tca_br: 0.0,
+            tca_bb: 0.0,
             vig_k1: 0.0,
             vig_k2: 0.0,
             vig_k3: 0.0,
@@ -282,6 +295,13 @@ impl Default for GeometryParams {
             lens_builtin: None,
         }
     }
+}
+
+/// Argentum: a term of the lens profile an edit carries, 0 when it has none.
+fn lens_term(lens_params: Option<&serde_json::Map<String, serde_json::Value>>, key: &str) -> f32 {
+    lens_params
+        .and_then(|p| p.get(key).and_then(|k| k.as_f64()))
+        .unwrap_or(0.0) as f32
 }
 
 pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> GeometryParams {
@@ -344,6 +364,10 @@ pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> Geometr
         tca_vb: lens_params
             .and_then(|p| p.get("tca_vb").and_then(|k| k.as_f64()))
             .unwrap_or(1.0) as f32,
+        tca_cr: lens_term(lens_params, "tca_cr"),
+        tca_cb: lens_term(lens_params, "tca_cb"),
+        tca_br: lens_term(lens_params, "tca_br"),
+        tca_bb: lens_term(lens_params, "tca_bb"),
         vig_k1: lens_params
             .and_then(|p| p.get("vig_k1").and_then(|k| k.as_f64()))
             .unwrap_or(0.0) as f32,
@@ -886,7 +910,12 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
     } else {
         1.0
     };
-    let has_tca = params.lens_tca_enabled && ((vr - 1.0).abs() > 1e-5 || (vb - 1.0).abs() > 1e-5);
+    // Argentum: Lensfun's terms of the radius, red's and blue's (mods/lens_units.rs).
+    let tca_radial = [params.tca_cr, params.tca_cb, params.tca_br, params.tca_bb]
+        .iter()
+        .any(|t| t.abs() > 1e-9);
+    let has_tca = params.lens_tca_enabled
+        && ((vr - 1.0).abs() > 1e-5 || (vb - 1.0).abs() > 1e-5 || tca_radial);
 
     let vk1 = params.vig_k1 as f64;
     let vk2 = params.vig_k2 as f64;
@@ -1000,6 +1029,16 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                         let (bvr, bvb) = builtin_vr_vb;
                         interpolate_pixel_with_tca(&builtin_tca_ctx, src_x, src_y, bvr, bvb, pixel);
                     } else if has_tca {
+                        let (vr, vb) = if tca_radial {
+                            let r = ((src_x - cx).hypot(src_y - cy) as f64 / hd) as f32;
+                            let amount = params.lens_tca_amount;
+                            (
+                                crate::mods::lens_units::tca_scale(vr, params.tca_cr, params.tca_br, r, amount),
+                                crate::mods::lens_units::tca_scale(vb, params.tca_cb, params.tca_bb, r, amount),
+                            )
+                        } else {
+                            (vr, vb)
+                        };
                         interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, vr, vb, pixel);
                     } else {
                         interpolate_pixel(src_raw, width_usize, height_usize, src_x, src_y, pixel);
@@ -1560,7 +1599,10 @@ pub fn is_geometry_identity(params: &GeometryParams) -> bool {
     let tca_identity = !params.lens_tca_enabled
         || ((params.lens_tca_amount - 1.0).abs() < 1e-4
             && (params.tca_vr - 1.0).abs() < 1e-6
-            && (params.tca_vb - 1.0).abs() < 1e-6);
+            && (params.tca_vb - 1.0).abs() < 1e-6
+            && [params.tca_cr, params.tca_cb, params.tca_br, params.tca_bb]
+                .iter()
+                .all(|t| t.abs() < 1e-9));
 
     let vig_identity = !params.lens_vignette_enabled
         || ((params.lens_vignette_amount - 1.0).abs() < 1e-4
