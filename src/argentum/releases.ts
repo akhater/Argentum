@@ -35,7 +35,7 @@ export const RELEASES: Release[] = [
     version: '26.46.1',
     date: '2026-11-14',
     notes: [
-      'Lens correction now matches Lensfun: the right amount of distortion correction, on crop sensors and in a camera\'s crop modes, colour fringes corrected to the corners, zoom lengths between calibrations and corner darkening. Photos corrected with a lens profile will look slightly different.',
+      "Lens correction now matches Lensfun: the right amount of distortion correction, on crop sensors and in a camera's crop modes, colour fringes corrected to the corners, zoom lengths between calibrations and corner darkening. Photos corrected with a lens profile will look slightly different.",
       'Automatic lens correction no longer picks a lens that cannot fit the camera, and picks the right one for a lens with an extender.',
       'The EXIF list shows Aperture Value as an f-number: f/5.6, not 4.97.',
       'When the graphics driver refuses the first graphics backend, Argentum tries the next one instead of giving up on the GPU.',
