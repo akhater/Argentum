@@ -4,6 +4,103 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.46.1 — 2026-11-14
+
+### Changed
+
+- Linux: one AppImage per architecture, built on Ubuntu 22.04, which runs on older and newer distributions alike. The Ubuntu 24.04 builds now ship only `.deb` and `.rpm`; their AppImage needed glibc 2.39 and did not start on older systems.
+
+### Fixed
+
+- The EXIF list shows Aperture Value and Max Aperture Value as f-numbers, the way exiftool does. EXIF stores both in APEX units and they were printed as stored, so f/5.6 appeared as "f/4.97" or "f/5" and a lens's widest aperture as a bare "4". The list Argentum already stored for a photo it has opened keeps its old text. Exported files keep the values exactly as the camera wrote them.
+- When the graphics driver refuses to give Argentum a GPU device, Argentum now tries the next graphics backend in the same launch (on Windows DirectX 12, then Vulkan, then OpenGL) instead of giving up on the GPU. Each failed backend and its error are logged, and the final error names them all. Computers whose first backend works take exactly the same path as before. The order and the idea come from RAWmakase (`crates/rawmakase-engine/src/develop/gpu/mod.rs`, `02c5335d`, MIT).
+- Saving an edit, a setting or any other file Argentum writes whole no longer fails at once on Windows when a virus scanner briefly holds the new file it has just seen written ("being used by another process"). The save now waits that moment out, as it already did when something held the file being replaced: up to about a second, then it gives up as before. The retry covers the same errors as npm's file rename (graceful-fs 4.2.11, `polyfills.js`, ISC).
+- **Lens correction now follows a camera's crop mode.** A full-frame Canon in its 1.6x (APS-C) or
+  1.3x (APS-H) mode, a full-frame Sony in its APS-C mode, a Nikon in DX mode, or a 1:1 readout
+  records a smaller frame than the body's. Such a photo is now corrected for that frame, and a lens
+  calibrated on APS-C counts as covering it. Canon's crop mode is read from its maker note
+  (AspectInfo); others from the 35 mm equivalent focal length where it differs from the body's
+  crop by more than rounding (10%). The rule is RAWmakase's (`photo_crop`,
+  `crates/rawmakase-model/src/lens/lensfun/matching.rs`, and `vendor/canon.rs::crop_mode`, @
+  `1b2687c4`, MIT). A camera Lensfun does not know takes the 35 mm equivalent's crop factor, as
+  darktable does, unless it is the lens profile's own within rounding. Fixed-lens cameras keep
+  Lensfun's, since some write a 35 mm equivalent of the processed picture. Photos read before this
+  version keep the EXIF they were read with, so a Canon crop-mode photo already in the library is
+  only recognised once its metadata is read again.
+- **Lens distortion and vignetting were corrected too strongly on crop bodies using a lens profile
+  measured on full frame.** A Lensfun profile is measured on one camera, and Argentum applied it to
+  every photo as if the photo's frame were that camera's: a full-frame profile on a 1.6x body
+  treated the APS-C corner as the full-frame corner, about 2.6 times too much distortion
+  correction there. The profile is now put on the photo's frame as Lensfun does (darktable's
+  `src/iop/lens.cc` gives Lensfun the camera's crop factor): distortion through Lensfun's own
+  radius, vignetting terms scaled by the profile's crop factor over the camera's, to their power
+  in the radius. A photo from a camera of the profile's own crop factor is corrected exactly as
+  before. On raw.pixls.us's files, 73 of 313 automatically matched camera and lens cases change;
+  of the 70 with a distortion profile, 18 come closer to Lensfun's correction, 52 move by less than
+  0.1% of the radius, none moves away, and all now match Lensfun's.
+- **Between a zoom's calibrated focal lengths, lens correction now follows Lensfun's curve.** A
+  Lensfun profile is measured at a few focal lengths, and Argentum drew a straight line between the
+  two nearest; Lensfun runs a smooth curve through the four nearest, on each term times its focal
+  length. Between calibrations the distortion correction was up to 9% of the radius away from
+  Lensfun's at the corner (0.27% for one case in twenty), and lateral CA up to 0.8 px on a 24 MP
+  frame. Both now interpolate as Lensfun does (`libs/lensfun/lens.cpp`, `InterpolateDistortion`
+  and `InterpolateTCA`, and `auxfun.cpp`, `_lf_interpolate`, @ `52cf1a7b`), and a profile that
+  mixes distortion models uses the first, as Lensfun does. At a calibrated focal length nothing
+  changes.
+- **Automatic lens correction now takes the photo's focal length into account.** A lens is no
+  longer chosen for a photo taken at a focal length it does not have. Lensfun lists a lens with an
+  extender or converter as its own entry, while the camera writes the bare lens's name, so these
+  are now told apart: an EF 70-200mm f/2.8L IS USM at 280 mm gets the "+ EF 1.4x extender"
+  calibration, and at 70 mm the lens's own. Of 58 such cases in the database, 44 are now right
+  against 26 before. Photos that already matched keep their lens: on the database's own lens names
+  and on raw.pixls.us's files, no answer changes. A lens's focal range is its Lensfun `<focal>`,
+  else the range its name states, else the focal lengths it was calibrated at. The rule is
+  RAWmakase's (`crates/rawmakase-model/src/lens/lensfun/matching.rs` and `lensfun/mod.rs` @
+  `1b2687c4`, and `names.rs::stated_millimetres` @ `704ab207`, MIT).
+- **Automatic lens correction no longer picks a lens that cannot be on the camera.** Where the
+  strict matcher is not sure, the older matcher answers, and it could take a lens of any maker or
+  mount by name alone: an RF 24-70mm on an EF-mount 5D Mark IV, a Pentax lens on a Sony A57, a
+  Micro Four Thirds lens on a Sony NEX-6. Its answer now counts only when the lens can be on the
+  camera: of its mount or one Lensfun lists as fitting it; or a lens an adapter can mount, whose
+  flange focal distance is longer than the body's by at least the thinnest adapter (1.4 mm), as an
+  EF lens on a Sony E body; and on a fixed-lens camera only that camera's own lens. An EF-S lens
+  never goes on a full-frame EF body. A camera Lensfun does not know is matched as before.
+- **Lateral chromatic aberration is now corrected with every term of the Lensfun profile.** Most
+  Lensfun profiles describe red's and blue's offset from green as a curve over the radius
+  (`v + c·r + b·r²`). Argentum read only the constant `v`, so the corners kept colour fringing the
+  profile corrects: up to 13 pixels on a 24 MP frame, and over 1.8 px for one calibration in
+  twenty. The `c` and `b` terms are now read and applied as Lensfun applies them
+  (`libs/lensfun/mod-subpix.cpp`, `ModifyCoord_TCA_Poly3` @ `52cf1a7b`), and so are the five
+  profiles in Lensfun's older linear form, which were not read at all. Of the database's 3,707
+  lateral CA calibrations, all now match Lensfun's at the corner.
+- **Lens distortion is now corrected by the amount and shape Lensfun gives.** Lensfun's distortion
+  terms read the radius over half the short edge of the frame the lens was measured on. The
+  renderer read them over the photo's half-diagonal, about 1.8 times further out on a 3:2 frame,
+  with one gain of 2.5 for every term, so each power of the radius was off by a different factor.
+  poly3 profiles measured on a 3:2 frame were corrected about a quarter too little. ptlens profiles,
+  whose terms often have both signs, came out a different shape: an EF 24-105mm f/3.5-5.6 IS STM at
+  70 mm bent the corner by 0.15% where Lensfun bends it by 1.71%. The terms are now put in the
+  renderer's units as Lensfun rescales them (`libs/lensfun/mod-coord.cpp`,
+  `rescale_polynomial_coefficients`, and `modifier.cpp` @ `52cf1a7b`). Of the database's 6,393
+  distortion calibrations (a lens at a focal length), all but 2 now match Lensfun's correction;
+  those 2 are a second calibration at a focal length the lens already has. Every photo corrected
+  with a Lensfun distortion profile changes.
+- **Lens vignetting is now corrected by the whole of the Lensfun profile.** Lensfun's vignetting
+  profiles are flat-field measurements, and Argentum applied only 0.8 of their correction at the
+  Vignetting slider's 100%, a factor inherited without a stated reason beside the distortion gain
+  that the renderer's units fix replaced. The corners were left up to a third of a stop darker
+  than the profile measures (0.08 EV for half of the database's calibrations). The slider's 100% is
+  now Lensfun's full correction, and 0% none; photos corrected with a Lensfun profile get brighter
+  corners.
+- **Lens vignetting between calibrated apertures, focal lengths and distances now follows
+  Lensfun.** Argentum took the profile row at the nearest aperture and distance and drew a straight
+  line between focal lengths; Lensfun weights every row by its distance from the photo over focal
+  length, 4/f-number and 0.1/distance, and corrects nothing when no row is near. Over the
+  database's 76,443 test points the corner gain was 0.011 EV off Lensfun's typically, 0.33 EV for
+  one point in twenty and up to 11.8 EV; it now matches to 0.002 EV (`libs/lensfun/lens.cpp`,
+  `InterpolateVignetting` and `GuessParameters`, @ `52cf1a7b`). A photo with no subject distance
+  is read at 1000 m, as darktable does. At a calibrated focal length, aperture and distance nothing changes.
+
 ## 26.45.6 — 2026-11-07
 
 ### Added

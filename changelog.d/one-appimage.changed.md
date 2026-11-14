@@ -1,1 +1,0 @@
-- Linux: one AppImage per architecture, built on Ubuntu 22.04, which runs on older and newer distributions alike. The Ubuntu 24.04 builds now ship only `.deb` and `.rpm`; their AppImage needed glibc 2.39 and did not start on older systems.
