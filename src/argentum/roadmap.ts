@@ -172,6 +172,15 @@ const MILESTONES: Milestone[] = [
   },
   {
     stage: 'done',
+    what: 'Lens correction as Lensfun does it',
+    release: '26.46.1',
+    why:
+      'A Lensfun lens profile is now applied with Lensfun\x27s own maths: the right '
+      + 'distortion strength, on crop sensors and crop modes, colour fringes to the '
+      + 'corners, every zoom length and the whole corner darkening. Fewer wrong lens picks.',
+  },
+  {
+    stage: 'done',
     what: 'A faster RAW decoder',
     release: '26.44.1',
     why:
