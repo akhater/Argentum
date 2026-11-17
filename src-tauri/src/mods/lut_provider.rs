@@ -789,7 +789,8 @@ fn ask_for_lut(
     Ok((bytes, lut))
 }
 
-/// [`ask_for_lut`], whose scratch file never outlives the run.
+/// [`ask_for_lut`], whose scratch file never outlives the run. Its folder is
+/// made first: something outside the app may have taken it since the start.
 fn make_lut(
     exe: &Path,
     limits: &Limits,
@@ -799,6 +800,9 @@ fn make_lut(
     scratch: &Path,
     cancel: &AtomicBool,
 ) -> Result<(Vec<u8>, Lut), Failure> {
+    if let Some(folder) = scratch.parent() {
+        let _ = std::fs::create_dir_all(folder);
+    }
     let made = ask_for_lut(exe, limits, subject, key, options, scratch, cancel);
     let _ = std::fs::remove_file(scratch);
     made
@@ -1589,8 +1593,16 @@ pub(crate) fn trim_folder(folder: &Path, budget_bytes: u64) {
     }
 }
 
+/// This process's own scratch folder under `cache`, the app's cache folder. A
+/// headless export runs beside the open app, and each clears only its own.
+fn scratch_folder(cache: &Path) -> PathBuf {
+    let process = std::process::id().to_string();
+    cache.join(SCRATCH_FOLDER).join(process)
+}
+
 /// What a crash left in `cache`, the app's cache folder: only this module's own
-/// folder, gone at start-up whether or not there is a provider now.
+/// folder, gone at start-up whether or not there is a provider now. Never in a
+/// headless export, which starts while the app may be open and using it.
 pub fn clear_leftovers(cache: &Path) {
     let _ = std::fs::remove_dir_all(cache.join(SCRATCH_FOLDER));
 }
@@ -1647,7 +1659,7 @@ fn provider(app: &AppHandle) -> Option<&'static Provider> {
         return ready(provider);
     }
     let (program, catalog) = offered(profiles::library()?, &LIMITS)?;
-    let scratch = app.path().app_cache_dir().ok()?.join(SCRATCH_FOLDER);
+    let scratch = scratch_folder(&app.path().app_cache_dir().ok()?);
     let handle = app.clone();
     let placed = Box::new(move |photo: &str, file: &Path, lut: Arc<Lut>| {
         let state = handle.state::<AppState>();
@@ -2961,6 +2973,35 @@ fn main() {
         assert_eq!(lut.size, 64);
         assert!(!bytes.is_empty());
         assert!(!left);
+    }
+
+    #[test]
+    fn a_scratch_folder_taken_while_the_app_runs_is_made_again() {
+        let exe = fake("good");
+        let folder = exe.with_file_name("taken");
+        let scratch = folder.join("1.png");
+        assert!(!folder.exists());
+        let photo = subject("/photos/IMG.CR3");
+        let got = make_lut(
+            &exe,
+            &ROOMY,
+            &photo,
+            &plain_key(&photo),
+            &LookOptions::new(),
+            &scratch,
+            &AtomicBool::new(false),
+        );
+        assert_eq!(got.expect("a LUT").1.size, 64);
+        assert!(!scratch.exists());
+    }
+
+    #[test]
+    fn each_process_has_its_own_scratch_folder() {
+        let cache = Path::new("/cache");
+        let own = scratch_folder(cache);
+        assert_eq!(own.parent(), Some(cache.join(SCRATCH_FOLDER).as_path()));
+        assert_eq!(own, scratch_folder(cache));
+        assert_ne!(own, cache.join(SCRATCH_FOLDER));
     }
 
     #[test]

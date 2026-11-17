@@ -1635,7 +1635,12 @@ async fn generate_preview_for_path(
     .map_err(|e| format!("Task execution failed: {}", e))?
 }
 
-fn setup_logging(app_handle: &tauri::AppHandle) {
+/// The open app's log, in the app's log folder.
+const LOG_FILE: &str = "app.log";
+/// A headless export's: it may run beside the open app, and must not empty its log.
+const HEADLESS_LOG_FILE: &str = "headless-export.log";
+
+fn setup_logging(app_handle: &tauri::AppHandle, headless: bool) {
     let log_dir = match app_handle.path().app_log_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -1648,7 +1653,11 @@ fn setup_logging(app_handle: &tauri::AppHandle) {
         eprintln!("Failed to create log directory at {:?}: {}", log_dir, e);
     }
 
-    let log_file_path = log_dir.join("app.log");
+    let log_file_path = log_dir.join(if headless {
+        HEADLESS_LOG_FILE
+    } else {
+        LOG_FILE
+    });
 
     let log_file = fs::OpenOptions::new()
         .write(true)
@@ -1713,7 +1722,7 @@ fn setup_logging(app_handle: &tauri::AppHandle) {
 #[tauri::command]
 fn get_log_file_path(app_handle: tauri::AppHandle) -> Result<String, String> {
     let log_dir = app_handle.path().app_log_dir().map_err(|e| e.to_string())?;
-    let log_file_path = log_dir.join("app.log");
+    let log_file_path = log_dir.join(LOG_FILE);
     Ok(log_file_path.to_string_lossy().to_string())
 }
 
@@ -1963,7 +1972,7 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
 
-            mods::startup::init(&app_handle);
+            mods::startup::init(&app_handle, is_headless);
 
             if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
                 crate::exif_processing::initialize_cache_dir(cache_dir);
@@ -2047,7 +2056,7 @@ pub fn run() {
                 }
             }
 
-            setup_logging(&app_handle);
+            setup_logging(&app_handle, is_headless);
 
             if let Some(note) = last_gpu_run.note {
                 log::warn!("{}", note);

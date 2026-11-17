@@ -1,0 +1,1 @@
+- A command-line export run while the app is open no longer empties the app's log or clears its temporary files: it logs to `headless-export.log` beside `app.log`.
