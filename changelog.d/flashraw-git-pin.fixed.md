@@ -1,0 +1,1 @@
+- Argentum builds again from a fresh checkout: FlashRaw 0.1.1 is taken from its source commit (`ybouane/flashraw` `ee9d8b5e`, "Release 0.1.1"), since crates.io no longer has that version. The code is the same as the crates.io package, file for file.
