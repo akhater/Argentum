@@ -17,7 +17,8 @@ use tauri::{AppHandle, Manager};
 ///
 /// Best-effort throughout. A directory that cannot be resolved disables the
 /// feature that needed it; none of them is a reason to stop the app starting.
-pub fn init(app: &AppHandle) {
+/// `headless` is a command-line export, which may start while the app is open.
+pub fn init(app: &AppHandle, headless: bool) {
     // Models deleted in Settings last run that could not go while it was
     // running. Now, while nothing has loaded them — and before the graphics
     // card runtime is pinned, which is one of them.
@@ -43,8 +44,11 @@ pub fn init(app: &AppHandle) {
 
     if let Ok(cache) = app.path().app_cache_dir() {
         super::cache_version::clear_thumbnails_if_pipeline_changed(&cache);
-        // Temporary files the last run could not clear, if it crashed.
-        super::lut_provider::clear_leftovers(&cache);
+        // Temporary files the last run could not clear, if it crashed. Not in
+        // a headless export: the app may be open beside it, using them.
+        if !headless {
+            super::lut_provider::clear_leftovers(&cache);
+        }
     }
 
     // Imported profiles are user data, not cache.
