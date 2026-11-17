@@ -92,6 +92,10 @@ test('a newer RapidRAW release asks for a harvest review', () => {
 test('the engine pins one FlashRaw version', () => {
   assert.match(pinnedFlashRaw(readTree('src-tauri/engine/Cargo.toml')) ?? '', /^\d+\.\d+\.\d+$/);
   assert.equal(pinnedFlashRaw('flashraw = { version = "=0.1.1", default-features = false }'), '0.1.1');
+  assert.equal(
+    pinnedFlashRaw('flashraw = { git = "https://github.com/ybouane/flashraw", rev = "ee9d8b5e", version = "=0.1.1" }'),
+    '0.1.1',
+  );
   assert.equal(pinnedFlashRaw('flashraw = "0.1"'), null);
   assert.equal(pinnedFlashRaw('flashraw-core = "=0.1.1"'), null);
 });
