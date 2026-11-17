@@ -27,6 +27,7 @@ import { useLibraryStore } from '../../store/useLibraryStore';
 import { useAiMasking } from '../../hooks/useAiMasking';
 import { isObjectSelection } from '../../argentum/selection/selection';
 import { useEditorActions } from '../../hooks/useEditorActions';
+import { screenDpr, shownImageSize, viewScaleLimits } from '../../argentum/zoomScale';
 
 const parseRgb = (rgbStr: string): [number, number, number, number] => {
   const match = rgbStr.match(/[\d.]+/g);
@@ -99,7 +100,6 @@ export default function Editor({ onContextMenu, transformWrapperRef }: EditorPro
   const showOriginal = useEditorStore((s) => s.showOriginal);
   const isSliderDragging = useEditorStore((s) => s.isSliderDragging);
   const targetZoom = useEditorStore((s) => s.zoom);
-  const originalSize = useEditorStore((s) => s.originalSize);
   const isRotationActive = useEditorStore((s) => s.isRotationActive);
   const overlayMode = useEditorStore((s) => s.overlayMode);
   const overlayRotation = useEditorStore((s) => s.overlayRotation);
@@ -344,46 +344,21 @@ export default function Editor({ onContextMenu, transformWrapperRef }: EditorPro
   const isMasking = activePanel === Panel.Masks;
   const isAiEditing = activePanel === Panel.Ai;
 
-  const croppedDimensions = useMemo<ImageDimensions | null>(() => {
-    if (!selectedImage?.width || !selectedImage?.height) {
-      return null;
-    }
-    if (adjustments.crop) {
-      return { width: adjustments.crop.width, height: adjustments.crop.height } as ImageDimensions;
-    }
-    if (selectedImage) {
-      const orientationSteps = adjustments.orientationSteps || 0;
-      const isSwapped = orientationSteps === 1 || orientationSteps === 3;
-      const width = isSwapped ? selectedImage.height : selectedImage.width;
-      const height = isSwapped ? selectedImage.width : selectedImage.height;
-      return { width, height } as ImageDimensions;
-    }
-    return null;
-  }, [selectedImage, adjustments.crop, adjustments.orientationSteps]);
+  // Argentum: one definition with the zoom's percent (argentum/zoomScale.ts).
+  const croppedDimensions = useMemo<ImageDimensions | null>(
+    () => shownImageSize(selectedImage, adjustments.crop, adjustments.orientationSteps),
+    [selectedImage, adjustments.crop, adjustments.orientationSteps],
+  );
 
   const imageRenderSize = useImageRenderSize(imageContainerRef, croppedDimensions);
   const imageRenderSizeRef = useRef(imageRenderSize);
   imageRenderSizeRef.current = imageRenderSize;
 
-  const transformConfig = useMemo(() => {
-    if (!selectedImage || !imageRenderSize.scale || !originalSize) {
-      return { minScale: 0.1, maxScale: 20 };
-    }
-
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-    const scaleFor100Percent = 1 / imageRenderSize.scale;
-
-    // Never make the minimum zoom larger than the fit-to-window scale. Very
-    // large images (including AI-upscaled images) can have a 10% pixel zoom
-    // that is still more magnified than the full image fitting in the editor.
-    const minScale = Math.min(1, (0.1 / dpr) * scaleFor100Percent);
-    const maxScale = (2.0 / dpr) * scaleFor100Percent;
-
-    return {
-      minScale: Math.max(0.1, minScale),
-      maxScale: Math.max(20, maxScale),
-    };
-  }, [selectedImage, imageRenderSize.scale, originalSize]);
+  // Argentum: argentum/zoomScale.ts, from the same fitted size and crop the view draws.
+  const transformConfig = useMemo(
+    () => viewScaleLimits(imageRenderSize, croppedDimensions, screenDpr()),
+    [imageRenderSize, croppedDimensions],
+  );
 
   const minScaleRef = useRef(transformConfig.minScale);
   const maxScaleRef = useRef(transformConfig.maxScale);
