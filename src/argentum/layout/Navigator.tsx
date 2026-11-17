@@ -21,6 +21,7 @@ import clsx from 'clsx';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useAgTranslation } from '../locales';
+import { screenDpr, zoomPercentNow } from '../zoomScale';
 
 /** Device pixels per pixel of the photo at each level; 0 stands for Fit. */
 const LEVELS: readonly number[] = [0, 0.5, 1, 2];
@@ -69,8 +70,8 @@ export default function Navigator({ transformWrapperRef, onZoomChange }: Navigat
   const path = useEditorStore((s) => s.selectedImage?.path);
   const preview = useEditorStore((s) => s.finalPreviewUrl);
   const base = useEditorStore((s) => s.baseRenderSize);
-  const displaySize = useEditorStore((s) => s.displaySize);
-  const originalSize = useEditorStore((s) => s.originalSize);
+  // Device pixels on screen per pixel of the photo as shown (the crop), as the zoom shortcuts read it.
+  const percent = useEditorStore((s) => zoomPercentNow(s, screenDpr()) ?? 0);
   const scale = useEditorStore((s) => s.zoom);
   const thumbnail = useProcessStore((s) => (path ? s.thumbnails[path] : undefined));
   const [transform, setTransform] = useState<Transform | null>(null);
@@ -115,10 +116,6 @@ export default function Navigator({ transformWrapperRef, onZoomChange }: Navigat
     return { left, top, width: right - left, height: bottom - top };
   })();
 
-  // Today's zoom readout, as the control under the filmstrip works it out:
-  // device pixels on screen per pixel of the photo.
-  const dpr = window.devicePixelRatio || 1;
-  const percent = originalSize.width > 0 && displaySize.width > 0 ? (displaySize.width * dpr) / originalSize.width : 0;
   const isOn = (zoom: number) => (zoom === 0 ? scale <= 1.001 : scale > 1.001 && Math.abs(percent - zoom) < 0.01);
 
   /** Centres the view on a point of the photo, given as fractions; zooms to 100% there first from Fit. */

@@ -13,6 +13,14 @@ import { rowNeighbour } from '../argentum/modern/gridRows';
 import { physicalPathOf } from '../argentum/paths';
 import { selectInGrid } from '../argentum/photoStep';
 import { useFocusPoints } from '../argentum/focusSwitch';
+import {
+  fitZoomPercent,
+  screenDpr,
+  zoomAfterShortcut,
+  zoomPercentNow,
+  type ZoomShortcut,
+  type ZoomView,
+} from '../argentum/zoomScale';
 
 interface KeyboardShortcutsProps {
   sortedImageList: Array<ImageFile>;
@@ -101,6 +109,15 @@ export const useKeyboardShortcuts = ({
       stepPhoto(step);
     };
 
+    // Argentum: percents of the photo as shown (the crop), argentum/zoomScale.ts.
+    const zoomByShortcut = (e: KeyboardEvent, s: { editor: ZoomView }, shortcut: ZoomShortcut) => {
+      e.preventDefault();
+      const dpr = screenDpr();
+      const target = zoomAfterShortcut(shortcut, zoomPercentNow(s.editor, dpr), fitZoomPercent(s.editor, dpr));
+      if (target === 'fit') handleZoomChange(0, true);
+      else handleZoomChange(target);
+    };
+
     const actions: Record<string, any> = {
       open_image: {
         shouldFire: (s: any) => s.ui.activeView === 'library' && s.library.libraryActivePath !== null,
@@ -180,82 +197,23 @@ export const useKeyboardShortcuts = ({
       },
       zoom_in_step: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-          const currentPercent =
-            s.editor.originalSize?.width > 0 && s.editor.displaySize?.width > 0
-              ? (s.editor.displaySize.width * dpr) / s.editor.originalSize.width
-              : 1.0;
-          handleZoomChange(Math.min(currentPercent + 0.1, 2.0));
-        },
+        execute: (e: any, s: any) => zoomByShortcut(e, s, 'zoom_in_step'),
       },
       zoom_out_step: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-          const currentPercent =
-            s.editor.originalSize?.width > 0 && s.editor.displaySize?.width > 0
-              ? (s.editor.displaySize.width * dpr) / s.editor.originalSize.width
-              : 1.0;
-          handleZoomChange(Math.max(currentPercent - 0.1, 0.1));
-        },
+        execute: (e: any, s: any) => zoomByShortcut(e, s, 'zoom_out_step'),
       },
       cycle_zoom: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-          const { originalSize, displaySize, baseRenderSize } = s.editor;
-          const currentPercent =
-            originalSize?.width > 0 && displaySize?.width > 0
-              ? Math.round(((displaySize.width * dpr) / originalSize.width) * 100)
-              : 100;
-          let fitPercent = 100;
-
-          if (originalSize?.width > 0 && baseRenderSize?.width > 0) {
-            const originalAspect = originalSize.width / originalSize.height;
-            const baseAspect = baseRenderSize.width / baseRenderSize.height;
-            fitPercent =
-              originalAspect > baseAspect
-                ? Math.round(((baseRenderSize.width * dpr) / originalSize.width) * 100)
-                : Math.round(((baseRenderSize.height * dpr) / originalSize.height) * 100);
-          }
-
-          const doubleFitPercent = fitPercent * 2;
-          if (Math.abs(currentPercent - fitPercent) < 5) {
-            handleZoomChange(doubleFitPercent < 100 ? doubleFitPercent / 100 : 1.0);
-          } else if (Math.abs(currentPercent - doubleFitPercent) < 5 && doubleFitPercent < 100) {
-            handleZoomChange(1.0);
-          } else {
-            handleZoomChange(0, true);
-          }
-        },
+        execute: (e: any, s: any) => zoomByShortcut(e, s, 'cycle_zoom'),
       },
       zoom_in: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-          const currentPercent =
-            s.editor.originalSize?.width > 0 && s.editor.displaySize?.width > 0
-              ? (s.editor.displaySize.width * dpr) / s.editor.originalSize.width
-              : 1.0;
-          handleZoomChange(Math.min(currentPercent * 1.2, 2.0));
-        },
+        execute: (e: any, s: any) => zoomByShortcut(e, s, 'zoom_in'),
       },
       zoom_out: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-          const currentPercent =
-            s.editor.originalSize?.width > 0 && s.editor.displaySize?.width > 0
-              ? (s.editor.displaySize.width * dpr) / s.editor.originalSize.width
-              : 1.0;
-          handleZoomChange(Math.max(currentPercent / 1.2, 0.1));
-        },
+        execute: (e: any, s: any) => zoomByShortcut(e, s, 'zoom_out'),
       },
       zoom_fit: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
