@@ -32,6 +32,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.47.1',
+    date: '2026-11-17',
+    notes: [
+      '100% zoom on a cropped photo shows one photo pixel per screen pixel; before, a crop was drawn too large. Fit now always fills the window.',
+      'A command-line export run while the app is open no longer empties its log or clears its temporary files.',
+    ],
+  },
+  {
     version: '26.46.1',
     date: '2026-11-14',
     notes: [

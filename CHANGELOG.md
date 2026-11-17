@@ -4,6 +4,13 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.47.1 — 2026-11-17
+
+### Fixed
+
+- 100% zoom on a cropped photo is now one photo pixel per screen pixel. The zoom worked its percent out against the uncropped photo while fitting the crop to the window, so a crop was drawn larger by the ratio of the full size to the crop's (a 6960 px photo cropped to 3330 px showed 2.1x too large at "100%"), and the zoom shortcuts and the navigator read that as 100%. The zoom setter, the shortcuts, the navigator and the view's zoom limits now share one definition of the photo as shown: the crop, or the photo turned by its orientation. The readout on a photo turned a quarter turn is right too, so the step shortcuts start from the true zoom there. Fit now always fills the window; before, a photo or crop smaller than half the window stopped at 200%, and a very large one at 10%. Otherwise uncropped photos zoom exactly as before. RapidRAW still works it out against the uncropped photo (`src/hooks/useEditorActions.ts`, `4b6b45ff`).
+- A command-line export run while the app is open no longer empties the app's log or clears its temporary files: it logs to `headless-export.log` beside `app.log`.
+
 ## 26.46.1 — 2026-11-14
 
 ### Changed
