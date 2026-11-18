@@ -7,8 +7,9 @@
 //! faster at 4x, with output identical to the CPU's.
 //!
 //! It is not bundled. Like the models, it is downloaded the first time
-//! super resolution runs, from Microsoft's own NuGet package, and pinned by
-//! hash: an 18 MB download, of which the 16 MB runtime for this machine is kept.
+//! super resolution runs, from our copy of Microsoft's own NuGet package, or
+//! from NuGet when ours cannot be reached (`mirror`), and pinned by hash: an
+//! 18 MB download, of which the 16 MB runtime for this machine is kept.
 //!
 //! ONE RUNTIME PER PROCESS
 //!
@@ -32,10 +33,30 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{Context, Result};
 use ort::session::Session;
 
+use super::mirror::mirror;
+use super::model_catalog::File;
+
 /// The runtime's folder inside the models folder, named for its version
 /// (`model_catalog::GPU_RUNTIME` finds it, and older ones, by its prefix).
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const FOLDER: &str = "onnxruntime-directml-1.22.0";
+
+/// Microsoft's ONNX Runtime 1.22.0 DirectML package, as published on NuGet.
+/// `model_download` fetches it into `FOLDER`, where the runtime is taken out
+/// of it and the package removed.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const PACKAGE: File = File {
+    name: "microsoft.ml.onnxruntime.directml.1.22.0.nupkg",
+    url: mirror!(
+        "onnxruntime-1.22.0",
+        "microsoft.ml.onnxruntime.directml.1.22.0.nupkg"
+    ),
+    fallback: Some(
+        "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.22.0/microsoft.ml.onnxruntime.directml.1.22.0.nupkg",
+    ),
+    sha256: "29f9872d786236b79aa83f94482f3a17c14297e4833768d6d0ed4883ee732e60",
+    bytes: 17_898_472,
+};
 
 /// Set the moment this process points ONNX Runtime at the DirectML build.
 ///
@@ -139,14 +160,13 @@ mod windows_runtime {
     use tokio::sync::Mutex as TokioMutex;
 
     use super::Device;
+    use crate::mods::model_catalog::GPU_RUNTIME;
+    use crate::mods::model_download;
 
     /// The ONNX Runtime release the DirectML package below was built from.
     /// `ort` asks the loaded library for this API version and panics if it is
     /// older, so a runtime is only ever pinned when the two agree.
     const RUNTIME_API_VERSION: u32 = 22;
-
-    const PACKAGE_URL: &str = "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.22.0/microsoft.ml.onnxruntime.directml.1.22.0.nupkg";
-    const PACKAGE_SHA256: &str = "29f9872d786236b79aa83f94482f3a17c14297e4833768d6d0ed4883ee732e60";
 
     struct Build {
         entry: &'static str,
@@ -231,23 +251,19 @@ mod windows_runtime {
         const LABEL: &str = "GPU runtime (ONNX Runtime DirectML)";
         let _ = app.emit("ai-model-download-start", LABEL);
         let result = async {
-            let package = reqwest::get(PACKAGE_URL)
+            let dir = path.parent().context("GPU runtime path has no parent")?;
+            // Our copy, then NuGet; size and SHA-256 checked before it is kept.
+            model_download::fetch_missing(dir, GPU_RUNTIME, &[super::PACKAGE], |_| {})
                 .await
-                .context("Could not download the GPU runtime")?
-                .error_for_status()
-                .context("The GPU runtime server returned an error")?
-                .bytes()
-                .await
-                .context("Could not read the downloaded GPU runtime")?;
-            if sha256_hex(&package) != PACKAGE_SHA256 {
-                bail!("The GPU runtime package failed integrity verification");
-            }
+                .map_err(anyhow::Error::msg)
+                .context("Could not download the GPU runtime")?;
+            let package_path = dir.join(super::PACKAGE.name);
+            let package = fs::read(&package_path)?;
+            let _ = fs::remove_file(&package_path);
             let dll = zip_entry(&package, build.entry)?;
             if sha256_hex(&dll) != build.sha256 {
                 bail!("The GPU runtime failed integrity verification");
             }
-            let dir = path.parent().context("GPU runtime path has no parent")?;
-            fs::create_dir_all(dir)?;
             let temporary = path.with_extension("dll.download");
             {
                 let mut file = fs::File::create(&temporary)?;

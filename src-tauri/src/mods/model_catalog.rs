@@ -15,7 +15,9 @@
 //! address, SHA-256 and size), a label, and one plain-English line saying what
 //! it is for. Nothing else changes; the settings page lists whatever is here,
 //! downloads exactly these files, and deleting only ever touches names that
-//! are here.
+//! are here. A file published by someone else is first uploaded, unchanged,
+//! to our release of copies (`our_copy!`, see `mirror`): that is its address,
+//! and the original is its fallback.
 //!
 //! The feature that uses a model asks `model_download::ensure` for it, which
 //! fetches whatever of its files is missing or wrong, as the settings page's
@@ -107,18 +109,27 @@ pub const GPU_RUNTIME: &str = "gpu-runtime";
 /// The selection models' id: `selection_models` downloads under it too.
 pub const SELECTION: &str = "selection";
 
+/// Our release holding copies of other projects' models (`mirror`): each
+/// under the name its original address publishes it as.
+macro_rules! our_copy {
+    ($published:literal) => {
+        mirror!("models-mirror-v1", $published)
+    };
+}
+
 /// One of RapidRAW-Models' files, saved as `$saved` and published as
-/// `$published`, written the way their addresses are.
+/// `$published`: from our copy, then from theirs, written the way their
+/// addresses are.
 macro_rules! rapidraw {
     ($saved:literal, $published:literal, $sha256:literal, $bytes:expr) => {
         File {
             name: $saved,
-            url: concat!(
+            url: our_copy!($published),
+            fallback: Some(concat!(
                 "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/",
                 $published,
                 "?download=true"
-            ),
-            fallback: None,
+            )),
             sha256: $sha256,
             bytes: $bytes,
         }
@@ -275,20 +286,25 @@ pub const RESTORE: &str = "restore";
 /// The published Real-ESRGAN x2plus ONNX artifact.
 pub const REALESRGAN_X2: File = File {
     name: "realesrgan_x2plus.onnx",
-    url: "https://huggingface.co/fernandotonon/QtMeshEditor-realesrgan-onnx/resolve/main/RealESRGAN_x2plus.onnx?download=true",
-    fallback: None,
+    url: our_copy!("RealESRGAN_x2plus.onnx"),
+    fallback: Some(
+        "https://huggingface.co/fernandotonon/QtMeshEditor-realesrgan-onnx/resolve/main/RealESRGAN_x2plus.onnx?download=true",
+    ),
     sha256: "35d016524a6eb7e9a99f192cfa81b6cf1f80fdf8f1b51605d77f0763f5ccba7f",
     bytes: 67_156_218,
 };
 /// The published Real-ESRGAN x4plus ONNX artifact.
 pub const REALESRGAN_X4: File = File {
     name: "realesrgan_x4plus.onnx",
-    url: "https://huggingface.co/mhmtaufiq/realesrgan-onnx/resolve/main/RealESRGAN_x4plus.onnx?download=true",
-    fallback: None,
+    url: our_copy!("RealESRGAN_x4plus.onnx"),
+    fallback: Some(
+        "https://huggingface.co/mhmtaufiq/realesrgan-onnx/resolve/main/RealESRGAN_x4plus.onnx?download=true",
+    ),
     sha256: "3767c17388381cfca3d7196a4a517737fefc22b57c9fd98d3bae78e98e2bebc9",
     bytes: 68_811_310,
 };
-/// Argentum's ONNX export of OmniLens's SwinIR_AODLib_EAOD.pth.
+/// Argentum's ONNX export of OmniLens's SwinIR_AODLib_EAOD.pth: our copy
+/// is the only one.
 pub const OMNILENS_RESTORE: File = File {
     name: "omnilens_swinir_aodlib_256.onnx",
     url: mirror!("omnilens-v1", "omnilens_swinir_aodlib_256.onnx"),
@@ -421,7 +437,7 @@ pub const CATALOGUE: &[Model] = &[
         purpose: "Lets Super Resolution and Restore run on the graphics card, many times faster than without it. Windows only.",
         stored: Stored::FoldersStartingWith {
             prefix: "onnxruntime-directml-",
-            bytes: 17_898_472,
+            bytes: super::gpu_runtime::PACKAGE.bytes,
         },
         listed_when_missing: false,
     },
@@ -505,6 +521,39 @@ mod tests {
                 for url in std::iter::once(file.url).chain(file.fallback) {
                     assert!(url.starts_with("https://"), "{url}");
                 }
+            }
+        }
+    }
+
+    /// A feature never depends on one server: every file has a second address,
+    /// tried when the first fails. Only Restore's model has no home but our
+    /// copy, because Argentum made it.
+    #[test]
+    fn every_file_has_a_second_address() {
+        for model in CATALOGUE {
+            for file in model.stored.files() {
+                assert!(
+                    file.fallback.is_some() || file.name == OMNILENS_RESTORE.name,
+                    "{} has one address",
+                    file.name
+                );
+            }
+        }
+    }
+
+    /// What RapidRAW and Real-ESRGAN publish comes from our copy first, and
+    /// from theirs only when ours fails. The selection models come from
+    /// RAWmakase's own copy first (`rm_selection::manifest`).
+    #[test]
+    fn files_we_keep_a_copy_of_come_from_it_first() {
+        for model in CATALOGUE.iter().filter(|m| m.id != SELECTION) {
+            for file in model.stored.files() {
+                assert!(
+                    file.url.starts_with(mirror!()),
+                    "{}: {}",
+                    file.name,
+                    file.url
+                );
             }
         }
     }
