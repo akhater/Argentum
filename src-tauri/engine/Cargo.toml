@@ -20,8 +20,9 @@ rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "dc8b14
 # faster (src/flashraw.rs). Pinned: a new version is measured again first
 # (npm run check:sources warns when one is out).
 # Its sensor output only: no colour management, no JPEG XL, no GPU.
-# Taken from its "Release 0.1.1" commit: crates.io no longer has 0.1.1.
-flashraw = { git = "https://github.com/ybouane/flashraw", rev = "ee9d8b5e250a9d39bb2c0028b62998095778fbd2", version = "=0.1.1", default-features = false, features = ["rayon", "simd"] }
+# Taken from its "Release 0.1.1" commit, kept in our fork (tag pinned-ee9d8b5):
+# crates.io no longer has 0.1.1, and FlashRaw's own history no longer holds it.
+flashraw = { git = "https://github.com/akhater/flashraw", rev = "ee9d8b5e250a9d39bb2c0028b62998095778fbd2", version = "=0.1.1", default-features = false, features = ["rayon", "simd"] }
 wgpu = "29.0"
 pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
