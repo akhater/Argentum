@@ -1,0 +1,27 @@
+name: Download addresses
+
+# Asks every address Argentum downloads from, at build time and in the app,
+# whether it still answers (scripts/check-downloads.mjs, reading the list a
+# test keeps in src-tauri/download-addresses.tsv). Each file has two
+# addresses, so one that stops answering is a warning on the run and in its
+# summary, never a failure: hosts flake, and the other still serves the file.
+# Weekly, and by hand from the Actions tab. Not a required check.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  addresses:
+    name: Download addresses answer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Ask every address
+        run: npm run check:downloads

@@ -10,6 +10,10 @@
 //!
 //! `build.rs` includes this file with `#[path]` too, so the address is written
 //! here once for the build and the app.
+//!
+//! Its test keeps `download-addresses.tsv` (beside `Cargo.toml`): every address
+//! the build and the app download from, which `npm run check:downloads` asks
+//! each week whether it still answers.
 
 /// Where our copies are kept: `mirror!()` is every release's parent,
 /// `mirror!(release)` one release's folder, `mirror!(release, file)` one file.
@@ -22,3 +26,58 @@ macro_rules! mirror {
     };
 }
 pub(crate) use mirror;
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::super::{build_ort, gpu_runtime, model_catalog};
+
+    /// Every address Argentum downloads from, for `npm run check:downloads`
+    /// (scripts/check-downloads.mjs), beside `Cargo.toml`.
+    const LIST: &str = "download-addresses.tsv";
+
+    /// `name<TAB>address` for every address, each file's in the order tried:
+    /// the build's ONNX Runtime, the DirectML package, every catalogued model.
+    fn every_address() -> Vec<String> {
+        let mut lines = Vec::new();
+        for runtime in build_ort::RUNTIMES {
+            for url in runtime.urls() {
+                lines.push(format!("{}\t{url}", runtime.file));
+            }
+        }
+        let files = std::iter::once(gpu_runtime::PACKAGE).chain(
+            model_catalog::CATALOGUE
+                .iter()
+                .flat_map(|m| m.stored.files()),
+        );
+        for file in files {
+            for url in std::iter::once(file.url).chain(file.fallback) {
+                let line = format!("{}\t{url}", file.name);
+                if !lines.contains(&line) {
+                    lines.push(line);
+                }
+            }
+        }
+        lines
+    }
+
+    /// The check asks the addresses the build and the app use, never a copy
+    /// kept by hand: the committed list is the one these lists make. When it
+    /// differs it is rewritten here, and this fails until that is committed.
+    #[test]
+    fn the_address_list_is_current() {
+        let made = format!(
+            "# Every address Argentum downloads from, written by a test in src/mods/mirror.rs.\n{}\n",
+            every_address().join("\n")
+        );
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(LIST);
+        let committed = std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
+        if committed != made {
+            std::fs::write(&path, made).expect("write the address list");
+            panic!("{LIST} was out of date and has been rewritten: commit it");
+        }
+    }
+}
