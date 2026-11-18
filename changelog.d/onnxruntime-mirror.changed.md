@@ -1,0 +1,1 @@
+- Building Argentum no longer depends on one server for ONNX Runtime 1.22.0: each platform's library is downloaded from Argentum's own copy (release `onnxruntime-1.22.0` of `akhater/argentum-models`), and from RapidRAW's, where it was first published, when ours cannot be reached. Both are checked against the same pinned SHA-256.
