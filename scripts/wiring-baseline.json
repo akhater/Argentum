@@ -1,7 +1,7 @@
 {
   "uncalledCommands": [],
   "uncalledAg": [],
-  "cargoPackages": 828,
+  "cargoPackages": 812,
   "npmPackages": 409,
   "dist": {
     "assets/App.css": 35766,

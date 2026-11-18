@@ -41,7 +41,7 @@ uuid = { version = "1.25", features = ["v4", "serde"] }
 walkdir = "2.5.0"
 imageproc = "0.27.0"
 lsdetect = "0.3.0"
-ort = { version = "=2.0.0-rc.10", features = ["ndarray", "load-dynamic"] }
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["ndarray", "load-dynamic"] }
 ndarray = "0.16"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-os = "2.3.2"
@@ -157,6 +157,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-cli
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_Graphics_Imaging", "Win32_System_Com", "Win32_System_JobObjects", "Win32_Security"] }
 # Argentum: AI enlargement on the GPU — see mods/gpu_runtime.rs. Same ort as above,
 # plus the DirectML entry point; flate2 unpacks the runtime from its NuGet package.
-ort = { version = "=2.0.0-rc.10", features = ["directml"] }
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["directml"] }
 flate2 = "1"
 webview2-com = "0.39" # Argentum: frames to the new interface as WebView2 shared buffers - see mods/engine_frame.rs. Already built for Tauri's wry.
