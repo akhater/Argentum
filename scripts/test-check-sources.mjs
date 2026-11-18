@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  FLASHRAW,
   WIRING,
   harvestWarning,
   missingWiring,
@@ -93,11 +94,19 @@ test('the engine pins one FlashRaw version', () => {
   assert.match(pinnedFlashRaw(readTree('src-tauri/engine/Cargo.toml')) ?? '', /^\d+\.\d+\.\d+$/);
   assert.equal(pinnedFlashRaw('flashraw = { version = "=0.1.1", default-features = false }'), '0.1.1');
   assert.equal(
-    pinnedFlashRaw('flashraw = { git = "https://github.com/ybouane/flashraw", rev = "ee9d8b5e", version = "=0.1.1" }'),
+    pinnedFlashRaw('flashraw = { git = "https://github.com/akhater/flashraw", rev = "ee9d8b5e", version = "=0.1.1" }'),
     '0.1.1',
   );
   assert.equal(pinnedFlashRaw('flashraw = "0.1"'), null);
   assert.equal(pinnedFlashRaw('flashraw-core = "=0.1.1"'), null);
+});
+
+test('FlashRaw builds from our fork, and the releases watched are upstream', () => {
+  assert.match(
+    readTree('src-tauri/engine/Cargo.toml'),
+    /^flashraw = \{ git = "https:\/\/github\.com\/akhater\/flashraw", rev = "[0-9a-f]{40}"/m,
+  );
+  assert.equal(FLASHRAW, 'https://github.com/ybouane/flashraw');
 });
 
 test('a newer FlashRaw release asks for a measurement', () => {

@@ -90,7 +90,8 @@ published it, not from us.
 ### [FlashRaw](https://github.com/ybouane/flashraw)
 
 Settings > Processing > RAW decoder can hand the unpacking of a RAW's pixels to
-FlashRaw (`flashraw` 0.1.1 on crates.io, MIT or Apache-2.0), used as a library.
+FlashRaw (`flashraw` 0.1.1, MIT or Apache-2.0), used as a library, built from its
+"Release 0.1.1" commit as kept in our fork, `akhater/flashraw`.
 rawler still reads everything else in the file, and FlashRaw is used only on the
 formats where its pixels were measured identical to rawler's: Canon CR3 and CR2,
 Fujifilm compressed RAF, Olympus ORF, Panasonic RW2 (v8) and Pentax PEF

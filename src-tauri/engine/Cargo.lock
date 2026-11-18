@@ -383,7 +383,7 @@ checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 [[package]]
 name = "flashraw"
 version = "0.1.1"
-source = "git+https://github.com/ybouane/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
+source = "git+https://github.com/akhater/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
 dependencies = [
  "flashraw-camera-db",
  "flashraw-codecs",
@@ -395,7 +395,7 @@ dependencies = [
 [[package]]
 name = "flashraw-camera-db"
 version = "0.1.1"
-source = "git+https://github.com/ybouane/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
+source = "git+https://github.com/akhater/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
 dependencies = [
  "serde",
  "serde_json",
@@ -404,7 +404,7 @@ dependencies = [
 [[package]]
 name = "flashraw-codecs"
 version = "0.1.1"
-source = "git+https://github.com/ybouane/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
+source = "git+https://github.com/akhater/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
 dependencies = [
  "flashraw-core",
  "rayon",
@@ -416,7 +416,7 @@ dependencies = [
 [[package]]
 name = "flashraw-core"
 version = "0.1.1"
-source = "git+https://github.com/ybouane/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
+source = "git+https://github.com/akhater/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
 dependencies = [
  "libc",
  "rayon",
@@ -426,7 +426,7 @@ dependencies = [
 [[package]]
 name = "flashraw-formats"
 version = "0.1.1"
-source = "git+https://github.com/ybouane/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
+source = "git+https://github.com/akhater/flashraw?rev=ee9d8b5e250a9d39bb2c0028b62998095778fbd2#ee9d8b5e250a9d39bb2c0028b62998095778fbd2"
 dependencies = [
  "flashraw-camera-db",
  "flashraw-codecs",
