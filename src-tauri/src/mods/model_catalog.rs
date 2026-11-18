@@ -33,6 +33,8 @@
 //! The selection models' list is `rm_selection::manifest`, read through
 //! `selection_models::files`.
 
+use super::mirror::mirror;
+
 /// One file of a model: where the feature that uses it saves it, fetches it
 /// from, and what it checks it against.
 #[derive(Clone, Copy, Debug)]
@@ -289,7 +291,7 @@ pub const REALESRGAN_X4: File = File {
 /// Argentum's ONNX export of OmniLens's SwinIR_AODLib_EAOD.pth.
 pub const OMNILENS_RESTORE: File = File {
     name: "omnilens_swinir_aodlib_256.onnx",
-    url: "https://github.com/akhater/argentum-models/releases/download/omnilens-v1/omnilens_swinir_aodlib_256.onnx",
+    url: mirror!("omnilens-v1", "omnilens_swinir_aodlib_256.onnx"),
     fallback: None,
     sha256: "c28ec5478a6db236e9151961ad1afe29ea23b80fecc8612a436f329e9a0e9630",
     bytes: 53_592_179,

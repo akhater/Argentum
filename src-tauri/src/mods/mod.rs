@@ -17,6 +17,10 @@ pub mod atomic_write;
 pub mod auto_wb;
 pub mod auto_wb_photo;
 pub mod black_white;
+// build.rs includes it; here only so its tests run.
+#[cfg(test)]
+#[allow(dead_code)]
+mod build_ort;
 pub mod cache_key;
 pub mod cache_version;
 pub mod canon_crop_mode;
@@ -89,6 +93,7 @@ pub mod lut_provider;
 pub mod makernote_lens;
 pub mod mask_falloff;
 pub mod memory;
+pub mod mirror;
 pub mod model_catalog;
 pub mod model_download;
 pub mod model_manager;
