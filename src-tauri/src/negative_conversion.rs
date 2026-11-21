@@ -328,13 +328,14 @@ pub async fn convert_negatives(
             let p = Path::new(&real_path);
             let parent = p.parent().unwrap_or(Path::new(""));
             let stem = p.file_stem().unwrap_or_default().to_string_lossy();
-            let filename = format!("{}_Positive.tiff", stem);
-            let out_path = parent.join(&filename);
-
-            processed
-                .to_rgb16()
-                .save(&out_path)
-                .map_err(|e| format!("Failed to save {}: {}", filename, e))?;
+            let out_path = crate::mods::file_ops::write_unique_image(
+                parent,
+                &format!("{}_Positive", stem),
+                "tiff",
+                &DynamicImage::ImageRgb16(processed.to_rgb16()),
+                image::ImageFormat::Tiff,
+            )
+            .map_err(|e| format!("Failed to save {}_Positive.tiff: {}", stem, e))?;
 
             let _ = crate::exif_processing::write_rrexif_sidecar(&real_path, &out_path);
             results.push(out_path.to_string_lossy().to_string());
