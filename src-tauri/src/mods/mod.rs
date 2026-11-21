@@ -148,3 +148,4 @@ pub mod viewer_surface;
 pub mod warped_photo;
 pub mod wb_legacy;
 pub mod worker_thread;
+pub mod write_locks;
