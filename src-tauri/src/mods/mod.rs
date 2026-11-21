@@ -30,6 +30,7 @@ pub mod canon_old_wb;
 pub mod capture_bake;
 pub mod clear_scope;
 pub mod clipping;
+pub mod clone_heal;
 pub mod color_grade;
 pub mod colour_compare;
 pub mod commands;
