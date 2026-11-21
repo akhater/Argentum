@@ -386,6 +386,12 @@ fn rm_look_node(h: u32, s: u32, v: u32, c: u32) -> f32 {
 
 /// `Table::lookup`'s channel `c`: trilinear between the eight nodes around
 /// hue `fh`, saturation `fs` and value `fv`, in node units.
+///
+/// Changed from theirs: their three nested loops over the corners are written
+/// out, in the same order. FXC, the HLSL compiler DirectX 12 uses, unrolled
+/// them inside the main shader's per-mask loop and the whole shader failed to
+/// build on DirectX 12 (every render came out black), as rm_grade_channel's
+/// comment tells for the grade.
 fn rm_look_lookup(fh: f32, fs: f32, fv: f32, c: u32) -> f32 {
     let h0 = u32(floor(fh));
     let s0 = u32(floor(fs));
@@ -393,20 +399,27 @@ fn rm_look_lookup(fh: f32, fs: f32, fv: f32, c: u32) -> f32 {
     let th = fh - f32(h0);
     let ts = fs - f32(s0);
     let tv = fv - f32(v0);
+    let h1 = (h0 + 1u) % AG_LOOK_HUES;
+    let ha = h0 % AG_LOOK_HUES;
+    let sa = min(s0, AG_LOOK_SATS - 1u);
+    let sb = min(s0 + 1u, AG_LOOK_SATS - 1u);
+    let va = min(v0, AG_LOOK_VALS - 1u);
+    let vb = min(v0 + 1u, AG_LOOK_VALS - 1u);
+    let wh0 = 1.0 - th;
+    let wh1 = th;
+    let ws0 = 1.0 - ts;
+    let ws1 = ts;
+    let wv0 = 1.0 - tv;
+    let wv1 = tv;
     var out = 0.0;
-    for (var z = 0u; z < 2u; z++) {
-        let wv = select(1.0 - tv, tv, z == 1u);
-        let iv = min(v0 + z, AG_LOOK_VALS - 1u);
-        for (var y = 0u; y < 2u; y++) {
-            let ws = select(1.0 - ts, ts, y == 1u);
-            let is = min(s0 + y, AG_LOOK_SATS - 1u);
-            for (var x = 0u; x < 2u; x++) {
-                let wh = select(1.0 - th, th, x == 1u);
-                let ih = (h0 + x) % AG_LOOK_HUES;
-                out += rm_look_node(ih, is, iv, c) * (wh * ws * wv);
-            }
-        }
-    }
+    out += rm_look_node(ha, sa, va, c) * (wh0 * ws0 * wv0);
+    out += rm_look_node(h1, sa, va, c) * (wh1 * ws0 * wv0);
+    out += rm_look_node(ha, sb, va, c) * (wh0 * ws1 * wv0);
+    out += rm_look_node(h1, sb, va, c) * (wh1 * ws1 * wv0);
+    out += rm_look_node(ha, sa, vb, c) * (wh0 * ws0 * wv1);
+    out += rm_look_node(h1, sa, vb, c) * (wh1 * ws0 * wv1);
+    out += rm_look_node(ha, sb, vb, c) * (wh0 * ws1 * wv1);
+    out += rm_look_node(h1, sb, vb, c) * (wh1 * ws1 * wv1);
     return out;
 }
 
