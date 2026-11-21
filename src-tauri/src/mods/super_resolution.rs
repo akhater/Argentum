@@ -265,7 +265,6 @@ async fn get_model(app_handle: &tauri::AppHandle, kind: ModelKind) -> Result<Arc
     let path = ensure_model(app_handle, kind).await?;
     // Before anything else touches ONNX Runtime: this may choose which build loads.
     let device = gpu_runtime::prepare(app_handle).await;
-    let _ = ort::init().with_name("AI-Super-Resolution").commit();
     let (session, device) = gpu_runtime::session(&path, device)
         .with_context(|| format!("Could not load the {} model file", kind.label()))?;
     let model = Arc::new(LoadedModel {
@@ -1634,7 +1633,7 @@ mod tests {
             .split(',')
             .map(|v| v.trim().parse().expect("x,y,w,h"))
             .collect();
-        let _ = ort::init_from(var("AG_ORT_DYLIB")).commit();
+        let _ = ort::init_from(var("AG_ORT_DYLIB"));
         let device = if var("AG_RESTORE_DEVICE") == "gpu" {
             Device::Gpu
         } else {
