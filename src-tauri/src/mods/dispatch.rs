@@ -111,6 +111,21 @@ struct ObjectArgs {
     frame: crate::mods::selection::Frame,
 }
 
+/// AI masks found again on one photo: which, and the open photo's edit when
+/// it is the open one (its sidecar can lag behind); any other photo is read
+/// from its file and sidecar.
+#[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+struct AgainArgs {
+    path: String,
+    /// The open photo's edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
+    #[serde(default)]
+    js_adjustments: Option<serde_json::Value>,
+    asks: Vec<crate::mods::selection_again::Ask>,
+}
+
 /// A Text mask: the words, the edit's geometry, and the frame.
 #[derive(Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
@@ -638,6 +653,43 @@ commands! {
         })
         .await
         .map_err(|e| e.to_string())??
+    }
+    "find_selections_again" => (a: AgainArgs) -> Vec<crate::mods::selection_again::Found> {
+        let selection_dir = crate::mods::selection_models::dir(&app_handle)?;
+        let masks_dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        let open = state
+            .original_image
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+            .map(|loaded| loaded.path.clone());
+        let (picture, adjustments) = match a.js_adjustments {
+            Some(edit) if open.as_deref() == Some(a.path.as_str()) => {
+                (crate::get_cached_full_warped_image(&state, &edit)?, edit)
+            }
+            _ => {
+                let path = a.path.clone();
+                let handle = app_handle.clone();
+                let (picture, edit) = tokio::task::spawn_blocking(move || {
+                    let settings = crate::app_settings::load_settings(handle).unwrap_or_default();
+                    crate::mods::warped_photo::load(&path, &settings)
+                })
+                .await
+                .map_err(|e| e.to_string())??;
+                (std::sync::Arc::new(picture), edit)
+            }
+        };
+        let key = crate::mods::selection::picture_key(&a.path, &adjustments);
+        let frame = crate::mods::selection_again::frame_of(&adjustments);
+        tokio::task::spawn_blocking(move || {
+            let dirs = crate::mods::selection_again::ModelDirs {
+                selection: &selection_dir,
+                masks: &masks_dir,
+            };
+            crate::mods::selection_again::find_all(&dirs, &picture, key, frame, &a.asks)
+        })
+        .await
+        .map_err(|e| e.to_string())?
     }
     "face_mask_models_status" => () -> crate::mods::model_download::Status {
         let dir = crate::mods::model_manager::models_dir(&app_handle)?;
