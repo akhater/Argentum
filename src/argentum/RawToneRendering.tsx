@@ -8,7 +8,10 @@
  * embedded in this RAW file; DNG Standard is a DNG renderer's default - the
  * camera's exposure offset and Adobe's default tone curve, applied as Adobe
  * applies it (mods/dng_standard.rs); Linear is DNG Standard without the tone
- * curve, the neutral base a film-simulation LUT is made for.
+ * curve, the neutral base a film-simulation LUT is made for; Camera Look is
+ * DNG Standard with a colour look fitted to the embedded JPEG
+ * (mods/camera_look.rs), which falls back to Auto-Matched, and says so, when
+ * the look does not beat DNG Standard on the photo.
  *
  * The curve is fitted to this photo, so Copy settings and presets carry the
  * rendering but never `rawToneCurve` (mods/copy_keys.rs). `rawToneCurveMode`
@@ -23,14 +26,17 @@ import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { rawToneRenderingOf } from './editSections';
 import { useAgTranslation } from './locales';
-import type { HeldBack } from './ag.generated';
+import type { CameraLookStatus, HeldBack } from './ag.generated';
 
-type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard' | 'linear';
+type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard' | 'linear' | 'cameraLook';
 
-const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard', 'linear'];
+const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard', 'linear', 'cameraLook'];
 
-/** The renderings the renderer fills in from the photo itself: nothing to fit here. */
-const READ_BY_RENDERER: RawToneRenderingMode[] = ['dngStandard', 'linear'];
+/**
+ * The renderings the renderer fills in from the photo itself: nothing to fit
+ * here. Camera Look's fit is made and kept by the app (`camera_look_fit`).
+ */
+const READ_BY_RENDERER: RawToneRenderingMode[] = ['dngStandard', 'linear', 'cameraLook'];
 
 const HELD_BACK_NAMES = {
   fujifilmDr200: 'heldBackFujifilmDr200',
@@ -66,6 +72,33 @@ function HeldBackNote({ path }: { path: string }) {
   return (
     <p className="mt-1 text-xs text-text-secondary" data-tooltip={fill(t('heldBackTip'))}>
       ⓘ {fill(t('heldBackNote'))}
+    </p>
+  );
+}
+
+/**
+ * Under Camera Look: while the photo is fitted (a few seconds, once), the
+ * line Auto-Matched shows while it calculates; then, if the look did not beat DNG Standard and the photo
+ * shows Auto-Matched instead, the note that says so, its reason in the tip.
+ */
+function CameraLookNote({ path }: { path: string }) {
+  const t = useAgTranslation();
+  const [status, setStatus] = useState<CameraLookStatus | null>(null);
+  useEffect(() => {
+    let current = true;
+    setStatus(null);
+    ag('camera_look_fit', { path })
+      .then((found) => current && setStatus(found))
+      .catch((error) => console.warn('Could not fit the camera look', error));
+    return () => {
+      current = false;
+    };
+  }, [path]);
+  if (!status) return <p className="mt-1 text-xs text-text-secondary">{t('rawToneCalculating')}</p>;
+  if (status.fitted) return null;
+  return (
+    <p className="mt-1 text-xs text-text-secondary" data-tooltip={status.reason ?? ''}>
+      {t('rawToneCameraLookFallback')}
     </p>
   );
 }
@@ -121,10 +154,10 @@ export default function RawToneRendering() {
 
   const choose = async (mode: RawToneRenderingMode) => {
     if (busy || mode === current) return;
-    if (mode === 'default') {
+    if (mode === 'default' || mode === 'cameraLook') {
       setAdjustments((prev: any) => ({
         ...prev,
-        rawToneRendering: 'default',
+        rawToneRendering: mode,
         rawToneCurve: null,
         rawToneCurveMode: null,
       }));
@@ -149,9 +182,11 @@ export default function RawToneRendering() {
           <option value="autoMatched">{t('rawToneAutoMatched')}</option>
           <option value="dngStandard">{t('rawToneDngStandard')}</option>
           <option value="linear">{t('rawToneLinear')}</option>
+          <option value="cameraLook">{t('rawToneCameraLook')}</option>
         </select>
       </div>
       {busy && <p className="mt-1 text-xs text-text-secondary">{t('rawToneCalculating')}</p>}
+      {current === 'cameraLook' && path && <CameraLookNote path={path} />}
       {READ_BY_RENDERER.includes(current) && path && <HeldBackNote path={path} />}
     </div>
   );

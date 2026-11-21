@@ -66,6 +66,33 @@ pub mod mods {
         }
     }
 
+    /// `mods::camera_look`: Camera Look's fit, which `raw_tone` asks for and
+    /// the parity tests never reach.
+    pub mod camera_look {
+        pub const MODE: &str = "cameraLook";
+
+        #[derive(Debug, Clone, Copy, Default, PartialEq)]
+        pub struct Params {
+            pub look: u32,
+        }
+
+        impl Params {
+            pub fn of(look: u32) -> Self {
+                Self { look }
+            }
+        }
+
+        pub enum Rendering {
+            Look(u32),
+            Fallback(Vec<super::raw_tone::ToneCurvePoint>),
+            Standard,
+        }
+
+        pub fn rendering_for(_photo: Option<&str>) -> Rendering {
+            Rendering::Standard
+        }
+    }
+
     /// `mods::decode`: the decode hook and the profile's daylight matrix,
     /// neither of which the tests reach.
     pub mod decode {

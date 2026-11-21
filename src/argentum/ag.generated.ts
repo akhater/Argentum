@@ -106,6 +106,12 @@ make: string, model: string,
 defaultProfile?: string, };
 
 /**
+ * What the interface says about a photo's Camera Look: whether the look is
+ * used, and if not, why, the photo rendering with Auto-Matched instead.
+ */
+export type CameraLookStatus = { fitted: boolean, reason: string | null, };
+
+/**
  * What the UI needs to show for one photo: which camera, and whether the
  * library has a profile for it.
  */
@@ -952,6 +958,7 @@ export interface AgCommands {
   black_white_auto: { args: OpenPhotoArgs; answer: AutoMix };
   builtin_presets: { args: Record<string, never>; answer: Array<PresetGroup> };
   camera_default_profile: { args: ModelArgs; answer: string | null };
+  camera_look_fit: { args: PathArgs; answer: CameraLookStatus };
   camera_profile_status: { args: PathArgs; answer: CameraProfileStatus };
   clear_ai_model_leftovers: { args: NamesArgs; answer: Cleared };
   compact_slider_gap: { args: Record<string, never>; answer: number };

@@ -252,6 +252,7 @@ fn ag_stage_color(color: vec3<f32>) -> vec3<f32> {
 //   mode 1 Base Curve, 2 Auto-Matched   sRGB, then the curve on each channel
 //   mode 3 DNG Standard                 the curve applied as Adobe applies it
 //   mode 4 Linear                       the same, its curve the exposure offset alone
+//   mode 5 Camera Look                  DNG Standard with a look fitted to the camera's JPEG
 //
 // Their struct carries the mode and the photo's 16 points; this reads them
 // from `adjustments` directly, so the call line in their file never has to
@@ -266,6 +267,9 @@ fn ag_stage_tone(theirs: vec3<f32>, linear: vec3<f32>) -> vec3<f32> {
     }
     if (mode == 3u || mode == 4u) {
         return ag_dng_standard(linear, count);
+    }
+    if (mode == 5u) {
+        return ag_camera_look_render(linear, count);
     }
     let encoded = linear_to_srgb(linear);
     return vec3<f32>(
@@ -335,6 +339,154 @@ fn ag_prophoto_to_white(linear: vec3<f32>) -> vec3<f32> {
 /// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
 fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
     let toned = rt_rgb_tone(ag_prophoto_to_white(linear), count);
+    return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
+}
+
+// ============================================================================
+// CAMERA LOOK: mode 5 of the tone anchor (mods/camera_look.rs)
+//
+// A look fitted to the photo's embedded JPEG over DNG Standard: gains on
+// grey, an HSV table, DNG Standard's curve, then the look's own curve. The
+// engine's rm_camera_look/look.rs `Look::render` is its CPU twin, which the
+// fit is solved against.
+//
+// from RAWmakase crates/rawmakase-model/src/camera_profiles/mod.rs @ 78069aa3
+// (v0.7.1, MIT): `Table::apply` and `Table::lookup` (the DNG SDK's HSV table,
+// value sRGB-encoded; RawTherapee's rtengine/dcp.cc `hsdApply` @ ca9234b1 is
+// the same lookup), and enhanced.rs `apply_curve`. Each channel is a scalar
+// of its own, as rm_grade_channel's comment explains for DirectX 12.
+// ============================================================================
+
+/// Which look a render uses, as `camera_look::Params` lays it out (16 bytes).
+/// This shader never reads it: gpu_processing.rs fills `ag_camera_look` from it.
+struct AgCameraLook {
+    look: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+}
+
+/// The look as `Look::to_gpu` lays it out: 72 x 8 x 8 nodes of (hue shift in
+/// degrees, saturation scale, value scale), value outermost, then hue, then
+/// saturation; the curve's 4097 samples; the three gains. Written when a
+/// render asks for Camera Look.
+@group(0) @binding(19) var<storage, read> ag_camera_look: array<f32>;
+
+const AG_LOOK_HUES = 72u;
+const AG_LOOK_SATS = 8u;
+const AG_LOOK_VALS = 8u;
+const AG_LOOK_CURVE_AT = 13824u;   // 72 * 8 * 8 nodes of three
+const AG_LOOK_CURVE_STEPS = 4096u;
+const AG_LOOK_GAINS_AT = 17921u;   // the curve's 4097 samples after it
+
+/// The table's channel `c` at node (`h`, `s`, `v`).
+fn rm_look_node(h: u32, s: u32, v: u32, c: u32) -> f32 {
+    return ag_camera_look[((v * AG_LOOK_HUES + h) * AG_LOOK_SATS + s) * 3u + c];
+}
+
+/// `Table::lookup`'s channel `c`: trilinear between the eight nodes around
+/// hue `fh`, saturation `fs` and value `fv`, in node units.
+fn rm_look_lookup(fh: f32, fs: f32, fv: f32, c: u32) -> f32 {
+    let h0 = u32(floor(fh));
+    let s0 = u32(floor(fs));
+    let v0 = u32(floor(fv));
+    let th = fh - f32(h0);
+    let ts = fs - f32(s0);
+    let tv = fv - f32(v0);
+    var out = 0.0;
+    for (var z = 0u; z < 2u; z++) {
+        let wv = select(1.0 - tv, tv, z == 1u);
+        let iv = min(v0 + z, AG_LOOK_VALS - 1u);
+        for (var y = 0u; y < 2u; y++) {
+            let ws = select(1.0 - ts, ts, y == 1u);
+            let is = min(s0 + y, AG_LOOK_SATS - 1u);
+            for (var x = 0u; x < 2u; x++) {
+                let wh = select(1.0 - th, th, x == 1u);
+                let ih = (h0 + x) % AG_LOOK_HUES;
+                out += rm_look_node(ih, is, iv, c) * (wh * ws * wv);
+            }
+        }
+    }
+    return out;
+}
+
+/// `Table::apply`: linear ProPhoto (0 to 1) through the table.
+fn rm_look_table(rgb: vec3<f32>) -> vec3<f32> {
+    let max_v = max(max(rgb.r, rgb.g), rgb.b);
+    let min_v = max(min(min(rgb.r, rgb.g), rgb.b), 0.0);
+    let d = max_v - min_v;
+    var hue = 0.0;
+    if (d >= 1.0e-9) {
+        if (max_v == rgb.r) {
+            hue = rm_rem_euclid((rgb.g - rgb.b) / d, 6.0) / 6.0;
+        } else if (max_v == rgb.g) {
+            hue = ((rgb.b - rgb.r) / d + 2.0) / 6.0;
+        } else {
+            hue = ((rgb.r - rgb.g) / d + 4.0) / 6.0;
+        }
+    }
+    let sat = select(0.0, d / max_v, max_v > 0.0);
+    let encoded = ag_srgb_encode(max_v);
+    let fh = rm_rem_euclid(hue, 1.0) * f32(AG_LOOK_HUES);
+    let fs = clamp(sat, 0.0, 1.0) * f32(AG_LOOK_SATS - 1u);
+    let fv = clamp(encoded, 0.0, 1.0) * f32(AG_LOOK_VALS - 1u);
+    let h = rm_rem_euclid(hue + rm_look_lookup(fh, fs, fv, 0u) / 360.0, 1.0) * 6.0;
+    let s = clamp(sat * rm_look_lookup(fh, fs, fv, 1u), 0.0, 1.0);
+    let v = ag_srgb_decode(encoded * rm_look_lookup(fh, fs, fv, 2u));
+    let c = v * s;
+    let x = c * (1.0 - abs(rm_rem_euclid(h, 2.0) - 1.0));
+    let m = v - c;
+    let sextant = u32(h);
+    var out = vec3<f32>(c, 0.0, x);
+    if (sextant == 0u) {
+        out = vec3<f32>(c, x, 0.0);
+    } else if (sextant == 1u) {
+        out = vec3<f32>(x, c, 0.0);
+    } else if (sextant == 2u) {
+        out = vec3<f32>(0.0, c, x);
+    } else if (sextant == 3u) {
+        out = vec3<f32>(0.0, x, c);
+    } else if (sextant == 4u) {
+        out = vec3<f32>(x, 0.0, c);
+    }
+    return out + vec3<f32>(m);
+}
+
+/// The look's curve at encoded `e`, linearly between its samples.
+fn rm_look_curve_at(e: f32) -> f32 {
+    let p = clamp(e, 0.0, 1.0) * f32(AG_LOOK_CURVE_STEPS);
+    let i = min(u32(p), AG_LOOK_CURVE_STEPS - 1u);
+    let a = ag_camera_look[AG_LOOK_CURVE_AT + i];
+    let b = ag_camera_look[AG_LOOK_CURVE_AT + i + 1u];
+    return a + (b - a) * (p - f32(i));
+}
+
+/// enhanced.rs `apply_curve`: the curve on the darkest and brightest
+/// sRGB-encoded channels, the middle one kept in its place between them.
+fn rm_look_curve(rgb: vec3<f32>) -> vec3<f32> {
+    let e = vec3<f32>(ag_srgb_encode(rgb.r), ag_srgb_encode(rgb.g), ag_srgb_encode(rgb.b));
+    let lo = min(e.r, min(e.g, e.b));
+    let hi = max(e.r, max(e.g, e.b));
+    let a = rm_look_curve_at(lo);
+    let b = rm_look_curve_at(hi);
+    var out = vec3<f32>(a);
+    if (hi - lo > 1.0e-8) {
+        out = vec3<f32>(a) + (e - vec3<f32>(lo)) * ((b - a) / (hi - lo));
+    }
+    return vec3<f32>(ag_srgb_decode(out.r), ag_srgb_decode(out.g), ag_srgb_decode(out.b));
+}
+
+/// Camera Look: the gains, the table, DNG Standard's curve (`count` points),
+/// the look's curve, in linear ProPhoto; then back to sRGB, as DNG Standard.
+fn ag_camera_look_render(linear: vec3<f32>, count: u32) -> vec3<f32> {
+    let gains = vec3<f32>(
+        ag_camera_look[AG_LOOK_GAINS_AT],
+        ag_camera_look[AG_LOOK_GAINS_AT + 1u],
+        ag_camera_look[AG_LOOK_GAINS_AT + 2u],
+    );
+    let pro = clamp((AG_SRGB_TO_PROPHOTO * linear) * gains, vec3<f32>(0.0), vec3<f32>(1.0));
+    let tabled = clamp(rm_look_table(pro), vec3<f32>(0.0), vec3<f32>(1.0));
+    let toned = rm_look_curve(rt_rgb_tone(tabled, count));
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
 }
 

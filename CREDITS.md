@@ -160,6 +160,15 @@ linear ProPhoto RGB, kept in Argentum as
 `src-tauri/engine/src/rm_color_grade_curves.tsv` and regenerated from each
 RAWmakase release, which the table names.
 
+**Camera Look** (RAW > Rendering) is RAWmakase's Camera Look (fitted), from
+v0.7.1 (`78069aa3`, first shipped in v0.4.10): a colour look - an HSV table and a
+tone curve - fitted to the JPEG the camera embedded in the RAW, kept only when it
+beats DNG Standard on a held-out third of the photo. The fit
+(`crates/rawmakase-decode/src/camera_look/`), the table's apply and the curve rule
+(`crates/rawmakase-model/src/camera_profiles/`) are in
+`src-tauri/engine/src/rm_camera_look/`, over Argentum's DNG Standard instead of
+RAWmakase's Standard.
+
 **The camera's own lens correction** (Crop > Lens Correction) is read as
 RAWmakase reads it: the distortion, lateral chromatic aberration and vignetting
 tables each camera make stores in its RAW files, their units, and which of them

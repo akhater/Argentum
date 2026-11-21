@@ -60,13 +60,7 @@ const TABLES: usize = 1 + BANDS * POSITIONS.len();
 /// A chart cell's unit: log2 of a luminance ratio, in steps of 1/4000.
 const STEP: f32 = 1.0 / 4000.0;
 
-/// Linear sRGB to linear ProPhoto, Bradford-adapted; modules.wgsl's
-/// AG_SRGB_TO_PROPHOTO, row by row.
-pub const SRGB_TO_PROPHOTO: [[f32; 3]; 3] = [
-    [0.5293458, 0.3300728, 0.1405813],
-    [0.0983744, 0.873461, 0.0281647],
-    [0.0168832, 0.1176725, 0.8654443],
-];
+pub use crate::colour::SRGB_TO_PROPHOTO;
 
 /// The chart, `TABLES` tables of `CELLS`, in log2 units. Empty if it does not
 /// read, which a test rules out; a mix then turns each colour into its

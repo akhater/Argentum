@@ -121,7 +121,7 @@ struct GlobalAdjustments {
     ag_profile_row1: vec4<f32>,
     ag_profile_row2: vec4<f32>,
 
-    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard, 4 linear
+    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard, 4 linear, 5 camera look
     raw_tone_curve_count: u32,
     ag_film_lut_input: u32,      // Argentum: 1 when a film look is fed what it declares, see modules.wgsl
     ag_film_lut_ev: f32,         // Argentum: the exposure it takes the picture at
@@ -130,6 +130,7 @@ struct GlobalAdjustments {
     ag_grade: AgGrade,           // Argentum: Lightroom's colour grading, see modules.wgsl
     ag_black_white: AgBlackWhite, // Argentum: B&W, see modules.wgsl
     ag_look_grain: AgLookGrain,  // Argentum: a provider look's grain, see modules.wgsl
+    ag_camera_look: AgCameraLook, // Argentum: read before this shader runs, see modules.wgsl
 }
 
 struct MaskAdjustments {
