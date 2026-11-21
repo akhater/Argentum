@@ -1,1 +1,0 @@
-- FlashRaw and the tethering bindings (`gphoto2`) now build from forks kept with Argentum, `akhater/flashraw` and `akhater/libgphoto2-rs`, at the same commits as before, so a build no longer depends on the original repositories staying online. `gphoto2` is now pinned to its commit instead of following a branch. FlashRaw's new releases are still watched upstream.

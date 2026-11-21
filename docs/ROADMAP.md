@@ -14,6 +14,7 @@ Work that went out without being planned on this page, newest first.
 
 | Version | What |
 |---|---|
+| `26.47.2` | Camera Look rendering, fitted to the camera JPEG. Highlights rebuilt as Camera Raw does in new edits. AI masks in presets found again per photo. Heal tone on large spots. Export: copies' own edits, _VC names, template folders, JPEG XL memory and metadata. Lightroom 3/4 presets. Generated images keep EXIF and unique names. Saves on network shares. Library, XMP and undo fixes. Liquify on rotated photos. Crash log and message |
 | `26.47.1` | 100% zoom on a cropped photo is one photo pixel per screen pixel, and Fit always fills the window. A command-line export run while the app is open leaves the app's log and temporary files alone |
 | `26.46.1` | Lens correction matches Lensfun: distortion strength in Lensfun's units, crop sensors and crop modes, every lateral CA term, zoom lengths between calibrations, full vignetting interpolated as Lensfun does. Fewer wrong lens picks (focal length, extenders, mount). Aperture shown as an f-number. Next graphics backend when the driver refuses one. One Linux AppImage per architecture. Saves wait out a virus scanner holding the new file |
 | `26.45.6` | HEIC and HEIF photos open, through the system's own decoder. Noise Reduction runs before sharpening: cleaner high-ISO photos at the same sharpness. Fit-to-window no longer noisier after zooming in and out |
