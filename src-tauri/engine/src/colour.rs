@@ -55,6 +55,27 @@ pub const BRADFORD: glam::DMat3 = glam::DMat3::from_cols_array(&[
     0.8951, -0.7502, 0.0389, 0.2664, 1.7135, -0.0685, -0.1614, 0.0367, 1.0296,
 ]);
 
+/// Linear sRGB to linear ProPhoto, Bradford-adapted; modules.wgsl's
+/// AG_SRGB_TO_PROPHOTO, row by row.
+pub const SRGB_TO_PROPHOTO: [[f32; 3]; 3] = [
+    [0.5293458, 0.3300728, 0.1405813],
+    [0.0983744, 0.873461, 0.0281647],
+    [0.0168832, 0.1176725, 0.8654443],
+];
+
+/// Linear ProPhoto back to linear sRGB: modules.wgsl's AG_PROPHOTO_TO_SRGB,
+/// row by row.
+pub const PROPHOTO_TO_SRGB: [[f32; 3]; 3] = [
+    [2.0340764, -0.7273343, -0.3067417],
+    [-0.2288134, 1.2317302, -0.0029169],
+    [-0.0085698, -0.1532866, 1.1618564],
+];
+
+/// `m` times `v`, `m` row by row.
+pub fn mul(m: [[f32; 3]; 3], v: [f32; 3]) -> [f32; 3] {
+    m.map(|row| row[0] * v[0] + row[1] * v[1] + row[2] * v[2])
+}
+
 // Copied from RAWmakase `crates/rawmakase-decode/src/half_check.rs`
 // @ 183e09fd (pch/rawmakase#526, MIT): `lab` and `delta_e2000`, on f32
 // pixels here. Used by the engine's tests and the app's look check

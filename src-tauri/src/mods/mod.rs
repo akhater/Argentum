@@ -23,6 +23,7 @@ pub mod black_white;
 mod build_ort;
 pub mod cache_key;
 pub mod cache_version;
+pub mod camera_look;
 pub mod canon_crop_mode;
 pub mod canon_makernote;
 pub mod canon_old_wb;

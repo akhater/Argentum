@@ -413,6 +413,16 @@ impl DecodeFingerprint {
         ))
     }
 
+    /// The fingerprint as text, to key a cache on disk as this one is keyed
+    /// in memory (mods/camera_look.rs).
+    pub fn key_text(&self) -> String {
+        let nanos = self
+            .modified
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos());
+        format!("{}:{nanos}:{:016x}", self.len, self.settings_hash)
+    }
+
     /// Every setting `image_loader::load_base_image_from_bytes` reads.
     fn new(metadata: &std::fs::Metadata, settings: &AppSettings, highlight_recovery: bool) -> Self {
         let mut hasher = DefaultHasher::new();

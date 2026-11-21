@@ -1284,7 +1284,7 @@ fn curve_points(value: &Value) -> Vec<(f32, f32)> {
 
 /// shader.wgsl's `apply_curve`, step for step: a cubic Hermite through up to
 /// sixteen points on a 0-255 scale, with tangents limited to stay monotone.
-fn apply_curve(value: f32, points: &[(f32, f32)]) -> f32 {
+pub(crate) fn apply_curve(value: f32, points: &[(f32, f32)]) -> f32 {
     let count = points.len().min(16);
     if count < 2 {
         return value;

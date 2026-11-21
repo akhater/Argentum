@@ -25,6 +25,7 @@ pub mod pipeline;
 mod pixels;
 pub mod registry;
 pub mod rm_black_white;
+pub mod rm_camera_look;
 pub mod rm_color_grade;
 pub mod rm_lens_builtin;
 mod source;

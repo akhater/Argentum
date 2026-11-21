@@ -143,7 +143,9 @@ export const CREDITS: CreditGroup[] = [
           'applied so hues hold; and Lightroom’s default sharpening, matched against RAWmakase’s ' +
           'output. B&W’s black and white mix is RAWmakase’s too: the grey Camera Raw makes of each ' +
           'colour, measured on a colour chart; and Color Grading for new edits and Looks is ' +
-          'RAWmakase’s measured copy of Lightroom’s. The camera’s own lens correction is read as ' +
+          'RAWmakase’s measured copy of Lightroom’s. Camera Look is RAWmakase’s Camera Look: a ' +
+          'colour look fitted to the JPEG the camera embedded in each RAW, kept only when it beats ' +
+          'DNG Standard on the part of the photo it did not learn from. The camera’s own lens correction is read as ' +
           'RAWmakase reads it: the distortion, colour fringing and vignetting tables each make ' +
           'stores in its RAW files, which of them Lightroom applies, the optical centre they turn ' +
           'about and how Lightroom frames the corrected photo. Some RAW files are read as ' +
