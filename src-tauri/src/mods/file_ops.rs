@@ -24,7 +24,7 @@
 //! - [`shares_the_xmp`]: only a photo's own edits meet its XMP, never a
 //!   virtual copy's.
 //! - [`trash_or_delete`]: how a library delete removes a file.
-//! - [`write_unique_output`] and [`write_unique_image`]: a generated file
+//! - [`write_unique_output`]: a generated file
 //!   (HDR, panorama, focus stack, collage, denoise, positive, restore or
 //!   enlargement) gets a name of its own, never an earlier result's or one
 //!   whose edits or EXIF cache are still beside it.
@@ -36,10 +36,9 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
-use image::{DynamicImage, ImageFormat};
 use serde::{Deserialize, Serialize};
 
 use crate::file_management::{
@@ -645,23 +644,6 @@ pub fn write_unique_output(
             .checked_add(1)
             .ok_or_else(|| io::Error::other("No available output file name"))?;
     }
-}
-
-/// [`write_unique_output`] for an image encoded as `format`.
-pub fn write_unique_image(
-    dir: &Path,
-    stem: &str,
-    extension: &str,
-    image: &DynamicImage,
-    format: ImageFormat,
-) -> io::Result<PathBuf> {
-    write_unique_output(dir, stem, extension, |file| {
-        let mut writer = io::BufWriter::new(file);
-        image
-            .write_to(&mut writer, format)
-            .map_err(io::Error::other)?;
-        writer.flush()
-    })
 }
 
 /// Moves `paths` to the system trash. Where the trash refuses (a drive or
@@ -2028,6 +2010,7 @@ mod tests {
 #[cfg(test)]
 mod unique_output_tests {
     use super::*;
+    use std::io::Write;
     use std::sync::{Arc, Barrier};
 
     fn write_bytes(dir: &Path, stem: &str, extension: &str, bytes: &[u8]) -> io::Result<PathBuf> {
@@ -2132,27 +2115,6 @@ mod unique_output_tests {
         });
         assert!(failed_write.is_err());
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
-    }
-
-    #[test]
-    fn writes_an_image_in_the_format_asked() {
-        let dir = tempfile::tempdir().unwrap();
-        let image = DynamicImage::ImageRgb16(image::ImageBuffer::from_pixel(
-            3,
-            2,
-            image::Rgb([1000_u16, 2000, 3000]),
-        ));
-        let path = write_unique_image(
-            dir.path(),
-            "IMG_Positive",
-            "tiff",
-            &image,
-            ImageFormat::Tiff,
-        )
-        .unwrap();
-        assert_eq!(path.file_name().unwrap(), "IMG_Positive.tiff");
-        let read = image::open(&path).unwrap();
-        assert_eq!(read.to_rgb16(), image.to_rgb16());
     }
 
     #[cfg(unix)]

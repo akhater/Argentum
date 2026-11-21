@@ -153,12 +153,13 @@ pub async fn batch_denoise_images(
                         )
                     };
 
-                    let output_path = match crate::mods::file_ops::write_unique_image(
+                    let output_path = match crate::mods::generated_image::save(
                         parent_dir,
                         &format!("{}_Denoised", stem),
                         extension,
                         &image_to_save,
                         format,
+                        &source_path,
                     ) {
                         Ok(path) => path,
                         Err(e) => {
@@ -235,12 +236,13 @@ pub async fn save_denoised_image(
         )
     };
 
-    let output_path = crate::mods::file_ops::write_unique_image(
+    let output_path = crate::mods::generated_image::save(
         parent_dir,
         &format!("{}_Denoised", stem),
         extension,
         &image_to_save,
         format,
+        &first_path,
     )
     .map_err(|e| format!("Failed to save image: {}", e))?;
 

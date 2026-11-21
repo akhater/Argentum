@@ -940,13 +940,15 @@ fn save_image(
     } else {
         DynamicImage::ImageRgb8(image.to_rgb8())
     };
-    let output_path = super::file_ops::write_unique_image(
+    let output_path = super::generated_image::save(
         parent,
         &output_stem,
         output_extension,
         &to_save,
         format,
+        &source_path,
     )
+    .map_err(anyhow::Error::msg)
     .with_context(|| format!("Could not save the enlarged image as {output_stem}"))?;
     write_super_resolution_sidecar(
         &source_path,
