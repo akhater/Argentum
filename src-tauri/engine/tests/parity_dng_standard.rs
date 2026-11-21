@@ -138,7 +138,7 @@ fn the_picture_is_the_apps_within_its_spline() {
     // by point, as the app hands them over.
     let shader = AppShader::new(
         gpu.clone(),
-        "return vec4<f32>(ag_dng_standard(v.xyz, 16u), 0.0);",
+        "return vec4<f32>(ag_dng_standard(v.xyz, 16u, false), 0.0);",
     );
     let rgb = common::colours();
     let inputs = common::elements(&rgb);
