@@ -2148,20 +2148,29 @@ pub async fn save_focus_stack(
         .take()
         .ok_or_else(|| "No focus stack image found in memory.".to_string())?;
 
-    let (first_path, _) = parse_virtual_path(&first_path_str);
+    write_focus_stack(&first_path_str, &focus_image)
+}
+
+/// Writes the stack beside the first photo as `<stem>_Stacked.tiff`, under a
+/// new name when an earlier stack (or its edits) is there.
+fn write_focus_stack(first_path_str: &str, focus_image: &DynamicImage) -> Result<String, String> {
+    let (first_path, _) = parse_virtual_path(first_path_str);
     let parent_dir = first_path
         .parent()
         .ok_or_else(|| "Could not determine output directory.".to_string())?;
     let stem = first_path.file_stem().unwrap_or_default().to_string_lossy();
 
-    let output_path = parent_dir.join(format!("{}_Stacked.tiff", stem));
+    // RapidRAW ea319a90: src-tauri/src/focus_stacking.rs (through write_unique_output)
+    let output_path = crate::mods::file_ops::write_unique_image(
+        parent_dir,
+        &format!("{}_Stacked", stem),
+        "tiff",
+        &DynamicImage::ImageRgb16(focus_image.to_rgb16()),
+        ImageFormat::Tiff,
+    )
+    .map_err(|e| format!("Failed to save focus stack: {}", e))?;
 
-    let rgb16 = focus_image.to_rgb16();
-    rgb16
-        .save_with_format(&output_path, ImageFormat::Tiff)
-        .map_err(|e| format!("Failed to save {}: {}", output_path.display(), e))?;
-
-    crate::exif_processing::write_rrexif_sidecar(&first_path_str, &output_path).ok();
+    crate::exif_processing::write_rrexif_sidecar(first_path_str, &output_path).ok();
 
     Ok(output_path.to_string_lossy().to_string())
 }
@@ -2170,13 +2179,58 @@ pub async fn save_focus_stack(
 mod tests {
     use super::*;
 
+    /// Saving a second stack from the same photos keeps the first one, and the
+    /// new file does not take the edits left beside an earlier name.
+    #[test]
+    fn a_second_stack_does_not_overwrite_the_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let first_photo = dir.path().join("IMG_1.CR2");
+        let stack = |value: u16| {
+            DynamicImage::ImageRgb16(image::ImageBuffer::from_pixel(2, 2, image::Rgb([value; 3])))
+        };
+
+        let first = write_focus_stack(&first_photo.to_string_lossy(), &stack(1000)).unwrap();
+        let second = write_focus_stack(&first_photo.to_string_lossy(), &stack(2000)).unwrap();
+        fs::write(dir.path().join("IMG_1_Stacked_2.tiff.agdata"), "old edits").unwrap();
+        let third = write_focus_stack(&first_photo.to_string_lossy(), &stack(3000)).unwrap();
+
+        let name = |path: &str| std::path::Path::new(path).file_name().unwrap().to_owned();
+        assert_eq!(name(&first), "IMG_1_Stacked.tiff");
+        assert_eq!(name(&second), "IMG_1_Stacked_1.tiff");
+        assert_eq!(name(&third), "IMG_1_Stacked_3.tiff");
+        assert_eq!(
+            image::open(&first).unwrap().to_rgb16(),
+            stack(1000).to_rgb16()
+        );
+        assert_eq!(
+            image::open(&second).unwrap().to_rgb16(),
+            stack(2000).to_rgb16()
+        );
+        assert_eq!(
+            image::open(&third).unwrap().to_rgb16(),
+            stack(3000).to_rgb16()
+        );
+    }
+
     /// A NaN pixel (a blank or broken frame) must not stop the stack: sorting
     /// it used to panic in the consistency median.
     #[test]
     fn a_nan_pixel_does_not_crash_the_labels() {
-        let plane = |values: [f32; 4]| Plane { w: 2, h: 2, data: values.to_vec() };
-        let scores = vec![vec![plane([1.0; 4])], vec![plane([2.0; 4])], vec![plane([3.0; 4])]];
-        let base = vec![plane([0.1; 4]), plane([f32::NAN, 0.2, 0.2, 0.2]), plane([0.3; 4])];
+        let plane = |values: [f32; 4]| Plane {
+            w: 2,
+            h: 2,
+            data: values.to_vec(),
+        };
+        let scores = vec![
+            vec![plane([1.0; 4])],
+            vec![plane([2.0; 4])],
+            vec![plane([3.0; 4])],
+        ];
+        let base = vec![
+            plane([0.1; 4]),
+            plane([f32::NAN, 0.2, 0.2, 0.2]),
+            plane([0.3; 4]),
+        ];
         let masks = vec![plane([1.0; 4]), plane([1.0; 4]), plane([1.0; 4])];
         decide_labels(&scores, &base, &masks, &FusionConfig::default());
     }

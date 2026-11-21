@@ -307,7 +307,6 @@ pub async fn get_or_init_ai_models(
     ensure_model(app_handle, model_catalog::SKY, "Sky Model").await?;
     ensure_model(app_handle, model_catalog::DEPTH, "Depth Model").await?;
 
-    let _ = ort::init().with_name("AI").commit();
 
     let encoder_path = models_dir.join(model_catalog::SAM_ENCODER.name);
     let decoder_path = models_dir.join(model_catalog::SAM_DECODER.name);
@@ -376,7 +375,6 @@ pub async fn get_or_init_denoise_model(
 
     let models_dir = ensure_model(app_handle, model_catalog::DENOISE, "NIND Denoise Model").await?;
 
-    let _ = ort::init().with_name("AI-Denoise").commit();
     let model_path = models_dir.join(model_catalog::NIND_DENOISE.name);
     let session = session_builder()?.commit_from_file(model_path)?;
     let denoise_model = Arc::new(Mutex::new(session));
@@ -429,7 +427,6 @@ pub async fn get_or_init_clip_models(
     let models_dir = ensure_model(app_handle, model_catalog::TAGGING, "CLIP Model").await?;
     let clip_tokenizer_path = models_dir.join(model_catalog::CLIP_TOKENIZER.name);
 
-    let _ = ort::init().with_name("AI-Tagging").commit();
     let clip_model_path = models_dir.join(model_catalog::CLIP_MODEL.name);
     let model = Mutex::new(session_builder()?.commit_from_file(clip_model_path)?);
     let tokenizer =
@@ -484,7 +481,6 @@ pub async fn get_or_init_lama_model(
 
     let models_dir = ensure_model(app_handle, model_catalog::INPAINTING, "Inpainting Model").await?;
 
-    let _ = ort::init().with_name("AI-Inpainting").commit();
     let model_path = models_dir.join(model_catalog::LAMA.name);
     let session = session_builder()?.commit_from_file(model_path)?;
     let lama_model = Arc::new(Mutex::new(session));
@@ -536,9 +532,8 @@ pub async fn get_or_init_normal_model(
 
     let models_dir = ensure_model(app_handle, model_catalog::RELIGHT, "Normal Model").await?;
 
-    let _ = ort::init().with_name("AI-Normal").commit();
     let model_path = models_dir.join(model_catalog::MOGE_NORMAL.name);
-    let session = Session::builder()?.commit_from_file(model_path)?;
+    let session = crate::mods::ai_session::builder()?.commit_from_file(model_path)?;
     let normal_model = Arc::new(Mutex::new(session));
 
     crate::register_exit_handler();
