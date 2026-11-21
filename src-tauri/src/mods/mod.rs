@@ -39,6 +39,7 @@ mod compat_fixture;
 #[cfg(test)]
 mod compat_snapshot;
 pub mod copy_keys;
+pub mod crash_log;
 pub mod dcp;
 pub mod decode;
 pub mod denoise_gpu;
