@@ -8,7 +8,13 @@ import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { ImageFlag, Invokes } from '../components/ui/AppProperties';
-import { activePathAfterDelete, isInFolder, pathAfterFolderRename, shownAfterRename } from '../argentum/fileOps';
+import {
+  activePathAfterDelete,
+  isInFolder,
+  isShownWithin,
+  pathAfterFolderRename,
+  shownAfterRename,
+} from '../argentum/fileOps';
 import { ag } from '../argentum/ag';
 import { useModernFolders } from '../argentum/modern/folders';
 import { VIRTUAL_COPY, isVirtualCopyPath, physicalPathOf } from '../argentum/paths';
@@ -215,6 +221,8 @@ export function useFileOperations(
           }
           if (currentFolderPath && isInRenamedFolder(currentFolderPath)) {
             setLibrary({ currentFolderPath: renamePath(currentFolderPath) });
+          } else if (isShownWithin(oldPath, currentFolderPath)) {
+            await refreshImageList();
           }
 
           const currentPins = appSettings?.pinnedFolders || [];
@@ -234,7 +242,7 @@ export function useFileOperations(
         }
       }
     },
-    [refreshAllFolderTrees],
+    [refreshAllFolderTrees, refreshImageList],
   );
 
   const handleSaveRename = useCallback(

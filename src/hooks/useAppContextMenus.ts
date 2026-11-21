@@ -73,6 +73,8 @@ import { reloadAdjustmentsForPaths, useEditorActions } from './useEditorActions'
 import { useLibraryActions } from './useLibraryActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { VIRTUAL_COPY, isVirtualCopyPath } from '../argentum/paths';
+import { canUndo as canUndoNow } from '../argentum/historyOnRelease';
+import { isShownWithin } from '../argentum/fileOps';
 
 export interface UseAppContextMenusProps {
   handleImageSelect: (path: string) => void;
@@ -209,7 +211,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
 
       if (!selectedImage) return;
 
-      const canUndo = historyIndex > 0;
+      const canUndo = canUndoNow({ historyIndex });
       const canRedo = historyIndex < history.length - 1;
       const commonTags = getCommonTags([selectedImage.path]);
 
@@ -1075,6 +1077,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                     if (appSettings) {
                       handleSettingsChange({ ...appSettings, lastFolderState: null } as any);
                     }
+                  } else if (isShownWithin(targetPath, currentFolderPath)) {
+                    await props.refreshImageList();
                   }
 
                   props.refreshAllFolderTrees();

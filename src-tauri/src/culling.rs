@@ -129,11 +129,13 @@ fn analyze_image(
 ) -> Result<ImageAnalysisData, String> {
     const ANALYSIS_DIM: u32 = 720; // FIXME: How should we calculate good focus if it's downscaled?!?
 
-    crate::file_management::require_on_this_disk(Path::new(path))?;
+    // RapidRAW 5720d633: src-tauri/src/culling.rs (a virtual copy is read from its photo's file)
+    let (photo, _) = crate::file_management::split_virtual_path(path);
+    crate::file_management::require_on_this_disk(Path::new(photo))?;
 
-    let file_bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    let file_bytes = std::fs::read(photo).map_err(|e| e.to_string())?;
 
-    let img = image_loader::load_base_image_from_bytes(&file_bytes, path, true, settings, None)
+    let img = image_loader::load_base_image_from_bytes(&file_bytes, photo, true, settings, None)
         .map_err(|e| e.to_string())?;
 
     let (width, height) = img.dimensions();
@@ -236,11 +238,24 @@ pub async fn cull_images(
         },
     );
 
+    let suggestions = suggest(&successful_analyses, &settings, failed_paths);
+
+    let _ = app_handle.emit("culling-complete", &suggestions);
+    Ok(suggestions)
+}
+
+/// The similar groups and the blurry photos among `successful_analyses`.
+fn suggest(
+    successful_analyses: &[ImageAnalysisData],
+    settings: &CullingSettings,
+    failed_paths: Vec<String>,
+) -> CullingSuggestions {
     let mut suggestions = CullingSuggestions {
         failed_paths,
         ..Default::default()
     };
     let mut processed_indices = vec![false; successful_analyses.len()];
+    let mut grouped_indices = vec![false; successful_analyses.len()];
 
     if settings.group_similar {
         for i in 0..successful_analyses.len() {
@@ -281,6 +296,10 @@ pub async fn cull_images(
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
 
+                // RapidRAW 5720d633: src-tauri/src/culling.rs (blurry list skips grouped photos only)
+                for &idx in &current_group_indices {
+                    grouped_indices[idx] = true;
+                }
                 let representative_idx = current_group_indices[0];
                 let duplicate_indices = &current_group_indices[1..];
 
@@ -297,7 +316,8 @@ pub async fn cull_images(
 
     if settings.filter_blurry {
         for i in 0..successful_analyses.len() {
-            if !processed_indices[i] {
+            // A photo already listed in a similar group is not listed again.
+            if !grouped_indices[i] {
                 let item = &successful_analyses[i];
                 if item.result.sharpness_metric < settings.blur_threshold {
                     suggestions.blurry_images.push(item.result.clone());
@@ -310,7 +330,71 @@ pub async fn cull_images(
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
     }
+    suggestions
+}
 
-    let _ = app_handle.emit("culling-complete", &suggestions);
-    Ok(suggestions)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn analysis(path: &str, hash_byte: u8, sharpness: f64) -> ImageAnalysisData {
+        ImageAnalysisData {
+            hash: image_hasher::ImageHash::from_bytes(&[hash_byte; 32]).unwrap(),
+            result: ImageAnalysisResult {
+                path: path.to_string(),
+                quality_score: sharpness,
+                sharpness_metric: sharpness,
+                center_focus_metric: 0.0,
+                exposure_metric: 0.0,
+                width: 1,
+                height: 1,
+            },
+        }
+    }
+
+    fn settings(group_similar: bool) -> CullingSettings {
+        CullingSettings {
+            similarity_threshold: 4,
+            blur_threshold: 10.0,
+            group_similar,
+            filter_blurry: true,
+        }
+    }
+
+    #[test]
+    fn a_blurry_photo_is_listed_when_grouping_and_a_grouped_one_is_not() {
+        let analyses = [
+            analysis("sharp-a.jpg", 0x00, 50.0),
+            analysis("blurry-a.jpg", 0x00, 2.0),
+            analysis("blurry-alone.jpg", 0xff, 3.0),
+        ];
+        let paths = |items: &[ImageAnalysisResult]| -> Vec<String> {
+            items.iter().map(|item| item.path.clone()).collect()
+        };
+
+        let grouped = suggest(&analyses, &settings(true), Vec::new());
+        assert_eq!(grouped.similar_groups.len(), 1);
+        assert_eq!(paths(&grouped.blurry_images), ["blurry-alone.jpg"]);
+
+        let ungrouped = suggest(&analyses, &settings(false), Vec::new());
+        assert_eq!(
+            paths(&ungrouped.blurry_images),
+            ["blurry-a.jpg", "blurry-alone.jpg"]
+        );
+    }
+
+    #[test]
+    fn a_virtual_copy_is_analysed_from_its_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.png");
+        image::RgbImage::from_fn(64, 48, |x, y| image::Rgb([(x * 4) as u8, (y * 5) as u8, 90]))
+            .save(&photo)
+            .unwrap();
+        let copy = format!("{}?vc=a1b2c3", photo.display());
+        let hasher = HasherConfig::new().to_hasher();
+
+        let analysed = analyze_image(&copy, &hasher, &Default::default()).unwrap();
+        assert_eq!(analysed.result.path, copy);
+        assert_eq!((analysed.result.width, analysed.result.height), (64, 48));
+    }
 }

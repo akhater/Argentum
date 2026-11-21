@@ -50,6 +50,7 @@ import { Menu, MenuHead, MenuItem, MenuSep } from './Menu';
 import { SHOW_CHOICES, TYPE_CHOICES, activeFilterNames } from './shownFilters';
 import WindowControls, { MacLights, usePlatform } from './WindowControls';
 import { fileNameOf } from '../paths';
+import { canUndo } from '../historyOnRelease';
 
 const PanelLeft = () => (
   <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
@@ -434,10 +435,11 @@ function GridTools(p: TopBarProps) {
 /** The photo's view tools: what used to sit in the toolbar over the photo. */
 function PhotoTools({ onZoom }: { onZoom(zoom: number, fitToWindow?: boolean): void }) {
   const t = useAgTranslation();
-  const { history, historyIndex, undo, redo, showOriginal, showClipping } = useEditorStore(
+  const { history, historyIndex, undoable, undo, redo, showOriginal, showClipping } = useEditorStore(
     useShallow((s) => ({
       history: s.history,
       historyIndex: s.historyIndex,
+      undoable: canUndo(s),
       undo: s.undo,
       redo: s.redo,
       showOriginal: s.showOriginal,
@@ -456,13 +458,7 @@ function PhotoTools({ onZoom }: { onZoom(zoom: number, fitToWindow?: boolean): v
   return (
     <div className="agm-context">
       {/* data-bench-id: bench/replay.js clicks undo here, as it did on their toolbar's button. */}
-      <button
-        className="agm-btn"
-        disabled={historyIndex <= 0}
-        onClick={undo}
-        data-tooltip={t('mwUndo')}
-        data-bench-id="undo"
-      >
+      <button className="agm-btn" disabled={!undoable} onClick={undo} data-tooltip={t('mwUndo')} data-bench-id="undo">
         <Undo2 size={16} />
       </button>
       <button

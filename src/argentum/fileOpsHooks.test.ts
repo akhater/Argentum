@@ -29,9 +29,10 @@ import { Invokes, type SelectedImage } from '../components/ui/AppProperties';
 const shown = ['/p/a.CR2', '/p/b.CR2', '/p/b.CR2?vc=a1b2c3', '/p/c.CR2'];
 const handleImageSelect = vi.fn();
 const handleBackToLibrary = vi.fn();
+const refreshImageList = vi.fn(async () => {});
 const fileOperations = () =>
   useFileOperations(
-    async () => {},
+    refreshImageList,
     async () => {},
     handleImageSelect,
     handleBackToLibrary,
@@ -44,6 +45,7 @@ describe('the library after a file operation', () => {
     backend.calls.length = 0;
     handleImageSelect.mockReset();
     handleBackToLibrary.mockReset();
+    refreshImageList.mockClear();
     useUIStore.setState({ activeView: 'library' });
     useEditorStore.setState({ selectedImage: null });
     useLibraryStore.setState({ libraryActivePath: null, multiSelectedPaths: [] });
@@ -84,6 +86,18 @@ describe('the library after a file operation', () => {
     expect(handleSettingsChange).toHaveBeenCalledWith(
       expect.objectContaining({ pinnedFolders: ['/photos/rome/day 1', '/photos/trip2'] }),
     );
+  });
+
+  it('lists the photos again when a folder inside the one on show is renamed', async () => {
+    useSettingsStore.setState({ appSettings: {} as never, handleSettingsChange: vi.fn(async () => {}) });
+    useLibraryStore.setState({ rootPaths: ['/photos'], currentFolderPath: '/photos' });
+    useUIStore.setState({ folderActionTarget: '/photos/trip' });
+
+    await fileOperations().handleRenameFolder('rome');
+
+    // The recursive view still listed /photos/trip's photos under their old paths.
+    expect(refreshImageList).toHaveBeenCalled();
+    expect(useLibraryStore.getState().currentFolderPath).toBe('/photos');
   });
 
   it('renames the folder in the Recent list too', async () => {

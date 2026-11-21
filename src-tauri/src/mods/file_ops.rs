@@ -21,6 +21,8 @@
 //! - [`same_folder_copy`]: the names of a photo duplicated in its own folder.
 //! - [`paths_after_rename`]: the selection after a rename, one path per input.
 //! - [`xmp_text`] and [`xmp_text_read`]: tag and label text as XMP stores it.
+//! - [`shares_the_xmp`]: only a photo's own edits meet its XMP, never a
+//!   virtual copy's.
 //! - [`trash_or_delete`]: how a library delete removes a file.
 //!
 //! The rules follow RapidRAW 1.6.7's fixes to `src-tauri/src/file_management.rs`
@@ -35,7 +37,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::file_management::{
-    VIRTUAL_COPY, parse_sidecar_name, parse_virtual_path, split_virtual_path,
+    VIRTUAL_COPY, parse_sidecar_name, parse_virtual_path, sidecar_for, split_virtual_path,
 };
 use crate::formats::is_supported_image_file;
 use crate::white_balance::WhiteBalance;
@@ -358,6 +360,15 @@ pub fn xmp_still_used(xmp: &Path, leaving: &HashSet<PathBuf>) -> bool {
                 .is_some_and(|s| s.eq_ignore_ascii_case(stem))
             && !leaving.contains(&path)
     })
+}
+
+/// Whether `sidecar` is `photo`'s own edit file, the one whose rating, label
+/// and tags the photo's XMP shares. A virtual copy's are its own: writing them
+/// would overwrite the photo's XMP, and reading it would give the copy the
+/// photo's.
+// RapidRAW 5720d633: src-tauri/src/file_management.rs (XMP sync for the primary sidecar only)
+pub fn shares_the_xmp(photo: &Path, sidecar: &Path) -> bool {
+    sidecar == sidecar_for(photo, None)
 }
 
 /// How an XMP reaches one of its photos' new names.
@@ -1793,9 +1804,11 @@ mod tests {
 
         // The first write creates the subject list and the label; the second
         // replaces them, which is where a `$1` used to be expanded.
-        sync_metadata_to_xmp(&photo, &with_tags(&["old", "color:red"]), true);
+        let own = sidecar_for(&photo, None);
+        sync_metadata_to_xmp(&photo, &own, &with_tags(&["old", "color:red"]), true);
         sync_metadata_to_xmp(
             &photo,
+            &own,
             &with_tags(&["R&D", "$1 fee", "<b>", "color:r&d"]),
             true,
         );
@@ -1808,11 +1821,52 @@ mod tests {
         assert!(!xmp.contains("old"), "{xmp}");
 
         let mut read_back = ImageMetadata::default();
-        assert!(sync_metadata_from_xmp(&photo, &mut read_back, false));
+        assert!(sync_metadata_from_xmp(&photo, &own, &mut read_back, false));
         let tags = read_back.tags.unwrap();
         for tag in ["R&D", "$1 fee", "<b>", "color:r&d"] {
             assert!(tags.iter().any(|t| t == tag), "{tag} missing from {tags:?}");
         }
+    }
+
+    // RapidRAW 5720d633: src-tauri/src/file_management.rs (XMP sync for the primary sidecar only)
+    #[test]
+    fn a_virtual_copy_keeps_its_rating_label_and_tags_out_of_the_xmp() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR2");
+        write(&photo, "raw");
+        let xmp = dir.path().join("IMG.xmp");
+        let rated = |rating: u8, tags: &[&str]| ImageMetadata {
+            rating,
+            tags: Some(tags.iter().map(|tag| tag.to_string()).collect()),
+            ..ImageMetadata::default()
+        };
+        sync_metadata_to_xmp(
+            &photo,
+            &sidecar_for(&photo, None),
+            &rated(2, &["own"]),
+            true,
+        );
+        let before = read(&xmp);
+
+        // Rating or tagging the copy leaves the photo's XMP as it was.
+        let copy = sidecar_for(&photo, Some("a1b2c3"));
+        sync_metadata_to_xmp(&photo, &copy, &rated(5, &["copy", "color:red"]), true);
+        assert_eq!(read(&xmp), before);
+
+        // Listing the folder gives the copy nothing of the photo's XMP.
+        let mut copy_meta = ImageMetadata::default();
+        assert!(!sync_metadata_from_xmp(&photo, &copy, &mut copy_meta, true));
+        assert_eq!((copy_meta.rating, copy_meta.tags), (0, None));
+
+        // The photo itself still reads it back.
+        let mut own_meta = ImageMetadata::default();
+        assert!(sync_metadata_from_xmp(
+            &photo,
+            &sidecar_for(&photo, None),
+            &mut own_meta,
+            false
+        ));
+        assert_eq!(own_meta.rating, 2);
     }
 
     /// A sidecar with one key this version cannot read (here, snapshots in an

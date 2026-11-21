@@ -22,6 +22,7 @@ import {
 import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cropUtils';
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
+import { debouncedSetHistory } from '../argentum/historyOnRelease';
 import { builtinKeys } from '../argentum/lensBuiltin';
 import { lookOnto, providerLookOff } from '../argentum/looks/providerLook';
 import { takeFromPaste } from '../argentum/looks/providerLooksStore';
@@ -30,9 +31,8 @@ import { findMasksAgain } from '../argentum/selection/findAgain';
 import { fileNameOf } from '../argentum/paths';
 import { screenDpr, transformScaleForZoom } from '../argentum/zoomScale';
 
-export const debouncedSetHistory = debounce((newAdj: Adjustments) => {
-  useEditorStore.getState().pushHistory(newAdj);
-}, 500);
+// Argentum: the 500 ms step lives with the History rules, where undo flushes it.
+export { debouncedSetHistory };
 
 export const debouncedSave = debounce((path: string, adjustmentsToSave: Adjustments) => {
   invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path, adjustments: adjustmentsToSave }).catch((err) => {

@@ -3,7 +3,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { debouncedSetHistory } from '../hooks/useEditorActions';
 import { INITIAL_ADJUSTMENTS, type Adjustments } from '../utils/adjustments';
 import type { SelectedImage } from '../components/ui/AppProperties';
-import './historyOnRelease';
+import { canUndo } from './historyOnRelease';
 
 const photo = (path: string) => ({ path }) as SelectedImage;
 const withExposure = (exposure: number): Adjustments => ({ ...INITIAL_ADJUSTMENTS, exposure });
@@ -73,5 +73,51 @@ describe('history on release', () => {
     useEditorStore.getState().resetHistory(INITIAL_ADJUSTMENTS);
     drag(false);
     expect(steps()).toBe(0);
+  });
+});
+
+describe('undo after a change that is not a step yet', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useEditorStore.setState({ selectedImage: photo('a.raf'), isSliderDragging: false });
+    useEditorStore.getState().resetHistory(INITIAL_ADJUSTMENTS);
+  });
+  afterEach(() => {
+    debouncedSetHistory.cancel();
+    vi.useRealTimers();
+  });
+
+  it('undoes the first change of a photo at once, and redo brings it back', () => {
+    change(0.3);
+    expect(canUndo(useEditorStore.getState())).toBe(true);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().adjustments.exposure).toBe(INITIAL_ADJUSTMENTS.exposure);
+    vi.advanceTimersByTime(2000);
+    expect(useEditorStore.getState().adjustments.exposure).toBe(INITIAL_ADJUSTMENTS.exposure);
+    useEditorStore.getState().redo();
+    expect(useEditorStore.getState().adjustments.exposure).toBe(0.3);
+  });
+
+  it('undoes the latest change, not the step before it', () => {
+    change(0.3);
+    vi.advanceTimersByTime(500);
+    change(0.6);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().adjustments.exposure).toBe(0.3);
+    expect(useEditorStore.getState().historyIndex).toBe(1);
+  });
+
+  it('keeps a pending change when jumping in the History', () => {
+    change(0.3);
+    useEditorStore.getState().goToHistoryIndex(0);
+    expect(steps()).toBe(1);
+    expect(useEditorStore.getState().adjustments.exposure).toBe(INITIAL_ADJUSTMENTS.exposure);
+  });
+
+  it('has nothing to undo on a fresh photo, nor once a pending change is dropped', () => {
+    expect(canUndo(useEditorStore.getState())).toBe(false);
+    change(0.3);
+    debouncedSetHistory.cancel();
+    expect(canUndo(useEditorStore.getState())).toBe(false);
   });
 });

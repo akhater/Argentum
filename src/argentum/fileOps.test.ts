@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activePathAfterDelete, isInFolder, pathAfterFolderRename, shownAfterRename } from './fileOps';
+import { activePathAfterDelete, isInFolder, isShownWithin, pathAfterFolderRename, shownAfterRename } from './fileOps';
 
 describe('the photo made active after a delete', () => {
   const order = ['/p/a.CR2', '/p/b.CR2', '/p/b.CR2?vc=a1b2c3', '/p/b.CR2?vc=b2c3d4', '/p/c.CR2'];
@@ -51,5 +51,18 @@ describe('the photo on show after it is renamed', () => {
   it('leaves the editor without a new path, and the grid alone', () => {
     expect(shownAfterRename(undefined, true)).toBe('backToLibrary');
     expect(shownAfterRename(undefined, false)).toBe('nothing');
+  });
+});
+
+describe('the folders whose photos can be on show', () => {
+  it('counts a folder inside the one on show, on either separator', () => {
+    expect(isShownWithin('/photos/trip', '/photos')).toBe(true);
+    expect(isShownWithin('C:\\photos\\trip\\day 1', 'C:\\photos')).toBe(true);
+  });
+
+  it('leaves out the folder itself, a sibling with the same letters, and no folder at all', () => {
+    expect(isShownWithin('/photos', '/photos')).toBe(false);
+    expect(isShownWithin('/photos2/trip', '/photos')).toBe(false);
+    expect(isShownWithin('/photos/trip', null)).toBe(false);
   });
 });

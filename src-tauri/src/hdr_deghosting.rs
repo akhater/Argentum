@@ -52,25 +52,31 @@ pub fn load_hdr_frames(
                         .to_string_lossy()
                 ),
             );
-            let file_bytes =
-                fs::read(path).map_err(|e| format!("Failed to read image {}: {}", path, e))?;
-            let mut dynamic_image =
-                load_base_image_from_bytes(&file_bytes, path, false, settings, None)
-                    .map_err(|e| format!("Failed to load image {}: {}", path, e))?;
-            if !is_raw_file(path) {
-                dynamic_image = apply_srgb_to_linear(dynamic_image);
-            }
-            let gains = match read_iso(path, &file_bytes) {
-                None => return Err(format!("Image {} is missing ISO/Sensitivity data", path)),
-                Some(gains) => gains as f32,
-            };
-            let exposure = match read_exposure_time_secs(path, &file_bytes) {
-                None => return Err(format!("Image {} is missing ExposureTime data", path)),
-                Some(exp) => Duration::from_secs_f32(exp),
-            };
-            Ok((path.clone(), dynamic_image, exposure, gains))
+            load_hdr_frame(path, settings)
         })
         .collect()
+}
+
+/// One frame of an HDR merge, read from the photo's file: a virtual copy's
+/// path names its photo's.
+fn load_hdr_frame(path: &str, settings: &AppSettings) -> Result<HdrFrame, String> {
+    // RapidRAW 5720d633: src-tauri/src/lib.rs (merge_hdr reads a virtual copy's photo)
+    let (path, _) = crate::file_management::split_virtual_path(path);
+    let file_bytes = fs::read(path).map_err(|e| format!("Failed to read image {}: {}", path, e))?;
+    let mut dynamic_image = load_base_image_from_bytes(&file_bytes, path, false, settings, None)
+        .map_err(|e| format!("Failed to load image {}: {}", path, e))?;
+    if !is_raw_file(path) {
+        dynamic_image = apply_srgb_to_linear(dynamic_image);
+    }
+    let gains = match read_iso(path, &file_bytes) {
+        None => return Err(format!("Image {} is missing ISO/Sensitivity data", path)),
+        Some(gains) => gains as f32,
+    };
+    let exposure = match read_exposure_time_secs(path, &file_bytes) {
+        None => return Err(format!("Image {} is missing ExposureTime data", path)),
+        Some(exp) => Duration::from_secs_f32(exp),
+    };
+    Ok((path.to_string(), dynamic_image, exposure, gains))
 }
 
 pub fn assert_uniform_dimensions(frames: &[HdrFrame]) -> Result<(), String> {
@@ -304,4 +310,22 @@ fn max_corner_displacement(transform: &Matrix3<f64>, width: u32, height: u32) ->
         }
     }
     max_displacement
+}
+
+#[cfg(test)]
+mod virtual_copy_tests {
+    use super::*;
+
+    #[test]
+    fn a_virtual_copy_is_merged_from_its_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.png");
+        image::RgbImage::new(8, 8).save(&photo).unwrap();
+        let copy = format!("{}?vc=a1b2c3", photo.display());
+
+        // The photo is read and decoded; this one has no exposure data to merge by.
+        let error = load_hdr_frame(&copy, &AppSettings::default()).unwrap_err();
+        assert!(error.contains("missing ISO"), "{error}");
+        assert!(!error.contains("?vc="), "{error}");
+    }
 }

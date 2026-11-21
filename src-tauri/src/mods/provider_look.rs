@@ -554,10 +554,11 @@ mod tests {
     /// one is not.
     #[test]
     fn a_look_file_loads_where_an_edits_path_would_be_refused() {
-        let dir = scratch("dots").join("trip..2026");
-        std::fs::create_dir_all(&dir).expect("folder");
-        let file = dir.join("IMG.CR3.cam1.abc.lut.png");
-        write_look_file(&file);
+        let dir = scratch("dots");
+        std::fs::create_dir_all(dir.join("trip")).expect("folder");
+        write_look_file(&dir.join("IMG.CR3.cam1.abc.lut.png"));
+        // A `..` component: only that is refused since RapidRAW 5720d633.
+        let file = dir.join("trip").join("..").join("IMG.CR3.cam1.abc.lut.png");
         assert!(lut_processing::parse_lut_file(&file.to_string_lossy()).is_err());
         let cache = Mutex::new(LutCache::default());
         assert!(load_look_file(&cache, &file).is_some());
