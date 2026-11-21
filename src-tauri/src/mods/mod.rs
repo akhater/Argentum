@@ -56,6 +56,7 @@ pub mod engine_bridge;
 pub mod engine_frame;
 pub mod esam3;
 pub mod export_at_size;
+pub mod export_batch;
 pub mod export_metadata;
 pub mod export_precision;
 pub mod face_mask;
