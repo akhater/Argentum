@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -40,7 +39,7 @@ use crate::mask_generation::{MaskDefinition, build_warped_image_for_masks, gener
 use crate::as_shot::as_shot;
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
 use crate::mods::{
-    export_at_size,
+    export_at_size, export_batch,
     export_metadata::write_export_metadata,
     export_precision::{
         Precision, TiffDepth, encode_tiff, overlay_preserving_precision, render_for_estimate,
@@ -1118,7 +1117,7 @@ fn encode_grayscale_to_png(bitmap: &GrayImage) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
-const SRGB_ICC_PROFILE: &[u8] = include_bytes!("../icc/sRGB-v2-magic.icc");
+pub(crate) const SRGB_ICC_PROFILE: &[u8] = include_bytes!("../icc/sRGB-v2-magic.icc");
 
 fn encode_image_to_bytes(
     image: &DynamicImage,
@@ -1486,42 +1485,14 @@ pub(crate) async fn export_images_impl(
         let total_paths = paths.len();
         let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
-        let mut base_path_counts: HashMap<String, usize> = HashMap::new();
-        let mut export_items = Vec::with_capacity(total_paths);
-
-        for (i, path_str) in paths.into_iter().enumerate() {
-            let (source_path, _) = parse_virtual_path(&path_str);
-            let source_str = source_path.to_string_lossy().to_string();
-            let count = base_path_counts.entry(source_str.clone()).or_insert(0);
-            *count += 1;
-
-            let mut explicit_vc = None;
-            if let Some(idx) = path_str.rfind("vc=") {
-                let id_str = path_str[idx + 3..].split('&').next().unwrap_or("");
-                if let Ok(id) = id_str.parse::<u32>() {
-                    explicit_vc = Some(id);
-                }
-            }
-            if explicit_vc.is_none() {
-                let lower = path_str.to_lowercase();
-                if let Some(idx) = lower.rfind("_vc") {
-                    let id_str: String = lower[idx + 3..]
-                        .chars()
-                        .take_while(|c| c.is_ascii_digit())
-                        .collect();
-                    if let Ok(id) = id_str.parse::<u32>() {
-                        explicit_vc = Some(id);
-                    }
-                }
-            }
-            export_items.push((i, path_str, *count, explicit_vc));
-        }
+        let copy_numbers = export_batch::copy_numbers(&paths);
+        let export_items = paths.into_iter().zip(copy_numbers).enumerate();
 
         let used_paths = Arc::new(Mutex::new(std::collections::HashSet::new()));
         let semaphore = Arc::new(tokio::sync::Semaphore::new(num_threads));
         let mut join_handles = Vec::new();
 
-        for (global_index, image_path_str, appearance_count, explicit_vc) in export_items {
+        for (global_index, (image_path_str, copy_number)) in export_items {
             if cancellation_token.load(Ordering::SeqCst) {
                 break;
             }
@@ -1556,32 +1527,17 @@ pub(crate) async fn export_images_impl(
                 let (source_path, sidecar_path) = parse_virtual_path(&image_path_str);
                 let source_path_str = source_path.to_string_lossy().to_string();
 
-                let is_current_edit = match &adjustments_mode {
-                    ExportAdjustmentsMode::UseSidecars { active_path, .. } => {
-                        Some(&source_path_str) == active_path.as_ref()
-                    }
-                    ExportAdjustmentsMode::GlobalOverride(_) => false,
-                };
+                let is_current_edit =
+                    export_batch::is_open_edit_in(&image_path_str, &adjustments_mode);
 
                 let sidecar = crate::exif_processing::load_sidecar(&sidecar_path);
                 let export_xmp = crate::exif_processing::ExportXmp::from_metadata(&sidecar);
 
-                let mut js_adjustments = match &adjustments_mode {
-                    ExportAdjustmentsMode::UseSidecars {
-                        active_adjustments, ..
-                    } => {
-                        if is_current_edit {
-                            if let Some(adj) = active_adjustments {
-                                adj.clone()
-                            } else {
-                                sidecar.adjustments
-                            }
-                        } else {
-                            sidecar.adjustments
-                        }
-                    }
-                    ExportAdjustmentsMode::GlobalOverride(adj) => adj.clone(),
-                };
+                let mut js_adjustments = export_batch::adjustments_for(
+                    &image_path_str,
+                    &adjustments_mode,
+                    sidecar.adjustments,
+                );
 
                 hydrate_adjustments(&state, &mut js_adjustments);
                 if !crate::mods::lut_provider::look_file_ready(
@@ -1601,19 +1557,16 @@ pub(crate) async fn export_images_impl(
                     .as_deref()
                     .unwrap_or("{original_filename}_edited");
 
-                let mut new_stem = generate_filename_from_template(
-                    filename_template,
-                    original_path,
-                    global_index + 1,
-                    total_paths,
-                    &file_date,
+                let new_stem = export_batch::with_copy_suffix(
+                    generate_filename_from_template(
+                        filename_template,
+                        original_path,
+                        global_index + 1,
+                        total_paths,
+                        &file_date,
+                    ),
+                    copy_number,
                 );
-
-                if let Some(vc_id) = explicit_vc {
-                    new_stem = format!("{}_VC{:02}", new_stem, vc_id);
-                } else if appearance_count > 1 {
-                    new_stem = format!("{}_VC{:02}", new_stem, appearance_count - 1);
-                }
 
                 let new_filename = format!("{}.{}", new_stem, output_format);
 
@@ -1685,6 +1638,7 @@ pub(crate) async fn export_images_impl(
                     }
                     used.insert(output_path.clone());
                 }
+                export_batch::create_output_folders(&output_path)?;
 
                 let result: Result<(), String> = (|| {
                     if extension == "cube" {
@@ -2184,34 +2138,46 @@ pub async fn estimate_export_sizes(
     current_edit_adjustments: Option<Value>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
-) -> Result<usize, String> {
+) -> Result<Option<usize>, String> {
+    // `None`: the open photo is still loading, so there is nothing to estimate yet.
     if output_format.to_lowercase() == "cube" {
-        return Ok(1_050_000 * paths.len());
+        return Ok(Some(1_050_000 * paths.len()));
     }
 
     if paths.is_empty() {
-        return Ok(0);
+        return Ok(Some(0));
     }
 
     let first_path = &paths[0];
     let (source_path, sidecar_path) = parse_virtual_path(first_path);
     let source_path_str = source_path.to_string_lossy().to_string();
 
+    // RapidRAW f01c328c: src-tauri/src/export_processing.rs
+    let current_edit = match current_edit_adjustments {
+        Some(adjustments)
+            if export_batch::is_open_edit(first_path, current_edit_path.as_deref()) =>
+        {
+            let loaded_image = state
+                .original_image
+                .lock()
+                .unwrap()
+                .clone()
+                .filter(|image| image.path == *first_path);
+            match loaded_image {
+                Some(loaded_image) => Some((loaded_image, adjustments)),
+                None => return Ok(None),
+            }
+        }
+        _ => None,
+    };
+
     let context = get_or_init_gpu_context(&state, &app_handle)?;
-    let is_current_edit = Some(&source_path_str) == current_edit_path.as_ref();
     let is_raw = is_raw_file(&source_path_str);
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
-    let single_image_extrapolated_size: usize = if is_current_edit
-        && current_edit_adjustments.is_some()
+    let single_image_extrapolated_size: usize = if let Some((loaded_image, mut adjustments_clone)) =
+        current_edit
     {
-        let loaded_image = state
-            .original_image
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or("No original image loaded")?;
-        let mut adjustments_clone = current_edit_adjustments.clone().unwrap();
         hydrate_adjustments(&state, &mut adjustments_clone);
 
         let new_transform_hash = calculate_transform_hash(&adjustments_clone);
@@ -2451,7 +2417,7 @@ pub async fn estimate_export_sizes(
         (single_image_estimated_size as f64 * pixel_ratio) as usize
     };
 
-    Ok(single_image_extrapolated_size * paths.len())
+    Ok(Some(single_image_extrapolated_size * paths.len()))
 }
 
 #[cfg(test)]

@@ -29,6 +29,8 @@ export const FILENAME_VARIABLES: Array<string> = [
   '{DD}',
   '{hh}',
   '{mm}',
+  // RapidRAW 642c8f21: src/components/ui/ExportImportProperties.tsx
+  '{ss}',
 ];
 
 const UNIQUE_FILENAME_VARIABLES: Array<string> = ['{original_filename}', '{original_filename_number}', '{sequence}'];

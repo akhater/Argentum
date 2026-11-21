@@ -235,7 +235,7 @@
     },
     "src/components/panel/right/ExportPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 5,
-      "@typescript-eslint/no-unused-vars": 2
+      "@typescript-eslint/no-unused-vars": 1
     },
     "src/components/panel/right/FolderTree.tsx": {
       "@typescript-eslint/no-explicit-any": 22

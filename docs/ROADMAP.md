@@ -270,7 +270,7 @@ whose line count could only go down. Those files are ours to change now.
 | ⬜ | **Kelvin readout on Canon 1D/1Ds** | Their `read_as_shot_white_balance` decodes on its own and never reaches `mods::decode`, so the Kelvin readout is off on those bodies (the picture and the corrections are right). One line in `raw_processing.rs`; listed in `knownIssues.ts`. |
 | ⬜ | **Apple RAW 9 (macOS, off by default)** | Never reaches our decode step: no sRAW levels, highlight recovery or camera profile on that path. |
 | ⬜ | **Super-resolution and white balance** | An absolute `whiteBalance` is carried onto the enlarged non-RAW file, where the as-shot is D65; relative edits carry correctly. |
-| ⬜ | **TIFF ICC profile (RapidRAW #1752)** | Lands in the encoder arm Argentum replaced: port it to `mods/export_precision.rs` when harvested. |
+| ✅ | **TIFF ICC profile (RapidRAW #1752)** | `encode_tiff` in `mods/export_precision.rs` tags the sRGB profile (RapidRAW 31d77012). |
 
 ## Already covered — nothing to build
 
