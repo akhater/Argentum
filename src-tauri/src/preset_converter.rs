@@ -152,7 +152,9 @@ pub fn convert_xmp_to_preset(xmp_content: &str) -> Result<Preset, String> {
     }
 
     if let Some(shadows_val) = get_attr_as_f64(&attrs, "Shadows2012") {
-        let adjusted_shadows = (shadows_val * 1.5).min(100.0);
+        // RapidRAW 61960fc5: src-tauri/src/library/preset_converter.rs
+        // Clamp both ends: Shadows -100 scaled by 1.5 must stay -100, not -150.
+        let adjusted_shadows = (shadows_val * 1.5).clamp(-100.0, 100.0);
         adjustments.insert("shadows".to_string(), json!(adjusted_shadows));
     }
 
@@ -346,4 +348,27 @@ pub fn convert_xmp_to_preset(xmp_content: &str) -> Result<Preset, String> {
         include_crop_transform: Some(false),
         preset_type: Some("style".to_string()),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn imported_shadows(value: &str) -> f64 {
+        let xmp = format!(r#"<x:xmpmeta><rdf:Description crs:Shadows2012="{value}"/></x:xmpmeta>"#);
+        let preset = convert_xmp_to_preset(&xmp).expect("converts");
+        preset.adjustments["shadows"].as_f64().expect("shadows set")
+    }
+
+    #[test]
+    fn shadows_stay_within_slider_range_at_both_ends() {
+        assert_eq!(imported_shadows("-100"), -100.0);
+        assert_eq!(imported_shadows("+100"), 100.0);
+    }
+
+    #[test]
+    fn shadows_inside_range_keep_their_scale() {
+        assert_eq!(imported_shadows("-40"), -60.0);
+        assert_eq!(imported_shadows("+20"), 30.0);
+    }
 }
