@@ -179,6 +179,13 @@ matrices and white levels of a few bodies (`data/raw-matrices.toml` and
 Noise below black is clipped where RAWmakase clips it, after demosaicing a Bayer
 sensor's samples (`crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`).
 
+**Highlight Recovery** in new edits rebuilds clipped highlights as
+RAWmakase does (`crates/rawmakase-engine/src/develop/quality/highlights.rs` @
+`8665ebda`, unchanged to v0.7.1): after demosaic, each channel is pulled towards
+the mean of the other two by a weight that rises with its own level, the rule
+RAWmakase measured on flat patches rendered by Camera Raw 18.7. Edits saved
+before keep Argentum's earlier recovery.
+
 **The names Adobe profiles some cameras under** - the Lumix G97 and its twins as
 the DC-G99, the E-M10 Mark III S as the Mark III, and a few more - are RAWmakase's
 (`data/adobe-camera-names.toml`), each checked by its contributors against what

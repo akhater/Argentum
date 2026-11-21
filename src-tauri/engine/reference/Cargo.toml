@@ -10,7 +10,7 @@ publish = false
 argentum-engine = { path = ".." }
 # sharpen.rs names `tauri::AppHandle` in one function the tests never call.
 tauri = { package = "argentum-engine-tauri-stub", path = "tauri-stub" }
-rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "dc8b144ace0de9b519ce2812f505028684be6fa6" }
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "7211eb3709cf5fecb3d950e7a38edebe1edcb7a5" }
 wgpu = "29.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 image = { version = "0.25.10", default-features = false }

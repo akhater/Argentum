@@ -150,7 +150,9 @@ export const CREDITS: CreditGroup[] = [
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
           'matrices and white levels, and the names Adobe profiles some cameras under (the Lumix ' +
           'G97 as the G99). Noise below black is clipped where RAWmakase clips it, after ' +
-          'demosaicing. The presets that come with Argentum (Color, Creative, B&W, ' +
+          'demosaicing. Highlight Recovery in new edits rebuilds clipped highlights by RAWmakase’s ' +
+          'rule, measured on Camera Raw: each channel pulled towards the mean of the other two. ' +
+          'The presets that come with Argentum (Color, Creative, B&W, ' +
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +
           'unchanged. HEIC photos open as RAWmakase opens them: the file’s header read for its ' +
           'size, crop, turn and colour, and its pixels decoded by the system’s own HEVC decoder ' +

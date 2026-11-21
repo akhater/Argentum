@@ -50,6 +50,7 @@ pub mod mods {
     pub mod dcp;
     pub mod dng_standard;
     pub mod highlight_protection;
+    pub mod highlight_pull;
     pub mod profiles;
     pub mod raw_tone;
     pub mod rt_profiles;
@@ -66,6 +67,20 @@ pub mod mods {
         }
     }
 
+    /// `mods::highlight_rule`: which highlight rule a photo's edit takes. The
+    /// tests hand no path, and the decode hook below rewrites nothing.
+    pub mod highlight_rule {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum Rule {
+            Rebuild,
+            Pull,
+        }
+
+        pub fn rule_for(_photo: Option<&str>) -> Rule {
+            Rule::Pull
+        }
+    }
+
     /// `mods::decode`: the decode hook and the profile's daylight matrix,
     /// neither of which the tests reach.
     pub mod decode {
@@ -77,7 +92,21 @@ pub mod mods {
             None
         }
 
-        pub fn on_raw_decoded(_raw: &mut RawImage, _file_bytes: &[u8], _photo_path: Option<&str>) {}
+        /// What the decode did: here, nothing, so the pull is not in charge.
+        #[derive(Default)]
+        pub struct Report {
+            pub ceilings: Option<[f32; 4]>,
+            pub pull: bool,
+        }
+
+        pub fn on_raw_decoded(
+            _raw: &mut RawImage,
+            _file_bytes: &[u8],
+            _photo_path: Option<&str>,
+            _rule: super::highlight_rule::Rule,
+        ) -> Report {
+            Report::default()
+        }
     }
 
     /// `mods::dng_colour` and `mods::profile_correction`: what the decode

@@ -68,6 +68,10 @@ pub mod gpu_setup_mark;
 pub mod headless_gpu;
 pub mod heic;
 pub mod highlight_protection;
+pub mod highlight_pull;
+#[cfg(test)]
+mod highlight_pull_measure;
+pub mod highlight_rule;
 pub mod highlights;
 pub mod history;
 pub mod input_stage;
