@@ -236,6 +236,14 @@ fn synthetic_clipping() {
         let bytes = std::fs::read(&raw_path).expect("read");
         let shot = decoded(&bytes);
         let as_shot = reach(&shot, &clipped_as_shot(&shot));
+        println!(
+            "{}: black {:?}, white {:?}, ceilings {:?}, white balance {:?}",
+            raw_path.file_name().unwrap().to_string_lossy(),
+            shot.blacklevel.levels.first().map(|r| r.as_f32()),
+            shot.whitelevel.0,
+            super::highlights::ceilings(&shot),
+            shot.wb_coeffs
+        );
         super::highlights::set_enabled(false);
         let truth = develop(shot.clone(), &bytes, Rule::Pull);
         super::highlights::set_enabled(true);
