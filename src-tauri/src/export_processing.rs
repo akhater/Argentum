@@ -12,7 +12,7 @@ use image::{
     imageops,
 };
 use jxl_encoder::{
-    LosslessConfig, LossyConfig, PixelLayout,
+    LossyConfig, PixelLayout,
     api::{calibrated_jxl_quality, quality_to_distance},
 };
 use serde::{Deserialize, Serialize};
@@ -39,7 +39,7 @@ use crate::mask_generation::{MaskDefinition, build_warped_image_for_masks, gener
 use crate::as_shot::as_shot;
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
 use crate::mods::{
-    export_at_size, export_batch,
+    export_at_size, export_batch, jxl_export,
     export_metadata::write_export_metadata,
     export_precision::{
         Precision, TiffDepth, encode_tiff, overlay_preserving_precision, render_for_estimate,
@@ -1136,12 +1136,12 @@ fn encode_image_to_bytes(
             let jxl_data = if jpeg_quality == 100 {
                 if has_alpha {
                     let rgba = image.to_rgba8();
-                    LosslessConfig::new()
+                    jxl_export::lossless()
                         .encode(rgba.as_raw(), width, height, PixelLayout::Rgba8)
                         .map_err(|e| format!("Failed to encode lossless JXL: {}", e))?
                 } else {
                     let rgb = image.to_rgb8();
-                    LosslessConfig::new()
+                    jxl_export::lossless()
                         .encode(rgb.as_raw(), width, height, PixelLayout::Rgb8)
                         .map_err(|e| format!("Failed to encode lossless JXL: {}", e))?
                 }
@@ -1464,6 +1464,15 @@ pub(crate) async fn export_images_impl(
     } else {
         (4.0, 4)
     };
+    // Argentum: a JPEG XL encoder's own memory (mods/jxl_export.rs).
+    let gb_per_photo = gb_per_photo
+        + jxl_export::encoder_bytes_per_photo(
+            &output_format,
+            export_settings.jpeg_quality,
+            export_settings.resize.as_ref(),
+        ) / 1024.0
+            / 1024.0
+            / 1024.0;
     let ram_based_limit = (available_ram_gb / gb_per_photo).floor() as usize;
 
     let num_threads = if paths.len() == 1 {
