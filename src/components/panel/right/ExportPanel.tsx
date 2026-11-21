@@ -68,7 +68,14 @@ const DPI_FORMATS: ReadonlyArray<string> = [FileFormats.Jpeg, FileFormats.Png, F
 
 // The formats Keep metadata writes to. TIFF gets the camera EXIF but not the
 // XMP rating, colour label and keywords, so its note leaves those out.
-const METADATA_FORMATS: ReadonlyArray<string> = [FileFormats.Jpeg, FileFormats.Png, FileFormats.Tiff, FileFormats.Webp];
+// RapidRAW 9e03d499: JPEG XL too.
+const METADATA_FORMATS: ReadonlyArray<string> = [
+  FileFormats.Jpeg,
+  FileFormats.Png,
+  FileFormats.Tiff,
+  FileFormats.Webp,
+  FileFormats.Jxl,
+];
 
 // From RapidRAW v1.6.6, src/components/panel/right/ExportPanel.tsx (parseDpi).
 function parseDpi(value: string): number | null {
