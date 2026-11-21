@@ -139,26 +139,36 @@ pub async fn batch_denoise_images(
                         .unwrap_or_default()
                         .to_string_lossy();
 
-                    let (output_filename, image_to_save) = if is_raw {
+                    let (extension, format, image_to_save) = if is_raw {
                         (
-                            format!("{}_Denoised.tiff", stem),
+                            "tiff",
+                            ImageFormat::Tiff,
                             DynamicImage::ImageRgb16(image.to_rgb16()),
                         )
                     } else {
                         (
-                            format!("{}_Denoised.png", stem),
+                            "png",
+                            ImageFormat::Png,
                             DynamicImage::ImageRgb8(image.to_rgb8()),
                         )
                     };
 
-                    let output_path = parent_dir.join(output_filename);
-                    if let Err(e) = image_to_save.save(&output_path) {
-                        let _ = app_handle.emit(
-                            "denoise-error",
-                            format!("Failed to save {}: {}", real_path, e),
-                        );
-                        continue;
-                    }
+                    let output_path = match crate::mods::file_ops::write_unique_image(
+                        parent_dir,
+                        &format!("{}_Denoised", stem),
+                        extension,
+                        &image_to_save,
+                        format,
+                    ) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            let _ = app_handle.emit(
+                                "denoise-error",
+                                format!("Failed to save {}: {}", real_path, e),
+                            );
+                            continue;
+                        }
+                    };
 
                     let _ = crate::exif_processing::write_rrexif_sidecar(&real_path, &output_path);
 
@@ -211,22 +221,28 @@ pub async fn save_denoised_image(
         .and_then(|s| s.to_str())
         .unwrap_or("denoised");
 
-    let (output_filename, image_to_save): (String, DynamicImage) = if is_raw {
-        let filename = format!("{}_Denoised.tiff", stem);
+    let (extension, format, image_to_save) = if is_raw {
         (
-            filename,
+            "tiff",
+            ImageFormat::Tiff,
             DynamicImage::ImageRgb16(denoised_image.to_rgb16()),
         )
     } else {
-        let filename = format!("{}_Denoised.png", stem);
-        (filename, DynamicImage::ImageRgb8(denoised_image.to_rgb8()))
+        (
+            "png",
+            ImageFormat::Png,
+            DynamicImage::ImageRgb8(denoised_image.to_rgb8()),
+        )
     };
 
-    let output_path = parent_dir.join(output_filename);
-
-    image_to_save
-        .save(&output_path)
-        .map_err(|e| format!("Failed to save image: {}", e))?;
+    let output_path = crate::mods::file_ops::write_unique_image(
+        parent_dir,
+        &format!("{}_Denoised", stem),
+        extension,
+        &image_to_save,
+        format,
+    )
+    .map_err(|e| format!("Failed to save image: {}", e))?;
 
     let (real_path, _) = crate::file_management::parse_virtual_path(&original_path_str);
     let _ =
