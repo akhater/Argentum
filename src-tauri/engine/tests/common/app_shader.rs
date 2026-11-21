@@ -125,6 +125,7 @@ impl AppShader {
             entries: &[
                 texture(0),
                 storage(2, true),
+                storage(19, true),
                 storage(20, true),
                 storage(21, true),
                 storage(22, false),
@@ -211,6 +212,9 @@ impl AppShader {
         let adjustments = buffer(&adjustments, storage);
         let inputs = buffer(bytemuck::cast_slice(&pad(job.inputs)), storage);
         let params = buffer(bytemuck::cast_slice(&pad(job.params)), storage);
+        // Their Camera Look (`ag_camera_look`), which DNG Standard's path reads
+        // only with the look on: zeros, as no test turns it on.
+        let camera_look = buffer(&[0u8; 16], storage);
         let out_bytes = (n.max(1) * 16) as u64;
         let out = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -274,6 +278,10 @@ impl AppShader {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: adjustments.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 19,
+                    resource: camera_look.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 20,
