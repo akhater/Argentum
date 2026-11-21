@@ -1469,26 +1469,31 @@ async fn save_hdr(
         .and_then(|s| s.to_str())
         .unwrap_or("hdr");
 
-    let (output_filename, image_to_save): (String, DynamicImage) = if hdr_image.color().has_alpha()
-    {
+    let (extension, format, image_to_save) = if hdr_image.color().has_alpha() {
         (
-            format!("{}_Hdr.png", stem),
+            "png",
+            ImageFormat::Png,
             DynamicImage::ImageRgba8(hdr_image.to_rgba8()),
         )
     } else if hdr_image.as_rgb32f().is_some() {
-        (format!("{}_Hdr.tiff", stem), hdr_image)
+        ("tiff", ImageFormat::Tiff, hdr_image)
     } else {
         (
-            format!("{}_Hdr.png", stem),
+            "png",
+            ImageFormat::Png,
             DynamicImage::ImageRgb8(hdr_image.to_rgb8()),
         )
     };
 
-    let output_path = parent_dir.join(output_filename);
-
-    image_to_save
-        .save(&output_path)
-        .map_err(|e| format!("Failed to save hdr image: {}", e))?;
+    // RapidRAW ea319a90: src-tauri/src/lib.rs (save_hdr through write_unique_output)
+    let output_path = crate::mods::file_ops::write_unique_image(
+        parent_dir,
+        &format!("{}_Hdr", stem),
+        extension,
+        &image_to_save,
+        format,
+    )
+    .map_err(|e| format!("Failed to save hdr image: {}", e))?;
 
     let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
     let _ =
@@ -1518,11 +1523,14 @@ async fn save_collage(base64_data: String, first_path_str: String) -> Result<Str
         .and_then(|s| s.to_str())
         .unwrap_or("collage");
 
-    let output_filename = format!("{}_Collage.png", stem);
-    let output_path = parent_dir.join(output_filename);
-
-    fs::write(&output_path, &decoded_bytes)
-        .map_err(|e| format!("Failed to save collage image: {}", e))?;
+    // RapidRAW ea319a90: src-tauri/src/lib.rs (save_collage through write_unique_output)
+    let output_path = crate::mods::file_ops::write_unique_output(
+        parent_dir,
+        &format!("{}_Collage", stem),
+        "png",
+        |file| file.write_all(&decoded_bytes),
+    )
+    .map_err(|e| format!("Failed to save collage image: {}", e))?;
 
     Ok(output_path.to_string_lossy().to_string())
 }

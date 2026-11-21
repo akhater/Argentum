@@ -24,6 +24,10 @@
 //! - [`shares_the_xmp`]: only a photo's own edits meet its XMP, never a
 //!   virtual copy's.
 //! - [`trash_or_delete`]: how a library delete removes a file.
+//! - [`write_unique_output`] and [`write_unique_image`]: a generated file
+//!   (HDR, panorama, focus stack, collage, denoise, positive, restore or
+//!   enlargement) gets a name of its own, never an earlier result's or one
+//!   whose edits or EXIF cache are still beside it.
 //!
 //! The rules follow RapidRAW 1.6.7's fixes to `src-tauri/src/file_management.rs`
 //! (fefb6a1b, 4f64511a); each copied rule names its commit.
@@ -32,8 +36,10 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use image::{DynamicImage, ImageFormat};
 use serde::{Deserialize, Serialize};
 
 use crate::file_management::{
@@ -272,10 +278,8 @@ pub fn look_file_copies(photo: &Path, copy: &Path) -> Vec<(PathBuf, PathBuf)> {
 // RapidRAW 52138689 (1.6.6): src-tauri/src/file_management.rs `deletion_stem_for`;
 // its virtual copy rule is now parse_sidecar_name's.
 fn delete_stem(file_name: &str) -> Option<&str> {
-    let image_name = parse_sidecar_name(file_name)
-        .map(|(name, _)| name)
+    let image_name = photo_of_edits_file(file_name)
         .or_else(|| photo_of_look_file(file_name))
-        .or_else(|| file_name.strip_suffix(".agexif"))
         .or_else(|| file_name.strip_suffix(".xmp"))
         .or_else(|| file_name.strip_suffix(".XMP"))
         .or_else(|| is_supported_image_file(file_name).then_some(file_name))?;
@@ -560,6 +564,104 @@ pub fn xmp_text(text: &str) -> Cow<'_, str> {
 // RapidRAW fefb6a1b: src-tauri/src/file_management.rs (unescape on read)
 pub fn xmp_text_read(raw: &str) -> String {
     quick_xml::escape::unescape(raw).map_or_else(|_| raw.to_string(), Cow::into_owned)
+}
+
+/// The photo whose edits or EXIF cache `file_name` holds: `IMG.CR2` for
+/// `IMG.CR2.agdata`, `IMG.CR2.a1b2c3.agdata` and `IMG.CR2.agexif`.
+fn photo_of_edits_file(file_name: &str) -> Option<&str> {
+    parse_sidecar_name(file_name)
+        .map(|(name, _)| name)
+        .or_else(|| file_name.strip_suffix(".agexif"))
+}
+
+/// Writes a generated file into `dir` as `stem.extension`, or
+/// `stem_N.extension` with the first N that is free, and returns its path.
+/// `write` fills a temporary file in `dir` first; only a complete file gets
+/// its name, and a failed write leaves nothing behind. A name is free when no
+/// file has it (in any letter case, as the file system decides) and no edits
+/// (`.agdata`, a virtual copy's included) or EXIF cache (`.agexif`) of that
+/// name is left beside it, so a new result never replaces an earlier one or
+/// opens with its edits. Two saves at once each keep their file.
+// RapidRAW ea319a90: src-tauri/src/output_files.rs `write_unique_output`
+// (moved into file_management.rs by ec3ad01a); here it takes a writer, so an
+// image is encoded straight into the file instead of into a second buffer.
+pub fn write_unique_output(
+    dir: &Path,
+    stem: &str,
+    extension: &str,
+    write: impl FnOnce(&mut fs::File) -> io::Result<()>,
+) -> io::Result<PathBuf> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".ag-output-").suffix(".tmp");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(fs::Permissions::from_mode(0o666));
+    }
+    let mut temporary = builder.tempfile_in(dir)?;
+    write(temporary.as_file_mut())?;
+    temporary.as_file().sync_all()?;
+
+    let mut edited_names = HashSet::new();
+    for entry in fs::read_dir(dir)? {
+        if let Some(name) = entry?.file_name().to_str() {
+            let name = name.to_lowercase();
+            if let Some(photo) = photo_of_edits_file(&name) {
+                edited_names.insert(photo.to_owned());
+            }
+        }
+    }
+
+    let mut counter = 0_u64;
+    loop {
+        let name = if counter == 0 {
+            format!("{stem}.{extension}")
+        } else {
+            format!("{stem}_{counter}.{extension}")
+        };
+        let path = dir.join(&name);
+        let mut has_edits = edited_names.contains(&name.to_lowercase());
+        // Direct checks also follow the file system's case and Unicode rules.
+        for suffix in [".agdata", ".agexif"] {
+            if has_edits {
+                break;
+            }
+            let mut sidecar = path.as_os_str().to_owned();
+            sidecar.push(suffix);
+            has_edits = Path::new(&sidecar).try_exists()?;
+        }
+        if !has_edits {
+            // No-clobber: another save taking this name after the scan loses
+            // nothing, this one moves on to the next number.
+            match temporary.persist_noclobber(&path) {
+                Ok(_) => return Ok(path),
+                Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {
+                    temporary = error.file;
+                }
+                Err(error) => return Err(error.error),
+            }
+        }
+        counter = counter
+            .checked_add(1)
+            .ok_or_else(|| io::Error::other("No available output file name"))?;
+    }
+}
+
+/// [`write_unique_output`] for an image encoded as `format`.
+pub fn write_unique_image(
+    dir: &Path,
+    stem: &str,
+    extension: &str,
+    image: &DynamicImage,
+    format: ImageFormat,
+) -> io::Result<PathBuf> {
+    write_unique_output(dir, stem, extension, |file| {
+        let mut writer = io::BufWriter::new(file);
+        image
+            .write_to(&mut writer, format)
+            .map_err(io::Error::other)?;
+        writer.flush()
+    })
 }
 
 /// Moves `paths` to the system trash. Where the trash refuses (a drive or
@@ -1919,5 +2021,164 @@ mod tests {
             assert_eq!(fs::read_to_string(&sidecar).unwrap(), text);
             assert_eq!(names_in(dir.path()), ["IMG.CR2", "IMG.CR2.agdata"]);
         }
+    }
+}
+
+// RapidRAW ea319a90: src-tauri/src/output_files.rs (tests), names moved to ours.
+#[cfg(test)]
+mod unique_output_tests {
+    use super::*;
+    use std::sync::{Arc, Barrier};
+
+    fn write_bytes(dir: &Path, stem: &str, extension: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+        write_unique_output(dir, stem, extension, |file| file.write_all(bytes))
+    }
+
+    #[test]
+    fn writes_complete_contents_without_overwriting_existing_results() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = write_bytes(dir.path(), "IMG_Hdr", "tiff", b"first").unwrap();
+        let second = write_bytes(dir.path(), "IMG_Hdr", "tiff", b"second").unwrap();
+        assert_eq!(original.file_name().unwrap(), "IMG_Hdr.tiff");
+        assert_eq!(second.file_name().unwrap(), "IMG_Hdr_1.tiff");
+        assert_eq!(fs::read(original).unwrap(), b"first");
+        assert_eq!(fs::read(second).unwrap(), b"second");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn skips_orphaned_edits_virtual_copy_edits_and_exif_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let sidecars = [
+            "IMG_Pano.tiff.agdata",
+            "IMG_Pano_1.tiff.a1b2c3.agdata",
+            "IMG_Pano_2.tiff.agexif",
+        ];
+        for name in sidecars {
+            fs::write(dir.path().join(name), b"old metadata").unwrap();
+        }
+        let output = write_bytes(dir.path(), "IMG_Pano", "tiff", b"new image").unwrap();
+        assert_eq!(output.file_name().unwrap(), "IMG_Pano_3.tiff");
+        for name in sidecars {
+            assert_eq!(fs::read(dir.path().join(name)).unwrap(), b"old metadata");
+        }
+    }
+
+    #[test]
+    fn reserves_names_whose_sidecars_differ_only_in_case() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("img_hdr.TIFF.AGDATA"), b"edits").unwrap();
+        fs::write(
+            dir.path().join("img_hdr_1.TIFF.A1B2C3.agdata"),
+            b"copy edits",
+        )
+        .unwrap();
+        let output = write_bytes(dir.path(), "IMG_Hdr", "tiff", b"image").unwrap();
+        assert_eq!(output.file_name().unwrap(), "IMG_Hdr_2.tiff");
+    }
+
+    #[test]
+    fn another_images_sidecar_does_not_reserve_the_name() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("IMG_Stacked.tiff.jpg.agdata"), b"edits").unwrap();
+        let output = write_bytes(dir.path(), "IMG_Stacked", "tiff", b"new image").unwrap();
+        assert_eq!(output.file_name().unwrap(), "IMG_Stacked.tiff");
+    }
+
+    #[test]
+    fn concurrent_saves_keep_every_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let barrier = Arc::new(Barrier::new(8));
+        let threads: Vec<_> = (0_u8..8)
+            .map(|id| {
+                let path = dir.path().to_owned();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    let output = write_bytes(&path, "IMG_Collage", "png", &[id]).unwrap();
+                    (output, id)
+                })
+            })
+            .collect();
+        let outputs: Vec<_> = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect();
+        let distinct: HashSet<_> = outputs.iter().map(|(path, _)| path).collect();
+        assert_eq!(distinct.len(), 8);
+        for (path, id) in outputs {
+            assert_eq!(fs::read(path).unwrap(), [id]);
+        }
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 8);
+    }
+
+    #[test]
+    fn keeps_unicode_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let parent = dir.path().join("résultats_写真");
+        fs::create_dir(&parent).unwrap();
+        fs::write(parent.join("星空_Hdr.tiff.agdata"), b"edits").unwrap();
+        let output = write_bytes(&parent, "星空_Hdr", "tiff", b"image").unwrap();
+        assert_eq!(output, parent.join("星空_Hdr_1.tiff"));
+    }
+
+    #[test]
+    fn a_failed_save_leaves_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(write_bytes(dir.path(), "missing/IMG", "png", b"image").is_err());
+        let failed_write = write_unique_output(dir.path(), "IMG", "png", |file| {
+            file.write_all(b"half")?;
+            Err(io::Error::other("encoder failed"))
+        });
+        assert!(failed_write.is_err());
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn writes_an_image_in_the_format_asked() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = DynamicImage::ImageRgb16(image::ImageBuffer::from_pixel(
+            3,
+            2,
+            image::Rgb([1000_u16, 2000, 3000]),
+        ));
+        let path = write_unique_image(
+            dir.path(),
+            "IMG_Positive",
+            "tiff",
+            &image,
+            ImageFormat::Tiff,
+        )
+        .unwrap();
+        assert_eq!(path.file_name().unwrap(), "IMG_Positive.tiff");
+        let read = image::open(&path).unwrap();
+        assert_eq!(read.to_rgb16(), image.to_rgb16());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_permissions_follow_normal_file_creation_and_umask() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let control = dir.path().join("control");
+        fs::write(&control, b"control").unwrap();
+        let output = write_bytes(dir.path(), "IMG_Hdr", "tiff", b"image").unwrap();
+        assert_eq!(
+            output.metadata().unwrap().permissions().mode() & 0o777,
+            control.metadata().unwrap().permissions().mode() & 0o777,
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn does_not_follow_or_replace_a_dangling_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("missing-target");
+        let link = dir.path().join("IMG_Hdr.tiff");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let output = write_bytes(dir.path(), "IMG_Hdr", "tiff", b"image").unwrap();
+        assert_eq!(output.file_name().unwrap(), "IMG_Hdr_1.tiff");
+        assert_eq!(fs::read_link(link).unwrap(), target);
+        assert!(!target.exists());
     }
 }

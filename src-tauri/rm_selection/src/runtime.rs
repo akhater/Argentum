@@ -788,6 +788,20 @@ fn runtime_candidates(explicit: Option<&Path>) -> Vec<PathBuf> {
     candidates
 }
 
+/// Argentum: the one ONNX Runtime environment the process makes, from RAWmakase
+/// `crates/rawmakase-inference/src/runtime.rs` @ `4b8d6d04` (MIT). Every
+/// environment in the app, this crate's and the app's own
+/// (`mods/ai_session.rs`), is built through here; a test there keeps it so.
+///
+/// Microsoft's builds, which we bundle, send usage telemetry on Windows unless
+/// it is switched off, and `ort` enables it by default. Photo editing stays
+/// local, so nothing about the models or their runs is reported.
+pub fn private_environment(
+    builder: ort::environment::EnvironmentBuilder,
+) -> ort::environment::EnvironmentBuilder {
+    builder.with_telemetry(false)
+}
+
 fn open_runtime(path: &Path) -> Result<(), String> {
     if !path.is_absolute() {
         return Err("the runtime path must be absolute".into());
@@ -799,7 +813,7 @@ fn open_runtime(path: &Path) -> Result<(), String> {
     // but a panic here must still never take the caller down.
     catch_unwind(AssertUnwindSafe(|| {
         // Argentum: rc.10's init_from returns the builder itself.
-        ort::init_from(path.to_string_lossy().to_string())
+        private_environment(ort::init_from(path.to_string_lossy().to_string()))
             .with_name("rawmakase")
             .commit()
             .map(|_| ())
