@@ -515,11 +515,15 @@ pub fn parse_lut_file(path_str: &str) -> anyhow::Result<Lut> {
         return Err(anyhow!("Network paths (UNC) are not allowed for LUTs"));
     }
 
-    if path_str.contains("..") {
+    let path = std::path::Path::new(path_str);
+    // RapidRAW 5720d633: src-tauri/src/lut_processing.rs (only a ".." component is traversal)
+    if path
+        .components()
+        .any(|component| component == std::path::Component::ParentDir)
+    {
         return Err(anyhow!("Directory traversal (..) is not allowed"));
     }
 
-    let path = std::path::Path::new(path_str);
     if let Some(std::path::Component::Prefix(prefix)) = path.components().next() {
         match prefix.kind() {
             std::path::Prefix::UNC(_, _)
@@ -1035,5 +1039,23 @@ mod tests {
             js[film_lut::KEY] = json!(true);
             assert_eq!(render(js), want, "scene-referred: {scene_referred}");
         }
+    }
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::parse_lut_file;
+
+    #[test]
+    fn a_lut_named_with_two_dots_loads_and_a_parent_folder_does_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let lut = dir.path().join("Teal..Orange.cube");
+        std::fs::write(&lut, "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n")
+            .unwrap();
+        assert_eq!(parse_lut_file(&lut.to_string_lossy()).unwrap().size, 2);
+
+        let up = dir.path().join("sub").join("..").join("Teal..Orange.cube");
+        let error = parse_lut_file(&up.to_string_lossy()).unwrap_err();
+        assert!(error.to_string().contains("traversal"), "{error}");
     }
 }

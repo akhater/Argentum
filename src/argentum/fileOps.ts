@@ -29,6 +29,14 @@ export function activePathAfterDelete(
 export const isInFolder = (path: string, folder: string): boolean =>
   path === folder || path.startsWith(`${folder}/`) || path.startsWith(`${folder}\\`);
 
+/**
+ * Whether the photos of `folder` can be on show while `shown` is: it is inside it, and the recursive
+ * view lists the photos of the folders inside the one on show. Deleting or renaming it lists them again.
+ */
+// RapidRAW 5720d633: src/hooks/useFileOperations.ts, useAppContextMenus.ts (recursive view refreshed)
+export const isShownWithin = (folder: string, shown: string | null): boolean =>
+  !!shown && folder !== shown && isInFolder(folder, shown);
+
 /** `path` once the folder `oldPath` is renamed to `newPath`: inside it, it moves with it; elsewhere it stays. */
 // RapidRAW 3c0a0082: src/hooks/useFileOperations.ts (folder paths matched by folder, not by prefix)
 export const pathAfterFolderRename = (path: string, oldPath: string, newPath: string): string =>

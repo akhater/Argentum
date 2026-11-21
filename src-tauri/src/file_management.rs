@@ -90,7 +90,7 @@ fn resolve_image_metadata(
     let sidecar_existed = sidecar_path.exists();
     let mut metadata = crate::exif_processing::load_sidecar(sidecar_path);
 
-    if enable_xmp_sync && sync_metadata_from_xmp(image_path, &mut metadata, !sidecar_existed) {
+    if enable_xmp_sync && sync_metadata_from_xmp(image_path, sidecar_path, &mut metadata, !sidecar_existed) {
         let _ = crate::exif_processing::write_sidecar(sidecar_path, image_path, &metadata);
     }
 
@@ -2549,7 +2549,7 @@ pub fn save_metadata_and_update_thumbnail(
         && settings.enable_xmp_sync.unwrap_or(false)
     {
         let create_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-        sync_metadata_to_xmp(&source_path, &metadata, create_if_missing);
+        sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_if_missing);
     }
 
     let loaded_image_lock = state.original_image.lock().unwrap();
@@ -2714,7 +2714,7 @@ fn update_sidecars_and_thumbnails(
 
             let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
             if enable_xmp_sync {
-                sync_metadata_to_xmp(&source_path, &metadata, create_xmp_if_missing);
+                sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
             }
 
             let _ = updated_tx.send(path.clone());
@@ -2941,7 +2941,12 @@ async fn update_sidecars_from_images(
                 );
 
                 if enable_xmp_sync {
-                    sync_metadata_to_xmp(&source_path, &existing_metadata, create_xmp_if_missing);
+                    sync_metadata_to_xmp(
+                        &source_path,
+                        &sidecar_path,
+                        &existing_metadata,
+                        create_xmp_if_missing,
+                    );
                 }
                 Ok(image)
             })()
@@ -3040,7 +3045,7 @@ fn update_metadata_for_paths(
         let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
 
         if enable_xmp_sync {
-            sync_metadata_to_xmp(&source_path, &metadata, create_xmp_if_missing);
+            sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
         }
     });
 }
@@ -3106,7 +3111,7 @@ pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadat
     let (source_path, sidecar_path) = parse_virtual_path(&path);
     let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
-    if enable_xmp_sync && sync_metadata_from_xmp(&source_path, &mut metadata, true) {
+    if enable_xmp_sync && sync_metadata_from_xmp(&source_path, &sidecar_path, &mut metadata, true) {
         let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
     }
 
@@ -4070,9 +4075,13 @@ fn read_embedded_xmp_packet(source_path: &Path) -> Option<String> {
 
 pub fn sync_metadata_from_xmp(
     source_path: &Path,
+    sidecar_path: &Path,
     metadata: &mut ImageMetadata,
     scan_embedded: bool,
 ) -> bool {
+    if !file_ops::shares_the_xmp(source_path, sidecar_path) {
+        return false;
+    }
     let content_opt: Option<String> = match resolve_xmp_path(source_path) {
         Some(xmp_file) => fs::read_to_string(&xmp_file).ok(),
         None if scan_embedded && !is_cloud_placeholder(source_path) => {
@@ -4137,7 +4146,15 @@ pub fn sync_metadata_from_xmp(
     changed
 }
 
-pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create_if_missing: bool) {
+pub fn sync_metadata_to_xmp(
+    source_path: &Path,
+    sidecar_path: &Path,
+    metadata: &ImageMetadata,
+    create_if_missing: bool,
+) {
+    if !file_ops::shares_the_xmp(source_path, sidecar_path) {
+        return;
+    }
     let xmp_path = source_path.with_extension("xmp");
     let xmp_path_upper = source_path.with_extension("XMP");
 
@@ -4368,7 +4385,12 @@ mod online_only_tests {
         let photo = a_photo(&dir);
         mark_online_only(&photo);
         let mut meta = ImageMetadata::default();
-        assert!(!sync_metadata_from_xmp(&photo, &mut meta, true));
+        assert!(!sync_metadata_from_xmp(
+            &photo,
+            &sidecar_for(&photo, None),
+            &mut meta,
+            true
+        ));
         assert_eq!(meta.rating, 0);
     }
 
@@ -4430,9 +4452,19 @@ mod xmp_embedded_tests {
         );
         let path = write_temp("gated.bin", &buf);
         let mut meta = ImageMetadata::default();
-        assert!(!sync_metadata_from_xmp(&path, &mut meta, false));
+        assert!(!sync_metadata_from_xmp(
+            &path,
+            &sidecar_for(&path, None),
+            &mut meta,
+            false
+        ));
         assert_eq!(meta.rating, 0);
-        assert!(sync_metadata_from_xmp(&path, &mut meta, true));
+        assert!(sync_metadata_from_xmp(
+            &path,
+            &sidecar_for(&path, None),
+            &mut meta,
+            true
+        ));
         assert_eq!(meta.rating, 3);
         let _ = fs::remove_file(&path);
     }

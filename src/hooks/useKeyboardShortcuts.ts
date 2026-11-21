@@ -8,6 +8,8 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorActions } from './useEditorActions';
+import { canUndo } from '../argentum/historyOnRelease';
+import { deleteSelectedContainer } from '../argentum/deleteSelected';
 import { useLibraryActions } from './useLibraryActions';
 import { rowNeighbour } from '../argentum/modern/gridRows';
 import { physicalPathOf } from '../argentum/paths';
@@ -45,8 +47,14 @@ export const useKeyboardShortcuts = ({
   handleZoomChange,
   stepPhoto,
 }: KeyboardShortcutsProps) => {
-  const { handleRotate, handleAutoStraighten, handleCopyAdjustments, handlePasteAdjustments, toggleShowOriginal } =
-    useEditorActions();
+  const {
+    handleRotate,
+    handleAutoStraighten,
+    handleCopyAdjustments,
+    handlePasteAdjustments,
+    toggleShowOriginal,
+    setAdjustments,
+  } = useEditorActions();
   const { handleRate, handleSetFlag, handleToggleFlag, handleSetColorLabel } = useLibraryActions();
 
   const sortedListRef = useRef(sortedImageList);
@@ -244,7 +252,7 @@ export const useKeyboardShortcuts = ({
         },
       },
       undo: {
-        shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage && s.editor.historyIndex > 0,
+        shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage && canUndo(s.editor),
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.editor.undo();
@@ -586,27 +594,9 @@ export const useKeyboardShortcuts = ({
           const isDeleteKey = s.settings.osPlatform === 'macos' ? e.code === 'Backspace' : e.code === 'Delete';
           return isDeleteKey && (!!s.editor.activeMaskContainerId || !!s.editor.activeAiPatchContainerId);
         },
-        execute: (e: KeyboardEvent, s: any) => {
+        execute: (e: KeyboardEvent) => {
           e.preventDefault();
-          if (s.editor.activeMaskContainerId) {
-            s.editor.setEditor((state: any) => ({
-              adjustments: {
-                ...state.adjustments,
-                masks: state.adjustments.masks.filter((c: any) => c.id !== s.editor.activeMaskContainerId),
-              },
-              activeMaskContainerId: null,
-              activeMaskId: null,
-            }));
-          } else if (s.editor.activeAiPatchContainerId) {
-            s.editor.setEditor((state: any) => ({
-              adjustments: {
-                ...state.adjustments,
-                aiPatches: state.adjustments.aiPatches.filter((c: any) => c.id !== s.editor.activeAiPatchContainerId),
-              },
-              activeAiPatchContainerId: null,
-              activeAiSubMaskId: null,
-            }));
-          }
+          deleteSelectedContainer(setAdjustments);
         },
       },
       {
@@ -702,5 +692,6 @@ export const useKeyboardShortcuts = ({
     handleToggleFlag,
     handleSetColorLabel,
     toggleShowOriginal,
+    setAdjustments,
   ]);
 };
