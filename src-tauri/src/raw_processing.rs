@@ -93,15 +93,49 @@ fn develop_internal(
 
     check_cancel()?;
     // Argentum: rawler, or FlashRaw's samples in rawler's image (mods/raw_decoder.rs)
-    let mut raw_image: RawImage =
+    let raw_image: RawImage =
         crate::mods::raw_decoder::raw_image(&source, decoder.as_ref(), file_bytes, photo_path)?;
-    crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path); // Argentum: the single decode anchor, see mods/decode.rs
-
     let orientation = metadata_orientation(decoder.as_ref(), &source)?;
+    let rule = crate::mods::highlight_rule::rule_for(photo_path); // Argentum
+    let image = develop_decoded(
+        raw_image,
+        file_bytes,
+        fast_demosaic,
+        &linear_mode,
+        cancel_token,
+        photo_path,
+        rule,
+    )?;
+    Ok((image, orientation))
+}
+
+/// Argentum: everything after rawler's decode, on `raw_image` as it decoded
+/// `file_bytes`, its clipped highlights by `rule`. Not oriented.
+pub(crate) fn develop_decoded(
+    mut raw_image: RawImage,
+    file_bytes: &[u8],
+    fast_demosaic: bool,
+    linear_mode: &str,
+    cancel_token: Option<(Arc<AtomicUsize>, usize)>,
+    photo_path: Option<&str>,
+    rule: crate::mods::highlight_rule::Rule,
+) -> Result<DynamicImage> {
+    let check_cancel = || -> Result<()> {
+        if let Some((tracker, generation)) = &cancel_token
+            && tracker.load(Ordering::SeqCst) != *generation
+        {
+            return Err(anyhow!("Load cancelled"));
+        }
+        Ok(())
+    };
+
+    // Argentum: the single decode anchor, see mods/decode.rs
+    let decoded =
+        crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path, rule);
 
     let is_linear_format = is_linear_raw_format(&raw_image);
 
-    let (apply_ungamma, apply_calibration) = match linear_mode.as_str() {
+    let (apply_ungamma, apply_calibration) = match linear_mode {
         "gamma" => (true, true),
         "skip_calib" => (false, false),
         "gamma_skip_calib" => (true, false),
@@ -147,6 +181,24 @@ fn develop_internal(
         photo_path,
         crate::mods::dng_colour::inputs_of(&raw_image, !is_linear_format || apply_calibration),
     );
+
+    // Argentum: an edit made since the pull reconstructs its clipped
+    // highlights after demosaic, just before white balance, each channel read
+    // against where it stopped recording (mods/highlight_pull.rs).
+    if decoded.pull
+        && let Some(ceilings) = decoded.ceilings
+        && let Some(scale) = crate::mods::highlight_pull::SensorScale::new(
+            ceilings,
+            original_black_level,
+            u32::MAX as f32,
+        )
+    {
+        developer.before_white_balance = Some(Arc::new(
+            move |pixels: &mut rawler::pixarray::Color2D<f32, 3>, wb: &[f32; 4]| {
+                crate::mods::highlight_pull::apply(&mut pixels.data, wb, scale)
+            },
+        ));
+    }
 
     check_cancel()?;
     let mut developed_intermediate = developer.develop_intermediate(&raw_image)?;
@@ -229,7 +281,7 @@ fn develop_internal(
         }
     };
 
-    Ok((dynamic_image, orientation))
+    Ok(dynamic_image)
 }
 
 pub fn read_as_shot(file_bytes: &[u8]) -> Option<AsShot> {

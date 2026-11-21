@@ -166,9 +166,10 @@ left column. There is no tethering on Windows.
   Argentum reads DCP profiles, fetches one for your body, and keeps the cameras
   you shoot with under *Settings → My Gear*, where each can be given the profile
   its new photos open with.
-- **Highlight recovery.** When a bright area clips in one channel, the two that
-  survived say what colour it was — so the channel is rebuilt before demosaic
-  rather than smeared to white.
+- **Highlight recovery.** When a bright area clips in one channel, the channel is
+  pulled towards the two that survived, as Camera Raw does (RAWmakase's measured
+  copy of its rule), so a blown sky or lamp comes out clean instead of pink.
+  Photos edited before this keep their earlier rendering.
 - **A clipping warning that steps through the channels** — off, luminance, R, G, B
   — so you can see which channel is about to lose everything.
 - **Display colour management.** The preview is converted for the monitor's own

@@ -98,6 +98,16 @@ pub struct ImageMetadata {
         skip_serializing_if = "Option::is_none"
     )]
     pub ag_history: Option<crate::mods::history::HistoryRecord>,
+    /// Argentum: the highlight rule the photo renders with
+    /// (mods/highlight_rule.rs). Absent on a sidecar saved before it; only
+    /// `write_sidecar` decides it.
+    #[serde(
+        rename = "agHighlights",
+        default,
+        deserialize_with = "crate::mods::highlight_rule::lenient",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ag_highlights: Option<crate::mods::highlight_rule::Rule>,
 }
 
 impl Default for ImageMetadata {
@@ -111,6 +121,7 @@ impl Default for ImageMetadata {
             exif: None,
             ag_snapshots: None,
             ag_history: None,
+            ag_highlights: None,
         }
     }
 }
