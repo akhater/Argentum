@@ -146,6 +146,14 @@ Grain and Vignetting, 26 Lightroom XMP files shipped unchanged in
 Argentum's own XMP import. The Amount slider for a preset follows its rule: it
 starts from the photo as it was and moves only what the preset changes.
 
+**Lightroom 3 and 4 presets** (process versions 2003 and 2010) import as
+RAWmakase converts them, the way Lightroom 5's "Update to Current Process
+(2012)" writes them: Exposure, Contrast, Brightness, Fill Light, Recovery,
+Shadows and Clarity become the 2012 controls, and the preset's own tone curve
+is read (`crates/rawmakase-interop/src/lr_develop.rs` @ `eb8a3356` and
+`72eec1bf`, `xmp/mod.rs` @ `c83741ea`, v0.7.1; MIT), in
+`src-tauri/src/mods/lr_legacy.rs`.
+
 **B&W's black and white mix** is RAWmakase's (`black_white.rs` @ `a8c5d6d7`, its
 chart at v0.4.1, unchanged since): the grey Camera Raw 18.7 makes of each colour, measured by its
 contributors on a colour chart at a zero mix and with each of the eight bands at
