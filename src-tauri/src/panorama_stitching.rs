@@ -145,26 +145,31 @@ pub async fn save_panorama(
         .and_then(|s| s.to_str())
         .unwrap_or("panorama");
 
-    let (output_filename, image_to_save): (String, DynamicImage) =
-        if panorama_image.color().has_alpha() {
-            (
-                format!("{}_Pano.png", stem),
-                DynamicImage::ImageRgba8(panorama_image.to_rgba8()),
-            )
-        } else if panorama_image.as_rgb32f().is_some() {
-            (format!("{}_Pano.tiff", stem), panorama_image)
-        } else {
-            (
-                format!("{}_Pano.png", stem),
-                DynamicImage::ImageRgb8(panorama_image.to_rgb8()),
-            )
-        };
+    let (extension, format, image_to_save) = if panorama_image.color().has_alpha() {
+        (
+            "png",
+            ImageFormat::Png,
+            DynamicImage::ImageRgba8(panorama_image.to_rgba8()),
+        )
+    } else if panorama_image.as_rgb32f().is_some() {
+        ("tiff", ImageFormat::Tiff, panorama_image)
+    } else {
+        (
+            "png",
+            ImageFormat::Png,
+            DynamicImage::ImageRgb8(panorama_image.to_rgb8()),
+        )
+    };
 
-    let output_path = parent_dir.join(output_filename);
-
-    image_to_save
-        .save(&output_path)
-        .map_err(|e| format!("Failed to save panorama image: {}", e))?;
+    // RapidRAW ea319a90: src-tauri/src/panorama_stitching.rs (through write_unique_output)
+    let output_path = crate::mods::file_ops::write_unique_image(
+        parent_dir,
+        &format!("{}_Pano", stem),
+        extension,
+        &image_to_save,
+        format,
+    )
+    .map_err(|e| format!("Failed to save panorama image: {}", e))?;
 
     let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
     let _ =

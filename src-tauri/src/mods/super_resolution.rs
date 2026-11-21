@@ -935,22 +935,20 @@ fn save_image(
     } else {
         ("png", ImageFormat::Png)
     };
-    let output_path = parent.join(format!(
-        "{}.{}",
-        enlarged.recipe.file_stem(stem),
-        output_extension
-    ));
-    let save_result = if format == ImageFormat::Tiff {
-        image.to_rgb16().save_with_format(&output_path, format)
+    let output_stem = enlarged.recipe.file_stem(stem);
+    let to_save = if format == ImageFormat::Tiff {
+        DynamicImage::ImageRgb16(image.to_rgb16())
     } else {
-        image.to_rgb8().save_with_format(&output_path, format)
+        DynamicImage::ImageRgb8(image.to_rgb8())
     };
-    save_result.with_context(|| {
-        format!(
-            "Could not save the enlarged image as {}",
-            output_path.display()
-        )
-    })?;
+    let output_path = super::file_ops::write_unique_image(
+        parent,
+        &output_stem,
+        output_extension,
+        &to_save,
+        format,
+    )
+    .with_context(|| format!("Could not save the enlarged image as {output_stem}"))?;
     write_super_resolution_sidecar(
         &source_path,
         &sidecar_path,
