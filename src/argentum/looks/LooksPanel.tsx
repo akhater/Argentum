@@ -74,6 +74,8 @@ import { lookOf, lookOnto, PROVIDER_LOOK_PATH, providerLookOff } from './provide
 import ProviderLooks, { OnPhotoLook } from './ProviderLooks';
 import { regularLooksAreOff, restoreLook, restoreLooks, useProviderLooks } from './providerLooksStore';
 import { type LutEntry, useLooks } from './looksStore';
+import { asksOf, withOutlines, withoutOutlines } from '../selection/foundAgain';
+import { findMasksAgain } from '../selection/findAgain';
 import { type Light, MIN_PICKS, SHOWN, type Suggested, type Suggestion, useSuggested } from './suggestions';
 
 type Kind = 'preset' | 'lut';
@@ -358,7 +360,8 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
           previewOverride: { ...now, ...providerLookOff(now), ...lutKeys(look.lut.path, look.lut.isBuiltIn) },
         });
       } else if (look.preset) {
-        setEditor({ previewOverride: { ...now, ...presetAt(now, lookOnto(now, look.preset), 100) } });
+        const preset = withoutOutlines(look.preset, asksOf(look.preset.masks));
+        setEditor({ previewOverride: { ...now, ...presetAt(now, lookOnto(now, preset), 100) } });
       }
     }, PREVIEW_AFTER_MS);
   };
@@ -424,11 +427,12 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     }
     try {
       let changes: Partial<Adjustments>;
+      const asks = asksOf(look.preset?.masks);
       if (look.lut) {
         const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: look.lut.path });
         changes = { ...lutKeys(look.lut.path, look.lut.isBuiltIn), lutSize: size, lutIntensity: 100 };
       } else if (look.preset) {
-        changes = look.preset;
+        changes = withoutOutlines(look.preset, asks);
       } else return;
       const before = await Promise.all(
         paths.map(async (path) => {
@@ -456,6 +460,8 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         else same.set(key, { paths: [path], adjustments: own });
       }
       await Promise.all([...same.values()].map((group) => invoke(Invokes.ApplyAdjustmentsToPaths, group)));
+      // Its AI masks find each photo's own subject, sky, words or faces.
+      void findMasksAgain(paths, asks, setAdjustments);
       // A preset kept with Auto white balance: each photo measured for its own light.
       const auto = (changes as { whiteBalanceAuto?: AutoMarker }).whiteBalanceAuto;
       if (auto?.photo)
@@ -503,10 +509,17 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     // One preset at a time: the one on comes off before the next goes on.
     const now = useEditorStore.getState().adjustments;
     const before = onPhoto ? { ...now, ...presetAt(onPhoto.before, onPhoto.adjustments, 0) } : now;
-    const preset = lookOnto(before, look.preset);
+    const asks = asksOf(look.preset.masks);
+    const preset = lookOnto(before, withoutOutlines(look.preset, asks));
     setAdjustments(() => ({ ...before, ...presetAt(before, preset, 100) }));
     setApplied({ photo: photo.path, id: look.id, name: look.name, adjustments: preset, before, amount: 100 });
     restoreLook(photo.path, preset);
+    // Its AI masks find this photo's own; the Amount then mixes towards those.
+    void findMasksAgain([photo.path], asks, setAdjustments, (found) => {
+      const now = useLooks.getState().applied;
+      if (now?.photo !== photo.path || now.id !== look.id || !now.adjustments.masks) return;
+      setApplied({ ...now, adjustments: { ...now.adjustments, masks: withOutlines(now.adjustments.masks, found) } });
+    });
   };
 
   const changeAmount = (amount: number) => {

@@ -25,6 +25,8 @@ import { globalImageCache } from '../utils/ImageLRUCache';
 import { builtinKeys } from '../argentum/lensBuiltin';
 import { lookOnto, providerLookOff } from '../argentum/looks/providerLook';
 import { takeFromPaste } from '../argentum/looks/providerLooksStore';
+import { asksOf, withoutOutlines } from '../argentum/selection/foundAgain';
+import { findMasksAgain } from '../argentum/selection/findAgain';
 import { fileNameOf } from '../argentum/paths';
 import { screenDpr, transformScaleForZoom } from '../argentum/zoomScale';
 
@@ -421,7 +423,9 @@ export function useEditorActions() {
 
       pathsToUpdate.forEach((p) => globalImageCache.delete(p));
 
-      const pasted = takeFromPaste(pathsToUpdate, adjustmentsToApply);
+      // Argentum: AI masks are found again on each photo (argentum/selection/findAgain.ts).
+      const asks = asksOf(adjustmentsToApply.masks);
+      const pasted = withoutOutlines(takeFromPaste(pathsToUpdate, adjustmentsToApply), asks);
 
       if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
         setAdjustments({ ...adjustments, ...lookOnto(adjustments, pasted) });
@@ -429,6 +433,7 @@ export function useEditorActions() {
 
       invoke(Invokes.ApplyAdjustmentsToPaths, { paths: pathsToUpdate, adjustments: pasted })
         .then(() => {
+          void findMasksAgain(pathsToUpdate, asks, setAdjustments);
           if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
             invoke('load_metadata', { path: selectedImage.path }).then((meta: any) => {
               if (meta.adjustments) {

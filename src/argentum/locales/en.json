@@ -387,6 +387,8 @@
   "editMoreTip": "Copy, paste, sync, panels",
   "autoWbMeasuring": "Measuring Auto white balance on {count} pasted photos…",
   "autoWbMeasured": "Auto white balance measured on {count} photos",
+  "masksFinding": "Finding AI masks on each photo: {done} of {count}…",
+  "masksFound": "AI masks found on {count} photos",
   "selSubject": "Subject",
   "selSky": "Sky",
   "selBackground": "Background",

@@ -102,7 +102,7 @@ export const isFaceSelection = (subMask?: Pick<SubMask, 'parameters'> | null): b
 const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
 
 /** A set of models: how to ask whether they are here, fetch them, and say so. */
-interface Models {
+export interface Models {
   status: 'selection_models_status' | 'text_mask_models_status' | 'face_mask_models_status';
   download: 'download_selection_models' | 'download_text_mask_models' | 'download_face_mask_models';
   /** Their entry in mods/model_catalog.rs, which their download progress names. */
@@ -180,8 +180,12 @@ function askToDownload(models: Models, bytes: number): Promise<boolean> {
   });
 }
 
+/** The set of models a selection runs on. */
+export const modelsOf = (kind: SelectionKind): Models =>
+  kind === 'text' ? TEXT_MODELS : kind === 'face' ? FACE_MODELS : SELECTION_MODELS;
+
 /** The models are there, or fetched now with the user's yes. */
-async function ensureModels(models: Models = SELECTION_MODELS): Promise<boolean> {
+export async function ensureModels(models: Models = SELECTION_MODELS): Promise<boolean> {
   const status = await ag(models.status);
   if (status.installed) return true;
   if (!(await askToDownload(models, status.missingBytes))) return false;
@@ -205,7 +209,7 @@ async function ensureModels(models: Models = SELECTION_MODELS): Promise<boolean>
 }
 
 /** The edit without what the picture does not depend on, as their AI masks send it. */
-function geometryOf(adjustments: Adjustments) {
+export function geometryOf(adjustments: Adjustments) {
   const { masks: _masks, aiPatches: _patches, ...rest } = adjustments as Adjustments & { aiPatches?: unknown };
   return rest;
 }
@@ -402,8 +406,7 @@ export function useSelectionMasks() {
   return useCallback(
     async (subMaskId: string, kind: SelectionKind) => {
       if (!useEditorStore.getState().selectedImage?.path) return;
-      const models = kind === 'text' ? TEXT_MODELS : kind === 'face' ? FACE_MODELS : SELECTION_MODELS;
-      if (!(await ensureModels(models))) {
+      if (!(await ensureModels(modelsOf(kind)))) {
         drop(subMaskId);
         return;
       }

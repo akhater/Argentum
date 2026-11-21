@@ -22,10 +22,11 @@
 //! Anything else (several lenses, none, an unknown camera, no lens name)
 //! leaves the answer to the inherited matcher, as before, so a photo it is not
 //! sure of is corrected exactly as it was. The frame a lens must cover is the
-//! photo's ([`photo_crop`]): the camera's, or a crop mode its maker note or
-//! its 35 mm equivalent focal length tells. Not taken (yet): the photo frame's
-//! own size, and Lensfun's aspect-ratio variants, which Argentum's database
-//! does not read.
+//! photo's ([`photo_crop`]): the camera's, for a readout of another aspect
+//! ratio that readout's, or a crop mode its maker note or its 35 mm equivalent
+//! focal length tells; of Lensfun's aspect-ratio variants of a camera, the one
+//! nearest the photo frame's aspect ratio (RAWmakase v0.7.1, 26267b16:
+//! `matching.rs::camera`, `frame_crop`, `native_aspect` and `photo_crop`).
 
 use super::lens_names::{
     THIRD_PARTY, maker_words, same_generation, same_text, stated, stated_millimetres, words,
@@ -52,14 +53,97 @@ pub enum Outcome {
     UnknownCamera,
 }
 
-/// The camera entry for a file's EXIF make and model. Of several (Lensfun's
-/// aspect-ratio variants), the first: Argentum reads no aspect ratio.
-pub fn camera<'d>(db: &'d LensDatabase, make: &str, model: &str) -> Option<&'d Camera> {
-    db.cameras.iter().find(|c| {
-        let (maker, name) = (untranslated(&c.maker), untranslated(&c.model));
-        same_text(maker, make)
-            && (same_text(name, model) || same_text(name, &format!("{make} {model}")))
+/// The camera entry for a file's EXIF make and model; of several (Lensfun's
+/// variants for other aspect ratios), the one nearest the aspect ratio of the
+/// photo's `frame` (width and height), and the first when the frame is not known.
+/// RAWmakase's `camera` (`matching.rs` @ v0.7.1).
+pub fn camera<'d>(
+    db: &'d LensDatabase,
+    make: &str,
+    model: &str,
+    frame: Option<[f32; 2]>,
+) -> Option<&'d Camera> {
+    let aspect = frame.and_then(aspect_of);
+    db.cameras
+        .iter()
+        .filter(|c| {
+            let (maker, name) = (untranslated(&c.maker), untranslated(&c.model));
+            same_text(maker, make)
+                && (same_text(name, model) || same_text(name, &format!("{make} {model}")))
+        })
+        // The first of the nearest: an entry for another aspect ratio is worse than
+        // one without any.
+        .min_by(|a, b| {
+            let off = |c: &Camera| match (aspect, camera_aspect(c)) {
+                (Some(x), Some(y)) => (x - y).abs(),
+                (Some(_), None) => 0.01,
+                (None, _) => 0.,
+            };
+            off(a).total_cmp(&off(b))
+        })
+}
+
+/// Long edge over short of a frame of `[width, height]`.
+fn aspect_of([w, h]: [f32; 2]) -> Option<f32> {
+    (w > 0. && h > 0.).then(|| w.max(h) / w.min(h))
+}
+
+/// "3:2", or a number, as long edge over short.
+fn ratio(text: &str) -> Option<f32> {
+    let value = match text.trim().split_once(':') {
+        Some((a, b)) => a.trim().parse::<f32>().ok()? / b.trim().parse::<f32>().ok()?,
+        None => text.trim().parse().ok()?,
+    };
+    (value.is_finite() && value > 0.).then(|| value.max(1. / value))
+}
+
+/// The aspect ratio Lensfun gives a camera entry: its `<aspect-ratio>`, else
+/// that of a variant named for one ("16:9"). RAWmakase's `lensfun/mod.rs::camera`
+/// (@ v0.7.1).
+fn camera_aspect(camera: &Camera) -> Option<f32> {
+    let variant = || camera.variant.as_deref().filter(|v| v.contains(':'));
+    camera
+        .aspect_ratio
+        .as_deref()
+        .and_then(ratio)
+        .or_else(|| variant().and_then(ratio))
+}
+
+/// The aspect ratio of `camera`'s sensor: Lensfun's, else 4:3 for a (Micro) Four
+/// Thirds mount, whose sensors all are; `None` when neither tells. RAWmakase's
+/// `native_aspect` (`matching.rs` @ v0.7.1).
+pub fn native_aspect(camera: &Camera) -> Option<f32> {
+    camera_aspect(camera).or_else(|| {
+        let mount = camera.mount.to_lowercase();
+        (mount.contains("4/3") || mount.contains("four thirds")).then_some(4. / 3.)
     })
+}
+
+/// The crop factor of a photo frame of `frame` pixels from a camera of `crop` whose
+/// sensor has the aspect ratio `aspect`: a readout of another aspect ratio (a 1:1 or
+/// 16:9 mode that records only that) is the largest such rectangle on the sensor, a
+/// smaller diagonal. Without the sensor's aspect ratio the frame is taken as the
+/// whole sensor, as Lensfun takes the image it is given. RAWmakase's `frame_crop`
+/// (`matching.rs` @ v0.7.1).
+pub fn frame_crop(crop: f32, aspect: Option<f32>, frame: [f32; 2]) -> f32 {
+    let Some(native) = aspect.map(|a| a.max(1.)) else {
+        return crop;
+    };
+    let Some(shot) = aspect_of(frame) else {
+        return crop;
+    };
+    if (shot / native - 1.).abs() < 0.02 {
+        return crop;
+    }
+    // Long and short edges of the sensor, for a unit diagonal.
+    let d = (native * native + 1.).sqrt();
+    let (long, short) = (native / d, 1. / d);
+    let (l, s) = if shot >= native {
+        (long, long / shot)
+    } else {
+        (short * shot, short)
+    };
+    crop / l.hypot(s)
 }
 
 /// A fixed-lens camera: Lensfun names its mount in lower case first.
@@ -82,32 +166,48 @@ pub(crate) fn fits_mount(db: &LensDatabase, camera: &Camera, lens: &Lens) -> boo
     })
 }
 
-/// The crop factor of a photo's frame from `camera`: the camera's times the
-/// crop mode its maker note records (Canon's APS-C and APS-H modes); else the
-/// one its 35 mm equivalent focal length gives where that disagrees with the
-/// camera's by more than rounding (10%), a crop mode the camera writes so (Nikon
-/// DX, Sony APS-C) or a readout of another aspect ratio (1:1); else the
-/// camera's. RAWmakase's `photo_crop` (`matching.rs` @ 1b2687c4) without the
-/// frame's size, which Argentum does not read here.
+/// The crop factor of a photo's frame from `camera`: the frame's ([`frame_crop`]),
+/// times the crop mode its maker note records (Canon's APS-C and APS-H modes);
+/// else the one its 35 mm equivalent focal length gives where that disagrees by
+/// more than rounding (10%) with both the frame's and the sensor's, a crop mode
+/// the camera writes so (Nikon DX, Sony APS-C); else the frame's. A 35 mm
+/// equivalent of the whole sensor, as many cameras record it for a readout, says
+/// nothing of a crop mode. RAWmakase's `photo_crop` (`matching.rs` @ v0.7.1).
 ///
-/// Argentum: a fixed-lens camera keeps its own. Its lens was calibrated on its
-/// own frame, and some write a 35 mm equivalent of the processed picture: Sony's
-/// RX0 writes 24 mm at 7.7 mm (3.1x) for a frame Lensfun gives as 2.7x.
+/// Argentum: a fixed-lens camera keeps the crop factor of its entry, which the
+/// frame chose among Lensfun's aspect-ratio variants ([`camera`]), and takes no
+/// crop mode from its 35 mm equivalent. Its lens was calibrated on its own
+/// frame; some have a multi-aspect sensor, whose other aspect ratios are not
+/// cut from the 4:3 frame (a DMC-LX7's 16:9 frame, 3968 x 2232, is wider than
+/// its 4:3 one and of the same diagonal); and some write a 35 mm equivalent of
+/// the processed picture: Sony's RX0 writes 24 mm at 7.7 mm (3.1x) for a frame
+/// Lensfun gives as 2.7x.
 pub fn photo_crop(camera: &Camera, shot: &MatchShot) -> f32 {
-    if let Some(mode) = shot.crop_mode {
-        return camera.cropfactor * mode;
-    }
     if fixed_lens(camera) {
-        return camera.cropfactor;
+        return camera.cropfactor * shot.crop_mode.unwrap_or(1.);
     }
-    crop_or_35mm_equivalent(camera.cropfactor, shot)
+    let frame = shot.frame.map_or(camera.cropfactor, |f| {
+        frame_crop(camera.cropfactor, native_aspect(camera), f)
+    });
+    if let Some(mode) = shot.crop_mode {
+        return frame * mode;
+    }
+    match shot.exif_crop {
+        Some(exif) if apart(exif, frame) && apart(exif, camera.cropfactor) => exif,
+        _ => frame,
+    }
+}
+
+/// Whether two crop factors differ by more than rounding (10%).
+fn apart(a: f32, b: f32) -> bool {
+    (a / b - 1.).abs() > 0.1
 }
 
 /// `crop`, unless the crop factor `shot`'s 35 mm equivalent gives is more than
 /// rounding (10%) away from it: then that one.
 pub fn crop_or_35mm_equivalent(crop: f32, shot: &MatchShot) -> f32 {
     match shot.exif_crop {
-        Some(exif) if (exif / crop - 1.).abs() > 0.1 => exif,
+        Some(exif) if apart(exif, crop) => exif,
         _ => crop,
     }
 }
@@ -207,7 +307,7 @@ pub fn find(
     lens_name: &str,
     shot: &MatchShot,
 ) -> Outcome {
-    let Some(cam) = camera(db, make, model) else {
+    let Some(cam) = camera(db, make, model, shot.frame) else {
         return Outcome::UnknownCamera;
     };
     let crop = photo_crop(cam, shot);
@@ -405,7 +505,7 @@ mod tests {
     #[test]
     fn cameras_by_their_exif_names() {
         let db = db();
-        let found = |make, model| camera(&db, make, model).map(|c| untranslated(&c.model));
+        let found = |make, model| camera(&db, make, model, None).map(|c| untranslated(&c.model));
         assert_eq!(
             found("Canon", "Canon EOS 5D Mark III"),
             Some("Canon EOS 5D Mark III")
@@ -590,7 +690,7 @@ mod tests {
         let shot = |exif_crop| MatchShot {
             focal_mm: Some(19.),
             exif_crop,
-            crop_mode: None,
+            ..MatchShot::default()
         };
         let a1 = |exif_crop| find(&db, "SONY", "ILCE-1M2", "19mm F2.8 DN", &shot(exif_crop));
         assert_eq!(a1(None), Outcome::NoMatch);
@@ -601,15 +701,108 @@ mod tests {
         assert_eq!(crop_or_35mm_equivalent(1., &shot(Some(1.5))), 1.5);
         // A crop mode the maker note records is the camera's times it, whatever
         // the 35 mm equivalent says.
-        let five_d = camera(&db, "Canon", "Canon EOS 5D Mark III").unwrap();
+        let five_d = camera(&db, "Canon", "Canon EOS 5D Mark III", None).unwrap();
         let in_mode = MatchShot {
             crop_mode: Some(1.6),
             ..shot(None)
         };
         assert_eq!(photo_crop(five_d, &in_mode), 1.6);
         // A fixed-lens camera keeps its own: its lens was calibrated on its frame.
-        let g12 = camera(&db, "Canon", "Canon PowerShot G12").unwrap();
+        let g12 = camera(&db, "Canon", "Canon PowerShot G12", None).unwrap();
         assert_eq!(photo_crop(g12, &shot(Some(5.5))), 4.6);
+    }
+
+    /// RAWmakase's `readouts_of_another_aspect_ratio_have_their_own_crop_factor`
+    /// (`lens/lensfun/tests.rs` @ v0.7.1): a 1:1 photo from a 4:3 sensor of crop
+    /// factor 2 has the diagonal of a 2.357 crop.
+    #[test]
+    fn readouts_of_another_aspect_ratio_have_their_own_crop_factor() {
+        let one = frame_crop(2., Some(4. / 3.), [3456., 3456.]);
+        assert!((one - 2. * (5. / 3.) / 2f32.sqrt()).abs() < 1e-4, "{one}");
+        assert_eq!(frame_crop(2., Some(4. / 3.), [4608., 3456.]), 2.);
+        // A portrait frame is the same frame.
+        assert_eq!(frame_crop(2., Some(4. / 3.), [3456., 4608.]), 2.);
+        // 16:9 from 3:2 keeps the width.
+        let wide = frame_crop(1., Some(1.5), [6000., 3375.]);
+        assert!((wide - 43.2666 / 36f32.hypot(20.25)).abs() < 1e-3, "{wide}");
+        // Without the sensor's aspect ratio, the frame is the sensor, as Lensfun has it.
+        assert_eq!(frame_crop(4.63, None, [3648., 2736.]), 4.63);
+        // Lensfun names no aspect ratio for most Micro Four Thirds bodies; they are 4:3.
+        let db = db();
+        let g6 = camera(&db, "Panasonic", "DMC-G6", None).unwrap();
+        assert_eq!(native_aspect(g6), Some(4. / 3.));
+        let five_d = camera(&db, "Canon", "Canon EOS 5D Mark III", None).unwrap();
+        assert_eq!(native_aspect(five_d), None);
+        // A 5D's frame of any shape is its sensor: Lensfun gives it no aspect ratio.
+        let square = MatchShot {
+            frame: Some([4000., 4000.]),
+            ..MatchShot::default()
+        };
+        assert_eq!(photo_crop(five_d, &square), 1.);
+    }
+
+    /// RAWmakase's `a_35mm_equivalent_of_the_sensor_leaves_a_readout_s_crop` (@
+    /// v0.7.1): a G7's 1:1 readout records 28 mm at 14 mm, the whole sensor's crop
+    /// factor 2, which says nothing of a crop mode.
+    #[test]
+    fn a_35mm_equivalent_of_the_sensor_leaves_a_readout_s_crop() {
+        let db = db();
+        let g6 = camera(&db, "Panasonic", "DMC-G6", None).unwrap();
+        let square = MatchShot {
+            focal_mm: Some(14.),
+            exif_crop: Some(2.),
+            frame: Some([3440., 3440.]),
+            ..MatchShot::default()
+        };
+        let crop = photo_crop(g6, &square);
+        assert!((crop - 2.357_022_6).abs() < 1e-4, "{crop}");
+    }
+
+    /// RAWmakase's `aspect_ratio_variants_pick_their_crop_factor` (@ v0.7.1):
+    /// Lensfun gives a camera's aspect ratios as variants with their own crop
+    /// factors, and the photo's frame picks its own; without a frame, the first.
+    #[test]
+    fn aspect_ratio_variants_pick_their_crop_factor() {
+        let db: LensDatabase = quick_xml::de::from_str(
+            r#"<lensdatabase version="2">
+  <camera><maker>Panasonic</maker><model>DMC-LX3</model><variant>4:3</variant><mount>panasonicLX3</mount><cropfactor>4.7</cropfactor></camera>
+  <camera><maker>Panasonic</maker><model>DMC-LX3</model><variant>16:9</variant><mount>panasonicLX3</mount><cropfactor>4.45</cropfactor></camera>
+  <camera><maker>Panasonic</maker><model>DMC-LX3</model><variant>1:1</variant><mount>panasonicLX3</mount><cropfactor>5.32</cropfactor></camera>
+  <camera><maker>Olympus</maker><model>E-M5</model><mount>Micro 4/3 System</mount><cropfactor>2</cropfactor><aspect-ratio>4:3</aspect-ratio></camera>
+  <camera><maker>Panasonic</maker><model>DMC-LX7</model><variant>4:3</variant><mount>panasonicLX7</mount><cropfactor>5.1</cropfactor></camera>
+</lensdatabase>"#,
+        )
+        .unwrap();
+        for (frame, crop) in [
+            (Some([3648., 2736.]), 4.7),
+            (Some([3968., 2232.]), 4.45),
+            (Some([2736., 2736.]), 5.32),
+            (None, 4.7),
+        ] {
+            let c = camera(&db, "Panasonic", "DMC-LX3", frame).unwrap();
+            assert_eq!(c.cropfactor, crop, "{frame:?}");
+            let shot = MatchShot {
+                frame,
+                ..MatchShot::default()
+            };
+            assert_eq!(photo_crop(c, &shot), crop, "{frame:?}");
+        }
+        let em5 = camera(&db, "Olympus", "E-M5", None).unwrap();
+        assert_eq!(native_aspect(em5), Some(4. / 3.));
+        // A 16:9 readout of a Micro Four Thirds body is cut from its 4:3 frame.
+        let wide = MatchShot {
+            frame: Some([4592., 2584.]),
+            ..MatchShot::default()
+        };
+        assert!(photo_crop(em5, &wide) > 2.1, "{}", photo_crop(em5, &wide));
+        // A fixed-lens camera's multi-aspect sensor is not: an LX7 with one 4:3
+        // entry keeps its crop factor in 16:9 (3968 x 2232, the 4:3 diagonal).
+        let lx7 = camera(&db, "Panasonic", "DMC-LX7", Some([3968., 2232.])).unwrap();
+        let wide = MatchShot {
+            frame: Some([3968., 2232.]),
+            ..MatchShot::default()
+        };
+        assert_eq!(photo_crop(lx7, &wide), 5.1);
     }
 
     /// The old matcher may answer a lens of another mount (a Sony E zoom on a
@@ -908,9 +1101,9 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         let mut known = 0;
         let mut report = String::from(
-            "make\tmodel\tlens\tfocal\t35mm\tanswer\tanswer with the 35mm equivalent's crop\n",
+            "make\tmodel\tlens\tfocal\t35mm\tframe\tanswer\tanswer with the 35mm equivalent's crop\tanswer with the frame\tscale\tscale with the frame\n",
         );
-        let mut crop_changed = 0;
+        let (mut crop_changed, mut frame_changed, mut scale_changed) = (0, 0, 0);
         for file in json["files"].as_array().unwrap() {
             let md = &file["header"]["metadata"];
             let lens = md["lens_model"]
@@ -947,11 +1140,20 @@ mod tests {
             });
             let focal_key = focal.map_or("-".to_string(), |f| format!("{f:.1}"));
             let key_35mm = focal_35mm.map_or("-".to_string(), |f| format!("{f:.1}"));
+            // The frame the record gives: [left, top, width, height] or [width, height].
+            let frame = file["header"]["facts"]["frame"].as_array().and_then(|f| {
+                let n: Vec<u64> = f.iter().filter_map(serde_json::Value::as_u64).collect();
+                match n.as_slice() {
+                    [_, _, w, h] | [w, h] => Some(format!("{w}x{h}")),
+                    _ => None,
+                }
+            });
+            let frame_key = frame.clone().unwrap_or_else(|| "-".to_string());
             if !seen.insert((
                 make.clone(),
                 model.clone(),
                 lens.to_string(),
-                format!("{focal_key} {key_35mm}"),
+                format!("{focal_key} {key_35mm} {frame_key}"),
             )) {
                 continue;
             }
@@ -959,7 +1161,10 @@ mod tests {
             let got = named(&db, &answer(&db, &make, lens, &model, focal));
             // The same photo with the crop factor its 35 mm equivalent gives, read
             // as the app reads it from the EXIF map.
-            let mut exif = std::collections::HashMap::new();
+            let mut exif = std::collections::HashMap::from([
+                ("Make".to_string(), make.clone()),
+                ("Model".to_string(), model.clone()),
+            ]);
             for (key, value) in [
                 ("FocalLength", focal),
                 ("FocalLengthIn35mmFilm", focal_35mm),
@@ -968,27 +1173,71 @@ mod tests {
                     exif.insert(key.to_string(), v.to_string());
                 }
             }
-            let shot = MatchShot::from_exif(&exif);
-            let with_crop = named(
-                &db,
-                &crate::lens_correction::find_best_lens_match(&db, &make, lens, &model, &shot),
-            );
+            let pick = |exif: &std::collections::HashMap<String, String>| {
+                crate::lens_correction::find_best_lens_match(
+                    &db,
+                    &make,
+                    lens,
+                    &model,
+                    &MatchShot::from_exif(exif),
+                )
+            };
+            let with_crop = pick(&exif);
+            // And with the frame the app now reads from a raw (`photo_frame`).
+            let mut framed = exif.clone();
+            if let Some(frame) = &frame {
+                framed.insert(crate::mods::photo_frame::KEY.to_string(), frame.clone());
+            }
+            let with_frame = pick(&framed);
+            // The scale that puts the profile on the photo's frame, without and with it.
+            let scale = |answer: &Answer, exif: &std::collections::HashMap<String, String>| {
+                answer
+                    .as_ref()
+                    .and_then(|(maker, model)| {
+                        crate::lens_correction::lens_named(&db, maker, model)
+                    })
+                    .map_or("-".to_string(), |l| {
+                        format!("{:.4}", crate::mods::lens_frame::frame_scale(&db, l, exif))
+                    })
+            };
+            let (scale_before, scale_after) =
+                (scale(&with_crop, &exif), scale(&with_frame, &framed));
+            let (with_crop, with_frame) = (named(&db, &with_crop), named(&db, &with_frame));
             crop_changed += usize::from(with_crop != got);
+            frame_changed += usize::from(with_frame != with_crop);
+            scale_changed += usize::from(with_frame == with_crop && scale_after != scale_before);
             writeln!(
                 report,
-                "{make}\t{model}\t{lens}\t{focal_key}\t{key_35mm}\t{got}\t{with_crop}"
+                "{make}\t{model}\t{lens}\t{focal_key}\t{key_35mm}\t{frame_key}\t{got}\t{with_crop}\t{with_frame}\t{scale_before}\t{scale_after}"
             )
             .unwrap();
         }
         std::fs::write(out.join("real-files.tsv"), &report).unwrap();
         let started = std::time::Instant::now();
         for (make, model, lens, focal) in &seen {
-            let focal = focal.split(' ').next().and_then(|f| f.parse().ok());
-            std::hint::black_box(answer(&db, make, lens, model, focal));
+            // As the app calls it: focal length, 35 mm equivalent and frame.
+            let keys = [
+                "FocalLength",
+                "FocalLengthIn35mmFilm",
+                crate::mods::photo_frame::KEY,
+            ];
+            let exif: std::collections::HashMap<String, String> = keys
+                .iter()
+                .zip(focal.split(' '))
+                .filter(|(_, v)| *v != "-")
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            std::hint::black_box(crate::lens_correction::find_best_lens_match(
+                &db,
+                make,
+                lens,
+                model,
+                &MatchShot::from_exif(&exif),
+            ));
         }
         let per = started.elapsed().as_secs_f64() * 1000. / seen.len() as f64;
         println!(
-            "real files: {} distinct camera, lens and focal length cases ({known} cameras known to Lensfun); {crop_changed} answer otherwise with the crop factor of their 35 mm equivalent; {per:.3} ms per call",
+            "real files: {} distinct camera, lens, focal length and frame cases ({known} cameras known to Lensfun); {crop_changed} answer otherwise with the crop factor of their 35 mm equivalent; {frame_changed} answer otherwise with their frame, {scale_changed} more change only their scale; {per:.3} ms per call",
             seen.len()
         );
     }

@@ -40,7 +40,7 @@ pub fn frame_scale(db: &LensDatabase, lens: &Lens, exif: &HashMap<String, String
             .map_or("", |v| v.trim().trim_matches('"').trim())
     };
     let shot = super::lens_shot::MatchShot::from_exif(exif);
-    let photo_crop = match super::lens_match::camera(db, text("Make"), text("Model")) {
+    let photo_crop = match super::lens_match::camera(db, text("Make"), text("Model"), shot.frame) {
         Some(camera) => Some(super::lens_match::photo_crop(camera, &shot)),
         // Argentum: within rounding of the profile's, the profile's, so that a
         // lens on a body of its own frame stays exactly as it was.
