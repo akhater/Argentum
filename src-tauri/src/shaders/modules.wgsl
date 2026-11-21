@@ -265,11 +265,8 @@ fn ag_stage_tone(theirs: vec3<f32>, linear: vec3<f32>) -> vec3<f32> {
     if (adjustments.global.is_raw_image != 1u || mode == 0u || count < 2u) {
         return theirs;
     }
-    if (mode == 3u || mode == 4u) {
-        return ag_dng_standard(linear, count);
-    }
-    if (mode == 5u) {
-        return ag_camera_look_render(linear, count);
+    if (mode == 3u || mode == 4u || mode == 5u) {
+        return ag_dng_standard(linear, count, mode == 5u);
     }
     let encoded = linear_to_srgb(linear);
     return vec3<f32>(
@@ -337,8 +334,30 @@ fn ag_prophoto_to_white(linear: vec3<f32>) -> vec3<f32> {
 /// DNG Standard (mods/dng_standard.rs): the curve applied in linear ProPhoto,
 /// as Adobe and RawTherapee apply a profile's tone curve, then back to sRGB.
 /// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
-fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
-    let toned = rt_rgb_tone(ag_prophoto_to_white(linear), count);
+///
+/// With `look`, Camera Look (mods/camera_look.rs): the look's gains before the
+/// cap, its table before the curve and its own curve after. One path for both,
+/// because WARP, the DirectX 12 software adapter, returned a blank image for
+/// every render when the main shader carried a second copy of this one.
+/// Without `look` the gains are exactly one and nothing else runs, so DNG
+/// Standard is unchanged.
+fn ag_dng_standard(linear: vec3<f32>, count: u32, look: bool) -> vec3<f32> {
+    var gains = vec3<f32>(1.0);
+    if (look) {
+        gains = vec3<f32>(
+            ag_camera_look[AG_LOOK_GAINS_AT],
+            ag_camera_look[AG_LOOK_GAINS_AT + 1u],
+            ag_camera_look[AG_LOOK_GAINS_AT + 2u],
+        );
+    }
+    var pro = clamp((AG_SRGB_TO_PROPHOTO * linear) * gains, vec3<f32>(0.0), vec3<f32>(1.0));
+    if (look) {
+        pro = clamp(rm_look_table(pro), vec3<f32>(0.0), vec3<f32>(1.0));
+    }
+    var toned = rt_rgb_tone(pro, count);
+    if (look) {
+        toned = rm_look_curve(toned);
+    }
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
 }
 
@@ -379,47 +398,42 @@ const AG_LOOK_CURVE_AT = 13824u;   // 72 * 8 * 8 nodes of three
 const AG_LOOK_CURVE_STEPS = 4096u;
 const AG_LOOK_GAINS_AT = 17921u;   // the curve's 4097 samples after it
 
-/// The table's channel `c` at node (`h`, `s`, `v`).
-fn rm_look_node(h: u32, s: u32, v: u32, c: u32) -> f32 {
-    return ag_camera_look[((v * AG_LOOK_HUES + h) * AG_LOOK_SATS + s) * 3u + c];
+/// The table's three channels at node (`h`, `s`, `v`).
+fn rm_look_node(h: u32, s: u32, v: u32) -> vec3<f32> {
+    let i = ((v * AG_LOOK_HUES + h) * AG_LOOK_SATS + s) * 3u;
+    return vec3<f32>(ag_camera_look[i], ag_camera_look[i + 1u], ag_camera_look[i + 2u]);
 }
 
-/// `Table::lookup`'s channel `c`: trilinear between the eight nodes around
-/// hue `fh`, saturation `fs` and value `fv`, in node units.
+/// `Table::lookup`: trilinear between the eight nodes around hue `fh`,
+/// saturation `fs` and value `fv`, in node units, for all three channels.
 ///
-/// Changed from theirs: their three nested loops over the corners are written
-/// out, in the same order. FXC, the HLSL compiler DirectX 12 uses, unrolled
-/// them inside the main shader's per-mask loop and the whole shader failed to
-/// build on DirectX 12 (every render came out black), as rm_grade_channel's
-/// comment tells for the grade.
-fn rm_look_lookup(fh: f32, fs: f32, fv: f32, c: u32) -> f32 {
+/// Changed from theirs: their three nested loops over the corners, run once
+/// per channel, are one pass written out in the same order. WARP, the
+/// DirectX 12 software adapter Windows falls back to, returned a blank image
+/// for every render with the looped version in the main shader, even when
+/// Camera Look was off.
+fn rm_look_lookup(fh: f32, fs: f32, fv: f32) -> vec3<f32> {
     let h0 = u32(floor(fh));
     let s0 = u32(floor(fs));
     let v0 = u32(floor(fv));
     let th = fh - f32(h0);
     let ts = fs - f32(s0);
     let tv = fv - f32(v0);
-    let h1 = (h0 + 1u) % AG_LOOK_HUES;
     let ha = h0 % AG_LOOK_HUES;
+    let hb = (h0 + 1u) % AG_LOOK_HUES;
     let sa = min(s0, AG_LOOK_SATS - 1u);
     let sb = min(s0 + 1u, AG_LOOK_SATS - 1u);
     let va = min(v0, AG_LOOK_VALS - 1u);
     let vb = min(v0 + 1u, AG_LOOK_VALS - 1u);
-    let wh0 = 1.0 - th;
-    let wh1 = th;
-    let ws0 = 1.0 - ts;
-    let ws1 = ts;
-    let wv0 = 1.0 - tv;
-    let wv1 = tv;
-    var out = 0.0;
-    out += rm_look_node(ha, sa, va, c) * (wh0 * ws0 * wv0);
-    out += rm_look_node(h1, sa, va, c) * (wh1 * ws0 * wv0);
-    out += rm_look_node(ha, sb, va, c) * (wh0 * ws1 * wv0);
-    out += rm_look_node(h1, sb, va, c) * (wh1 * ws1 * wv0);
-    out += rm_look_node(ha, sa, vb, c) * (wh0 * ws0 * wv1);
-    out += rm_look_node(h1, sa, vb, c) * (wh1 * ws0 * wv1);
-    out += rm_look_node(ha, sb, vb, c) * (wh0 * ws1 * wv1);
-    out += rm_look_node(h1, sb, vb, c) * (wh1 * ws1 * wv1);
+    var out = vec3<f32>(0.0);
+    out += rm_look_node(ha, sa, va) * ((1.0 - th) * (1.0 - ts) * (1.0 - tv));
+    out += rm_look_node(hb, sa, va) * (th * (1.0 - ts) * (1.0 - tv));
+    out += rm_look_node(ha, sb, va) * ((1.0 - th) * ts * (1.0 - tv));
+    out += rm_look_node(hb, sb, va) * (th * ts * (1.0 - tv));
+    out += rm_look_node(ha, sa, vb) * ((1.0 - th) * (1.0 - ts) * tv);
+    out += rm_look_node(hb, sa, vb) * (th * (1.0 - ts) * tv);
+    out += rm_look_node(ha, sb, vb) * ((1.0 - th) * ts * tv);
+    out += rm_look_node(hb, sb, vb) * (th * ts * tv);
     return out;
 }
 
@@ -443,9 +457,10 @@ fn rm_look_table(rgb: vec3<f32>) -> vec3<f32> {
     let fh = rm_rem_euclid(hue, 1.0) * f32(AG_LOOK_HUES);
     let fs = clamp(sat, 0.0, 1.0) * f32(AG_LOOK_SATS - 1u);
     let fv = clamp(encoded, 0.0, 1.0) * f32(AG_LOOK_VALS - 1u);
-    let h = rm_rem_euclid(hue + rm_look_lookup(fh, fs, fv, 0u) / 360.0, 1.0) * 6.0;
-    let s = clamp(sat * rm_look_lookup(fh, fs, fv, 1u), 0.0, 1.0);
-    let v = ag_srgb_decode(encoded * rm_look_lookup(fh, fs, fv, 2u));
+    let shift = rm_look_lookup(fh, fs, fv);
+    let h = rm_rem_euclid(hue + shift.x / 360.0, 1.0) * 6.0;
+    let s = clamp(sat * shift.y, 0.0, 1.0);
+    let v = ag_srgb_decode(encoded * shift.z);
     let c = v * s;
     let x = c * (1.0 - abs(rm_rem_euclid(h, 2.0) - 1.0));
     let m = v - c;
@@ -489,19 +504,6 @@ fn rm_look_curve(rgb: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(ag_srgb_decode(out.r), ag_srgb_decode(out.g), ag_srgb_decode(out.b));
 }
 
-/// Camera Look: the gains, the table, DNG Standard's curve (`count` points),
-/// the look's curve, in linear ProPhoto; then back to sRGB, as DNG Standard.
-fn ag_camera_look_render(linear: vec3<f32>, count: u32) -> vec3<f32> {
-    let gains = vec3<f32>(
-        ag_camera_look[AG_LOOK_GAINS_AT],
-        ag_camera_look[AG_LOOK_GAINS_AT + 1u],
-        ag_camera_look[AG_LOOK_GAINS_AT + 2u],
-    );
-    let pro = clamp((AG_SRGB_TO_PROPHOTO * linear) * gains, vec3<f32>(0.0), vec3<f32>(1.0));
-    let tabled = clamp(rm_look_table(pro), vec3<f32>(0.0), vec3<f32>(1.0));
-    let toned = rm_look_curve(rt_rgb_tone(tabled, count));
-    return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
-}
 
 // ============================================================================
 // THE FILM LOOK INPUT
