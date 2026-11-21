@@ -1,1 +1,0 @@
-- Building Argentum no longer downloads a prebuilt ONNX Runtime from `cdn.pyke.io` that it never used: `ort` is now built without its default features, which also drops 16 crates from `Cargo.lock`. The app still loads the ONNX Runtime it ships with, unchanged.

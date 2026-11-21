@@ -32,6 +32,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.47.2',
+    date: '2026-11-21',
+    notes: [
+      'New: Camera Look, in RAW > Rendering. It fits a look to the JPEG your camera embedded, so a RAW starts close to how the camera rendered it.',
+      'Highlight Recovery rebuilds clipped highlights the way Camera Raw does: bright skies, lamps and sunsets lose the pink cast. New edits only; existing edits look the same.',
+      "A preset or paste with AI masks (Sky, Subject, Background...) finds that area again on each photo instead of reusing the first photo's shape.",
+      'Heal matches the surrounding tone on spots of every size, not just small ones.',
+      'Exports: each virtual copy gets its own edits, copies are named _VC01, _VC02, folders in a file name template are created, and JPEG XL uses far less memory and keeps metadata.',
+      'Lightroom 3 and 4 presets keep their exposure, tone and curve on import, and Shadows -100 stays -100.',
+      "HDR, panorama and other generated images keep the camera's EXIF, never overwrite an earlier file, and TIFFs carry the sRGB profile.",
+      'Saves work on network shares and drives that refuse a full flush to disk.',
+      'Library: a virtual copy keeps its own rating and tags, undo takes back the last change, and albums and XMP files no longer lose an update.',
+      'Liquify and skin smoothing land where you brush on rotated or cropped photos.',
+      'Windows: when a crash closes Argentum, a message says so and points to the crash log.',
+    ],
+  },
+  {
     version: '26.47.1',
     date: '2026-11-17',
     notes: [

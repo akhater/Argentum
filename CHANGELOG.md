@@ -4,6 +4,96 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.47.2 — 2026-11-21
+
+### Added
+
+- RAW > Rendering has a new choice, **Camera Look**: DNG Standard with a colour look fitted to the JPEG the camera embedded in the RAW, so a photo starts close to how the camera rendered it. The look (an HSV table and a tone curve) is fitted once per photo, in a few seconds, and cached; it is used only when it matches the JPEG better than DNG Standard on a third of the photo the fit did not learn from, and otherwise the photo shows Auto-Matched and a note says so. On five test RAWs the look came within a mean ΔE00 of 0.7 to 1.6 of the camera JPEG, against 1.7 to 3.8 for Auto-Matched, with skin hues 1 to 3 degrees off the JPEG's against 3 to 7. Every other rendering is unchanged. Harvested from RAWmakase v0.7.1 (`78069aa3`): `crates/rawmakase-decode/src/camera_look/` (`solve.rs`, `gate.rs`, `pairs.rs`, `mod.rs`) and `crates/rawmakase-model/src/camera_profiles/` (`fitted.rs`, `mod.rs` `Table::apply`, `enhanced.rs` `apply_curve`), MIT.
+- When a crash ends Argentum on Windows, a message now says so, names the crash log and offers to open its folder, instead of the window closing without a word. Every crash is recorded in `crash.log` beside `app.log` (message, place, backtrace, version, OS), which, unlike `app.log`, is not emptied at the next launch; past 1 MB it moves to `crash.old.log`. macOS and Linux record the crash log without the message. From RAWmakase `src/app/crash_log.rs` and `src/main.rs` (`e62bf3e`, `fb6c877`), unchanged at v0.7.1.
+- `npm run check:downloads` asks every address Argentum downloads from (the build's ONNX Runtime, the DirectML package, every AI model, both our copy and the original) whether it still answers, and warns, never fails, for any that does not. It runs weekly in CI. The addresses come from a list a test writes from the code's own lists (`src-tauri/download-addresses.tsv`), so it cannot drift from what the app downloads.
+- AI masks in a preset or a paste find their own area on each photo they reach: a preset that darkens the sky through a Sky mask darkens each photo's own sky, not the first photo's sky shape. Subject, Sky, Background, Object, Text and Face masks are found again through Argentum's own selections, the open photo first and the others one at a time with a count; a photo where one is not found keeps that mask empty and the rest of the preset. Brushed, gradient and other hand-made masks are carried as before. The idea is RapidRAW 1.6.7's (`07ef9211`, `a693d967`: `src/utils/maskUtils.ts` `stripAiMaskResults`, `PresetsPanel.tsx` `resolvePresetAiMasks`); the code is ours (`src-tauri/src/mods/selection_again.rs`, `src/argentum/selection/foundAgain.ts`, `findAgain.ts`).
+
+### Changed
+
+- FlashRaw and the tethering bindings (`gphoto2`) now build from forks kept with Argentum, `akhater/flashraw` and `akhater/libgphoto2-rs`, at the same commits as before, so a build no longer depends on the original repositories staying online. `gphoto2` is now pinned to its commit instead of following a branch. FlashRaw's new releases are still watched upstream.
+- **Highlight Recovery rebuilds clipped highlights the way Camera Raw does, in new edits.** After demosaic, each colour channel near or past the sensor's white is pulled towards the mean of the other two, by a weight that rises with its own level: a clipped channel takes the others' level, a blown area comes out neutral, and bright skies, lamps and sunsets lose the pink cast and the hard edge where one channel stopped. On test photos clipped one and two stops on purpose, so the true colour was known, the error on the pixels that lost a channel fell in seven of nine cases and stayed within 0.2 in the other two. Bright colours just below clipping are desaturated slightly, as in Camera Raw. Edits saved before keep their look exactly: the photo's sidecar records which rule it renders with. From RAWmakase `crates/rawmakase-engine/src/develop/quality/highlights.rs` @ `8665ebda` (unchanged to v0.7.1), run through a new step in the rawler fork before white balance (`akhater/RapidRAW-DngLab` @ `7211eb37`). Thumbnail pipeline 15.
+- AI features keep working if a model's original host goes away: every model RapidRAW publishes, both Real-ESRGAN models (Super Resolution) and the DirectML package (graphics card support on Windows) are downloaded from Argentum's own copies (releases `models-mirror-v1` and `onnxruntime-1.22.0` of `akhater/argentum-models`) first, and from their original addresses when those cannot be reached. Each is checked against the same pinned SHA-256 either way, so files already downloaded are kept.
+- Building Argentum no longer depends on one server for ONNX Runtime 1.22.0: each platform's library is downloaded from Argentum's own copy (release `onnxruntime-1.22.0` of `akhater/argentum-models`), and from RapidRAW's, where it was first published, when ours cannot be reached. Both are checked against the same pinned SHA-256.
+- Building Argentum no longer downloads a prebuilt ONNX Runtime from `cdn.pyke.io` that it never used: `ort` is now built without its default features, which also drops 16 crates from `Cargo.lock`. The app still loads the ONNX Runtime it ships with, unchanged.
+
+### Fixed
+
+- Albums, XMP files and edit files no longer lose an update when two changes meet: album changes, XMP writes (a RAW and its JPEG share one XMP) and each photo's edit file are written one change at a time. Albums follow the photos that did move when a move stops halfway. Renaming a photo only by its case (`img_1.jpg` to `IMG_1.jpg`) is allowed. From RapidRAW `ad1dc9b9` (`src-tauri/src/library/albums.rs`, `metadata/xmp.rs`, `library/file_ops.rs`) and `922fb901` (`src-tauri/src/exif_processing.rs`, per-file locks).
+- **Exports get the right edits and names.** A virtual copy exported in the same batch as its open
+  original was written with the original's live edits, and an open copy lost its unsaved ones; each
+  now gets its own, in the export and in the size estimate (RapidRAW `06ffd3ca`,
+  `src-tauri/src/export_processing.rs`). Virtual copies are numbered `_VC01`, `_VC02` per photo in
+  batch order, instead of from the digits of the copy's id, and a file with `_vc` in its name no
+  longer gets a suffix (RapidRAW `5e0a4b7a`, `src-tauri/src/export/mod.rs`). A file name template
+  with folders, such as `{YYYY}/{MM}/{original_filename}`, creates them (RapidRAW `7d94545a`,
+  `src-tauri/src/export_processing.rs`). The size estimate waits for the photo being opened instead
+  of showing the previous one's (RapidRAW `f01c328c`). An invalid border or padding value disables
+  Export instead of hiding the whole panel (RapidRAW `76ab6bb2`), Enter confirms the DPI, padding
+  and border fields (RapidRAW `384f86f8`, `src/components/panel/right/ExportPanel.tsx`), and
+  templates take `{ss}`, the seconds (RapidRAW `642c8f21`, `src-tauri/src/file_management.rs`).
+  The new rules live in `src-tauri/src/mods/export_batch.rs`.
+- Argentum builds again from a fresh checkout: FlashRaw 0.1.1 is taken from its source commit (`ybouane/flashraw` `ee9d8b5e`, "Release 0.1.1"), since crates.io no longer has that version. The code is the same as the crates.io package, file for file.
+- Edits, settings, presets and XMP files save again on disks that refuse a full flush to disk, such as macOS SMB and NFS shares and some USB or exFAT drives. The save now goes ahead without the flush there (after a plain `fsync` on macOS) and notes it once in the log; any other flush error still fails the save. From RapidRAW 1.7.0 (`file_management.rs` @ `526d0f38`, `9be11cd8`).
+- **Merged and converted images keep the camera's EXIF, and TIFFs carry the sRGB profile.** An
+  HDR, panorama, focus stack, denoised, positive, restored or enlarged image now has its source
+  photo's camera, lens, date and GPS inside the file, as an export of that photo does, so other
+  apps sort and read it right (before, only Argentum's own edits file held them). HDR and panorama
+  TIFFs stay 32-bit float. Every TIFF export and generated TIFF is tagged with the sRGB ICC
+  profile JPEG and PNG exports already carry, so colour-managed apps show it as intended. From
+  RapidRAW's `save_converted_image` (`src-tauri/src/exif_processing.rs` @ 36bb789a) and its TIFF
+  profile tag (`src-tauri/src/tiff_metadata.rs` @ 31d77012), now `src-tauri/src/mods/generated_image.rs`
+  and `encode_tiff` in `src-tauri/src/mods/export_precision.rs`.
+- **Heal matches the surrounding tone, on spots of every size.** Heal relaxed its tone correction with 400 fixed sweeps, which never reached the middle of a spot wider than about 80 px, and it left the edge pixels on each side of the spot's box out of the correction. On five test RAWs, a heal kept a median 19% of the tone difference between source and destination at 50 px, 17% at 100 px and 36% at 200 px (60% at its centre). It now solves on a pyramid of the spot until it settles: 1 to 2% left at every size, and a mean ΔE00 to the exact solution of 0.27 to 0.36, against 3.4 to 7.6. Only new heals change; heals already in an edit are stored as pixels and look the same. From RapidRAW `19427777`: `src-tauri/src/clone_heal.rs` (`heal_patch`, `build_level`, `relax`), now `mods/clone_heal.rs`.
+- **JPEG XL export no longer runs out of memory, and keeps its metadata.** Lossless JPEG XL is
+  encoded without tree learning: on five 5-32 MP RAWs the encoder's peak fell from 9.08 GB to
+  2.71 GB and the time from 46 minutes to under 3, for files 13% larger. A batch now counts the
+  encoder's memory before choosing how many photos to export at once (RapidRAW `892bfa30`,
+  `src-tauri/src/export_processing.rs`). Keep metadata now writes EXIF and XMP (rating, label,
+  keywords) into JPEG XL files, and the Export panel shows the metadata options for it (RapidRAW
+  `898e4775`, `src-tauri/src/metadata/export_metadata.rs`; `9e03d499`,
+  `src/components/panel/right/ExportPanel.tsx`). The rules live in
+  `src-tauri/src/mods/jxl_export.rs`.
+- **Lens correction now follows a photo shot in another aspect ratio.** A Micro Four Thirds body
+  that records a 16:9, 3:2 or 1:1 frame uses a smaller part of its 4:3 sensor, and Lensfun lists
+  the Panasonic LX1 and LX3 once per aspect-ratio mode, each with its own crop factor. The raw's
+  frame is now read when its EXIF is (rawler's default crop, without decoding the pixels): the
+  Lensfun entry for its mode is chosen, and the profile is put on that frame. A fixed-lens camera
+  keeps its entry's crop factor, since some have multi-aspect sensors. A 35 mm equivalent focal
+  length that describes the whole sensor no longer counts as a crop mode. Photos opened before
+  keep their cached EXIF and are corrected as before. The rules are RAWmakase's
+  (`crates/rawmakase-model/src/lens/lensfun/matching.rs`: `camera`, `frame_crop`,
+  `native_aspect`, `photo_crop`, v0.7.1 @ 26267b16, MIT). Argentum's correction is now checked
+  against Lensfun's own output on RAWmakase's six reference calibrations
+  (`tests/data/lensfun/reference.json`, same commit).
+- A virtual copy's rating, colour label and tags stay its own: rating or tagging it no longer overwrites the photo's XMP, and listing a folder no longer gives the copy the photo's XMP rating, label and tags. Undo right after a click or a typed value undoes that change instead of the step before it, and a photo's first change can be undone at once. Deleting a mask or AI patch with Delete is a History step. Cull lists blurry photos when "group similar" is on and analyses virtual copies; HDR merge accepts virtual copies. Deleting or renaming a folder inside the one on show refreshes the recursive view. LUT files with `..` in their name (`Teal..Orange.cube`) load. From RapidRAW `5720d633` (`src-tauri/src/file_management.rs`, `tagging.rs`, `culling.rs`, `lib.rs`, `lut_processing.rs`; `src/store/useEditorStore.ts`, `src/hooks/useKeyboardShortcuts.ts`, `useAppContextMenus.ts`, `useFileOperations.ts`).
+- **Lightroom 3 and 4 presets keep their tone settings on import.** A preset from before process
+  version 2012 (2003 or 2010) lost Exposure, Contrast, Brightness, Fill Light, Recovery, Shadows,
+  Clarity and its tone curve, because only the 2012 controls and curve were read. They now
+  convert into the 2012 controls the way Lightroom 5's "Update to Current Process (2012)" writes
+  them, the 2012 keys Lightroom 5 stores at 0 in these presets are ignored, and the preset's own
+  tone curve is used. Presets from process version 2012 on import exactly as before. From
+  RAWmakase (MIT): `crates/rawmakase-interop/src/lr_develop.rs` (`legacy_tone`, `eb8a3356`;
+  `72eec1bf`) and `crates/rawmakase-interop/src/xmp/mod.rs` (`point_curve_keys`, `c83741ea`),
+  in `src-tauri/src/mods/lr_legacy.rs`.
+- Argentum no longer leaves ONNX Runtime's telemetry on: every AI feature now runs in one ONNX Runtime environment built with Microsoft's usage telemetry switched off, so nothing about the models or their runs is reported. Taken from RAWmakase (`crates/rawmakase-inference/src/runtime.rs` @ `4b8d6d04`, MIT).
+- **A Lightroom preset with negative Shadows now imports in range.** Lightroom's Shadows is scaled
+  by 1.5 on import and was capped only at +100, so Shadows -100 came in as -150. It is now held to
+  -100..100 on both ends (RapidRAW `61960fc5`, `src-tauri/src/library/preset_converter.rs`).
+- **Liquify and skin smoothing land where you brush on a straightened, rotated, flipped or lens-corrected photo.** Their strokes were read as raw pixels, but the canvas records them on the photo as shown, so on any photo with geometry they worked somewhere else: a 10° straighten put a dab near a corner more than 400 px away. Every stroke point now goes back through the photo's geometry, as Heal's source point already did, with the brush size following the local scale and twirl following a mirrored photo. Liquify strokes now build on each other: a stroke over an area already pushed moves what is now visible there. Skin smoothing now uses frequency separation, smoothing tone while keeping most of the skin's texture, instead of a bilateral blur. Only new strokes change; strokes already in an edit are stored as pixels and look the same. From RapidRAW `f3c68838`: `src-tauri/src/touch_up.rs` (now `mods/touch_up.rs`) and the liquify and retouch commands in `src-tauri/src/inpainting.rs`.
+- **A new HDR, panorama, focus stack, collage, denoised, positive, restored or enlarged image no
+  longer replaces an earlier one.** Each gets the first free name (`IMG_Hdr.tiff`, then
+  `IMG_Hdr_1.tiff`, ...), and a name whose edits (`.agdata`, a virtual copy's included) or EXIF
+  cache (`.agexif`) are still beside it is skipped, so a new result never opens with an old one's
+  edits. The file is written whole before it gets its name, and two saves at once each keep
+  theirs. From RapidRAW's `write_unique_output` (`src-tauri/src/output_files.rs` @ ea319a90,
+  moved into `file_management.rs` by ec3ad01a; the save fixes of 5720d633), now
+  `src-tauri/src/mods/file_ops.rs`.
+
 ## 26.47.1 — 2026-11-17
 
 ### Fixed

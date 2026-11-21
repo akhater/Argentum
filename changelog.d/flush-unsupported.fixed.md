@@ -1,1 +1,0 @@
-- Edits, settings, presets and XMP files save again on disks that refuse a full flush to disk, such as macOS SMB and NFS shares and some USB or exFAT drives. The save now goes ahead without the flush there (after a plain `fsync` on macOS) and notes it once in the log; any other flush error still fails the save. From RapidRAW 1.7.0 (`file_management.rs` @ `526d0f38`, `9be11cd8`).
