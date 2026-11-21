@@ -15,23 +15,88 @@
 //! scanner can hold the new file it has just seen written ("being used by
 //! another process"). The rename is tried again for about a second before the
 //! save gives up, as cargo and npm do for the same reasons.
+//!
+//! Some disks refuse the flush to the platter: macOS SMB and NFS shares and
+//! some USB or exFAT drives answer "not supported". The save goes ahead there
+//! without it (after a plain `fsync` on macOS, whose full flush is the one
+//! refused), and says so once in the log. Any other flush error still fails
+//! the save.
 
+use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 const HELD_RETRIES: u32 = 10;
 
 /// Replace `path` with `contents`, or leave it exactly as it was.
 pub fn write_atomic(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    write_atomic_with(path, contents.as_ref(), File::sync_all)
+}
+
+/// `write_atomic` with the full flush passed in, so a test can make the disk
+/// refuse it.
+fn write_atomic_with(
+    path: &Path,
+    contents: &[u8],
+    full_flush: impl FnOnce(&File) -> std::io::Result<()>,
+) -> std::io::Result<()> {
     let folder = match path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
     };
     let mut temp = tempfile::NamedTempFile::new_in(folder)?;
-    temp.write_all(contents.as_ref())?;
-    temp.as_file().sync_all()?;
+    temp.write_all(contents)?;
+    flush(temp.as_file(), full_flush)?;
     replace(temp, path)
+}
+
+// RapidRAW 526d0f38: src-tauri/src/file_management.rs
+/// `file` flushed to the disk, or as far as the disk allows: a flush it
+/// refuses as unsupported is skipped, not an error.
+fn flush(
+    file: &File,
+    full_flush: impl FnOnce(&File) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    match full_flush(file) {
+        Err(e) if is_flush_unsupported(&e) => {
+            // macOS' full flush is `F_FULLFSYNC`; a disk that refuses it may
+            // still take a plain `fsync`.
+            #[cfg(target_vendor = "apple")]
+            {
+                use std::os::fd::AsRawFd;
+                // SAFETY: the descriptor belongs to `file`, open for this call.
+                if unsafe { libc::fsync(file.as_raw_fd()) } != 0 {
+                    let e = std::io::Error::last_os_error();
+                    if !is_flush_unsupported(&e) {
+                        return Err(e);
+                    }
+                }
+            }
+            if !FLUSH_REFUSAL_LOGGED.swap(true, Ordering::Relaxed) {
+                log::warn!("a disk refused a full flush ({e}); saving without it");
+            }
+            Ok(())
+        }
+        result => result,
+    }
+}
+
+static FLUSH_REFUSAL_LOGGED: AtomicBool = AtomicBool::new(false);
+
+/// The errors a disk answers when it cannot flush at all: `ENOTSUP` and
+/// `EOPNOTSUPP` (the same number on Linux, two on macOS).
+#[cfg(unix)]
+const FLUSH_UNSUPPORTED: [i32; 2] = [libc::ENOTSUP, libc::EOPNOTSUPP];
+#[cfg(not(unix))]
+const FLUSH_UNSUPPORTED: [i32; 0] = [];
+
+// RapidRAW 526d0f38: src-tauri/src/file_management.rs
+fn is_flush_unsupported(error: &std::io::Error) -> bool {
+    error
+        .raw_os_error()
+        .is_some_and(|code| FLUSH_UNSUPPORTED.contains(&code))
 }
 
 /// `temp` in place of `path`, tried again while another process holds either.
@@ -163,6 +228,56 @@ mod tests {
         replaced.unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
         assert_eq!(names_in(dir.path()), ["photo.agdata"]);
+    }
+
+    /// macOS SMB and NFS shares and some USB or exFAT drives refuse the full
+    /// flush as unsupported. The edit is saved anyway.
+    #[cfg(unix)]
+    #[test]
+    fn a_disk_that_refuses_the_flush_still_saves() {
+        for code in [libc::ENOTSUP, libc::EOPNOTSUPP] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("photo.agdata");
+            std::fs::write(&path, "old").unwrap();
+            super::write_atomic_with(&path, b"new", |_| {
+                Err(std::io::Error::from_raw_os_error(code))
+            })
+            .unwrap();
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+            assert_eq!(names_in(dir.path()), ["photo.agdata"]);
+        }
+    }
+
+    /// Only "not supported" is let through: a disk that fails the flush any
+    /// other way fails the save, and the old file stays.
+    #[test]
+    fn any_other_flush_error_still_fails_the_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("photo.agdata");
+        std::fs::write(&path, "old").unwrap();
+        let failed = super::write_atomic_with(&path, b"new", |_| {
+            Err(std::io::Error::other("the disk failed"))
+        });
+        assert!(failed.is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
+        assert_eq!(
+            names_in(dir.path()),
+            ["photo.agdata"],
+            "no temporary file left"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_input_output_error_from_the_flush_still_fails_the_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("photo.agdata");
+        std::fs::write(&path, "old").unwrap();
+        let failed = super::write_atomic_with(&path, b"new", |_| {
+            Err(std::io::Error::from_raw_os_error(libc::EIO))
+        });
+        assert!(failed.is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
     }
 
     #[test]
