@@ -70,10 +70,8 @@
 //! integrity check said so - correctly - the moment a stricter version of it
 //! arrived from main.
 //!
-//! No ICC profile is attached, here or anywhere else in the export: nothing in
-//! this tree writes one for any format, and giving TIFF alone a profile would
-//! make it the odd one out rather than the correct one. Tagging every export is
-//! its own change.
+//! A TIFF carries the sRGB profile, as JPEG and PNG exports do
+//! (`encode_tiff`).
 //!
 //! Nothing of PR #1395 is used: the bounded intermediate textures it adds are
 //! already in this tree as `clamped_tile_size`, and its capability gate belongs
@@ -276,41 +274,96 @@ pub fn save(library: &std::path::Path, depth: TiffDepth) -> Result<(), String> {
 /// `dpi`, when set, is written as the TIFF resolution in pixels per inch, for
 /// print. The tag writing is RapidRAW's `write_tiff` (src-tauri/src/export_processing.rs
 /// @ 66bbcb95, "feat(export): add DPI setting for print exports").
+///
+/// The pixels are sRGB, so the sRGB profile JPEG and PNG exports carry is
+/// tagged here too (ICC tag 34675 in the main IFD, type `UNDEFINED`).
 pub fn encode_tiff<W: std::io::Write + std::io::Seek>(
     image: &DynamicImage,
     into: &mut W,
     dpi: Option<u16>,
 ) -> Result<(), String> {
-    use tiff::encoder::{Rational, TiffEncoder, colortype};
-    use tiff::tags::ResolutionUnit;
+    use tiff::encoder::colortype;
 
     let (width, height) = (image.width(), image.height());
-    let mut encoder = TiffEncoder::new(into).map_err(|e| e.to_string())?;
-    let resolution = dpi.map(|dpi| Rational {
-        n: dpi.into(),
-        d: 1,
-    });
     match image {
         DynamicImage::ImageRgb8(_) | DynamicImage::ImageRgba8(_) => {
-            let mut tiff = encoder
-                .new_image::<colortype::RGB8>(width, height)
-                .map_err(|e| e.to_string())?;
-            if let Some(resolution) = resolution {
-                tiff.resolution(ResolutionUnit::Inch, resolution);
-            }
-            tiff.write_data(image.to_rgb8().as_raw())
+            write_tagged_tiff::<_, colortype::RGB8>(into, width, height, &image.to_rgb8(), dpi)
         }
-        _ => {
-            let mut tiff = encoder
-                .new_image::<colortype::RGB16>(width, height)
-                .map_err(|e| e.to_string())?;
-            if let Some(resolution) = resolution {
-                tiff.resolution(ResolutionUnit::Inch, resolution);
-            }
-            tiff.write_data(image.to_rgb16().as_raw())
-        }
+        _ => write_tagged_tiff::<_, colortype::RGB16>(into, width, height, &image.to_rgb16(), dpi),
     }
-    .map_err(|e| e.to_string())
+}
+
+/// A TIFF of 32-bit float samples with the sRGB profile, for a merged HDR or
+/// panorama that keeps its float data.
+pub fn encode_float_tiff<W: std::io::Write + std::io::Seek>(
+    image: &DynamicImage,
+    into: &mut W,
+) -> Result<(), String> {
+    write_tagged_tiff::<_, tiff::encoder::colortype::RGB32Float>(
+        into,
+        image.width(),
+        image.height(),
+        &image.to_rgb32f(),
+        None,
+    )
+}
+
+/// One TIFF image of `samples`, with the sRGB profile and, when set, the
+/// resolution in pixels per inch.
+fn write_tagged_tiff<W, C>(
+    into: &mut W,
+    width: u32,
+    height: u32,
+    samples: &[C::Inner],
+    dpi: Option<u16>,
+) -> Result<(), String>
+where
+    W: std::io::Write + std::io::Seek,
+    C: tiff::encoder::colortype::ColorType,
+    [C::Inner]: tiff::encoder::TiffValue,
+{
+    use tiff::encoder::{Rational, TiffEncoder};
+    use tiff::tags::{ResolutionUnit, Tag};
+
+    let mut encoder = TiffEncoder::new(into).map_err(|e| e.to_string())?;
+    let mut tiff = encoder
+        .new_image::<C>(width, height)
+        .map_err(|e| e.to_string())?;
+    // RapidRAW 31d77012: src-tauri/src/tiff_metadata.rs (ICC profile in the main IFD)
+    tiff.encoder()
+        .write_tag(
+            Tag::IccProfile,
+            Undefined(crate::export_processing::SRGB_ICC_PROFILE),
+        )
+        .map_err(|e| format!("Failed to write the ICC profile: {e}"))?;
+    if let Some(dpi) = dpi {
+        tiff.resolution(
+            ResolutionUnit::Inch,
+            Rational {
+                n: dpi.into(),
+                d: 1,
+            },
+        );
+    }
+    tiff.write_data(samples).map_err(|e| e.to_string())
+}
+
+/// Bytes written with the TIFF type `UNDEFINED`, which the `tiff` crate has
+/// no value type for; the specification asks for it on the ICC profile.
+// RapidRAW 31d77012: src-tauri/src/tiff_metadata.rs `Undefined`
+struct Undefined<'a>(&'a [u8]);
+
+impl tiff::encoder::TiffValue for Undefined<'_> {
+    const BYTE_LEN: u8 = 1;
+    const FIELD_TYPE: tiff::tags::Type = tiff::tags::Type::UNDEFINED;
+
+    fn count(&self) -> usize {
+        self.0.len()
+    }
+
+    fn data(&self) -> std::borrow::Cow<'_, [u8]> {
+        std::borrow::Cow::Borrowed(self.0)
+    }
 }
 
 /// Which render target a pipeline is built for.
@@ -1060,12 +1113,12 @@ mod tests {
         let mut deep = Vec::new();
         encode_tiff(&real, &mut std::io::Cursor::new(&mut deep), None).expect("16-bit");
         let mut shallow_widened = Vec::new();
-        DynamicImage::ImageRgb16(widened.to_rgb16())
-            .write_to(
-                &mut std::io::Cursor::new(&mut shallow_widened),
-                image::ImageFormat::Tiff,
-            )
-            .expect("widened to 16-bit");
+        encode_tiff(
+            &DynamicImage::ImageRgb16(widened.to_rgb16()),
+            &mut std::io::Cursor::new(&mut shallow_widened),
+            None,
+        )
+        .expect("widened to 16-bit");
 
         println!("MEASURED: real 16-bit  = {} bytes", deep.len());
         println!("MEASURED: widened 8-bit = {} bytes", shallow_widened.len());

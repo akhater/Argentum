@@ -313,6 +313,48 @@ mod tests {
         );
     }
 
+    /// The ICC profile in the main IFD, as a colour-managed reader finds it.
+    fn icc_profile(bytes: &[u8]) -> Option<Vec<u8>> {
+        let mut decoder = tiff::decoder::Decoder::new(Cursor::new(bytes)).unwrap();
+        decoder.get_tag_u8_vec(tiff::tags::Tag::IccProfile).ok()
+    }
+
+    /// A TIFF export carries the sRGB profile, as JPEG and PNG do, whether
+    /// metadata is kept (the file is rewritten around the EXIF) or not.
+    #[test]
+    fn a_tiff_export_carries_the_srgb_profile_with_or_without_metadata() {
+        let source = source_jpeg("source-icc.jpg", &[]);
+        for original in [rgb8_image(40, 30), rgb16_image(40, 30)] {
+            let bare = encode(&original);
+            assert_eq!(
+                icc_profile(&bare).as_deref(),
+                Some(crate::export_processing::SRGB_ICC_PROFILE)
+            );
+
+            let mut with_exif = bare.clone();
+            write_export_metadata(
+                &mut with_exif,
+                source.to_str().unwrap(),
+                "tiff",
+                true,
+                false,
+                &no_xmp(),
+                None,
+            )
+            .unwrap();
+            assert_ne!(with_exif, bare, "the metadata was written");
+            assert_eq!(
+                icc_profile(&with_exif).as_deref(),
+                Some(crate::export_processing::SRGB_ICC_PROFILE)
+            );
+            assert_eq!(
+                field(&read_back(&with_exif), exif::Tag::Make).as_deref(),
+                Some("TestCam Industries")
+            );
+            assert_image_unchanged(&original, &with_exif, "icc");
+        }
+    }
+
     #[test]
     fn a_16_bit_tiff_keeps_its_pixels_and_gains_its_exif() {
         let source = source_jpeg("source-16.jpg", &[]);

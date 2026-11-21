@@ -2161,12 +2161,13 @@ fn write_focus_stack(first_path_str: &str, focus_image: &DynamicImage) -> Result
     let stem = first_path.file_stem().unwrap_or_default().to_string_lossy();
 
     // RapidRAW ea319a90: src-tauri/src/focus_stacking.rs (through write_unique_output)
-    let output_path = crate::mods::file_ops::write_unique_image(
+    let output_path = crate::mods::generated_image::save(
         parent_dir,
         &format!("{}_Stacked", stem),
         "tiff",
         &DynamicImage::ImageRgb16(focus_image.to_rgb16()),
         ImageFormat::Tiff,
+        &first_path,
     )
     .map_err(|e| format!("Failed to save focus stack: {}", e))?;
 

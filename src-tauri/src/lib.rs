@@ -1486,12 +1486,13 @@ async fn save_hdr(
     };
 
     // RapidRAW ea319a90: src-tauri/src/lib.rs (save_hdr through write_unique_output)
-    let output_path = crate::mods::file_ops::write_unique_image(
+    let output_path = crate::mods::generated_image::save(
         parent_dir,
         &format!("{}_Hdr", stem),
         extension,
         &image_to_save,
         format,
+        &first_path,
     )
     .map_err(|e| format!("Failed to save hdr image: {}", e))?;
 

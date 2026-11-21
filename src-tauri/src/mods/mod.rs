@@ -60,6 +60,7 @@ pub mod export_metadata;
 pub mod export_precision;
 pub mod face_mask;
 pub mod file_ops;
+pub mod generated_image;
 pub mod film_lut;
 pub mod focus_points;
 pub mod folder_counts;
