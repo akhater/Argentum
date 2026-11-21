@@ -132,6 +132,10 @@ pub struct Camera {
     pub model: Vec<MultiName>,
     pub mount: String,
     pub cropfactor: f32,
+    // Argentum: a body's aspect-ratio modes, which Lensfun lists as variants
+    // ("16:9") of their own crop factor, for mods/lens_match.rs.
+    pub variant: Option<String>,
+    pub aspect_ratio: Option<String>,
 }
 
 /// Argentum: a Lensfun `<mount>`, with the mounts whose lenses fit a camera of

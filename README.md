@@ -248,7 +248,7 @@ In the operating system's own application-data folder, under
 |---|---|---|---|
 | Settings, AI models, presets, My Gear | `%APPDATA%\co.argentum.editor` | `~/Library/Application Support/co.argentum.editor` | `~/.local/share/co.argentum.editor` |
 | Thumbnail cache | `%LOCALAPPDATA%\co.argentum.editor` | `~/Library/Caches/co.argentum.editor` | `~/.cache/co.argentum.editor` |
-| Log (`app.log`, for bug reports) | `%LOCALAPPDATA%\co.argentum.editor\logs` | `~/Library/Logs/co.argentum.editor` | `~/.local/share/co.argentum.editor/logs` |
+| Logs (`app.log`, and `crash.log` after a crash, for bug reports) | `%LOCALAPPDATA%\co.argentum.editor\logs` | `~/Library/Logs/co.argentum.editor` | `~/.local/share/co.argentum.editor/logs` |
 
 **This is not configurable yet.** A portable, one-folder installation is on the
 roadmap and is not built.

@@ -4,10 +4,7 @@
 //! on the editor's picture). A paste carries that answer to other photos, where
 //! it is the wrong light, so each of them is measured here instead
 //! (argentum/autoWhiteBalance.ts). The picture is the one the editor would
-//! measure: the photo decoded as for an export, its inpainted areas composited
-//! and its geometry applied, as Restore & Enlarge loads one
-//! (super_resolution.rs `load_source`), through `build_full_warped_image`, which
-//! is what the open photo's measurement reads.
+//! measure (warped_photo.rs).
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -44,17 +41,8 @@ pub fn measure(
     if let Some(from) = pasted_from {
         wait_for_paste(&sidecar_path, from, wait)?;
     }
-    let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
-
     let source = source_path.to_string_lossy();
-    let bytes = std::fs::read(&source_path).map_err(|e| format!("Could not read {source}: {e}"))?;
-    let decoded =
-        crate::image_loader::load_base_image_from_bytes(&bytes, &source, false, settings, None)
-            .map_err(|e| format!("Could not decode {source}: {e}"))?;
-    let patched = crate::image_loader::composite_patches_on_image(&decoded, &adjustments)
-        .map_err(|e| format!("Could not apply the inpainted areas: {e}"))?;
-    let is_raw = crate::formats::is_raw_file(&source_path);
-    let picture = crate::mask_generation::build_full_warped_image(&patched, is_raw, &adjustments);
+    let (picture, _) = super::warped_photo::load(path, settings)?;
 
     let as_shot = crate::as_shot::as_shot(path).white_balance;
     let found = auto_white_balance(&picture, DetectMode::Surfaces, true, as_shot)

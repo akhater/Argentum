@@ -146,7 +146,10 @@ export const CREDITS: CreditGroup[] = [
           'RAWmakase’s measured copy of Lightroom’s. The camera’s own lens correction is read as ' +
           'RAWmakase reads it: the distortion, colour fringing and vignetting tables each make ' +
           'stores in its RAW files, which of them Lightroom applies, the optical centre they turn ' +
-          'about and how Lightroom frames the corrected photo. Some RAW files are read as ' +
+          'about and how Lightroom frames the corrected photo. Which Lensfun lens a photo was ' +
+          'taken with is decided by RAWmakase’s matcher: its words, mount, focal length and ' +
+          'frame, crop and aspect-ratio modes included, and the correction is checked against ' +
+          'Lensfun’s own output on RAWmakase’s reference cases. Some RAW files are read as ' +
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
           'matrices and white levels, and the names Adobe profiles some cameras under (the Lumix ' +
           'G97 as the G99). Noise below black is clipped where RAWmakase clips it, after ' +
@@ -157,7 +160,9 @@ export const CREDITS: CreditGroup[] = [
           'unchanged. HEIC photos open as RAWmakase opens them: the file’s header read for its ' +
           'size, crop, turn and colour, and its pixels decoded by the system’s own HEVC decoder ' +
           '(Windows Imaging Component, macOS’s ImageIO, or libheif). When a graphics driver ' +
-          'refuses a GPU device, the next backend is tried in RAWmakase’s order. RAWmakase is ' +
+          'refuses a GPU device, the next backend is tried in RAWmakase’s order. A crash is recorded ' +
+          'as RAWmakase records it, in a crash log kept for a bug report, named in a message on ' +
+          'Windows. RAWmakase is ' +
           'also where the ' +
           'comparison started. MIT.',
       },

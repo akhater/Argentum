@@ -39,6 +39,7 @@ mod compat_fixture;
 #[cfg(test)]
 mod compat_snapshot;
 pub mod copy_keys;
+pub mod crash_log;
 pub mod dcp;
 pub mod decode;
 pub mod denoise_gpu;
@@ -85,6 +86,7 @@ pub mod lens_interp;
 pub mod lens_match;
 pub mod lens_name;
 pub mod lens_names;
+mod lens_reference;
 pub mod lens_shot;
 pub mod lens_units;
 #[cfg(test)]
@@ -102,6 +104,7 @@ pub mod model_catalog;
 pub mod model_download;
 pub mod model_manager;
 pub mod modern_start;
+pub mod photo_frame;
 pub mod preview_encode;
 pub mod process_tree;
 pub mod profile_correction;
@@ -119,6 +122,7 @@ pub mod restore;
 pub mod rt_profiles;
 pub mod salvage;
 pub mod selection;
+pub mod selection_again;
 pub mod selection_models;
 pub mod shader_check;
 pub mod sharpen;
@@ -135,5 +139,6 @@ pub mod tif_raw;
 #[cfg(test)]
 mod ui_thread;
 pub mod viewer_surface;
+pub mod warped_photo;
 pub mod wb_legacy;
 pub mod worker_thread;
