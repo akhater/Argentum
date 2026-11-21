@@ -343,7 +343,7 @@ pub async fn start_background_indexing(
                     let path_str = path.to_string_lossy().to_string();
                     let (source_path, sidecar_path) = parse_virtual_path(&path_str);
 
-                    let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+                    let metadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
                     let should_generate_tags = match &metadata.tags {
                         None => true,
@@ -368,23 +368,25 @@ pub async fn start_background_indexing(
                                 ) {
                                     println!("Found AI tags for {}: {:?}", path_str, ai_tags);
 
-                                    let mut existing_tags: HashSet<String> =
-                                        metadata.tags.unwrap_or_default().into_iter().collect();
-
-                                    for tag in ai_tags {
-                                        existing_tags.insert(tag);
-                                    }
-
-                                    let mut final_tags: Vec<String> =
-                                        existing_tags.into_iter().collect();
-                                    final_tags.sort_unstable();
-
-                                    metadata.tags = Some(final_tags);
-
-                                    let _ = crate::exif_processing::write_sidecar(
+                                    // Argentum: added to the sidecar as it is now,
+                                    // which may have changed while the tags were
+                                    // found (mods/write_locks.rs).
+                                    let _ = crate::mods::write_locks::update_sidecar(
                                         &sidecar_path,
                                         &source_path,
-                                        &metadata,
+                                        |metadata| {
+                                            let mut existing_tags: HashSet<String> = metadata
+                                                .tags
+                                                .take()
+                                                .unwrap_or_default()
+                                                .into_iter()
+                                                .collect();
+                                            existing_tags.extend(ai_tags);
+                                            let mut final_tags: Vec<String> =
+                                                existing_tags.into_iter().collect();
+                                            final_tags.sort_unstable();
+                                            metadata.tags = Some(final_tags);
+                                        },
                                     );
                                 }
                             }
@@ -432,6 +434,7 @@ fn modify_tags_for_path(
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(path_str);
 
+    let sidecar_lock = crate::mods::write_locks::lock_sidecar(&sidecar_path);
     let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
     let mut tags = metadata.tags.unwrap_or_default();
@@ -448,6 +451,7 @@ fn modify_tags_for_path(
 
     crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata)
         .map_err(|e| e.to_string())?;
+    drop(sidecar_lock);
 
     if let Ok(settings) = crate::load_settings(app_handle.clone())
         && settings.enable_xmp_sync.unwrap_or(false)

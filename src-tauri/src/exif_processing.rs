@@ -1424,6 +1424,8 @@ pub fn write_image_with_metadata(
         },
         "tiff" => FileExtension::TIFF,
         "webp" => FileExtension::WEBP,
+        // RapidRAW 898e4775: src-tauri/src/metadata/export_metadata.rs
+        "jxl" => FileExtension::JXL,
         _ => return Ok(()),
     };
 
@@ -1775,6 +1777,7 @@ fn embed_xmp(
         FileExtension::JPEG => embed_jpeg_xmp(image_bytes, &packet),
         FileExtension::PNG { .. } => embed_png_xmp(image_bytes, &packet),
         FileExtension::WEBP => embed_webp_xmp(image_bytes, &packet),
+        FileExtension::JXL => crate::mods::jxl_export::embed_xmp(image_bytes, &packet),
         _ => {}
     }
 }
