@@ -140,7 +140,7 @@ pub fn session(model: &Path, device: Device) -> Result<(Session, Device)> {
     #[cfg(not(windows))]
     let _ = device;
 
-    let session = Session::builder()?
+    let session = crate::mods::ai_session::builder()?
         .commit_from_file(model)
         .with_context(|| format!("Could not load {}", model.display()))?;
     Ok((session, Device::Cpu))
@@ -280,7 +280,7 @@ mod windows_runtime {
 
     pub fn gpu_session(model: &Path) -> Result<Session> {
         // DirectML cannot run with memory patterns or parallel execution.
-        Ok(Session::builder()?
+        Ok(crate::mods::ai_session::builder()?
             .with_parallel_execution(false)?
             .with_memory_pattern(false)?
             .with_execution_providers([DirectMLExecutionProvider::default()

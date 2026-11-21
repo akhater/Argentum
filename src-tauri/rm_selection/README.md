@@ -20,6 +20,9 @@ Each change is marked with a comment starting `Argentum:`.
   `GraphOptimizationLevel::Level3` for `All`, and `init_from` returning its
   builder directly. A prompt of points alone passes its empty box tensor
   allocated, because rc.10 refuses a zero-sized dimension built from raw data.
+- `runtime.rs`: `private_environment`, RAWmakase's later telemetry fix (`4b8d6d04`),
+  so the environment is built with telemetry off. The app builds its own
+  environment through it too (`src/mods/ai_session.rs`).
 - Every file starts with a line naming its source.
 
 Both models load and run on the app's ONNX Runtime 1.22 with these changes;
@@ -27,7 +30,8 @@ tested on 45 RAWs on 2026-10-19.
 
 ## Tests
 
-`cargo test` here runs the model-free tests. `tests/real_model.rs` needs the
+`cargo test` here runs the model-free tests, and `tests/telemetry.rs`, which
+loads the app's `../resources` runtime when the app has been built. `tests/real_model.rs` needs the
 models and a runtime: set `RAWMAKASE_TEST_MODEL` to the folder holding the five
 files and `RAWMAKASE_ORT_LIB` to `onnxruntime.dll`, then
 `cargo test -- --ignored`.
