@@ -139,6 +139,7 @@ pub mod startup;
 pub mod super_resolution;
 pub mod text_mask;
 pub mod tif_raw;
+pub mod touch_up;
 #[cfg(test)]
 mod ui_thread;
 pub mod viewer_surface;
