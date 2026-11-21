@@ -171,6 +171,16 @@ RAWmakase's own record of what its decoder reads from the golden photos
 (`tests/corpus/dataset/pixls-decode.json`) is the test the copies are held to
 (`src-tauri/tests/look/rm_lens_baselines.tsv`).
 
+**Which Lensfun lens a photo was taken with** is decided by RAWmakase's matcher
+(`crates/rawmakase-model/src/lens/lensfun/matching.rs` and `names.rs`, from v0.4.12,
+`704ab207`, and v0.7.1, `26267b16`), in `src-tauri/src/mods/lens_match.rs` and
+`lens_names.rs`: a lens's words, mount, coverage and focal range, the photo's frame
+with its crop and aspect-ratio modes (Canon's from its maker note, `vendor/canon.rs`),
+and Lensfun's aspect-ratio variants of a camera. Argentum's correction is checked
+against what Lensfun itself computes on RAWmakase's six reference calibrations
+(`tests/data/lensfun/reference.json`, v0.7.1), kept in
+`src-tauri/fixtures/lensfun-reference`.
+
 **Some RAW files are read as RAWmakase measured them**, in Argentum's copy of
 rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data
 (ColorData version 67, `canon_cr3.rs` @ `3c54413`), and the corrected colour
