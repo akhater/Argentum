@@ -1,0 +1,1 @@
+- Argentum no longer leaves ONNX Runtime's telemetry on: every AI feature now runs in one ONNX Runtime environment built with Microsoft's usage telemetry switched off, so nothing about the models or their runs is reported. Taken from RAWmakase (`crates/rawmakase-inference/src/runtime.rs` @ `4b8d6d04`, MIT).

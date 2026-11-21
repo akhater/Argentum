@@ -232,6 +232,11 @@ every panic appended to a `crash.log` that outlives the next launch, and on
 Windows a message naming it when a panic ends the app, kept in
 `src-tauri/src/mods/crash_log.rs`.
 
+**ONNX Runtime's telemetry is off** as RAWmakase switches it off
+(`crates/rawmakase-inference/src/runtime.rs` @ `4b8d6d04`): every AI feature runs
+in one environment built without Microsoft's usage telemetry, made in
+`private_environment` in `src-tauri/rm_selection/src/runtime.rs`.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured
