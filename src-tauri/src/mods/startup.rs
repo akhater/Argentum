@@ -44,6 +44,10 @@ pub fn init(app: &AppHandle, headless: bool) {
 
     if let Ok(cache) = app.path().app_cache_dir() {
         super::cache_version::clear_thumbnails_if_pipeline_changed(&cache);
+        super::camera_look::initialize_cache_dir(&cache);
+        if let Ok(settings) = crate::app_settings::get_settings_path(app) {
+            super::camera_look::remember_settings_file(settings);
+        }
         // Temporary files the last run could not clear, if it crashed. Not in
         // a headless export: the app may be open beside it, using them.
         if !headless {

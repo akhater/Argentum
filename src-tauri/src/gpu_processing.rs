@@ -800,6 +800,10 @@ pub struct GpuProcessor {
     ag_gray_grid_buffer: wgpu::Buffer,
     // Argentum: a provider look's grain map (mods/look_grain.rs).
     ag_look_grain: crate::mods::look_grain::Gpu,
+    // Argentum: the Camera Look a render uses, and which one it holds (0 none),
+    // written when a render asks for another (mods/camera_look.rs).
+    ag_camera_look_buffer: wgpu::Buffer,
+    ag_camera_look_held: std::sync::atomic::AtomicU32,
     dummy_blur_view: wgpu::TextureView,
     dummy_lut_view: wgpu::TextureView,
     dummy_lut_sampler: wgpu::Sampler,
@@ -1397,6 +1401,17 @@ impl GpuProcessor {
 
         // Argentum: a provider look's grain map, ag_grain_map in modules.wgsl.
         bind_group_layout_entries.extend(crate::mods::look_grain::Gpu::layout_entries());
+        // Argentum: the Camera Look, ag_camera_look in modules.wgsl.
+        bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 18 + MAX_MASK_BINDINGS,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
 
         let main_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Main BGL"),
@@ -1438,6 +1453,12 @@ impl GpuProcessor {
         let ag_gray_grid_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("B&W Grid Buffer"),
             size: (crate::mods::black_white::CELLS * std::mem::size_of::<f32>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let ag_camera_look_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Look Buffer"),
+            size: (crate::mods::camera_look::GPU_LEN * std::mem::size_of::<f32>()) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -1585,6 +1606,8 @@ impl GpuProcessor {
             ag_grade_curves_buffer,
             ag_gray_grid_buffer,
             ag_look_grain,
+            ag_camera_look_buffer,
+            ag_camera_look_held: std::sync::atomic::AtomicU32::new(0),
             dummy_blur_view,
             dummy_lut_view,
             dummy_lut_sampler,
@@ -2047,6 +2070,15 @@ impl GpuProcessor {
             let grid = crate::mods::black_white::gray_grid(black_white.mix);
             queue.write_buffer(&self.ag_gray_grid_buffer, 0, bytemuck::cast_slice(&grid));
         }
+        // Argentum: the Camera Look this render uses, unless the buffer holds it already.
+        let look = adjustments.global.ag_camera_look.look;
+        if look != 0
+            && self.ag_camera_look_held.load(std::sync::atomic::Ordering::Relaxed) != look
+            && let Some(data) = crate::mods::camera_look::gpu_data(look)
+        {
+            queue.write_buffer(&self.ag_camera_look_buffer, 0, bytemuck::cast_slice(&data));
+            self.ag_camera_look_held.store(look, std::sync::atomic::Ordering::Relaxed);
+        }
         // Argentum: a provider look's grain, fitted to this frame (mods/look_grain.rs).
         let grain_map = crate::mods::look_grain::fit(&mut adjustments.global.ag_look_grain, width, height);
         let grain = adjustments.global.ag_look_grain;
@@ -2427,6 +2459,10 @@ impl GpuProcessor {
                     resource: self.ag_gray_grid_buffer.as_entire_binding(),
                 });
                 bind_group_entries.extend(self.ag_look_grain.bind_entries(&grain_bound));
+                bind_group_entries.push(wgpu::BindGroupEntry {
+                    binding: 18 + MAX_MASK_BINDINGS,
+                    resource: self.ag_camera_look_buffer.as_entire_binding(),
+                });
 
                 let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Tile Bind Group"),

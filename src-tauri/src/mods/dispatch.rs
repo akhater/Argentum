@@ -780,6 +780,14 @@ commands! {
     "raw_tone_curve" => (a: RawToneArgs) -> Vec<crate::mods::raw_tone::ToneCurvePoint> {
         commands::raw_tone_curve(a.path, a.mode, app_handle)?
     }
+    "camera_look_fit" => (a: PathArgs) -> crate::mods::camera_look::Status {
+        // Camera Look's fit of the photo, made once and cached, off the UI
+        // thread: a few seconds the first time.
+        let settings = crate::app_settings::load_settings(app_handle.clone())?;
+        tokio::task::spawn_blocking(move || crate::mods::camera_look::status_of(&a.path, &settings))
+            .await
+            .map_err(|e| e.to_string())??
+    }
     "dng_standard_held_back" => (a: PathArgs) -> Option<crate::mods::highlight_protection::HeldBack> {
         // What a highlight-protecting camera mode held back, for the note
         // under Rendering.

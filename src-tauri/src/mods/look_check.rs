@@ -42,7 +42,7 @@ mod ledger;
 mod lens_baseline;
 mod outcome;
 mod reference;
-mod render_tier;
+pub(super) mod render_tier;
 mod stats;
 mod summary;
 

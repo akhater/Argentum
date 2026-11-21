@@ -1828,6 +1828,9 @@ pub struct GlobalAdjustments {
     // Argentum: a provider look's grain, read by ag_stage_grade in modules.wgsl
     // (mods/look_grain.rs).
     pub ag_look_grain: crate::mods::look_grain::Params,
+    // Argentum: which Camera Look a render uses, read by gpu_processing.rs to
+    // fill ag_camera_look in modules.wgsl (mods/camera_look.rs).
+    pub ag_camera_look: crate::mods::camera_look::Params,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -2589,12 +2592,7 @@ fn get_global_adjustments_from_json(
 
     let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
 
-    let raw_tone_mode = if is_raw {
-        raw_tone::mode_of(js_adjustments)
-    } else {
-        0
-    };
-    let raw_tone_points = raw_tone::points_of(js_adjustments, raw_tone_mode, photo);
+    let (raw_tone_mode, raw_tone_points, ag_camera_look) = raw_tone::resolve(js_adjustments, is_raw, photo); // Argentum
 
     let mut global = GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),
@@ -2781,6 +2779,7 @@ fn get_global_adjustments_from_json(
             is_visible("color"),
         ),
         ag_look_grain: crate::mods::look_grain::Params::of(js_adjustments, photo),
+        ag_camera_look,
     };
     crate::mods::black_white::leave_out_colour_controls(&mut global); // Argentum: B&W
     global

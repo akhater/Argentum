@@ -51,14 +51,16 @@ pub fn mode_index(mode: &str) -> u32 {
         "autoMatched" => 2,
         crate::mods::dng_standard::MODE => 3,
         crate::mods::dng_standard::LINEAR_MODE => 4,
+        crate::mods::camera_look::MODE => 5,
         _ => 0,
     }
 }
 
-/// The renderings Camera Raw would make: DNG Standard, and Linear (the same
-/// with a linear camera profile). They bring Camera Raw's default sharpening.
+/// The renderings Camera Raw would make: DNG Standard, Linear (the same
+/// with a linear camera profile) and Camera Look (DNG Standard with a look
+/// on it). They bring Camera Raw's default sharpening.
 pub fn is_camera_raw_style(mode: u32) -> bool {
-    mode == 3 || mode == 4
+    (3..=5).contains(&mode)
 }
 
 /// Which rendering an edit asks for, as `mode_index` numbers it.
@@ -96,6 +98,42 @@ pub fn points_of(js: &Value, mode: u32, photo: Option<&str>) -> Vec<Value> {
     };
     fill_missing(mode, &mut points, photo);
     points
+}
+
+/// What a render draws for an edit: the mode the shader switches on, its
+/// curve points, and the Camera Look it uses. Camera Look (5) is drawn as the
+/// photo's fit says (mods/camera_look.rs): its look over DNG Standard's
+/// curve; Auto-Matched (2) with the fallback curve when the fit was refused;
+/// DNG Standard (3) when there is nothing to draw it with. Every other mode
+/// is `mode_of` and `points_of`, as before.
+pub fn resolve(
+    js: &Value,
+    is_raw: bool,
+    photo: Option<&str>,
+) -> (u32, Vec<Value>, crate::mods::camera_look::Params) {
+    use crate::mods::camera_look::{self, Params, Rendering};
+    let mode = if is_raw { mode_of(js) } else { 0 };
+    let standard = mode_index(crate::mods::dng_standard::MODE);
+    let filled = |mode: u32| {
+        let mut points = Vec::new();
+        fill_missing(mode, &mut points, photo);
+        points
+    };
+    if mode != mode_index(camera_look::MODE) {
+        return (mode, points_of(js, mode, photo), Params::default());
+    }
+    match camera_look::rendering_for(photo) {
+        Rendering::Look(number) => (mode, filled(standard), Params::of(number)),
+        Rendering::Fallback(points) => (
+            mode_index("autoMatched"),
+            points
+                .iter()
+                .map(|p| json!({ "x": p.x, "y": p.y }))
+                .collect(),
+            Params::default(),
+        ),
+        Rendering::Standard => (standard, filled(standard), Params::default()),
+    }
 }
 
 /// The points a mode needs when the edit carries none: Base Curve's fixed
@@ -297,6 +335,39 @@ mod tests {
         assert_eq!(mode_of(&json!({ "rawToneRendering": "baseCurve" })), 1);
         assert_eq!(mode_of(&json!({ "rawToneRendering": "dngStandard" })), 3);
         assert_eq!(mode_of(&json!({ "rawToneRendering": "linear" })), 4);
+    }
+
+    /// Every rendering but Camera Look resolves as it did before it existed;
+    /// Camera Look with nothing to draw it with is DNG Standard.
+    #[test]
+    fn only_camera_look_resolves_through_its_fit() {
+        let curve =
+            json!([{ "x": 0.0, "y": 0.0 }, { "x": 128.0, "y": 150.0 }, { "x": 255.0, "y": 255.0 }]);
+        for mode in [
+            "default",
+            "baseCurve",
+            "autoMatched",
+            "dngStandard",
+            "linear",
+        ] {
+            let edit = json!({ "rawToneRendering": mode, "rawToneCurve": curve, "rawToneCurveMode": mode });
+            for is_raw in [true, false] {
+                let wanted = if is_raw { mode_of(&edit) } else { 0 };
+                let (got, points, look) = resolve(&edit, is_raw, None);
+                assert_eq!(
+                    (got, &points),
+                    (wanted, &points_of(&edit, wanted, None)),
+                    "{mode}"
+                );
+                assert_eq!(look, crate::mods::camera_look::Params::default());
+            }
+        }
+        let edit = json!({ "rawToneRendering": "cameraLook" });
+        assert_eq!(mode_of(&edit), 5);
+        let (got, points, look) = resolve(&edit, true, None);
+        assert_eq!((got, points.len()), (3, 16));
+        assert_eq!(look.look, 0);
+        assert!(is_camera_raw_style(5));
     }
 
     #[test]
