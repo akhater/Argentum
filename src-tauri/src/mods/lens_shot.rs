@@ -40,6 +40,8 @@ pub struct MatchShot {
     /// A crop mode's crop factor over the sensor's, as the camera's maker note
     /// records it (`canon_crop_mode`).
     pub crop_mode: Option<f32>,
+    /// The photo frame's width and height in pixels (`photo_frame`).
+    pub frame: Option<[f32; 2]>,
 }
 
 impl MatchShot {
@@ -61,6 +63,7 @@ impl MatchShot {
             focal_mm,
             exif_crop,
             crop_mode,
+            frame: super::photo_frame::read(exif),
         }
     }
 }

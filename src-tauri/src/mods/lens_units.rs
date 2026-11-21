@@ -133,7 +133,7 @@ fn distortion_model(lens: &Lens) -> Option<&str> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::lens_correction::{LensDatabase, resolve_lens_params};
     use std::collections::HashMap;
@@ -157,7 +157,7 @@ mod tests {
 
     /// The renderer's, at the default amount, as `warp_image_geometry` reads
     /// the terms it is sent.
-    fn renderer(ptlens: bool, k: [f64; 3], r: f64) -> f64 {
+    pub(crate) fn renderer(ptlens: bool, k: [f64; 3], r: f64) -> f64 {
         let [a, b, c] = k;
         if ptlens {
             1. + GAIN * (a * r.powi(3) + b * r * r + c * r - a - b - c)

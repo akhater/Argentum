@@ -81,6 +81,7 @@ pub mod lens_interp;
 pub mod lens_match;
 pub mod lens_name;
 pub mod lens_names;
+mod lens_reference;
 pub mod lens_shot;
 pub mod lens_units;
 #[cfg(test)]
@@ -98,6 +99,7 @@ pub mod model_catalog;
 pub mod model_download;
 pub mod model_manager;
 pub mod modern_start;
+pub mod photo_frame;
 pub mod preview_encode;
 pub mod process_tree;
 pub mod profile_correction;
