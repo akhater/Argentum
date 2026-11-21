@@ -22,6 +22,11 @@ jobs:
   upstream:
     name: Mergeability and upstream review
     runs-on: ubuntu-latest
+    # The table checks call GitHub's API. Without a token a runner shares the
+    # 60-an-hour anonymous limit with every other job on its address, and the
+    # check fails with HTTP 403 on busy days.
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
