@@ -705,7 +705,10 @@ mod tests {
             liquify_patch(&img, std::slice::from_ref(&stroke)).expect("a patch");
         // The patch covers the stroke and its radius, nothing more.
         // (dabs start one spacing, 3 px, into the stroke)
-        assert!((69..=74).contains(&left) && (79..=81).contains(&top), "{left},{top}");
+        assert!(
+            (69..=74).contains(&left) && (79..=81).contains(&top),
+            "{left},{top}"
+        );
         assert!(color.width() <= 63 && color.height() <= 43);
         // Something moved under the stroke, and the mask says where.
         let moved = color
