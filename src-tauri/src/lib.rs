@@ -72,7 +72,6 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::io::Write;
-use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 
@@ -1698,20 +1697,7 @@ fn setup_logging(app_handle: &tauri::AppHandle, headless: bool) {
         eprintln!("Failed to apply logger configuration: {}", e);
     }
 
-    panic::set_hook(Box::new(|info| {
-        let message = if let Some(s) = info.payload().downcast_ref::<&'static str>() {
-            s.to_string()
-        } else if let Some(s) = info.payload().downcast_ref::<String>() {
-            s.clone()
-        } else {
-            format!("{:?}", info.payload())
-        };
-        let location = info.location().map_or_else(
-            || "at an unknown location".to_string(),
-            |loc| format!("at {}:{}:{}", loc.file(), loc.line(), loc.column()),
-        );
-        log::error!("PANIC! {} - {}", location, message.trim());
-    }));
+    mods::crash_log::install(&log_dir, headless);
 
     log::info!(
         "Logger initialized successfully. Log file at: {:?}",
@@ -1880,7 +1866,12 @@ fn frontend_ready(
     })
 }
 
+/// Runs the app; a panic that ends it shows where its crash log is.
 pub fn run() {
+    mods::crash_log::run_catching(run_app);
+}
+
+fn run_app() {
     let _ = rayon::ThreadPoolBuilder::new()
         .stack_size(8 * 1024 * 1024)
         .build_global();

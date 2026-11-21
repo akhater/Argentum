@@ -158,7 +158,9 @@ export const CREDITS: CreditGroup[] = [
           'unchanged. HEIC photos open as RAWmakase opens them: the file’s header read for its ' +
           'size, crop, turn and colour, and its pixels decoded by the system’s own HEVC decoder ' +
           '(Windows Imaging Component, macOS’s ImageIO, or libheif). When a graphics driver ' +
-          'refuses a GPU device, the next backend is tried in RAWmakase’s order. RAWmakase is ' +
+          'refuses a GPU device, the next backend is tried in RAWmakase’s order. A crash is recorded ' +
+          'as RAWmakase records it, in a crash log kept for a bug report, named in a message on ' +
+          'Windows. RAWmakase is ' +
           'also where the ' +
           'comparison started. MIT.',
       },

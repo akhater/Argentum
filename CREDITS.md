@@ -210,6 +210,12 @@ in RAWmakase's order - DirectX 12, then Vulkan, then OpenGL on Windows - and nam
 the call that failed in its error (`crates/rawmakase-engine/src/develop/gpu/mod.rs`
 @ `02c5335d`), kept in `src-tauri/src/mods/gpu_backend_fallback.rs`.
 
+**What a crash leaves behind** is RAWmakase's (`src/app/crash_log.rs` and
+`show_error` in `src/main.rs` @ `e62bf3e` and `fb6c877`, unchanged at v0.7.1):
+every panic appended to a `crash.log` that outlives the next launch, and on
+Windows a message naming it when a panic ends the app, kept in
+`src-tauri/src/mods/crash_log.rs`.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured
