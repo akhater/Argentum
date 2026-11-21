@@ -73,7 +73,10 @@ use std::path::{Path, PathBuf};
 /// 13. Linear DNGs with a black level for each sample of a repeating pattern,
 ///     such as phone DNGs, are scaled to their white level instead of coming
 ///     out white (rawler fork, following dnglab 0f645aa6).
-pub const PIPELINE: u32 = 14;
+/// 14. Photos with no edit yet reconstruct clipped highlights by RAWmakase's
+///     pull after demosaic (`mods/highlight_pull.rs`, from RAWmakase 8665ebda);
+///     edits saved before keep theirs (`mods/highlight_rule.rs`).
+pub const PIPELINE: u32 = 15;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

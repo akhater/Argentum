@@ -49,15 +49,23 @@ pub fn values(bytes: &[u8], path: &str) -> Result<(Lines, bool), String> {
     let mut before: Vec<f32> = Vec::new();
     let (mut recovered, mut settled) = (0usize, 0usize);
     let changed = |a: &[f32], b: &[f32]| a.iter().zip(b).filter(|(x, y)| x != y).count();
-    let report = decode::on_raw_decoded_watched(&mut raw, bytes, Some(path), &mut |at, raw| {
-        let now = raw.data.as_f32();
-        match at {
-            Watch::Judged => proven = highlights::proven_white_of(raw),
-            Watch::Recovered => recovered = changed(&before, &now),
-            Watch::Settled => settled = changed(&before, &now),
-        }
-        before = now.into_owned();
-    });
+    // The mosaic steps it counts are the ones an edit saved before the pull
+    // still renders with; the pull runs after demosaic, where this does not look.
+    let report = decode::on_raw_decoded_watched(
+        &mut raw,
+        bytes,
+        Some(path),
+        crate::mods::highlight_rule::Rule::Rebuild,
+        &mut |at, raw| {
+            let now = raw.data.as_f32();
+            match at {
+                Watch::Judged => proven = highlights::proven_white_of(raw),
+                Watch::Recovered => recovered = changed(&before, &now),
+                Watch::Settled => settled = changed(&before, &now),
+            }
+            before = now.into_owned();
+        },
+    );
 
     let held = facts.held_back;
     let lens = argentum_engine::rm_lens_builtin::read(bytes);

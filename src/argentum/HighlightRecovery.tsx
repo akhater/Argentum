@@ -11,9 +11,10 @@
  *
  * WHY FLIPPING IT DECODES THE PHOTO AGAIN
  *
- * It runs while the RAW is decoded, before demosaic, which is the only place
- * the mosaic still exists. Everything else in this app is applied per frame on
- * the GPU; this cannot be. It used to say "applies to the next photo you open"
+ * It runs while the RAW is decoded: right after demosaic, before white balance,
+ * for a new edit (mods/highlight_pull.rs), and on the mosaic for an edit saved
+ * before that (mods/highlight_rule.rs). Everything else in this app is applied
+ * per frame on the GPU; this cannot be. It used to say "applies to the next photo you open"
  * and did not even manage that, because recently opened photos are served
  * from memory without decoding again.
  *
