@@ -82,6 +82,7 @@ pub fn run_catching(app: impl FnOnce()) {
     }
 }
 
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
 fn panic_message(panic: &(dyn Any + Send)) -> &str {
     panic
         .downcast_ref::<&str>()
