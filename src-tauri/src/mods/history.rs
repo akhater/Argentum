@@ -137,11 +137,13 @@ pub fn read(sidecar: &Path) -> Option<HistoryRecord> {
 ///
 /// Like their save of the edit, this reads the sidecar and writes it all back, so
 /// the two must not run at once: the editor writes a History well after its own
-/// save of the edit (historyKeeper.ts says when).
+/// save of the edit (historyKeeper.ts says when), and the sidecar's lock
+/// (mods/write_locks.rs) makes them take turns if they meet.
 pub fn write(source: &Path, sidecar: &Path, record: Option<HistoryRecord>) -> Result<(), String> {
     if record.as_ref().is_some_and(|r| r.end >= r.steps.len()) {
         return Err("History: its end is past its last step".to_string());
     }
+    let _sidecar = crate::mods::write_locks::lock_sidecar(sidecar);
     let mut metadata = crate::exif_processing::load_sidecar(sidecar);
     let edit = fingerprint(&metadata.adjustments);
     let record = record.map(|r| HistoryRecord { edit, ..r });

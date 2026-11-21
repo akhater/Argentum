@@ -24,6 +24,7 @@
 //! - [`shares_the_xmp`]: only a photo's own edits meet its XMP, never a
 //!   virtual copy's.
 //! - [`trash_or_delete`]: how a library delete removes a file.
+//! - [`is_case_only_rename`]: `img_1.jpg` to `IMG_1.jpg` is no clash.
 //! - [`write_unique_output`]: a generated file
 //!   (HDR, panorama, focus stack, collage, denoise, positive, restore or
 //!   enlargement) gets a name of its own, never an earlier result's or one
@@ -372,6 +373,23 @@ pub fn xmp_still_used(xmp: &Path, leaving: &HashSet<PathBuf>) -> bool {
 // RapidRAW 5720d633: src-tauri/src/file_management.rs (XMP sync for the primary sidecar only)
 pub fn shares_the_xmp(photo: &Path, sidecar: &Path) -> bool {
     sidecar == sidecar_for(photo, None)
+}
+
+/// Whether renaming `from` to `to` changes only the case of its name, on a
+/// disk that does not tell the two apart: `to` seems to exist because it is
+/// `from`. A folder holding a file named exactly `to` is a real clash.
+// RapidRAW ad1dc9b9: src-tauri/src/library/file_ops.rs (case-only rename allowed)
+pub fn is_case_only_rename(from: &Path, to: &Path) -> bool {
+    from != to
+        && from.to_string_lossy().to_lowercase() == to.to_string_lossy().to_lowercase()
+        && !to
+            .parent()
+            .and_then(|folder| fs::read_dir(folder).ok())
+            .is_some_and(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .any(|entry| Some(entry.file_name().as_os_str()) == to.file_name())
+            })
 }
 
 /// How an XMP reaches one of its photos' new names.
@@ -1603,6 +1621,64 @@ mod tests {
         );
         assert_eq!(read(&target.join("IMG.CR2")), "already there");
         assert_eq!(read(&photo), "new");
+    }
+
+    #[test]
+    fn a_rename_that_changes_only_the_case_is_allowed() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("img_1.jpg");
+        write(&photo, "jpeg");
+        write(&dir.path().join("img_1.jpg.agdata"), "edits");
+        write(&dir.path().join("img_1.xmp"), "xmp");
+
+        let (paths, _) = rename_files_on_disk(&[text(&photo)], "IMG_1").unwrap();
+
+        assert_eq!(paths, [text(&dir.path().join("IMG_1.jpg"))]);
+        assert_eq!(
+            names_in(dir.path()),
+            ["IMG_1.jpg", "IMG_1.jpg.agdata", "IMG_1.xmp"]
+        );
+        assert_eq!(read(&dir.path().join("IMG_1.xmp")), "xmp");
+    }
+
+    #[test]
+    fn a_case_only_rename_onto_a_file_of_that_exact_name_is_a_clash() {
+        let dir = tempfile::tempdir().unwrap();
+        let from = dir.path().join("img_1.jpg");
+        write(&from, "jpeg");
+        assert!(is_case_only_rename(&from, &dir.path().join("IMG_1.jpg")));
+        assert!(!is_case_only_rename(&from, &from));
+        assert!(!is_case_only_rename(&from, &dir.path().join("img_2.jpg")));
+        // Only a disk that tells the two apart can hold both.
+        let exact = dir.path().join("IMG_1.jpg");
+        if fs::write(&exact, "other").is_ok() && names_in(dir.path()).len() == 2 {
+            assert!(!is_case_only_rename(&from, &exact));
+        }
+    }
+
+    // RapidRAW ad1dc9b9: src-tauri/src/library/file_ops.rs (albums after a partial move)
+    #[test]
+    fn a_move_that_stops_halfway_names_the_photos_it_moved() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        let (a, b) = (folder.join("a.CR2"), folder.join("b.CR2"));
+        write(&a, "photo a");
+        write(&b, "photo b");
+        fs::create_dir_all(&target).unwrap();
+
+        let plan =
+            crate::file_management::plan_move(&[text(&a), text(&b)], &text(&target)).unwrap();
+        // Gone between the plan and the move: the move stops there.
+        fs::remove_file(&b).unwrap();
+        let (renames, result) = plan.carry_out();
+
+        assert!(result.is_err());
+        assert_eq!(read(&target.join("a.CR2")), "photo a");
+        assert_eq!(
+            renames,
+            HashMap::from([(text(&a), text(&target.join("a.CR2")))])
+        );
     }
 
     #[test]

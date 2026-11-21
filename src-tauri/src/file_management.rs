@@ -87,6 +87,8 @@ fn resolve_image_metadata(
     enable_xmp_sync: bool,
     settings: &AppSettings,
 ) -> ImageFileMetadata {
+    // Argentum: the XMP's values are written back into the sidecar (mods/write_locks.rs).
+    let _sidecar = enable_xmp_sync.then(|| crate::mods::write_locks::lock_sidecar(sidecar_path));
     let sidecar_existed = sidecar_path.exists();
     let mut metadata = crate::exif_processing::load_sidecar(sidecar_path);
 
@@ -469,14 +471,9 @@ pub async fn update_exif_fields(
                 }
             }
 
-            let mut final_metadata = crate::exif_processing::load_sidecar(&primary_path);
-
-            final_metadata.exif = Some(exif_data);
-            let _ = crate::exif_processing::write_sidecar(
-                &primary_path,
-                original_path,
-                &final_metadata,
-            );
+            let _ = crate::mods::write_locks::update_sidecar(&primary_path, original_path, |metadata| {
+                metadata.exif = Some(exif_data);
+            });
         });
         Ok(())
     })
@@ -842,7 +839,10 @@ pub fn sort_album_tree(items: &mut [AlbumItem]) {
 
 #[tauri::command]
 pub fn get_albums(app_handle: AppHandle) -> Result<Vec<AlbumItem>, String> {
-    let path = get_albums_path(&app_handle)?;
+    read_albums(&get_albums_path(&app_handle)?)
+}
+
+fn read_albums(path: &Path) -> Result<Vec<AlbumItem>, String> {
     if !path.exists() {
         return Ok(Vec::new());
     }
@@ -853,11 +853,32 @@ pub fn get_albums(app_handle: AppHandle) -> Result<Vec<AlbumItem>, String> {
 }
 
 #[tauri::command]
-pub fn save_albums(mut tree: Vec<AlbumItem>, app_handle: AppHandle) -> Result<(), String> {
+pub fn save_albums(tree: Vec<AlbumItem>, app_handle: AppHandle) -> Result<(), String> {
     let path = get_albums_path(&app_handle)?;
+    let _albums = crate::mods::write_locks::lock_albums();
+    write_albums(&path, tree)
+}
+
+fn write_albums(path: &Path, mut tree: Vec<AlbumItem>) -> Result<(), String> {
     sort_album_tree(&mut tree);
     let json_string = serde_json::to_string_pretty(&tree).map_err(|e| e.to_string())?;
-    crate::mods::atomic_write::write_atomic(&path, json_string).map_err(|e| e.to_string())
+    crate::mods::atomic_write::write_atomic(path, json_string).map_err(|e| e.to_string())
+}
+
+/// Reads the album file at `path`, lets `change` edit it and writes it back
+/// when `change` says it changed something, with no other album change in
+/// between: two at once each read the old file, and one was lost.
+// RapidRAW ad1dc9b9: src-tauri/src/library/albums.rs (album writes serialised)
+fn update_albums(
+    path: &Path,
+    change: impl FnOnce(&mut Vec<AlbumItem>) -> bool,
+) -> Result<(), String> {
+    let _albums = crate::mods::write_locks::lock_albums();
+    let mut tree = read_albums(path)?;
+    if change(&mut tree) {
+        write_albums(path, tree)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -866,8 +887,14 @@ pub fn add_to_album(
     paths: Vec<String>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let mut tree = get_albums(app_handle.clone())?;
+    update_albums(&get_albums_path(&app_handle)?, |tree| {
+        add_paths_to_album(tree, &album_id, &paths)
+    })
+}
 
+/// Adds `paths` to the album `album_id`, those it does not hold yet; false
+/// when there is no such album.
+fn add_paths_to_album(tree: &mut [AlbumItem], album_id: &str, paths: &Vec<String>) -> bool {
     fn add_recursive(items: &mut [AlbumItem], target_id: &str, paths_to_add: &Vec<String>) -> bool {
         for item in items.iter_mut() {
             #[allow(clippy::collapsible_match)]
@@ -891,10 +918,7 @@ pub fn add_to_album(
         false
     }
 
-    if add_recursive(&mut tree, &album_id, &paths) {
-        save_albums(tree, app_handle)?;
-    }
-    Ok(())
+    add_recursive(tree, album_id, paths)
 }
 
 fn sync_album_path_changes(
@@ -903,7 +927,10 @@ fn sync_album_path_changes(
     deletions: Option<&HashSet<String>>,
     folder_rename: Option<(&str, &str)>,
 ) {
-    if let Ok(mut tree) = get_albums(app_handle.clone()) {
+    let Ok(path) = get_albums_path(app_handle) else {
+        return;
+    };
+    let _ = update_albums(&path, |tree| {
         let mut changed = false;
 
         fn process_nodes(
@@ -983,12 +1010,9 @@ fn sync_album_path_changes(
             }
         }
 
-        process_nodes(&mut tree, renames, deletions, folder_rename, &mut changed);
-
-        if changed {
-            let _ = save_albums(tree, app_handle.clone());
-        }
-    }
+        process_nodes(tree, renames, deletions, folder_rename, &mut changed);
+        changed
+    });
 }
 
 #[tauri::command]
@@ -2428,17 +2452,74 @@ pub fn move_files(
     destination_folder: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let renames = move_files_on_disk(&source_paths, &destination_folder)?;
+    // RapidRAW ad1dc9b9: src-tauri/src/library/file_ops.rs (albums follow
+    // the photos moved, also when the move stops halfway)
+    let (renames, result) = plan_move(&source_paths, &destination_folder)?.carry_out();
     sync_album_path_changes(&app_handle, Some(&renames), None, None);
-    Ok(())
+    result
 }
 
 /// Argentum: `move_files` without the album update, so tests can run it.
 /// Returns each moved photo's old path and new path.
+#[cfg(test)]
 pub(crate) fn move_files_on_disk(
     source_paths: &[String],
     destination_folder: &str,
 ) -> Result<HashMap<String, String>, String> {
+    let (renames, result) = plan_move(source_paths, destination_folder)?.carry_out();
+    result.map(|()| renames)
+}
+
+/// A move worked out before any file is touched: each file's destination,
+/// and each photo's new path.
+pub(crate) struct MovePlan {
+    /// A file, where it goes, and whether it stays where it is too (an XMP
+    /// another photo still uses).
+    operations: Vec<(PathBuf, PathBuf, bool)>,
+    renames: HashMap<String, String>,
+}
+
+impl MovePlan {
+    /// Moves the files in order, and stops at the first that fails. Returns
+    /// the photos that did move, old path to new, whether or not it stopped.
+    pub(crate) fn carry_out(self) -> (HashMap<String, String>, Result<(), String>) {
+        let mut moved = HashSet::new();
+        let mut result = Ok(());
+        for (source, dest, keep_source) in self.operations {
+            if let Err(e) = move_one_file(&source, &dest, keep_source) {
+                result = Err(e);
+                break;
+            }
+            moved.insert(source);
+        }
+        let mut renames = self.renames;
+        renames.retain(|photo, _| moved.contains(Path::new(photo)));
+        (renames, result)
+    }
+}
+
+fn move_one_file(source: &Path, dest: &Path, keep_source: bool) -> Result<(), String> {
+    if keep_source {
+        fs::copy(source, dest)
+            .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
+        return Ok(());
+    }
+    if fs::rename(source, dest).is_err() {
+        fs::copy(source, dest)
+            .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
+
+        if let Err(e) = fs::remove_file(source) {
+            log::warn!(
+                "Moved file successfully, but failed to delete original {}: {}",
+                source.display(),
+                e
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Result<MovePlan, String> {
     let dest_path = Path::new(destination_folder);
     if !dest_path.is_dir() {
         return Err(format!(
@@ -2451,6 +2532,9 @@ pub(crate) fn move_files_on_disk(
         .iter()
         .map(|p| parse_virtual_path(p).0)
         .collect();
+    // Argentum: in a fixed order, so a move that stops does so at the same place.
+    let mut in_order: Vec<&PathBuf> = unique_source_images.iter().collect();
+    in_order.sort();
 
     let mut operations_to_perform = Vec::new();
     let mut renames = HashMap::new();
@@ -2458,7 +2542,7 @@ pub(crate) fn move_files_on_disk(
     // overwrites another or one already there (mods/file_ops.rs).
     let mut destinations = Destinations::default();
 
-    for source_image_path in &unique_source_images {
+    for source_image_path in in_order {
         let source_parent = source_image_path
             .parent()
             .ok_or("Could not get parent directory")?;
@@ -2496,27 +2580,10 @@ pub(crate) fn move_files_on_disk(
         );
     }
 
-    for (source, dest, keep_source) in operations_to_perform {
-        if keep_source {
-            fs::copy(&source, &dest)
-                .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
-            continue;
-        }
-        if fs::rename(&source, &dest).is_err() {
-            fs::copy(&source, &dest)
-                .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
-
-            if let Err(e) = fs::remove_file(&source) {
-                log::warn!(
-                    "Moved file successfully, but failed to delete original {}: {}",
-                    source.display(),
-                    e
-                );
-            }
-        }
-    }
-
-    Ok(renames)
+    Ok(MovePlan {
+        operations: operations_to_perform,
+        renames,
+    })
 }
 
 #[tauri::command]
@@ -2528,6 +2595,7 @@ pub fn save_metadata_and_update_thumbnail(
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(&path);
 
+    let sidecar_lock = crate::mods::write_locks::lock_sidecar(&sidecar_path);
     let mut metadata = crate::exif_processing::load_sidecar_with_exif(&sidecar_path, &source_path);
 
     let mut final_adjustments = adjustments;
@@ -2544,6 +2612,7 @@ pub fn save_metadata_and_update_thumbnail(
 
     crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata)
         .map_err(|e| e.to_string())?;
+    drop(sidecar_lock);
 
     if let Ok(settings) = load_settings(app_handle.clone())
         && settings.enable_xmp_sync.unwrap_or(false)
@@ -2710,9 +2779,12 @@ fn update_sidecars_and_thumbnails(
         .par_iter()
         .for_each_with(updated_tx, |updated_tx, path| {
             let (source_path, sidecar_path) = parse_virtual_path(path);
-            let metadata = update(&source_path, &sidecar_path);
-
-            let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
+            let metadata = {
+                let _sidecar = crate::mods::write_locks::lock_sidecar(&sidecar_path);
+                let metadata = update(&source_path, &sidecar_path);
+                let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
+                metadata
+            };
             if enable_xmp_sync {
                 sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
             }
@@ -2926,19 +2998,23 @@ async fn update_sidecars_from_images(
                 )
                 .map_err(|e| e.to_string())?;
 
-                let mut existing_metadata = crate::exif_processing::load_sidecar(&sidecar_path);
-
-                if existing_metadata.adjustments.is_null() {
-                    existing_metadata.adjustments = default_adjustments();
+                let mut before = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
+                if before.is_null() {
+                    before = default_adjustments();
                 }
-
-                update(&image, &source_path_str, &mut existing_metadata.adjustments);
-
-                let _ = crate::exif_processing::write_sidecar(
-                    &sidecar_path,
-                    &source_path,
-                    &existing_metadata,
-                );
+                let mut after = before.clone();
+                // Argentum: the analysis runs outside the sidecar's lock, on
+                // the edit as read; only what it changed is written back
+                // (mods/write_locks.rs).
+                update(&image, &source_path_str, &mut after);
+                let existing_metadata =
+                    crate::mods::write_locks::update_sidecar(&sidecar_path, &source_path, |metadata| {
+                        if metadata.adjustments.is_null() {
+                            metadata.adjustments = default_adjustments();
+                        }
+                        crate::mods::write_locks::apply_changes(&mut metadata.adjustments, &before, &after);
+                    })
+                    .map_err(|e| e.to_string())?;
 
                 if enable_xmp_sync {
                     sync_metadata_to_xmp(
@@ -3038,11 +3114,9 @@ fn update_metadata_for_paths(
     paths.par_iter().for_each(|path| {
         let (source_path, sidecar_path) = parse_virtual_path(path);
 
-        let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
-
-        update(&mut metadata);
-
-        let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
+        let Ok(metadata) = crate::mods::write_locks::update_sidecar(&sidecar_path, &source_path, &update) else {
+            return;
+        };
 
         if enable_xmp_sync {
             sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
@@ -3109,6 +3183,7 @@ pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadat
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
 
     let (source_path, sidecar_path) = parse_virtual_path(&path);
+    let _sidecar = enable_xmp_sync.then(|| crate::mods::write_locks::lock_sidecar(&sidecar_path));
     let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
     if enable_xmp_sync && sync_metadata_from_xmp(&source_path, &sidecar_path, &mut metadata, true) {
@@ -3721,7 +3796,10 @@ pub(crate) fn rename_files_on_disk(
         let new_filename = format!("{}.{}", new_stem, extension);
         let new_path = parent.join(new_filename);
 
-        if new_path.exists() && new_path != *original_path {
+        if new_path.exists()
+            && new_path != *original_path
+            && !file_ops::is_case_only_rename(original_path, &new_path)
+        {
             return Err(format!(
                 "A file with the name {} already exists.",
                 new_path.display()
@@ -3841,6 +3919,12 @@ pub(crate) fn rename_files_on_disk(
             .collect();
         let still_used = file_ops::xmp_still_used(xmp, &HashSet::new());
         for (target, carry) in file_ops::xmp_after_rename(&targets, still_used) {
+            if file_ops::is_case_only_rename(xmp, &target) {
+                if let Err(e) = fs::rename(xmp, &target) {
+                    log::warn!("Failed to rename {} to {}: {}", xmp.display(), target.display(), e);
+                }
+                continue;
+            }
             if target.exists() {
                 log::warn!("Not carrying {} to {}: a file is there", xmp.display(), target.display());
                 continue;
@@ -4155,6 +4239,8 @@ pub fn sync_metadata_to_xmp(
     if !file_ops::shares_the_xmp(source_path, sidecar_path) {
         return;
     }
+    // A RAW and its JPEG share this XMP, and a paste writes them from parallel threads.
+    let _xmp = crate::mods::write_locks::lock_xmp();
     let xmp_path = source_path.with_extension("xmp");
     let xmp_path_upper = source_path.with_extension("XMP");
 
@@ -4546,5 +4632,41 @@ mod batch_worker_tests {
             .recv_timeout(Duration::from_secs(60))
             .expect("the batch finished");
         assert!(all_once);
+    }
+}
+
+#[cfg(test)]
+mod album_write_tests {
+    use super::*;
+
+    #[test]
+    fn album_changes_made_at_once_are_all_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("albums.json");
+        let album = AlbumItem::Album {
+            id: "a".to_string(),
+            name: "Trip".to_string(),
+            icon: None,
+            images: Vec::new(),
+        };
+        write_albums(&path, vec![album]).unwrap();
+
+        std::thread::scope(|scope| {
+            for thread in 0..8 {
+                let path = &path;
+                scope.spawn(move || {
+                    for photo in 0..25 {
+                        let added = vec![format!("/p/{thread}-{photo}.CR2")];
+                        update_albums(path, |tree| add_paths_to_album(tree, "a", &added)).unwrap();
+                    }
+                });
+            }
+        });
+
+        let tree = read_albums(&path).unwrap();
+        let [AlbumItem::Album { images, .. }] = tree.as_slice() else {
+            panic!("one album");
+        };
+        assert_eq!(images.len(), 200);
     }
 }
