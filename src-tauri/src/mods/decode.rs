@@ -21,12 +21,20 @@ use rawler::rawimage::RawImage;
 /// `file_bytes` is the original file, because most of what has to be corrected
 /// at this stage is written in the maker's own metadata rather than in anything
 /// rawler exposes.
-pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<&str>) {
-    on_raw_decoded_watched(raw, file_bytes, photo_path, &mut |_, _| {});
+///
+/// `rule` is the highlight rule the photo's edit renders with
+/// (`highlights::rule_for`).
+pub fn on_raw_decoded(
+    raw: &mut RawImage,
+    file_bytes: &[u8],
+    photo_path: Option<&str>,
+    rule: super::highlight_rule::Rule,
+) -> Report {
+    on_raw_decoded_watched(raw, file_bytes, photo_path, rule, &mut |_, _| {})
 }
 
-/// What the decode did to one photo, as the look check records it
-/// (mods/look_check.rs). Nothing in the app reads it.
+/// What the decode did to one photo. The develop reads `pull` and
+/// `ceilings`; the look check (mods/look_check.rs) records the rest.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct Report {
@@ -36,6 +44,10 @@ pub struct Report {
     pub ceilings: Option<[f32; 4]>,
     /// Whether recovery was in charge of the clipped photosites.
     pub rebuilt: bool,
+    /// Whether the clipped highlights are left to the pull after demosaic
+    /// (`highlight_pull.rs`), which the develop then runs: the photo's rule
+    /// is the pull and recovery is on. Nothing here rewrote them.
+    pub pull: bool,
 }
 
 /// The points between the steps that rewrite photosites, where a watcher is
@@ -58,6 +70,7 @@ pub fn on_raw_decoded_watched(
     raw: &mut RawImage,
     file_bytes: &[u8],
     photo_path: Option<&str>,
+    rule: super::highlight_rule::Rule,
     watch: &mut dyn FnMut(Watch, &RawImage),
 ) -> Report {
     // Canon sRAW / mRAW: black already subtracted, white level in the file.
@@ -88,10 +101,16 @@ pub fn on_raw_decoded_watched(
     let ceilings = super::highlights::ceilings(raw);
     watch(Watch::Judged, raw);
 
+    // An edit made since the pull leaves the clipped photosites as they are:
+    // the pull, after demosaic, makes a clipped channel the mean of the
+    // others and a blown pixel neutral. With recovery off, or for an edit
+    // saved before it, the two steps below run as they always did.
+    let pull = rule == super::highlight_rule::Rule::Pull && super::highlights::enabled();
+
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and
     // before anything reads a pixel as colour.
-    let rebuilt = super::highlights::recover(raw, ceilings);
+    let rebuilt = !pull && super::highlights::recover(raw, ceilings);
     watch(Watch::Recovered, raw);
 
     // And make what it could not record at all come out white rather than
@@ -99,8 +118,10 @@ pub fn on_raw_decoded_watched(
     // still has to be white. The white balance is the one rawler will develop
     // with, including RapidRAW's multi-exposure exception, because neutral is
     // only neutral after the balance that is actually applied.
-    let wb = crate::multi_exposure::neutralize_wb_if_multiexposure(raw.wb_coeffs, file_bytes);
-    super::highlights::settle_blown(raw, wb, rebuilt, ceilings);
+    if !pull {
+        let wb = crate::multi_exposure::neutralize_wb_if_multiexposure(raw.wb_coeffs, file_bytes);
+        super::highlights::settle_blown(raw, wb, rebuilt, ceilings);
+    }
     watch(Watch::Settled, raw);
 
     // Remember the matrix rawler will use, so the GPU can correct off it.
@@ -110,6 +131,7 @@ pub fn on_raw_decoded_watched(
         gain_maps,
         ceilings,
         rebuilt,
+        pull,
     }
 }
 

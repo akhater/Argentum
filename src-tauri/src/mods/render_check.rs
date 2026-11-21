@@ -42,7 +42,7 @@ const SIZES: [u32; 2] = [1920, 3200];
 /// A device as the app opens one, without a window: on Windows the primary
 /// backends unless `WGPU_BACKEND` names others, the high-performance adapter,
 /// every limit it has.
-fn device() -> GpuContext {
+pub(super) fn device() -> GpuContext {
     #[allow(unused_mut)]
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
     #[cfg(target_os = "windows")]
@@ -96,10 +96,10 @@ fn raws() -> Vec<String> {
 }
 
 /// A RAW decoded as the app opens it.
-struct Photo {
-    path: String,
-    shot: crate::as_shot::AsShot,
-    full: DynamicImage,
+pub(super) struct Photo {
+    pub(super) path: String,
+    pub(super) shot: crate::as_shot::AsShot,
+    pub(super) full: DynamicImage,
 }
 
 fn open(path: &str) -> Photo {
@@ -121,7 +121,7 @@ fn open(path: &str) -> Photo {
     }
 }
 
-fn film_lut(name: &str) -> Arc<Lut> {
+pub(super) fn film_lut(name: &str) -> Arc<Lut> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("resources/film_luts")
         .join(name);
@@ -171,7 +171,7 @@ fn edit(keys: Value) -> Value {
 }
 
 /// One photo at one size on a processor of its own, as the preview keeps it.
-struct Bench<'a> {
+pub(super) struct Bench<'a> {
     ctx: &'a GpuContext,
     photo: &'a Photo,
     image: DynamicImage,
@@ -183,7 +183,7 @@ struct Bench<'a> {
 }
 
 impl<'a> Bench<'a> {
-    fn new(ctx: &'a GpuContext, photo: &'a Photo, long: u32, key: u64) -> Self {
+    pub(super) fn new(ctx: &'a GpuContext, photo: &'a Photo, long: u32, key: u64) -> Self {
         let image = crate::image_processing::downscale_f32_image(&photo.full, long, long);
         let (w, h) = image.dimensions();
         let processor =
@@ -230,7 +230,7 @@ impl<'a> Bench<'a> {
             .create_view(&Default::default())
     }
 
-    fn request<'m>(
+    pub(super) fn request<'m>(
         &self,
         js: &Value,
         masks: &'m [MaskBitmap],
@@ -253,7 +253,7 @@ impl<'a> Bench<'a> {
 
     /// One render, read back unless `display`, as the editor makes it: the
     /// input stage, its results kept between renders, then theirs.
-    fn render(&self, request: RenderRequest, display: bool) -> Vec<u8> {
+    pub(super) fn render(&self, request: RenderRequest, display: bool) -> Vec<u8> {
         let (w, h) = self.image.dimensions();
         let at = input_stage::At {
             px_scale: 1.0,

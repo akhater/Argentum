@@ -177,6 +177,7 @@ fn metadata() -> Value {
         exif: Some(exif),
         ag_snapshots: Some(snapshots),
         ag_history: Some(history),
+        ag_highlights: None,
     };
     serde_json::from_str(&serde_json::to_string(&metadata).expect("writes")).expect("reads")
 }

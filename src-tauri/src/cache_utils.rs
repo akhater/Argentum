@@ -410,6 +410,7 @@ impl DecodeFingerprint {
             &metadata,
             settings,
             crate::mods::highlights::enabled(),
+            crate::mods::highlight_rule::rule_for(path.to_str()),
         ))
     }
 
@@ -424,7 +425,12 @@ impl DecodeFingerprint {
     }
 
     /// Every setting `image_loader::load_base_image_from_bytes` reads.
-    fn new(metadata: &std::fs::Metadata, settings: &AppSettings, highlight_recovery: bool) -> Self {
+    fn new(
+        metadata: &std::fs::Metadata,
+        settings: &AppSettings,
+        highlight_recovery: bool,
+        highlight_rule: crate::mods::highlight_rule::Rule,
+    ) -> Self {
         let mut hasher = DefaultHasher::new();
         settings
             .raw_highlight_compression
@@ -443,6 +449,8 @@ impl DecodeFingerprint {
         settings.use_apple_raw9.hash(&mut hasher);
         // Argentum: highlight recovery runs inside the decode (mods/highlights.rs).
         highlight_recovery.hash(&mut hasher);
+        // And by the rule of the photo's edit (mods/highlight_rule.rs).
+        highlight_rule.hash(&mut hasher);
         Self {
             len: metadata.len(),
             modified: metadata.modified().ok(),
@@ -596,11 +604,32 @@ mod tests {
     }
 
     fn fingerprint(path: &Path, settings: &AppSettings, recovery: bool) -> DecodeFingerprint {
-        DecodeFingerprint::new(&std::fs::metadata(path).unwrap(), settings, recovery)
+        DecodeFingerprint::new(
+            &std::fs::metadata(path).unwrap(),
+            settings,
+            recovery,
+            crate::mods::highlight_rule::rule_for(path.to_str()),
+        )
     }
 
     fn image() -> Arc<DynamicImage> {
         Arc::new(DynamicImage::new_rgb32f(2, 2))
+    }
+
+    /// A photo saved before the highlight pull decodes by the old rule, and
+    /// one with no edit by the new: the two decodes are different pictures.
+    #[test]
+    fn an_edit_saved_before_the_pull_does_not_match_a_new_one() {
+        let path = scratch_file("rule.CR3", b"raw bytes");
+        let sidecar = crate::file_management::sidecar_for(&path, None);
+        let _ = std::fs::remove_file(&sidecar);
+        let settings = AppSettings::default();
+        let new = DecodeFingerprint::for_file(&path, &settings);
+        std::fs::write(&sidecar, r#"{"version":1,"rating":2,"adjustments":{}}"#).unwrap();
+        let old = DecodeFingerprint::for_file(&path, &settings);
+        std::fs::remove_file(&sidecar).unwrap();
+        assert_ne!(new, old);
+        assert_eq!(new, DecodeFingerprint::for_file(&path, &settings));
     }
 
     #[test]
