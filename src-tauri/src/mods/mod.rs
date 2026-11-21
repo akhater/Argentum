@@ -115,6 +115,7 @@ pub mod restore;
 pub mod rt_profiles;
 pub mod salvage;
 pub mod selection;
+pub mod selection_again;
 pub mod selection_models;
 pub mod shader_check;
 pub mod sharpen;
@@ -131,5 +132,6 @@ pub mod tif_raw;
 #[cfg(test)]
 mod ui_thread;
 pub mod viewer_surface;
+pub mod warped_photo;
 pub mod wb_legacy;
 pub mod worker_thread;

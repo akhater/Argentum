@@ -3,6 +3,22 @@
 // then run `AG_WRITE_CONTRACT=1 cargo test --lib ag_contract` in src-tauri.
 
 /**
+ * AI masks found again on one photo: which, and the open photo's edit when
+ * it is the open one (its sidecar can lag behind); any other photo is read
+ * from its file and sidecar.
+ */
+export type AgainArgs = { path: string, 
+/**
+ * The open photo's edit, as the interface holds it: untyped on both sides.
+ */
+jsAdjustments: unknown, asks: Array<Ask>, };
+
+/**
+ * One AI sub-mask to find again, by its id.
+ */
+export type Ask = { id: string, wanted: Wanted, };
+
+/**
  * `black_white_auto`'s answer: the B&W mix's bands as the edit names them,
  * -100..100. `unknown` to the interface: it is a piece of the edit, whose band
  * names the interface defines (`BlackWhite.tsx`), and the edit is untyped on
@@ -220,6 +236,12 @@ export type FocusState = "other" | "chosen" | "inFocus" | "area";
  * A folder's path before and after a rename.
  */
 export type FolderRenameArgs = { oldPath: string, newPath: string, };
+
+/**
+ * What one sub-mask found on this photo: none when the selection failed, so
+ * that mask stays empty and the rest still applies.
+ */
+export type Found = { id: string, selection: Selection | null, };
 
 /**
  * Space under a compact slider row, in pixels.
@@ -486,6 +508,12 @@ kept: number,
  * These would not go.
  */
 failed: number, };
+
+/**
+ * The photo an Object's clicks were made on: its picture's size, from the
+ * outline found there, and how it was turned.
+ */
+export type MadeOn = { width: number, height: number, orientationSteps: number, };
 
 /**
  * A photo to measure Auto white balance on, and the photo a pasted Auto came from.
@@ -910,6 +938,11 @@ export type ThemeArgs = { theme: string, };
 
 export type ToneCurvePoint = { x: number, y: number, };
 
+/**
+ * Which selection to make, with what it was made from.
+ */
+export type Wanted = { "kind": "subject" } | { "kind": "sky" } | { "kind": "background" } | { "kind": "object", clicks: Array<Click>, bounds: Bounds | null, from: MadeOn, } | { "kind": "text", words: string, } | { "kind": "face", parts: Array<string>, };
+
 export type WhiteBalance = { temperature: number, tint: number, };
 
 /** Every `ag` command: what it takes and what it answers. */
@@ -933,6 +966,7 @@ export interface AgCommands {
   editor_layout_panels: { args: Record<string, never>; answer: LayoutPanels | null };
   face_mask: { args: FaceMaskArgs; answer: Selection };
   face_mask_models_status: { args: Record<string, never>; answer: ModelsStatus };
+  find_selections_again: { args: AgainArgs; answer: Array<Found> };
   flashraw_handles: { args: PathArgs; answer: boolean };
   focus_points: { args: PathArgs; answer: Focus | null };
   focus_points_shown: { args: Record<string, never>; answer: boolean };
