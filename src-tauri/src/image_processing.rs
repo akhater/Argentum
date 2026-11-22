@@ -2983,6 +2983,9 @@ pub struct GpuContext {
     pub queue: Arc<wgpu::Queue>,
     pub limits: wgpu::Limits,
     pub display: Arc<std::sync::Mutex<Option<WgpuDisplay>>>,
+    // RapidRAW 2c1dca20: src-tauri/src/image_processing.rs - the processor's pipelines,
+    // built once for this device (mods/gpu_pipelines.rs).
+    pub pipelines: Arc<crate::mods::gpu_pipelines::PipelineCache>,
 }
 
 #[inline(always)]

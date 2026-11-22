@@ -15,8 +15,11 @@
 //! and the lines must match. `slider_tick` prints how long a tick takes at the
 //! editor's preview size, each waited for on the GPU.
 //! `fit_after_zoom_is_a_fresh_fit` holds the fit render after a zoom to 100%
-//! to the fresh one, byte for byte. `noise_reduction_order` measures noise
-//! and edges with Noise Reduction before sharpening and after it.
+//! to the fresh one, byte for byte. `renderings` prints a hash per render of
+//! each photo in every rendering, at both sizes and exported, and
+//! `processor_grow` times making the processor at the sizes the editor asks
+//! for. `noise_reduction_order` measures noise and edges with Noise Reduction
+//! before sharpening and after it.
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -82,6 +85,7 @@ pub(super) fn device() -> GpuContext {
         queue: Arc::new(queue),
         limits,
         display: Arc::new(Mutex::new(None)),
+        pipelines: Default::default(),
     }
 }
 
@@ -430,6 +434,100 @@ fn same_pixels() {
             );
             input_stage::reset();
         }
+    }
+}
+
+/// Each RAW in every rendering, plain, with the processor's other passes on
+/// (Clarity, Structure, Dehaze, Flare) and in B&W, at both preview sizes on
+/// processors of their own and exported at 16 bits: one hash a render. Run it
+/// before and after a change that must move no pixel; the lines must match.
+#[test]
+#[ignore = "reads RAW files and needs a GPU; run by hand"]
+fn renderings() {
+    let ctx = device();
+    let lut = film_lut("K-Portra 400.cube");
+    let modes = [
+        "default",
+        "baseCurve",
+        "autoMatched",
+        "dngStandard",
+        "linear",
+        "cameraLook",
+    ];
+    let looks = [
+        ("plain", json!({})),
+        (
+            "edited",
+            json!({ "clarity": 30, "structure": 25, "dehaze": 20, "flareAmount": 40, "exposure": 0.3 }),
+        ),
+        ("B&W", json!({ "agBlackWhite": { "enabled": true } })),
+    ];
+    for (n, path) in raws().iter().enumerate() {
+        let photo = open(path);
+        for (s, long) in SIZES.into_iter().enumerate() {
+            let bench = Bench::new(&ctx, &photo, long, (n * 10 + s + 1) as u64);
+            let (w, h) = bench.image.dimensions();
+            let masks = [round_mask(w, h, 0.4, 0.45)];
+            for mode in modes {
+                for (look, keys) in &looks {
+                    let mut keys = keys.clone();
+                    keys["rawToneRendering"] = json!(mode);
+                    let js = edit(keys);
+                    let pixels = bench.render(bench.request(&js, &masks, &lut, None), false);
+                    println!("photo {} {w}x{h} {mode} {look}: {}", n + 1, hash(&pixels));
+                }
+                let js = edit(json!({ "rawToneRendering": mode }));
+                let exported = crate::mods::export_precision::render_high_precision(
+                    &ctx,
+                    &bench.image,
+                    bench.request(&js, &masks, &lut, None),
+                )
+                .expect("exports");
+                println!(
+                    "photo {} {w}x{h} {mode} export: {}",
+                    n + 1,
+                    hash(exported.as_bytes())
+                );
+            }
+            input_stage::reset();
+        }
+    }
+}
+
+/// What making a processor costs, waited for on the GPU: on a fresh device,
+/// the sizes the editor asks for in turn (the preview, a zoom to 100%, a
+/// portrait after landscapes, a full-size export), three rounds, then the
+/// 16-bit export's processor twice. No RAWs needed.
+#[test]
+#[ignore = "needs a GPU; timing, run by hand"]
+fn processor_grow() {
+    use crate::mods::export_precision::Precision;
+    let ctx = device();
+    let sizes = [(1920, 1280), (3200, 2133), (2133, 3200), (6000, 4000)];
+    let make = |w: u32, h: u32, precision| {
+        let at = Instant::now();
+        let processor = GpuProcessor::new_with_precision(
+            ctx.clone(),
+            (w + 255) & !255,
+            (h + 255) & !255,
+            precision,
+        )
+        .expect("processor");
+        wait(&ctx);
+        let ms = at.elapsed().as_secs_f64() * 1e3;
+        drop(processor);
+        wait(&ctx);
+        ms
+    };
+    for round in 1..=3 {
+        for (w, h) in sizes {
+            let ms = make(w, h, Precision::Preview);
+            println!("round {round}, processor {w}x{h}: {ms:.1} ms");
+        }
+    }
+    for round in 1..=2 {
+        let ms = make(6000, 4000, Precision::High);
+        println!("round {round}, 16-bit export processor 6000x4000: {ms:.1} ms");
     }
 }
 

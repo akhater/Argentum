@@ -1581,6 +1581,7 @@ pub(crate) mod tests {
             queue: Arc::new(queue),
             limits,
             display: Arc::new(Mutex::new(None)),
+            pipelines: Default::default(),
         })
     }
 
