@@ -477,6 +477,7 @@
   "focusPointsManualToast": "Manual focus: no point recorded",
   "focusPointsUnrecordedToast": "Focus not recorded",
   "keyFocusPoints": "Show the camera's focus points",
+  "keyMaskOverlay": "Show the selected mask's overlay",
   "gpuFallbackThisLaunch": "Graphics setup did not finish last time, so Argentum is using OpenGL for this session. Your Processing Backend setting stays on {backend}, and Argentum will try it again next time.",
   "gpuFallbackSaved": "Graphics setup on {backend} did not finish twice in a row, so Argentum changed the Processing Backend setting to OpenGL. You can change it back in Settings."
 }

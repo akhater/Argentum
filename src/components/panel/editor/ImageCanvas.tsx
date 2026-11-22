@@ -29,6 +29,7 @@ import { CENTER_MARKERS } from './overlays/CenterMarkerShape';
 import { calculateStraightenAngle, resolveAspectRatio } from '../../../utils/cropUtils';
 import { CentrePin, RelightHandles, useOnPhotoHandles } from '../../../argentum/effects/onPhoto'; // Argentum: Relight lights, centre pins
 import { showLight, useLightMenu } from '../../../argentum/effects/lights';
+import { useMaskOverlay } from '../../../argentum/maskOverlay'; // Argentum: O, and hidden after adjusting
 import { toast } from 'react-toastify';
 import { type Bounds, type Click, isObjectSelection, refineObject } from '../../../argentum/selection/selection'; // Argentum: Object on SAM 2.1
 import {
@@ -1526,6 +1527,7 @@ const ImageCanvas = memo(
     const [localInitialDrawParams, setLocalInitialDrawParams] = useState<any>(null);
     const [isMaskInteractionActive, setIsMaskInteractionActive] = useState(false);
     const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+    const isMaskOverlayShown = useMaskOverlay((s) => s.shown);
     const isDrawing = useRef(false);
     const drawingStageRef = useRef<any>(null);
     const dragStartPointer = useRef<Coord | null>(null);
@@ -3419,7 +3421,7 @@ const ImageCanvas = memo(
 
     const currentActiveSubMaskId = activeAiSubMaskId || activeMaskId;
     const maskOpacity =
-      isShowingOriginal || isSliderDragging || isMaskInteractionActive
+      isShowingOriginal || isSliderDragging || isMaskInteractionActive || (isMasking && !isMaskOverlayShown)
         ? 0
         : isDirectPatchActive
           ? hoveredMarkerId === currentActiveSubMaskId || isMaskControlHovered

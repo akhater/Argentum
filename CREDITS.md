@@ -248,6 +248,11 @@ Windows a message naming it when a panic ends the app, kept in
 in one environment built without Microsoft's usage telemetry, made in
 `private_environment` in `src-tauri/rm_selection/src/runtime.rs`.
 
+**A mask's red overlay hides once its sliders move**, as RAWmakase hides it
+(`src/app/develop/tools/mask_tool.rs` @ `d2bafbff`, v0.7.2): it stays hidden
+until O, or until another mask or component is selected, and an overlay turned
+off with O stays off. Kept in `src/argentum/maskOverlay.ts`.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured
