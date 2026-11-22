@@ -114,6 +114,7 @@ pub mod model_manager;
 pub mod modern_start;
 pub mod photo_frame;
 pub mod preview_encode;
+pub mod preview_jpeg;
 pub mod process_tree;
 pub mod profile_correction;
 pub mod profile_matrix;

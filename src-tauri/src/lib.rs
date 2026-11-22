@@ -750,10 +750,8 @@ fn process_preview_job(
 
         let step_start = std::time::Instant::now();
 
-        let encode_result = Encoder::new(Preset::BaselineFastest)
-            .quality(jpeg_quality)
-            .fast_color(true)
-            .encode_imgref(img_ref);
+        // RapidRAW 35fdc7c9: src-tauri/src/lib.rs
+        let encode_result = crate::mods::preview_jpeg::encode_rgba(img_ref, jpeg_quality, true);
 
         match encode_result {
             Ok(jpeg_bytes) => {
@@ -1629,12 +1627,11 @@ async fn generate_preview_for_path(
             "generate_preview_for_path",
         )?;
 
-        let (width, height) = final_image.dimensions();
-        let rgb_pixels = final_image.to_rgb8().into_vec();
-
-        let bytes = Encoder::new(Preset::BaselineFastest)
-            .quality(92)
-            .encode_rgb(&rgb_pixels, width, height)
+        // RapidRAW 35fdc7c9: src-tauri/src/lib.rs
+        let rgba = final_image.into_rgba8();
+        let (width, height) = rgba.dimensions();
+        let pixels = ImgRef::new(rgba.as_raw().as_rgba(), width as usize, height as usize);
+        let bytes = crate::mods::preview_jpeg::encode_rgba(pixels, 92, false)
             .map_err(|e| format!("Failed to encode with mozjpeg-rs: {}", e))?;
 
         Ok(Response::new(bytes))
