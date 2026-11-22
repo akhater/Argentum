@@ -123,6 +123,7 @@ pub fn device() -> Result<(GpuContext, String), String> {
             queue: Arc::new(queue),
             limits,
             display: Arc::new(std::sync::Mutex::new(None)),
+            pipelines: Default::default(),
         },
         name,
     ))

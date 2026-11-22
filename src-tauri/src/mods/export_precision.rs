@@ -1308,6 +1308,7 @@ mod gpu_tests {
             queue: std::sync::Arc::new(queue),
             limits,
             display: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            pipelines: Default::default(),
         })
     }
 

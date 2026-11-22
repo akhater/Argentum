@@ -85,6 +85,7 @@ pub(super) fn device() -> GpuContext {
         queue: Arc::new(queue),
         limits,
         display: Arc::new(Mutex::new(None)),
+        pipelines: Default::default(),
     }
 }
 
