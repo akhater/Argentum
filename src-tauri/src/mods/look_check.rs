@@ -32,6 +32,11 @@
 //! AG_RAWS="a.CR3;b.NEF" AG_LOOK_REFS=<folder> ...
 //! ```
 //!
+//! The samples need not be on anyone's disk to bless: `golden-bless.yml`
+//! (Actions, run by hand with the branch, the reason, the cases and the pull
+//! request) blesses on CI and commits the references and the ledger row to
+//! the branch.
+//!
 //! `AG_LOOK_ONLY=8771,7882` limits a run to some samples; `AG_LOOK_SUMMARY`
 //! names a file the Markdown summary is appended to (CI: the job summary).
 //! Without samples it says SKIPPED and passes.

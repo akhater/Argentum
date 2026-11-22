@@ -32,21 +32,9 @@ jobs:
           rustflags: ''
           rust-src-dir: src-tauri
 
-      # lint.yml's clippy job's list, without libgphoto2: tethering is a
-      # feature, off by default. Plus libheif and its HEVC plugin, so the HEIC
-      # tests (src-tauri/src/mods/heic.rs) decode for real: AG_REQUIRE_HEIC
-      # below fails them if the decoder is missing rather than skipping.
+      # The packages the app crate builds with (.github/actions/app-system-deps).
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            pkg-config \
-            libheif1 \
-            libheif-plugin-libde265
+        uses: ./.github/actions/app-system-deps
 
       - name: Test
         working-directory: src-tauri
@@ -59,7 +47,8 @@ jobs:
       # text references in src-tauri/tests/look/. They run on every pull
       # request that changes something under src-tauri/, and a case that moved
       # fails this required job: bless it in the same pull request
-      # (AG_LOOK_BLESS, a row in LEDGER.tsv) when the change is meant.
+      # (AG_LOOK_BLESS, a row in LEDGER.tsv) when the change is meant, by hand
+      # or with golden-bless.yml, which blesses here, where the samples are.
       - name: Golden photos - anything to check?
         id: look-scope
         env:
@@ -86,56 +75,12 @@ jobs:
             fi
           fi
 
-      - name: Golden photos - cached samples
-        id: look-cache
-        if: steps.look-scope.outputs.run == 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/look-samples
-          key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
-
-      # Each sample checked against its sha256. raw.pixls.us is slow and
-      # sometimes down: a sample that cannot be fetched makes the check say
-      # SKIPPED, never fail.
+      # The samples, cached or fetched and checked, and a software GPU
+      # (.github/actions/golden-samples). golden-bless.yml uses the same.
       - name: Golden photos - samples
         id: look-samples
         if: steps.look-scope.outputs.run == 'true'
-        run: |
-          mkdir -p ~/look-samples
-          missing=0
-          while IFS=$'\t' read -r id url sha camera licence covers; do
-            case "$id" in ''|'#'*|id) continue ;; esac
-            file=~/look-samples/"$id.${url##*.}"
-            if [ -f "$file" ] && echo "$sha  $file" | sha256sum --check --status; then
-              continue
-            fi
-            curl -fsSL -g --retry 5 --retry-all-errors --retry-delay 10 \
-              --speed-limit 2048 --speed-time 60 -C - -o "$file" "$url" || true
-            if ! echo "$sha  $file" | sha256sum --check --status; then
-              echo "::warning::golden photos: $id ($camera) could not be fetched from raw.pixls.us"
-              rm -f "$file"
-              missing=$((missing + 1))
-            fi
-          done < src-tauri/tests/look/samples.tsv
-          if [ "$missing" -gt 0 ]; then
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "## Golden photos: SKIPPED - $missing sample(s) could not be fetched from raw.pixls.us" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Kept only when every sample is there and checked.
-      - name: Golden photos - keep the samples
-        if: steps.look-samples.outputs.ok == 'true' && steps.look-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/look-samples
-          key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
-
-      # Mesa's Vulkan driver for the CPU (lavapipe), as engine.yml installs it.
-      - name: Golden photos - software GPU
-        if: steps.look-samples.outputs.ok == 'true'
-        run: sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+        uses: ./.github/actions/golden-samples
 
       - name: Golden photos
         if: steps.look-samples.outputs.ok == 'true'

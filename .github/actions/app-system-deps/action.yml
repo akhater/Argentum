@@ -1,0 +1,20 @@
+name: App system dependencies
+description: >
+  The Linux packages the app crate builds and tests with (src-tauri): lint.yml's
+  clippy list without libgphoto2 (tethering is a feature, off by default), plus
+  libheif and its HEVC plugin so the HEIC tests (src-tauri/src/mods/heic.rs)
+  decode for real. Used by app.yml and golden-bless.yml.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libwebkit2gtk-4.1-dev \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          pkg-config \
+          libheif1 \
+          libheif-plugin-libde265
