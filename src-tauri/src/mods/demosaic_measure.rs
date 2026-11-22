@@ -328,3 +328,79 @@ fn demosaic_time() {
         );
     }
 }
+
+/// A 32 MP mosaic (6982 x 4654, an EOS R6 Mark III's) through `cfa`: a smooth
+/// coloured scene with fine texture and noise, in 14-bit samples.
+fn synthetic(cfa: &str) -> RawImage {
+    let (w, h) = (6982usize, 4654usize);
+    let cfa = CFA::new(cfa);
+    let data: Vec<u16> = (0..w * h)
+        .map(|i| {
+            let (x, y) = (i % w, i / w);
+            let (fx, fy) = (x as f32 / 97.0, y as f32 / 71.0);
+            let fine = 0.05 * ((x as f32 * 0.9).sin() * (y as f32 * 1.3).cos());
+            let noise = ((x * 7919 + y * 104729) % 997) as f32 / 997.0 * 0.01;
+            let rgb = [
+                0.30 + 0.20 * fx.sin(),
+                0.40 + 0.15 * (fx + fy).cos(),
+                0.25 + 0.10 * fy.sin(),
+            ];
+            let v = rgb[cfa.color_at(y, x).min(2)] + fine + noise;
+            (512.0 + v * 13000.0) as u16
+        })
+        .collect();
+    RawImage::new(
+        rawler::decoders::Camera::new(),
+        rawler::pixarray::PixU16::new_with(data, w, h),
+        1,
+        [2.0, 1.0, 1.5, f32::NAN],
+        RawPhotometricInterpretation::Cfa(CFAConfig::new(&cfa, &Default::default())),
+        Some(BlackLevel::new(&[512u32], 1, 1, 1)),
+        Some(rawler::rawimage::WhiteLevel::new(vec![16383])),
+        false,
+    )
+}
+
+/// RapidRAW's demosaic against its budget (`speed_budgets::DEMOSAIC_MS`) on
+/// a 32 MP mosaic of each pattern, all threads, the quickest of five, with
+/// rawler's beside it. Run by hand on the laptop the budgets come from, as
+/// `sharpen_gpu::tests::where_the_time_goes` is (docs/RELEASING.md).
+#[test]
+#[ignore = "timing against the reference laptop's budgets; run by hand"]
+fn demosaic_within_budget() {
+    use super::speed_budgets;
+    speed_budgets::full_speed::hold();
+    let mut breaches = Vec::new();
+    for (name, cfa) in [("Bayer", "RGGB"), ("X-Trans", XTRANS)] {
+        let raw = synthetic(cfa);
+        let RawPhotometricInterpretation::Cfa(config) = &raw.photometric else {
+            unreachable!()
+        };
+        let pixels = PixF32::new_with(samples(&raw), raw.width, raw.height);
+        let roi = Rect::new(Point::zero(), raw.dim());
+        let rawlers = || {
+            if config.cfa.width == 6 {
+                drop(XTransDemosaic::new().demosaic(&pixels, &config.cfa, &config.colors, roi));
+            } else {
+                drop(PPGDemosaic::new().demosaic(&pixels, &config.cfa, &config.colors, roi));
+            }
+        };
+        let theirs = || {
+            let mosaic = Mosaic::new(&raw, [2.0, 1.0, 1.5], 16383.0).expect("takes it");
+            drop(mosaic.develop());
+        };
+        let quickest = |run: &dyn Fn()| {
+            (0..5)
+                .map(|_| {
+                    let start = std::time::Instant::now();
+                    run();
+                    start.elapsed().as_secs_f32() * 1000.0
+                })
+                .fold(f32::MAX, f32::min)
+        };
+        let (ours, rapidraw) = (quickest(&rawlers), quickest(&theirs));
+        println!("{name} 6982x4654: rawler {ours:.0} ms, RapidRAW {rapidraw:.0} ms");
+        breaches.extend(speed_budgets::demosaic_breach(name, rapidraw));
+    }
+    speed_budgets::assert_none(&breaches);
+}

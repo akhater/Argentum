@@ -1209,20 +1209,31 @@ fn markesteijn(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
             .fold(0, |packed, (d, n)| packed | n << (4 * d));
     });
 
-    // xt_out
+    // xt_out. The 5 x 5 counts in two passes, along the rows then down:
+    // every direction's count is a byte (at most 25 x 9), so the sums are
+    // the shader's, exactly.
     let mut out = vec![[0.0f32; 3]; (t.cols * t.rows) as usize];
     let m = t.margin as usize;
-    for iy in 0..t.rows as usize {
-        for ix in 0..t.cols as usize {
+    let (cols, rows) = (t.cols as usize, t.rows as usize);
+    let mut across = vec![(0u32, 0u32); (rows + 4) * cols];
+    for (r, line) in across.chunks_exact_mut(cols).enumerate() {
+        let row = (m + r - 2) * w + m;
+        for (ix, sums) in line.iter_mut().enumerate() {
+            for word in &words[row + ix - 2..=row + ix + 2] {
+                sums.0 += word & 0x0f0f_0f0f;
+                sums.1 += (word >> 4) & 0x0f0f_0f0f;
+            }
+        }
+    }
+    for iy in 0..rows {
+        for ix in 0..cols {
             let i = (m + iy) * w + m + ix;
             let mut even = 0u32;
             let mut odd = 0u32;
             for dy in 0..5 {
-                for dx in 0..5 {
-                    let word = words[i + dy * w + dx - 2 * w - 2];
-                    even += word & 0x0f0f_0f0f;
-                    odd += (word >> 4) & 0x0f0f_0f0f;
-                }
+                let (e, o) = across[(iy + dy) * cols + ix];
+                even += e;
+                odd += o;
             }
             let mut hm = [0u32; 8];
             let mut top = 0u32;
@@ -1338,61 +1349,6 @@ mod tests {
             }
         }
         worst
-    }
-
-    /// Each demosaic on a 32 MP mosaic (6982 x 4654, an R6 Mark III's),
-    /// rawler's beside RapidRAW's, the quickest of three: on all threads,
-    /// as the app runs it, and on one, which other work on the machine
-    /// disturbs less.
-    #[test]
-    #[ignore = "timing, run by hand"]
-    fn demosaic_time() {
-        use rawler::cfa::CFA;
-        use rawler::imgop::sensor::bayer::{Demosaic, ppg::PPGDemosaic};
-        use rawler::imgop::sensor::xtrans::demosaic::XTransDemosaic;
-        use rawler::pixarray::PixF32;
-
-        let (w, h) = (6982, 4654);
-        let one = rayon::ThreadPoolBuilder::new()
-            .num_threads(1)
-            .build()
-            .expect("pool");
-        let quickest = |run: &(dyn Fn() + Sync)| {
-            let mut best = [f64::MAX; 2];
-            for _ in 0..3 {
-                let start = std::time::Instant::now();
-                run();
-                best[0] = best[0].min(start.elapsed().as_secs_f64() * 1000.0);
-                let start = std::time::Instant::now();
-                one.install(run);
-                best[1] = best[1].min(start.elapsed().as_secs_f64() * 1000.0);
-            }
-            best
-        };
-        for (colors, pattern, name) in [
-            (bayer_colors(), Pattern::Bayer, "RGGB"),
-            (
-                XTRANS,
-                Pattern::XTrans,
-                "GGRGGBGGBGGRBRGRBGGGBGGRGGRGGBRBGBRG",
-            ),
-        ] {
-            let data = sampled(w, h, &colors, scene);
-            let m = mosaic_of(&data, w, h, colors, pattern);
-            let ours = quickest(&|| drop(m.develop()));
-            let pixels = PixF32::new_with(data.clone(), w, h);
-            let cfa = CFA::new(name);
-            let rgb = rawler::cfa::PlaneColor::default();
-            let roi = Rect::new(Point::zero(), rawler::imgop::Dim2::new(w, h));
-            let rawlers = quickest(&|| match pattern {
-                Pattern::Bayer => drop(PPGDemosaic::new().demosaic(&pixels, &cfa, &rgb, roi)),
-                Pattern::XTrans => drop(XTransDemosaic::new().demosaic(&pixels, &cfa, &rgb, roi)),
-            });
-            println!(
-                "{pattern:?} {w}x{h}: rawler {:.0} ms ({:.0} on one thread), RapidRAW {:.0} ms ({:.0} on one thread)",
-                rawlers[0], rawlers[1], ours[0], ours[1]
-            );
-        }
     }
 
     #[test]

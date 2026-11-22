@@ -25,6 +25,12 @@ A release is a merge commit on `main`, published in this order.
    the release** until the slowdown is fixed. GitHub's runners have no real GPU,
    so this cannot run in CI.
 
+   The demosaic a new edit opens with, the same way:
+
+   ```bash
+   cargo test --lib mods::demosaic_measure::demosaic_within_budget -- --ignored --nocapture
+   ```
+
    The engine's slider tick, on the same laptop, from `src-tauri/engine/`, on one
    of your RAWs:
 

@@ -107,6 +107,14 @@ export const CREDITS: CreditGroup[] = [
           'file: only on the formats where its pixels were measured identical to rawler’s. Used as a ' +
           'library. MIT or Apache-2.0.',
       },
+      {
+        name: 'RCD, residual interpolation and Markesteijn',
+        what:
+          'New edits are demosaiced as RapidRAW 1.7.0 does it, run on the CPU: on Bayer sensors, ' +
+          'green by RCD (Luis Sanz Rodríguez) and red and blue by residual interpolation (Kiku, ' +
+          'Monno, Tanaka and Okutomi); on Fujifilm X-Trans sensors, Frank Markesteijn’s ' +
+          'three-pass demosaic, with the tables of dcraw’s (Dave Coffin).',
+      },
     ],
   },
   {
