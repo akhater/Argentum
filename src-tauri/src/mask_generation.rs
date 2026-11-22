@@ -336,7 +336,8 @@ fn apply_grow_and_feather(mask: &mut GrayImage, grow: f32, feather: f32, width: 
         let sigma = (feather / 100.0) * base_dimension * MAX_FEATHER_SIGMA_PERCENTAGE;
 
         if sigma > 0.01 {
-            *mask = imageproc::filter::gaussian_blur_f32(mask, sigma);
+            // RapidRAW 15a9ff2e: src-tauri/src/mask_generation.rs
+            *mask = crate::mods::mask_feather::gaussian_blur_mask(mask, sigma);
         }
     }
 }
