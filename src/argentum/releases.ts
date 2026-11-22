@@ -32,6 +32,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.47.3',
+    date: '2026-11-22',
+    notes: [
+      'New edits are demosaiced the way RapidRAW 1.7.0 does it: finer detail and less false colour, and far cleaner on Fujifilm X-Trans. Existing edits look the same.',
+      'JPEG, TIFF and PNG photos with an Adobe RGB, Display P3 or ProPhoto profile show in their own colours instead of washed out (new edits).',
+      'Very high ISO photos: the darkest noisy shadows keep their colour instead of turning magenta (new edits).',
+      'Masks: the red overlay stays hidden after you move a mask slider, so you see the change. O brings it back.',
+      'Faster: less waiting when zooming to 100% or switching between portrait and landscape photos, quicker previews, and much faster mask feathering.',
+      'A photo too large for the graphics card now says so on export, instead of exporting without its edits.',
+    ],
+  },
+  {
     version: '26.47.2',
     date: '2026-11-21',
     notes: [
