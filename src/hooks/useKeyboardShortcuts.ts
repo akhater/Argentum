@@ -15,6 +15,7 @@ import { rowNeighbour } from '../argentum/modern/gridRows';
 import { physicalPathOf } from '../argentum/paths';
 import { selectInGrid } from '../argentum/photoStep';
 import { useFocusPoints } from '../argentum/focusSwitch';
+import { useMaskOverlay } from '../argentum/maskOverlay';
 import {
   fitZoomPercent,
   screenDpr,
@@ -287,6 +288,15 @@ export const useKeyboardShortcuts = ({
         execute: (e: KeyboardEvent) => {
           e.preventDefault();
           useFocusPoints.getState().toggle();
+        },
+      },
+      // Only with Masks open: with Crop open, CropPanel's O cycles the guides, as in Lightroom.
+      toggle_mask_overlay: {
+        shouldFire: (s: ShortcutState) =>
+          s.ui.activeView === 'editor' && !!s.editor.selectedImage && s.ui.activePanel === Panel.Masks,
+        execute: (e: KeyboardEvent) => {
+          e.preventDefault();
+          useMaskOverlay.getState().toggle();
         },
       },
       toggle_adjustments: {

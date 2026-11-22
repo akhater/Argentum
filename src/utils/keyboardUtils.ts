@@ -136,6 +136,13 @@ export const KEYBIND_DEFINITIONS: KeybindDefinition[] = [
     defaultCombo: ['shift', 'KeyF'],
     section: 'view',
   },
+  // Argentum: the selected mask's red overlay, O as in Lightroom (argentum/maskOverlay.ts).
+  {
+    action: 'toggle_mask_overlay',
+    description: 'ag:keyMaskOverlay',
+    defaultCombo: ['KeyO'],
+    section: 'view',
+  },
   { action: 'rate_0', description: 'settings.keybinds.actions.rate_0', defaultCombo: ['Digit0'], section: 'rating' },
   { action: 'rate_1', description: 'settings.keybinds.actions.rate_1', defaultCombo: ['Digit1'], section: 'rating' },
   { action: 'rate_2', description: 'settings.keybinds.actions.rate_2', defaultCombo: ['Digit2'], section: 'rating' },

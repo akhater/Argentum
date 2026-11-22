@@ -166,7 +166,8 @@ export const CREDITS: CreditGroup[] = [
           '(Windows Imaging Component, macOS’s ImageIO, or libheif). When a graphics driver ' +
           'refuses a GPU device, the next backend is tried in RAWmakase’s order. A crash is recorded ' +
           'as RAWmakase records it, in a crash log kept for a bug report, named in a message on ' +
-          'Windows. ONNX Runtime’s telemetry is switched off as RAWmakase switches it off. RAWmakase is ' +
+          'Windows. ONNX Runtime’s telemetry is switched off as RAWmakase switches it off. A mask’s red ' +
+          'overlay hides once its sliders move and O brings it back, as RAWmakase does it. RAWmakase is ' +
           'also where the ' +
           'comparison started. MIT.',
       },
