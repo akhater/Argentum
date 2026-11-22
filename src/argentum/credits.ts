@@ -155,7 +155,8 @@ export const CREDITS: CreditGroup[] = [
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
           'matrices and white levels, and the names Adobe profiles some cameras under (the Lumix ' +
           'G97 as the G99). Noise below black is clipped where RAWmakase clips it, after ' +
-          'demosaicing. Highlight Recovery in new edits rebuilds clipped highlights by RAWmakase’s ' +
+          'demosaicing, and in new edits as RAWmakase clips it: each pixel keeps its own colour, ' +
+          'so very high ISO deep shadows stay neutral. Highlight Recovery in new edits rebuilds clipped highlights by RAWmakase’s ' +
           'rule, measured on Camera Raw: each channel pulled towards the mean of the other two. ' +
           'The presets that come with Argentum (Color, Creative, B&W, ' +
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +

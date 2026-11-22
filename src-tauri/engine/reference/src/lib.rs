@@ -67,13 +67,22 @@ pub mod mods {
         }
     }
 
-    /// `mods::highlight_rule`: which highlight rule a photo's edit takes. The
-    /// tests hand no path, and the decode hook below rewrites nothing.
+    /// `mods::highlight_rule`: which decode rule a photo's edit takes. The
+    /// tests hand no path, and the decode hook below rewrites nothing. The
+    /// rule is the pull's, not the latest: the engine's `develop` copies the
+    /// app's without the decode rules, so it clips each channel at black.
     pub mod highlight_rule {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum Rule {
             Rebuild,
             Pull,
+            PullShadows,
+        }
+
+        impl Rule {
+            pub fn keeps_shadow_colour(self) -> bool {
+                self == Rule::PullShadows
+            }
         }
 
         pub fn rule_for(_photo: Option<&str>) -> Rule {

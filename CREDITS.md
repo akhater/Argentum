@@ -204,7 +204,10 @@ rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data
 matrices and white levels of a few bodies (`data/raw-matrices.toml` and
 `data/raw-cameras.toml` @ `a8c5d6d7`), which carry Adobe DNG Converter 18.7's.
 Noise below black is clipped where RAWmakase clips it, after demosaicing a Bayer
-sensor's samples (`crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`).
+sensor's samples (`crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`), and
+in new edits as RAWmakase clips it: a full-size pixel below black keeps the
+brightness of a clip of each channel but its own colour, pulled toward grey, so
+very high ISO deep shadows do not turn magenta (`clip_at_black` @ `23d6c1c4`).
 
 **Highlight Recovery** in new edits rebuilds clipped highlights as
 RAWmakase does (`crates/rawmakase-engine/src/develop/quality/highlights.rs` @

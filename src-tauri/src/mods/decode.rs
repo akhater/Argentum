@@ -105,7 +105,7 @@ pub fn on_raw_decoded_watched(
     // the pull, after demosaic, makes a clipped channel the mean of the
     // others and a blown pixel neutral. With recovery off, or for an edit
     // saved before it, the two steps below run as they always did.
-    let pull = rule == super::highlight_rule::Rule::Pull && super::highlights::enabled();
+    let pull = rule.pulls() && super::highlights::enabled();
 
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and

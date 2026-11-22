@@ -2180,13 +2180,13 @@ mod highlight_mark_tests {
     /// Argentum: a sidecar made for a new file through the EXIF copy (a
     /// denoised DNG, a panorama) marks it new, as `write_sidecar` would.
     #[test]
-    fn a_sidecar_made_for_a_new_file_takes_the_pull() {
+    fn a_sidecar_made_for_a_new_file_takes_the_latest_rule() {
         use crate::mods::highlight_rule::{Rule, rule_for};
         let dir = std::env::temp_dir().join("argentum-primary-mark");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let image = dir.join("out.dng");
         super::save_primary_metadata(&image, &super::ImageMetadata::default()).unwrap();
-        assert_eq!(rule_for(image.to_str()), Rule::Pull);
+        assert_eq!(rule_for(image.to_str()), Rule::LATEST);
     }
 }
