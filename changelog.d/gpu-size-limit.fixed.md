@@ -1,1 +1,0 @@
-- An image wider or taller than the graphics card's largest texture (16384 px on most cards, a stitched panorama passes it) now fails to export with a message saying so. It used to export without its edits, and without a word. The editor, the Preview-precision and LUT exports, and capture sharpening share one check. From RapidRAW `dfb0cba4` (`src-tauri/src/gpu_processing.rs`).
