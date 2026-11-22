@@ -2682,16 +2682,11 @@ fn process_and_get_dynamic_image_inner(
     let device = &context.device;
     let queue = &context.queue;
 
-    let max_dim = context.limits.max_texture_dimension_2d;
-    if width > max_dim || height > max_dim {
-        log::warn!(
-            "Image dimensions ({}x{}) exceed GPU limits ({}). Bypassing GPU processing and returning unprocessed image to prevent a crash. Try upgrading your GPU :)",
-            width,
-            height,
-            max_dim
-        );
-        return Ok(base_image.clone());
-    }
+    crate::mods::gpu_size_limit::check_fits_gpu(
+        width,
+        height,
+        context.limits.max_texture_dimension_2d,
+    )?;
 
     let mut processor_lock = lock_processor(state);
     ensure_processor_fits(&mut processor_lock, context, width, height)?;
