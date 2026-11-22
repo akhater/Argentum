@@ -16,7 +16,7 @@ use crate::white_balance::WhiteBalance;
 use anyhow::{Context, Result, anyhow};
 use base64::{Engine as _, engine::general_purpose};
 use exif::{Reader as ExifReader, Tag};
-use image::{DynamicImage, GenericImageView, ImageReader, imageops};
+use image::{DynamicImage, GenericImageView, ImageDecoder, ImageReader, imageops};
 use rawler::Orientation;
 use rayon::prelude::*;
 use serde::Deserialize;
@@ -200,7 +200,8 @@ pub fn load_base_image_from_bytes(
             }
         }
     } else {
-        let mut image = load_image_with_orientation(bytes, cancel_token)?;
+        let rule = crate::mods::highlight_rule::rule_for(Some(path_for_ext_check)); // Argentum
+        let mut image = load_image_with_orientation(bytes, cancel_token, rule)?;
 
         if apply_to_non_raws
             && !use_fast_raw_dev
@@ -374,6 +375,7 @@ fn linearize_embedded_preview(preview: DynamicImage) -> DynamicImage {
 pub fn load_image_with_orientation(
     bytes: &[u8],
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
+    rule: crate::mods::highlight_rule::Rule, // Argentum: whether its colour profile is read
 ) -> Result<DynamicImage> {
     let check_cancel = || -> Result<()> {
         if let Some((tracker, generation)) = &cancel_token
@@ -388,7 +390,7 @@ pub fn load_image_with_orientation(
     // and comes back upright and in sRGB like everything below.
     if crate::mods::heic::is_heif(bytes) {
         check_cancel()?;
-        let image = crate::mods::heic::decode(bytes)?;
+        let image = crate::mods::heic::decode(bytes, rule)?;
         check_cancel()?;
         return Ok(image);
     }
@@ -402,27 +404,39 @@ pub fn load_image_with_orientation(
 
     check_cancel()?;
 
-    let image = reader.decode().context("Failed to decode image")?;
+    // RapidRAW 47e6274b: src-tauri/src/image_loader.rs
+    let mut decoder = reader.into_decoder().context("Failed to decode image")?;
+    let icc_profile = decoder.icc_profile().ok().flatten();
+    let image = DynamicImage::from_decoder(decoder).context("Failed to decode image")?;
     check_cancel()?;
 
-    let oriented_image = {
-        let exif_reader = ExifReader::new();
-        if let Ok(exif) = exif_reader.read_from_container(&mut cursor.clone()) {
-            if let Some(orientation) = exif
-                .get_field(Tag::Orientation, exif::In::PRIMARY)
-                .and_then(|f| f.value.get_uint(0))
-            {
-                check_cancel()?;
-                apply_orientation(image, Orientation::from_u16(orientation as u16))
-            } else {
-                image
-            }
-        } else {
-            image
-        }
+    let exif = ExifReader::new()
+        .read_from_container(&mut cursor.clone())
+        .ok();
+    let orientation = exif.as_ref().and_then(|exif| {
+        exif.get_field(Tag::Orientation, exif::In::PRIMARY)?
+            .value
+            .get_uint(0)
+    });
+    let oriented_image = match orientation {
+        Some(orientation) => apply_orientation(image, Orientation::from_u16(orientation as u16)),
+        None => image,
     };
 
-    Ok(DynamicImage::ImageRgb32F(oriented_image.to_rgb32f()))
+    let mut rgb = oriented_image.to_rgb32f();
+    // Argentum: in mods/icc_input.rs, for photos whose rule reads profiles.
+    let source_profile = rule
+        .reads_colour_profiles()
+        .then(|| crate::mods::icc_input::source_profile(icc_profile.as_deref(), exif.as_ref()))
+        .flatten();
+    if let Some(profile) = source_profile {
+        check_cancel()?;
+        if let Err(e) = crate::mods::icc_input::convert_to_srgb(rgb.as_mut(), &profile) {
+            log::warn!("Unsupported embedded colour profile ({e}), assuming sRGB");
+        }
+    }
+
+    Ok(DynamicImage::ImageRgb32F(rgb))
 }
 
 pub fn composite_patches_on_image(

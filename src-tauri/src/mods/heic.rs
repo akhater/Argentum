@@ -6,8 +6,9 @@
 //! The header is read here, the same on every system: the primary image's
 //! size, crop (`clap`), turn and mirror (`irot`, `imir`) and colour (`colr`).
 //! The system decoder only decodes the pixels, unturned, in the file's own
-//! colour space; they are cropped and turned here, and converted to sRGB by
-//! moxcms, so a Display P3 photo keeps its colour. The result is what a JPEG
+//! colour space; they are cropped and turned here, and converted to sRGB as
+//! every non-RAW photo is (`icc_input.rs`), so a Display P3 photo keeps its
+//! colour. The result is what a JPEG
 //! gives (`image_loader::load_image_with_orientation`): sRGB-encoded floats.
 //!
 //! When the system cannot decode it, the photo is still listed, and opening
@@ -26,9 +27,10 @@
 // it is sound.
 #![deny(unsafe_op_in_unsafe_fn, clippy::undocumented_unsafe_blocks)]
 
+use super::highlight_rule::Rule;
 use image::{DynamicImage, Rgb32FImage};
 use moxcms::{
-    CicpColorPrimaries, CicpProfile, ColorProfile, Layout, MatrixCoefficients,
+    CicpColorPrimaries, CicpProfile, CmsError, ColorProfile, Layout, MatrixCoefficients,
     TransferCharacteristics, TransformOptions,
 };
 use rawler::Orientation;
@@ -108,11 +110,12 @@ fn brands(bytes: &[u8]) -> Vec<&[u8; 4]> {
         .collect()
 }
 
-/// The primary image of a HEIC, upright and in sRGB, as sRGB-encoded floats.
-pub fn decode(bytes: &[u8]) -> Result<DynamicImage, HeicError> {
+/// The primary image of a HEIC, upright and in sRGB, as sRGB-encoded floats,
+/// its colours converted as `rule` says.
+pub fn decode(bytes: &[u8], rule: Rule) -> Result<DynamicImage, HeicError> {
     let header = Header::read(bytes)?;
     let decoded = pixels(&header, bytes)?;
-    let rgb = header.to_srgb(cropped(&header, decoded)?)?;
+    let rgb = header.to_srgb(cropped(&header, decoded)?, rule)?;
     let image = Rgb32FImage::from_raw(header.crop.width, header.crop.height, rgb)
         .ok_or(HeicError::Corrupt("the picture is not the size it says"))?;
     Ok(crate::image_processing::apply_orientation(
@@ -222,13 +225,25 @@ impl Header {
             || (width, height) == (self.crop.width, self.crop.height)
     }
 
-    /// The crop's samples, from the file's colour space to sRGB, 0 to 1.
-    fn to_srgb(&self, samples: Vec<f32>) -> Result<Vec<f32>, HeicError> {
+    /// The crop's samples, from the file's colour space to sRGB: as every
+    /// non-RAW photo is under a rule that reads profiles (`icc_input.rs`), or
+    /// clipped to 0 to 1 channel by channel for an edit saved before.
+    fn to_srgb(&self, samples: Vec<f32>, rule: Rule) -> Result<Vec<f32>, HeicError> {
         let Some(icc) = &self.icc else {
             return Ok(samples);
         };
         let profile = ColorProfile::new_from_slice(icc)
             .map_err(|_| HeicError::Corrupt("its colour profile is damaged"))?;
+        if rule.reads_colour_profiles() {
+            let mut samples = samples;
+            return match crate::mods::icc_input::convert_to_srgb(&mut samples, &profile) {
+                Ok(()) => Ok(samples),
+                Err(CmsError::UnsupportedProfileConnection) => {
+                    Err(HeicError::Corrupt("its colour profile is not an RGB one"))
+                }
+                Err(_) => Err(HeicError::Corrupt("its colours can't be converted")),
+            };
+        }
         let transform = profile
             .create_transform_f32(
                 Layout::Rgb,
@@ -780,7 +795,7 @@ mod tests {
     /// can run. Where it can't they say so and pass, unless `AG_REQUIRE_HEIC`
     /// is set: then the decoder must be there.
     fn decoder_here() -> bool {
-        match decode(&fixture("metadata.heic")) {
+        match decode(&fixture("metadata.heic"), Rule::LATEST) {
             Err(HeicError::NoDecoder(why)) => {
                 assert!(
                     std::env::var_os("AG_REQUIRE_HEIC").is_none(),
@@ -924,18 +939,29 @@ mod tests {
         assert!(cicp_profile(1, 13).is_none());
     }
 
-    /// P3's red is outside sRGB: converted, it is sRGB's red, clipped; taken
-    /// as sRGB it would stay P3's numbers. Its grey is grey either way.
+    /// P3's red is outside sRGB: converted, it is sRGB's red (clipped to 0..1
+    /// for an edit saved before the profile rule, clipped below zero only
+    /// since); taken as sRGB it would stay P3's numbers. Its grey is grey
+    /// either way.
     #[test]
     fn display_p3_samples_are_converted_to_srgb() {
         let header = Header::read(&fixture("p3.heic")).unwrap();
-        let out = header
-            .to_srgb(vec![1.0, 0.0, 0.0, 0.5, 0.5, 0.5, 0.5, 0.25, 0.25])
+        for rule in [Rule::PullShadowsDemosaic, Rule::LATEST] {
+            let out = header
+                .to_srgb(vec![1.0, 0.0, 0.0, 0.5, 0.5, 0.5, 0.5, 0.25, 0.25], rule)
+                .unwrap();
+            assert!(out[0] > 0.99 && out[1] < 0.01 && out[2] < 0.01, "{out:?}");
+            assert!(out[3..6].iter().all(|v| (v - 0.5).abs() < 0.01), "{out:?}");
+            // A P3 colour inside sRGB is more saturated there.
+            assert!(out[6] > 0.5 && out[7] < 0.25, "{out:?}");
+        }
+        // Before the profile rule, P3's red is clipped to 1 in red; since,
+        // it keeps its brightness above sRGB's red.
+        let old = header
+            .to_srgb(vec![1.0, 0.0, 0.0], Rule::PullShadowsDemosaic)
             .unwrap();
-        assert!(out[0] > 0.99 && out[1] < 0.01 && out[2] < 0.01, "{out:?}");
-        assert!(out[3..6].iter().all(|v| (v - 0.5).abs() < 0.01), "{out:?}");
-        // A P3 colour inside sRGB is more saturated there.
-        assert!(out[6] > 0.5 && out[7] < 0.25, "{out:?}");
+        let new = header.to_srgb(vec![1.0, 0.0, 0.0], Rule::LATEST).unwrap();
+        assert!(old[0] <= 1.0 && new[0] > 1.0, "{old:?} {new:?}");
     }
 
     #[test]
@@ -949,13 +975,13 @@ mod tests {
     fn a_damaged_file_is_a_typed_error_not_a_panic() {
         let whole = fixture("metadata.heic");
         for cut in 0..whole.len() {
-            match decode(&whole[..cut]) {
+            match decode(&whole[..cut], Rule::LATEST) {
                 Err(HeicError::Corrupt(_) | HeicError::NoDecoder(_)) => {}
                 other => panic!("cut at {cut}: {other:?}"),
             }
         }
         assert_eq!(
-            decode(b"\0\0\0\x10ftypheic\0\0\0\0"),
+            decode(b"\0\0\0\x10ftypheic\0\0\0\0", Rule::LATEST),
             Err(HeicError::Corrupt("its header is damaged"))
         );
     }
@@ -1002,7 +1028,7 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = decode(&fixture("metadata.heic")).unwrap();
+        let image = decode(&fixture("metadata.heic"), Rule::LATEST).unwrap();
         assert_eq!((image.width(), image.height()), (16, 12));
         assert_corners(&image, [RED, GREEN, WHITE, BLUE]);
         assert!(near(at(&image, 8, 6), [128; 3]), "{:?}", at(&image, 8, 6));
@@ -1014,11 +1040,11 @@ mod tests {
             return;
         }
         // A quarter turn anticlockwise: green comes to the top left.
-        let turned = decode(&fixture("rotated.heic")).unwrap();
+        let turned = decode(&fixture("rotated.heic"), Rule::LATEST).unwrap();
         assert_eq!((turned.width(), turned.height()), (12, 16));
         assert_corners(&turned, [GREEN, WHITE, BLUE, RED]);
         // Then top and bottom swapped: the transpose.
-        let mirrored = decode(&fixture("rotated-mirrored.heic")).unwrap();
+        let mirrored = decode(&fixture("rotated-mirrored.heic"), Rule::LATEST).unwrap();
         assert_eq!((mirrored.width(), mirrored.height()), (12, 16));
         assert_corners(&mirrored, [RED, BLUE, WHITE, GREEN]);
     }
@@ -1028,10 +1054,10 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let grid = decode(&fixture("grid.heic")).unwrap();
+        let grid = decode(&fixture("grid.heic"), Rule::LATEST).unwrap();
         assert_eq!((grid.width(), grid.height()), (120, 100));
         assert_corners(&grid, [RED, GREEN, WHITE, BLUE]);
-        let deep = decode(&fixture("ten-bit.heic")).unwrap();
+        let deep = decode(&fixture("ten-bit.heic"), Rule::LATEST).unwrap();
         assert_eq!((deep.width(), deep.height()), (16, 12));
         assert_corners(&deep, [RED, GREEN, WHITE, BLUE]);
     }
@@ -1044,7 +1070,7 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = decode(&fixture("p3.heic")).unwrap();
+        let image = decode(&fixture("p3.heic"), Rule::LATEST).unwrap();
         assert_corners(&image, [RED, GREEN, WHITE, BLUE]);
         assert!(near(at(&image, 8, 6), [128; 3]), "{:?}", at(&image, 8, 6));
     }
@@ -1064,7 +1090,8 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = crate::image_loader::load_image_with_orientation(&bytes, None).unwrap();
+        let image =
+            crate::image_loader::load_image_with_orientation(&bytes, None, Rule::LATEST).unwrap();
         assert_eq!((image.width(), image.height()), (16, 12));
     }
 }

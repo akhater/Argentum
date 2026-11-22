@@ -1464,15 +1464,19 @@ pub fn apply_srgb_to_linear(image: DynamicImage) -> DynamicImage {
     map_color_channels(image, |x| argentum_engine::colour::srgb_decode(x.max(0.0)))
 }
 
+// RapidRAW 47e6274b: src-tauri/src/image_processing.rs
+/// Linear to sRGB-encoded: zero below zero, unbounded above one.
+pub(crate) fn linear_channel_to_srgb(x: f32) -> f32 {
+    let x = x.max(0.0);
+    if x <= 0.0031308 {
+        x * 12.92
+    } else {
+        1.055 * x.powf(1.0 / 2.4) - 0.055
+    }
+}
+
 pub fn apply_linear_to_srgb(image: DynamicImage) -> DynamicImage {
-    map_color_channels(image, |x| {
-        let x = x.max(0.0);
-        if x <= 0.0031308 {
-            x * 12.92
-        } else {
-            1.055 * x.powf(1.0 / 2.4) - 0.055
-        }
-    })
+    map_color_channels(image, linear_channel_to_srgb)
 }
 
 pub fn apply_orientation(image: DynamicImage, orientation: Orientation) -> DynamicImage {

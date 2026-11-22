@@ -2,7 +2,7 @@
 //! decode. Ours.
 //!
 //! Edits made since the demosaic rule (`highlight_rule::Rule::
-//! PullShadowsDemosaic`, the rule of photos with no edit yet) are demosaiced
+//! PullShadowsDemosaic` and the rules after it) are demosaiced
 //! by it: RCD with residual interpolation on Bayer sensors, Markesteijn's
 //! 3-pass on X-Trans. Edits saved before keep rawler's.
 //!

@@ -83,6 +83,9 @@ mod highlight_pull_measure;
 pub mod highlight_rule;
 pub mod highlights;
 pub mod history;
+pub mod icc_input;
+#[cfg(test)]
+mod icc_input_measure;
 pub mod input_stage;
 pub mod jpeg_exif_fit;
 pub mod jxl_export;
