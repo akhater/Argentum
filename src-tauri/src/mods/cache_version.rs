@@ -76,7 +76,11 @@ use std::path::{Path, PathBuf};
 /// 14. Photos with no edit yet reconstruct clipped highlights by RAWmakase's
 ///     pull after demosaic (`mods/highlight_pull.rs`, from RAWmakase 8665ebda);
 ///     edits saved before keep theirs (`mods/highlight_rule.rs`).
-pub const PIPELINE: u32 = 15;
+/// 15. Photos with no edit yet keep the colour of very high ISO deep shadows:
+///     a full-size Bayer pixel below black is pulled toward grey instead of each
+///     channel being clipped at zero (rawler fork, from RAWmakase 23d6c1c4);
+///     edits saved before keep theirs (`mods/highlight_rule.rs`).
+pub const PIPELINE: u32 = 16;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

@@ -174,6 +174,12 @@ pub(crate) fn develop_decoded(
         developer.steps.retain(|&step| step != ProcessingStep::SRgb);
     }
 
+    // Argentum: an edit made since the shadow rule keeps the colour of a
+    // full-size Bayer pixel below black (rawler fork, from RAWmakase 23d6c1c4:
+    // crates/rawmakase-decode/src/demosaic.rs); edits saved before clip each
+    // channel at zero (mods/highlight_rule.rs).
+    developer.keep_colour_below_black = rule.keeps_shadow_colour();
+
     raw_image.wb_coeffs =
         crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
     // Argentum: the white balance this decode applies, for the camera colour the DNG way (mods/dng_colour.rs)
