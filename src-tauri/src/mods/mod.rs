@@ -44,6 +44,8 @@ pub mod copy_keys;
 pub mod crash_log;
 pub mod dcp;
 pub mod decode;
+#[cfg(test)]
+mod demosaic_measure;
 pub mod denoise_gpu;
 pub mod dispatch;
 pub mod display_monitor;
@@ -129,6 +131,7 @@ pub mod redecode;
 #[cfg(test)]
 mod render_check;
 pub mod restore;
+pub mod rr_demosaic;
 pub mod rt_profiles;
 pub mod salvage;
 pub mod selection;

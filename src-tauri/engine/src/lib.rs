@@ -28,6 +28,7 @@ pub mod rm_black_white;
 pub mod rm_camera_look;
 pub mod rm_color_grade;
 pub mod rm_lens_builtin;
+pub mod rr_demosaic;
 mod source;
 pub mod tool;
 

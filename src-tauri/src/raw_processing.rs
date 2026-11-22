@@ -110,7 +110,7 @@ fn develop_internal(
 }
 
 /// Argentum: everything after rawler's decode, on `raw_image` as it decoded
-/// `file_bytes`, its clipped highlights by `rule`. Not oriented.
+/// `file_bytes`, by the decode rule `rule`. Not oriented.
 pub(crate) fn develop_decoded(
     mut raw_image: RawImage,
     file_bytes: &[u8],
@@ -204,6 +204,22 @@ pub(crate) fn develop_decoded(
                 crate::mods::highlight_pull::apply(&mut pixels.data, wb, scale)
             },
         ));
+    }
+
+    // Argentum: an edit made since RapidRAW 1.7.0's demosaic was taken
+    // demosaics with it (mods/rr_demosaic.rs); rawler then develops the
+    // picture as it would its own demosaic's, without rescaling it again.
+    if !fast_demosaic && !is_linear_format && rule.demosaics_rapidraw() {
+        check_cancel()?;
+        if crate::mods::rr_demosaic::demosaic_in_place(
+            &mut raw_image,
+            original_white_level,
+            developer.keep_colour_below_black,
+        ) {
+            developer
+                .steps
+                .retain(|&step| step != ProcessingStep::Rescale);
+        }
     }
 
     check_cancel()?;

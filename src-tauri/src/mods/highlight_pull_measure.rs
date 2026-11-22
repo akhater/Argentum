@@ -53,13 +53,15 @@ fn put_old_sidecar(photo: &Path) {
 }
 
 /// An edit saved with the pull, before the shadow rule.
-fn put_pull_sidecar(photo: &Path) {
+fn put_marked_sidecar(photo: &Path, rule: &str) {
     let sidecar = crate::file_management::sidecar_for(photo, None);
-    std::fs::write(
-        sidecar,
-        r#"{"version":1,"rating":0,"adjustments":{"exposure":0.5},"agHighlights":"pull"}"#,
-    )
-    .expect("sidecar");
+    let edit = serde_json::json!({
+        "version": 1,
+        "rating": 0,
+        "adjustments": { "exposure": 0.5 },
+        "agHighlights": rule,
+    });
+    std::fs::write(sidecar, edit.to_string()).expect("sidecar");
 }
 
 fn remove_sidecar(photo: &Path) {
@@ -78,7 +80,8 @@ fn hash_of(image: &image::DynamicImage) -> u64 {
 
 /// The decode the editor and the thumbnails get, as hashes: per RAW, recovery
 /// on and off, full and fast. With `AG_SIDECAR=old` each copy carries an edit
-/// saved before the pull, with `AG_SIDECAR=pull` one saved with the pull; with
+/// saved before the pull, with `AG_SIDECAR=pull` (or another rule's word, such
+/// as `pull-shadows`) one saved with that rule; with
 /// `AG_EXPECT` the hashes must equal that file's. Run once on the code before
 /// the change with `AG_OUT`, then after it.
 #[test]
@@ -92,8 +95,8 @@ fn decode_hashes() {
         let photo = copy_into(&raw, &dir);
         match sidecar.as_str() {
             "old" => put_old_sidecar(&photo),
-            "pull" => put_pull_sidecar(&photo),
-            _ => remove_sidecar(&photo),
+            "" => remove_sidecar(&photo),
+            word => put_marked_sidecar(&photo, word),
         }
         let bytes = std::fs::read(&photo).expect("read");
         let path = photo.to_string_lossy().to_string();
@@ -130,7 +133,7 @@ fn decode_hashes() {
 
 /// A RAW as rawler decodes it, with its sRAW levels put right (the first of
 /// the decode's steps, which says what a sample means).
-fn decoded(bytes: &[u8]) -> RawImage {
+pub(super) fn decoded(bytes: &[u8]) -> RawImage {
     let source = rawler::rawsource::RawSource::new_from_slice(bytes);
     let decoder = rawler::get_decoder(&source).expect("decoder");
     let mut raw = crate::mods::raw_decoder::raw_image(&source, decoder.as_ref(), bytes, None)
@@ -388,8 +391,8 @@ fn real_files_through_the_render() {
 }
 
 /// Each RAW as the app opens it, an edit saved with the pull (each channel
-/// clipped at black) against a new one (its pixels below black keep their
-/// colour, RAWmakase 23d6c1c4), through the editor's render at the starting
+/// clipped at black) against one saved with the shadow rule (its pixels below
+/// black keep their colour, RAWmakase 23d6c1c4), through the editor's render at the starting
 /// edit, each against the camera's embedded JPEG: the median CIEDE2000 of
 /// 32-pixel block means over the frame and over the JPEG's dark blocks
 /// (L* < 25), as RAWmakase measured it; and how far the two renders are apart.
@@ -410,11 +413,7 @@ fn shadow_rule_against_the_camera_jpeg() {
         let path = photo_path.to_string_lossy().to_string();
         let bytes = std::fs::read(&photo_path).expect("read");
         let open = |pull: bool| {
-            if pull {
-                put_pull_sidecar(&photo_path);
-            } else {
-                remove_sidecar(&photo_path);
-            }
+            put_marked_sidecar(&photo_path, if pull { "pull" } else { "pull-shadows" });
             let full = crate::image_loader::load_base_image_from_bytes(
                 &bytes, &path, false, &settings, None,
             )

@@ -4,8 +4,10 @@
 //! (`highlights::recover` and `settle_blown`); edits made since take the pull
 //! after demosaic (`highlight_pull.rs`). Edits made since the shadow rule also
 //! keep the colour of pixels below black at very high ISO (rawler fork, from
-//! RAWmakase 23d6c1c4), where those before clip each channel at zero. An edit
-//! keeps the look it was made with.
+//! RAWmakase 23d6c1c4), where those before clip each channel at zero. Edits
+//! made since the demosaic rule are demosaiced by RapidRAW 1.7.0's
+//! (`rr_demosaic.rs`), where those before take rawler's. An edit keeps the
+//! look it was made with.
 //!
 //! WHY THE MARK IS THE PHOTO'S, NOT THE EDIT'S
 //!
@@ -41,20 +43,32 @@ pub enum Rule {
     /// channel being clipped at zero (RAWmakase 23d6c1c4, in the rawler fork).
     #[serde(rename = "pull-shadows")]
     PullShadows,
+    /// The pull and the shadows, demosaiced by RapidRAW 1.7.0's RCD and
+    /// residual interpolation, or Markesteijn on X-Trans (`rr_demosaic.rs`).
+    #[serde(rename = "pull-shadows-demosaic")]
+    PullShadowsDemosaic,
 }
 
 impl Rule {
     /// The rule of a photo with no edit yet.
-    pub const LATEST: Rule = Rule::PullShadows;
+    pub const LATEST: Rule = Rule::PullShadowsDemosaic;
 
     /// Clipped highlights are pulled after demosaic.
     pub fn pulls(self) -> bool {
-        matches!(self, Rule::Pull | Rule::PullShadows)
+        matches!(
+            self,
+            Rule::Pull | Rule::PullShadows | Rule::PullShadowsDemosaic
+        )
     }
 
     /// Pixels below black keep their colour.
     pub fn keeps_shadow_colour(self) -> bool {
-        self == Rule::PullShadows
+        matches!(self, Rule::PullShadows | Rule::PullShadowsDemosaic)
+    }
+
+    /// The full-size picture is demosaiced by RapidRAW 1.7.0's.
+    pub fn demosaics_rapidraw(self) -> bool {
+        self == Rule::PullShadowsDemosaic
     }
 
     /// The rule a stored mark names; none for a word this version does not know.
@@ -62,6 +76,7 @@ impl Rule {
         match mark {
             "pull" => Some(Rule::Pull),
             "pull-shadows" => Some(Rule::PullShadows),
+            "pull-shadows-demosaic" => Some(Rule::PullShadowsDemosaic),
             _ => None,
         }
     }
@@ -142,9 +157,21 @@ mod tests {
     fn a_photo_with_no_sidecar_takes_the_latest_rule() {
         let dir = scratch("none");
         let photo = dir.join("IMG_1.CR3");
-        assert_eq!(rule_for(Some(&photo.to_string_lossy())), Rule::PullShadows);
-        assert_eq!(rule_for(None), Rule::PullShadows);
-        assert!(Rule::LATEST.pulls() && Rule::LATEST.keeps_shadow_colour());
+        assert_eq!(
+            rule_for(Some(&photo.to_string_lossy())),
+            Rule::PullShadowsDemosaic
+        );
+        assert_eq!(rule_for(None), Rule::PullShadowsDemosaic);
+        assert!(
+            Rule::LATEST.pulls()
+                && Rule::LATEST.keeps_shadow_colour()
+                && Rule::LATEST.demosaics_rapidraw()
+        );
+        assert!(
+            Rule::PullShadows.pulls()
+                && Rule::PullShadows.keeps_shadow_colour()
+                && !Rule::PullShadows.demosaics_rapidraw()
+        );
         assert!(Rule::Pull.pulls() && !Rule::Pull.keeps_shadow_colour());
         assert!(!Rule::Rebuild.pulls() && !Rule::Rebuild.keeps_shadow_colour());
     }
@@ -190,6 +217,14 @@ mod tests {
         assert_eq!(rule_for(Some(&path)), Rule::PullShadows);
         assert_eq!(stamped(&sidecar), Some(Rule::PullShadows));
         assert_eq!(rule_for(Some(&copy)), Rule::PullShadows);
+        // And one made since the demosaic rule keeps that.
+        std::fs::write(
+            &sidecar,
+            r#"{"version":1,"agHighlights":"pull-shadows-demosaic"}"#,
+        )
+        .unwrap();
+        assert_eq!(rule_for(Some(&path)), Rule::PullShadowsDemosaic);
+        assert_eq!(stamped(&sidecar), Some(Rule::PullShadowsDemosaic));
         // A value this version does not know keeps today's.
         std::fs::write(&sidecar, r#"{"version":1,"agHighlights":"later"}"#).unwrap();
         assert_eq!(rule_for(Some(&path)), Rule::Rebuild);
@@ -215,9 +250,17 @@ mod tests {
         };
 
         crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
-        assert_eq!(mark(&own), "pull-shadows", "a new photo");
+        assert_eq!(mark(&own), "pull-shadows-demosaic", "a new photo");
         crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
-        assert_eq!(mark(&own), "pull-shadows", "and it stays");
+        assert_eq!(mark(&own), "pull-shadows-demosaic", "and it stays");
+
+        std::fs::write(&own, r#"{"version":1,"agHighlights":"pull-shadows"}"#).unwrap();
+        crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
+        assert_eq!(
+            mark(&own),
+            "pull-shadows",
+            "an edit made before the demosaic rule keeps rawler's"
+        );
 
         std::fs::write(&own, r#"{"version":1,"agHighlights":"pull"}"#).unwrap();
         crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
@@ -225,7 +268,7 @@ mod tests {
 
         std::fs::write(&own, r#"{"version":1,"rating":2,"adjustments":{}}"#).unwrap();
         let carried = ImageMetadata {
-            ag_highlights: Some(Rule::PullShadows),
+            ag_highlights: Some(Rule::PullShadowsDemosaic),
             ..edit.clone()
         };
         crate::exif_processing::write_sidecar(&own, &photo, &carried).unwrap();
@@ -239,7 +282,7 @@ mod tests {
 
     #[test]
     fn the_marks_are_stored_as_the_words_read_back() {
-        for rule in [Rule::Pull, Rule::PullShadows] {
+        for rule in [Rule::Pull, Rule::PullShadows, Rule::PullShadowsDemosaic] {
             let word = serde_json::to_value(rule).unwrap();
             assert_eq!(Rule::of_mark(word.as_str().unwrap()), Some(rule));
         }
@@ -247,6 +290,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Rule::PullShadows).unwrap(),
             "pull-shadows"
+        );
+        assert_eq!(
+            serde_json::to_value(Rule::PullShadowsDemosaic).unwrap(),
+            "pull-shadows-demosaic"
         );
     }
 }

@@ -69,6 +69,23 @@ const BUDGETS_MS: [(&str, [u32; 2], [u32; ROWS.len()]); 8] = [
     ("Vulkan",     [6960, 4640], [ 174,  152,  5,   906,  105,  158,  189,   93,   906,  965,  254,   864,    21]),
 ];
 
+/// RapidRAW's demosaic on a 32 MP mosaic, all threads, the quickest of five
+/// (`demosaic_measure::demosaic_within_budget`), by pattern: what a new
+/// edit's decode spends demosaicing, on the CPU. Measured on 2026-11-22 on
+/// the same laptop, three runs: Bayer 570-575 ms, X-Trans 1595-1698 ms
+/// (rawler's own: 83-88 and 422-442 ms); each budget by the rule above.
+pub const DEMOSAIC_MS: [(&str, u32); 2] = [("Bayer", 861), ("X-Trans", 2454)];
+
+/// The line for a demosaic over its budget, or none.
+pub fn demosaic_breach(pattern: &str, measured_ms: f32) -> Option<String> {
+    let budget = DEMOSAIC_MS
+        .iter()
+        .find(|(name, _)| *name == pattern)
+        .map_or(0, |(_, ms)| *ms);
+    (measured_ms > budget as f32)
+        .then(|| format!("demosaic {pattern}: {measured_ms:.0} ms, budget {budget} ms"))
+}
+
 /// Each row's fastest round.
 pub fn fastest_ms(rounds: &[[f32; ROWS.len()]]) -> [f32; ROWS.len()] {
     std::array::from_fn(|row| {

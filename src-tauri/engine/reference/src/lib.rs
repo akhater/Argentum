@@ -83,10 +83,27 @@ pub mod mods {
             pub fn keeps_shadow_colour(self) -> bool {
                 self == Rule::PullShadows
             }
+
+            pub fn demosaics_rapidraw(self) -> bool {
+                false
+            }
         }
 
         pub fn rule_for(_photo: Option<&str>) -> Rule {
             Rule::Pull
+        }
+    }
+
+    /// `mods::rr_demosaic`: RapidRAW's demosaic, which the stand-in rule
+    /// above never asks for: the engine's own develop (`develop.rs`) still
+    /// demosaics with rawler's, so the parity tests compare like with like.
+    pub mod rr_demosaic {
+        pub fn demosaic_in_place(
+            _raw: &mut rawler::rawimage::RawImage,
+            _white: f32,
+            _keep_colour_below_black: bool,
+        ) -> bool {
+            false
         }
     }
 

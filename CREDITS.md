@@ -97,6 +97,16 @@ formats where its pixels were measured identical to rawler's: Canon CR3 and CR2,
 Fujifilm compressed RAF, Olympus ORF, Panasonic RW2 (v8) and Pentax PEF
 (`src-tauri/engine/src/flashraw.rs`).
 
+### Demosaicing: RCD, residual interpolation, Markesteijn
+
+New edits are demosaiced the way RapidRAW 1.7.0 does it (`demosaic.wgsl` and
+`decode/demosaic.rs` @ `00379017`), run here on the CPU
+(`src-tauri/engine/src/rr_demosaic.rs`). On Bayer sensors, green by RCD (Ratio
+Corrected Demosaicing, by Luis Sanz Rodríguez) and red and blue by residual
+interpolation and its minimised-Laplacian form (Kiku, Monno, Tanaka and Okutomi);
+on Fujifilm X-Trans sensors, Frank Markesteijn's three-pass demosaic, with the
+hexagon tables of dcraw's `xtrans_interpolate` (Dave Coffin).
+
 ---
 
 ## Focus points
