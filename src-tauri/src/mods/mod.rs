@@ -70,6 +70,7 @@ pub mod generated_image;
 pub mod gpu_backend_fallback;
 pub mod gpu_runtime;
 pub mod gpu_setup_mark;
+pub mod gpu_size_limit;
 pub mod headless_gpu;
 pub mod heic;
 pub mod highlight_protection;

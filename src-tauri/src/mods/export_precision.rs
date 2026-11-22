@@ -538,12 +538,11 @@ pub struct HighPrecisionRenderer {
 impl HighPrecisionRenderer {
     /// A renderer for images of up to `max_width` x `max_height`.
     pub fn new(context: &GpuContext, max_width: u32, max_height: u32) -> Result<Self, String> {
-        let max_dim = context.limits.max_texture_dimension_2d;
-        if max_width > max_dim || max_height > max_dim {
-            return Err(format!(
-                "{max_width}x{max_height} exceeds this GPU's maximum texture dimension of {max_dim}"
-            ));
-        }
+        crate::mods::gpu_size_limit::check_fits_gpu(
+            max_width,
+            max_height,
+            context.limits.max_texture_dimension_2d,
+        )?;
         let processor = GpuProcessor::new_with_precision(
             context.clone(),
             (max_width + 255) & !255,
