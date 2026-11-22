@@ -83,7 +83,10 @@ use std::path::{Path, PathBuf};
 /// 16. Photos with no edit yet are demosaiced by RapidRAW 1.7.0's RCD and
 ///     residual interpolation, or Markesteijn on X-Trans (`mods/rr_demosaic.rs`);
 ///     edits saved before keep rawler's (`mods/highlight_rule.rs`).
-pub const PIPELINE: u32 = 17;
+/// 17. Photos with no edit yet show a JPEG, TIFF, PNG or HEIC in the colour
+///     space its embedded profile (or EXIF) names (`mods/icc_input.rs`);
+///     edits saved before keep theirs (`mods/highlight_rule.rs`).
+pub const PIPELINE: u32 = 18;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

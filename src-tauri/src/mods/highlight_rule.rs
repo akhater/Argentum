@@ -6,8 +6,11 @@
 //! keep the colour of pixels below black at very high ISO (rawler fork, from
 //! RAWmakase 23d6c1c4), where those before clip each channel at zero. Edits
 //! made since the demosaic rule are demosaiced by RapidRAW 1.7.0's
-//! (`rr_demosaic.rs`), where those before take rawler's. An edit keeps the
-//! look it was made with.
+//! (`rr_demosaic.rs`), where those before take rawler's. Edits made since
+//! the profile rule show a JPEG, TIFF, PNG or HEIC in the colour space its
+//! profile names (`icc_input.rs`), where those before read a JPEG, TIFF or
+//! PNG as sRGB and clip a HEIC's colours to 0..1 channel by channel. An edit
+//! keeps the look it was made with.
 //!
 //! WHY THE MARK IS THE PHOTO'S, NOT THE EDIT'S
 //!
@@ -47,28 +50,46 @@ pub enum Rule {
     /// residual interpolation, or Markesteijn on X-Trans (`rr_demosaic.rs`).
     #[serde(rename = "pull-shadows-demosaic")]
     PullShadowsDemosaic,
+    /// All of the above, and a non-RAW photo's embedded colour profile (or
+    /// EXIF's Adobe RGB) converted to sRGB (`icc_input.rs`).
+    #[serde(rename = "pull-shadows-demosaic-profiles")]
+    PullShadowsDemosaicProfiles,
 }
 
 impl Rule {
     /// The rule of a photo with no edit yet.
-    pub const LATEST: Rule = Rule::PullShadowsDemosaic;
+    pub const LATEST: Rule = Rule::PullShadowsDemosaicProfiles;
 
     /// Clipped highlights are pulled after demosaic.
     pub fn pulls(self) -> bool {
         matches!(
             self,
-            Rule::Pull | Rule::PullShadows | Rule::PullShadowsDemosaic
+            Rule::Pull
+                | Rule::PullShadows
+                | Rule::PullShadowsDemosaic
+                | Rule::PullShadowsDemosaicProfiles
         )
     }
 
     /// Pixels below black keep their colour.
     pub fn keeps_shadow_colour(self) -> bool {
-        matches!(self, Rule::PullShadows | Rule::PullShadowsDemosaic)
+        matches!(
+            self,
+            Rule::PullShadows | Rule::PullShadowsDemosaic | Rule::PullShadowsDemosaicProfiles
+        )
     }
 
     /// The full-size picture is demosaiced by RapidRAW 1.7.0's.
     pub fn demosaics_rapidraw(self) -> bool {
-        self == Rule::PullShadowsDemosaic
+        matches!(
+            self,
+            Rule::PullShadowsDemosaic | Rule::PullShadowsDemosaicProfiles
+        )
+    }
+
+    /// A non-RAW photo's colour profile is read (`icc_input.rs`).
+    pub fn reads_colour_profiles(self) -> bool {
+        self == Rule::PullShadowsDemosaicProfiles
     }
 
     /// The rule a stored mark names; none for a word this version does not know.
@@ -77,6 +98,7 @@ impl Rule {
             "pull" => Some(Rule::Pull),
             "pull-shadows" => Some(Rule::PullShadows),
             "pull-shadows-demosaic" => Some(Rule::PullShadowsDemosaic),
+            "pull-shadows-demosaic-profiles" => Some(Rule::PullShadowsDemosaicProfiles),
             _ => None,
         }
     }
@@ -159,13 +181,18 @@ mod tests {
         let photo = dir.join("IMG_1.CR3");
         assert_eq!(
             rule_for(Some(&photo.to_string_lossy())),
-            Rule::PullShadowsDemosaic
+            Rule::PullShadowsDemosaicProfiles
         );
-        assert_eq!(rule_for(None), Rule::PullShadowsDemosaic);
+        assert_eq!(rule_for(None), Rule::PullShadowsDemosaicProfiles);
         assert!(
             Rule::LATEST.pulls()
                 && Rule::LATEST.keeps_shadow_colour()
                 && Rule::LATEST.demosaics_rapidraw()
+                && Rule::LATEST.reads_colour_profiles()
+        );
+        assert!(
+            Rule::PullShadowsDemosaic.demosaics_rapidraw()
+                && !Rule::PullShadowsDemosaic.reads_colour_profiles()
         );
         assert!(
             Rule::PullShadows.pulls()
@@ -225,6 +252,14 @@ mod tests {
         .unwrap();
         assert_eq!(rule_for(Some(&path)), Rule::PullShadowsDemosaic);
         assert_eq!(stamped(&sidecar), Some(Rule::PullShadowsDemosaic));
+        // And one made since the profile rule keeps that.
+        std::fs::write(
+            &sidecar,
+            r#"{"version":1,"agHighlights":"pull-shadows-demosaic-profiles"}"#,
+        )
+        .unwrap();
+        assert_eq!(rule_for(Some(&path)), Rule::PullShadowsDemosaicProfiles);
+        assert_eq!(stamped(&sidecar), Some(Rule::PullShadowsDemosaicProfiles));
         // A value this version does not know keeps today's.
         std::fs::write(&sidecar, r#"{"version":1,"agHighlights":"later"}"#).unwrap();
         assert_eq!(rule_for(Some(&path)), Rule::Rebuild);
@@ -250,9 +285,21 @@ mod tests {
         };
 
         crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
-        assert_eq!(mark(&own), "pull-shadows-demosaic", "a new photo");
+        assert_eq!(mark(&own), "pull-shadows-demosaic-profiles", "a new photo");
         crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
-        assert_eq!(mark(&own), "pull-shadows-demosaic", "and it stays");
+        assert_eq!(mark(&own), "pull-shadows-demosaic-profiles", "and it stays");
+
+        std::fs::write(
+            &own,
+            r#"{"version":1,"agHighlights":"pull-shadows-demosaic"}"#,
+        )
+        .unwrap();
+        crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
+        assert_eq!(
+            mark(&own),
+            "pull-shadows-demosaic",
+            "an edit made before the profile rule keeps its look"
+        );
 
         std::fs::write(&own, r#"{"version":1,"agHighlights":"pull-shadows"}"#).unwrap();
         crate::exif_processing::write_sidecar(&own, &photo, &edit).unwrap();
@@ -268,7 +315,7 @@ mod tests {
 
         std::fs::write(&own, r#"{"version":1,"rating":2,"adjustments":{}}"#).unwrap();
         let carried = ImageMetadata {
-            ag_highlights: Some(Rule::PullShadowsDemosaic),
+            ag_highlights: Some(Rule::PullShadowsDemosaicProfiles),
             ..edit.clone()
         };
         crate::exif_processing::write_sidecar(&own, &photo, &carried).unwrap();
@@ -282,7 +329,12 @@ mod tests {
 
     #[test]
     fn the_marks_are_stored_as_the_words_read_back() {
-        for rule in [Rule::Pull, Rule::PullShadows, Rule::PullShadowsDemosaic] {
+        for rule in [
+            Rule::Pull,
+            Rule::PullShadows,
+            Rule::PullShadowsDemosaic,
+            Rule::PullShadowsDemosaicProfiles,
+        ] {
             let word = serde_json::to_value(rule).unwrap();
             assert_eq!(Rule::of_mark(word.as_str().unwrap()), Some(rule));
         }
