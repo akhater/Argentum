@@ -119,7 +119,7 @@ fn decode_hashes() {
 
 /// A RAW as rawler decodes it, with its sRAW levels put right (the first of
 /// the decode's steps, which says what a sample means).
-fn decoded(bytes: &[u8]) -> RawImage {
+pub(super) fn decoded(bytes: &[u8]) -> RawImage {
     let source = rawler::rawsource::RawSource::new_from_slice(bytes);
     let decoder = rawler::get_decoder(&source).expect("decoder");
     let mut raw = crate::mods::raw_decoder::raw_image(&source, decoder.as_ref(), bytes, None)
@@ -210,6 +210,8 @@ fn develop(raw: RawImage, bytes: &[u8], rule: Rule) -> image::Rgb32FImage {
         None,
         None,
         rule,
+        // The pull is measured on the demosaic it was measured with.
+        crate::mods::demosaic_rule::Demosaic::Rawler,
     )
     .expect("develop")
     .to_rgb32f()

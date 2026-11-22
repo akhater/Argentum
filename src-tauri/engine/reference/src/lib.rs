@@ -81,6 +81,25 @@ pub mod mods {
         }
     }
 
+    /// `mods::demosaic_rule`: which demosaic a photo's decode takes. rawler's,
+    /// as the engine's own develop (`develop.rs`) still demosaics, so the
+    /// parity tests compare like with like.
+    pub mod demosaic_rule {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum Demosaic {
+            Rawler,
+            RapidRaw,
+        }
+
+        pub fn rule_for(_photo: Option<&str>) -> Demosaic {
+            Demosaic::Rawler
+        }
+
+        pub fn demosaic_in_place(_raw: &mut rawler::rawimage::RawImage, _white: f32) -> bool {
+            false
+        }
+    }
+
     /// `mods::camera_look`: Camera Look's fit, which `raw_tone` asks for and
     /// the parity tests never reach.
     pub mod camera_look {

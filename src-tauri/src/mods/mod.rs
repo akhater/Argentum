@@ -44,6 +44,9 @@ pub mod copy_keys;
 pub mod crash_log;
 pub mod dcp;
 pub mod decode;
+#[cfg(test)]
+mod demosaic_measure;
+pub mod demosaic_rule;
 pub mod denoise_gpu;
 pub mod dispatch;
 pub mod display_monitor;
@@ -134,6 +137,7 @@ pub mod shader_check;
 pub mod sharpen;
 pub mod sharpen_gpu;
 pub mod shell_photos;
+pub mod sidecar_mark;
 pub mod snapshots;
 #[cfg(test)]
 mod speed_budgets;

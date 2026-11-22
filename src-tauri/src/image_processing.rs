@@ -108,6 +108,16 @@ pub struct ImageMetadata {
         skip_serializing_if = "Option::is_none"
     )]
     pub ag_highlights: Option<crate::mods::highlight_rule::Rule>,
+    /// Argentum: the demosaic the photo decodes with
+    /// (mods/demosaic_rule.rs). Absent on a sidecar saved before it; only
+    /// `write_sidecar` decides it.
+    #[serde(
+        rename = "agDemosaic",
+        default,
+        deserialize_with = "crate::mods::demosaic_rule::lenient",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ag_demosaic: Option<crate::mods::demosaic_rule::Demosaic>,
 }
 
 impl Default for ImageMetadata {
@@ -122,6 +132,7 @@ impl Default for ImageMetadata {
             ag_snapshots: None,
             ag_history: None,
             ag_highlights: None,
+            ag_demosaic: None,
         }
     }
 }

@@ -42,38 +42,18 @@ pub const KEY: &str = "agHighlights";
 /// The rule of the photo at `photo` (a file, or a virtual copy's path): its
 /// own sidecar's. The pull when it has none or nothing says which photo.
 pub fn rule_for(photo: Option<&str>) -> Rule {
-    let Some(photo) = photo else {
-        return Rule::Pull;
-    };
-    let (source, _) = crate::file_management::split_virtual_path(photo);
-    rule_of_sidecar(&crate::file_management::sidecar_for(
-        Path::new(source),
-        None,
-    ))
+    match photo {
+        Some(photo) => rule_of_sidecar(&super::sidecar_mark::own_sidecar(photo)),
+        None => Rule::Pull,
+    }
 }
 
 /// The rule a photo's own sidecar at `sidecar` says. One that does not read
 /// was still an edit, saved before or by something else, and keeps today's.
 pub fn rule_of_sidecar(sidecar: &Path) -> Rule {
-    let text = match std::fs::read_to_string(sidecar) {
-        Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Rule::Pull,
-        Err(_) => return Rule::Rebuild,
-    };
-    // Most sidecars predate the mark, and some hold a long History: the key
-    // is looked for before anything is parsed.
-    if !text.contains(KEY) {
-        return Rule::Rebuild;
-    }
-    #[derive(Deserialize)]
-    struct Marked {
-        #[serde(rename = "agHighlights")]
-        mark: Option<serde_json::Value>,
-    }
-    match serde_json::from_str::<Marked>(&text) {
-        Ok(Marked {
-            mark: Some(serde_json::Value::String(mark)),
-        }) if mark == "pull" => Rule::Pull,
+    match super::sidecar_mark::read(sidecar, KEY) {
+        super::sidecar_mark::Mark::NoSidecar => Rule::Pull,
+        super::sidecar_mark::Mark::Word(word) if word == "pull" => Rule::Pull,
         _ => Rule::Rebuild,
     }
 }

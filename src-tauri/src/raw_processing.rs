@@ -97,6 +97,7 @@ fn develop_internal(
         crate::mods::raw_decoder::raw_image(&source, decoder.as_ref(), file_bytes, photo_path)?;
     let orientation = metadata_orientation(decoder.as_ref(), &source)?;
     let rule = crate::mods::highlight_rule::rule_for(photo_path); // Argentum
+    let demosaic = crate::mods::demosaic_rule::rule_for(photo_path); // Argentum
     let image = develop_decoded(
         raw_image,
         file_bytes,
@@ -105,12 +106,15 @@ fn develop_internal(
         cancel_token,
         photo_path,
         rule,
+        demosaic,
     )?;
     Ok((image, orientation))
 }
 
 /// Argentum: everything after rawler's decode, on `raw_image` as it decoded
-/// `file_bytes`, its clipped highlights by `rule`. Not oriented.
+/// `file_bytes`, its clipped highlights by `rule`, demosaiced by
+/// `demosaic`. Not oriented.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn develop_decoded(
     mut raw_image: RawImage,
     file_bytes: &[u8],
@@ -119,6 +123,7 @@ pub(crate) fn develop_decoded(
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
     photo_path: Option<&str>,
     rule: crate::mods::highlight_rule::Rule,
+    demosaic: crate::mods::demosaic_rule::Demosaic,
 ) -> Result<DynamicImage> {
     let check_cancel = || -> Result<()> {
         if let Some((tracker, generation)) = &cancel_token
@@ -198,6 +203,21 @@ pub(crate) fn develop_decoded(
                 crate::mods::highlight_pull::apply(&mut pixels.data, wb, scale)
             },
         ));
+    }
+
+    // Argentum: an edit made since RapidRAW 1.7.0's demosaic was taken
+    // demosaics with it (mods/demosaic_rule.rs); rawler then develops the
+    // picture as it would its own demosaic's, without rescaling it again.
+    if !fast_demosaic
+        && !is_linear_format
+        && demosaic == crate::mods::demosaic_rule::Demosaic::RapidRaw
+    {
+        check_cancel()?;
+        if crate::mods::demosaic_rule::demosaic_in_place(&mut raw_image, original_white_level) {
+            developer
+                .steps
+                .retain(|&step| step != ProcessingStep::Rescale);
+        }
     }
 
     check_cancel()?;
