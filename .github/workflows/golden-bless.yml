@@ -1,0 +1,89 @@
+name: Golden photos - bless
+
+# Re-blesses golden photos (src-tauri/src/mods/look_check.rs) on a branch,
+# here, where the samples are: no one needs them on their own disk. It runs
+# the check with AG_LOOK_BLESS on `ref`, and commits the references it writes
+# and their LEDGER.tsv row back to that branch. The blessing's own rules
+# apply: a reason, the cases it means to move, nothing else moved, and
+# cache_version::PIPELINE bumped when pixels moved.
+#
+# Started by hand (Actions > Golden photos - bless > Run workflow, or
+# `gh workflow run golden-bless.yml -f ref=<branch> -f reason="..." -f cases="7882/*" -f pr="#123"`).
+# Its commit is pushed with the workflow's token, which starts no workflow:
+# close and reopen the pull request (or push to it) so its checks run on it.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to bless on; the new references are committed to it
+        required: true
+      reason:
+        description: One line saying why the cases moved (the LEDGER row)
+        required: true
+      cases:
+        description: Cases meant to move, comma-separated (7882/defaults, 7882/*, */portra-400 or *)
+        required: true
+      pr:
+        description: The pull request, as "#123"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: golden-bless-${{ inputs.ref }}
+
+jobs:
+  bless:
+    name: Bless golden photos
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ''
+          rust-src-dir: src-tauri
+
+      - name: Install system dependencies
+        uses: ./.github/actions/app-system-deps
+
+      - name: Golden photos - samples
+        id: look-samples
+        uses: ./.github/actions/golden-samples
+
+      - name: Bless
+        working-directory: src-tauri
+        timeout-minutes: 45
+        env:
+          OK: ${{ steps.look-samples.outputs.ok }}
+          WGPU_BACKEND: vulkan
+          AG_LOOK_SUMMARY: ${{ github.step_summary }}
+          AG_LOOK_BLESS: ${{ inputs.reason }}
+          AG_LOOK_CASES: ${{ inputs.cases }}
+          AG_LOOK_PR: ${{ inputs.pr }}
+        run: |
+          if [ "$OK" != "true" ]; then
+            echo "::error::golden photos: the samples are not all here, so nothing can be blessed"
+            exit 1
+          fi
+          export AG_LOOK_SAMPLES="$HOME/look-samples"
+          cargo test --lib mods::look_check::golden_photos -- --ignored --exact --nocapture
+
+      - name: Commit the references
+        env:
+          REF: ${{ inputs.ref }}
+          REASON: ${{ inputs.reason }}
+          CASES: ${{ inputs.cases }}
+        run: |
+          git add src-tauri/tests/look
+          if git diff --cached --quiet; then
+            echo "Nothing to commit: no reference changed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Re-bless golden photos: $CASES" -m "$REASON"
+          git push origin "HEAD:refs/heads/$REF"

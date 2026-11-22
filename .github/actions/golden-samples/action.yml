@@ -1,0 +1,58 @@
+name: Golden photos samples
+description: >
+  The golden photos' ten CC0 RAWs (src-tauri/tests/look/samples.tsv) in
+  ~/look-samples, from the Actions cache or else from raw.pixls.us, each checked
+  against its sha256, and Mesa's software Vulkan driver (lavapipe) to render
+  them. raw.pixls.us is slow and sometimes down: a sample that cannot be fetched
+  makes `ok` false and the summary say SKIPPED, never fails. Used by app.yml
+  and golden-bless.yml.
+outputs:
+  ok:
+    description: "'true' when every sample is there and checked"
+    value: ${{ steps.fetch.outputs.ok }}
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/look-samples
+        key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
+
+    - id: fetch
+      shell: bash
+      run: |
+        mkdir -p ~/look-samples
+        missing=0
+        while IFS=$'\t' read -r id url sha camera licence covers; do
+          case "$id" in ''|'#'*|id) continue ;; esac
+          file=~/look-samples/"$id.${url##*.}"
+          if [ -f "$file" ] && echo "$sha  $file" | sha256sum --check --status; then
+            continue
+          fi
+          curl -fsSL -g --retry 5 --retry-all-errors --retry-delay 10 \
+            --speed-limit 2048 --speed-time 60 -C - -o "$file" "$url" || true
+          if ! echo "$sha  $file" | sha256sum --check --status; then
+            echo "::warning::golden photos: $id ($camera) could not be fetched from raw.pixls.us"
+            rm -f "$file"
+            missing=$((missing + 1))
+          fi
+        done < src-tauri/tests/look/samples.tsv
+        if [ "$missing" -gt 0 ]; then
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "## Golden photos: SKIPPED - $missing sample(s) could not be fetched from raw.pixls.us" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Kept only when every sample is there and checked.
+    - if: steps.fetch.outputs.ok == 'true' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/look-samples
+        key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
+
+    # Mesa's Vulkan driver for the CPU (lavapipe), as engine.yml installs it.
+    - if: steps.fetch.outputs.ok == 'true'
+      shell: bash
+      run: sudo apt-get install -y mesa-vulkan-drivers libvulkan1
