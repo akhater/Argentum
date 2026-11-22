@@ -42,12 +42,12 @@ pub fn capture(
     params.local = [0.0; MAX_LOCAL];
 
     let (width, height) = image.dimensions();
-    let max = context.limits.max_texture_dimension_2d;
-    if width > max || height > max {
-        return Err(anyhow!(
-            "{width}x{height} is larger than this graphics card's {max} px textures"
-        ));
-    }
+    crate::mods::gpu_size_limit::check_fits_gpu(
+        width,
+        height,
+        context.limits.max_texture_dimension_2d,
+    )
+    .map_err(|e| anyhow!(e))?;
     let dynamic = DynamicImage::ImageRgb32F(image.clone());
     // Not a RAW to the engine: the pixels are sRGB-encoded, and is_raw false
     // is what makes the shader and the threshold linearise them first.
@@ -198,6 +198,7 @@ mod tests {
             queue: std::sync::Arc::new(queue),
             limits,
             display: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            pipelines: Default::default(),
         })
     }
 

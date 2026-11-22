@@ -52,6 +52,18 @@ fn put_old_sidecar(photo: &Path) {
     .expect("sidecar");
 }
 
+/// An edit saved with the pull, before the shadow rule.
+fn put_marked_sidecar(photo: &Path, rule: &str) {
+    let sidecar = crate::file_management::sidecar_for(photo, None);
+    let edit = serde_json::json!({
+        "version": 1,
+        "rating": 0,
+        "adjustments": { "exposure": 0.5 },
+        "agHighlights": rule,
+    });
+    std::fs::write(sidecar, edit.to_string()).expect("sidecar");
+}
+
 fn remove_sidecar(photo: &Path) {
     let _ = std::fs::remove_file(crate::file_management::sidecar_for(photo, None));
 }
@@ -68,21 +80,23 @@ fn hash_of(image: &image::DynamicImage) -> u64 {
 
 /// The decode the editor and the thumbnails get, as hashes: per RAW, recovery
 /// on and off, full and fast. With `AG_SIDECAR=old` each copy carries an edit
-/// saved before the change; with `AG_EXPECT` the hashes must equal that file's.
-/// Run once on the code before the change with `AG_OUT`, then after it.
+/// saved before the pull, with `AG_SIDECAR=pull` (or another rule's word, such
+/// as `pull-shadows`) one saved with that rule; with
+/// `AG_EXPECT` the hashes must equal that file's. Run once on the code before
+/// the change with `AG_OUT`, then after it.
 #[test]
 #[ignore = "reads local photos; run by hand"]
 fn decode_hashes() {
     let dir = scratch();
     let settings = crate::app_settings::AppSettings::default();
-    let old = std::env::var("AG_SIDECAR").as_deref() == Ok("old");
+    let sidecar = std::env::var("AG_SIDECAR").unwrap_or_default();
     let mut lines = Vec::new();
     for raw in raws() {
         let photo = copy_into(&raw, &dir);
-        if old {
-            put_old_sidecar(&photo);
-        } else {
-            remove_sidecar(&photo);
+        match sidecar.as_str() {
+            "old" => put_old_sidecar(&photo),
+            "" => remove_sidecar(&photo),
+            word => put_marked_sidecar(&photo, word),
         }
         let bytes = std::fs::read(&photo).expect("read");
         let path = photo.to_string_lossy().to_string();
@@ -210,8 +224,6 @@ fn develop(raw: RawImage, bytes: &[u8], rule: Rule) -> image::Rgb32FImage {
         None,
         None,
         rule,
-        // The pull is measured on the demosaic it was measured with.
-        crate::mods::demosaic_rule::Demosaic::Rawler,
     )
     .expect("develop")
     .to_rgb32f()
@@ -375,6 +387,116 @@ fn real_files_through_the_render() {
                 a.len()
             );
         }
+    }
+}
+
+/// Each RAW as the app opens it, an edit saved with the pull (each channel
+/// clipped at black) against one saved with the shadow rule (its pixels below
+/// black keep their colour, RAWmakase 23d6c1c4), through the editor's render at the starting
+/// edit, each against the camera's embedded JPEG: the median CIEDE2000 of
+/// 32-pixel block means over the frame and over the JPEG's dark blocks
+/// (L* < 25), as RAWmakase measured it; and how far the two renders are apart.
+#[test]
+#[ignore = "reads local photos and needs a GPU; run by hand"]
+fn shadow_rule_against_the_camera_jpeg() {
+    const BLOCK: usize = 32;
+    let ctx = device();
+    let dir = scratch();
+    let settings = crate::app_settings::AppSettings::default();
+    let median = |mut v: Vec<f64>| {
+        v.sort_by(|a, b| a.total_cmp(b));
+        v.get(v.len() / 2).copied().unwrap_or(f64::NAN)
+    };
+    for raw in raws() {
+        let name = raw.file_name().unwrap().to_string_lossy().to_string();
+        let photo_path = copy_into(&raw, &dir);
+        let path = photo_path.to_string_lossy().to_string();
+        let bytes = std::fs::read(&photo_path).expect("read");
+        let open = |pull: bool| {
+            put_marked_sidecar(&photo_path, if pull { "pull" } else { "pull-shadows" });
+            let full = crate::image_loader::load_base_image_from_bytes(
+                &bytes, &path, false, &settings, None,
+            )
+            .expect("decode");
+            remove_sidecar(&photo_path);
+            Photo {
+                path: path.clone(),
+                shot: crate::raw_processing::read_as_shot(&bytes)
+                    .unwrap_or_else(crate::as_shot::AsShot::reference),
+                full,
+            }
+        };
+        let (before, after) = (open(true), open(false));
+        let decode_same = hash_of(&before.full) == hash_of(&after.full);
+        // The size `rendered` renders at (`Bench::new`).
+        let (width, height) = {
+            use image::GenericImageView;
+            crate::image_processing::downscale_f32_image(&before.full, 1920, 1920).dimensions()
+        };
+        let (a, b) = (rendered(&ctx, &before, 0.), rendered(&ctx, &after, 0.));
+        let mut apart: Vec<f64> = a.iter().zip(&b).map(|(a, b)| de(*a, *b)).collect();
+        let moved = apart.iter().filter(|d| **d > 0.).count();
+        println!(
+            "{name}: decode {}, renders apart {}, {moved} of {} px moved",
+            if decode_same { "identical" } else { "differs" },
+            summary(&mut apart),
+            a.len()
+        );
+        let Some(jpeg) = crate::image_loader::embedded_preview_fallback(&bytes) else {
+            println!("{name}: no embedded JPEG");
+            continue;
+        };
+        let (w, h) = (width as usize, height as usize);
+        if (jpeg.width() > jpeg.height()) != (w > h) {
+            println!("{name}: the JPEG is turned against the render; not compared");
+            continue;
+        }
+        let jpeg = jpeg
+            .resize_exact(width, height, image::imageops::FilterType::Triangle)
+            .to_rgb8();
+        let camera: Vec<[f32; 3]> = jpeg
+            .pixels()
+            .map(|p| {
+                std::array::from_fn(|c| argentum_engine::colour::srgb_decode(p[c] as f32 / 255.))
+            })
+            .collect();
+        let blocks = |px: &[[f32; 3]]| -> Vec<[f32; 3]> {
+            let mut out = Vec::new();
+            for by in 0..h / BLOCK {
+                for bx in 0..w / BLOCK {
+                    let mut sum = [0f32; 3];
+                    for y in by * BLOCK..(by + 1) * BLOCK {
+                        for x in bx * BLOCK..(bx + 1) * BLOCK {
+                            let p = px[y * w + x];
+                            (0..3).for_each(|c| sum[c] += p[c]);
+                        }
+                    }
+                    out.push(sum.map(|v| v / (BLOCK * BLOCK) as f32));
+                }
+            }
+            out
+        };
+        let (cam, ba, bb) = (blocks(&camera), blocks(&a), blocks(&b));
+        let dark: Vec<bool> = cam.iter().map(|p| lab(*p)[0] < 25.).collect();
+        let against = |r: &[[f32; 3]], only_dark: bool| {
+            median(
+                r.iter()
+                    .zip(&cam)
+                    .zip(&dark)
+                    .filter(|(_, d)| !only_dark || **d)
+                    .map(|((r, c), _)| de(*r, *c))
+                    .collect(),
+            )
+        };
+        println!(
+            "{name}: against the camera JPEG, median block dE00 all {:.2} -> {:.2}, dark ({} of {} blocks) {:.2} -> {:.2}",
+            against(&ba, false),
+            against(&bb, false),
+            dark.iter().filter(|d| **d).count(),
+            dark.len(),
+            against(&ba, true),
+            against(&bb, true),
+        );
     }
 }
 

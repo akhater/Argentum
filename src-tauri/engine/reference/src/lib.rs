@@ -67,13 +67,26 @@ pub mod mods {
         }
     }
 
-    /// `mods::highlight_rule`: which highlight rule a photo's edit takes. The
-    /// tests hand no path, and the decode hook below rewrites nothing.
+    /// `mods::highlight_rule`: which decode rule a photo's edit takes. The
+    /// tests hand no path, and the decode hook below rewrites nothing. The
+    /// rule is the pull's, not the latest: the engine's `develop` copies the
+    /// app's without the decode rules, so it clips each channel at black.
     pub mod highlight_rule {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum Rule {
             Rebuild,
             Pull,
+            PullShadows,
+        }
+
+        impl Rule {
+            pub fn keeps_shadow_colour(self) -> bool {
+                self == Rule::PullShadows
+            }
+
+            pub fn demosaics_rapidraw(self) -> bool {
+                false
+            }
         }
 
         pub fn rule_for(_photo: Option<&str>) -> Rule {
@@ -81,21 +94,15 @@ pub mod mods {
         }
     }
 
-    /// `mods::demosaic_rule`: which demosaic a photo's decode takes. rawler's,
-    /// as the engine's own develop (`develop.rs`) still demosaics, so the
-    /// parity tests compare like with like.
-    pub mod demosaic_rule {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        pub enum Demosaic {
-            Rawler,
-            RapidRaw,
-        }
-
-        pub fn rule_for(_photo: Option<&str>) -> Demosaic {
-            Demosaic::Rawler
-        }
-
-        pub fn demosaic_in_place(_raw: &mut rawler::rawimage::RawImage, _white: f32) -> bool {
+    /// `mods::rr_demosaic`: RapidRAW's demosaic, which the stand-in rule
+    /// above never asks for: the engine's own develop (`develop.rs`) still
+    /// demosaics with rawler's, so the parity tests compare like with like.
+    pub mod rr_demosaic {
+        pub fn demosaic_in_place(
+            _raw: &mut rawler::rawimage::RawImage,
+            _white: f32,
+            _keep_colour_below_black: bool,
+        ) -> bool {
             false
         }
     }

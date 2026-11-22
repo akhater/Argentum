@@ -96,17 +96,6 @@ const PLACED_APART: [(&str, &str, Apart); 4] = [
     ),
 ];
 
-/// Parts our readers read where RAWmakase's read none: the golden photo's
-/// sha256, the part, and why, with what removes the entry. One that no longer
-/// differs fails the check, so the list stays true.
-const OURS_ONLY: [(&str, &str, &str); 1] = [(
-    "fb4f294e12cab7b507fd0b7c07f24e5d13e7c0dd127b534ce12c48d644c9363d",
-    "vignetting",
-    "a DJI drone writes FixVignetteRadial into OpcodeList3, which our dng.rs reads and RAWmakase's \
-     does not (it reads OpcodeList2's); removed when RAWmakase reads it, or a render against \
-     Lightroom shows it should not apply",
-)];
-
 /// The image a record is measured in: the decoded image's width and height,
 /// and the default crop's left, top, width and height in it, in pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -240,31 +229,10 @@ pub fn check(
         .find(|(sha, ..)| *sha == sha256)
         .map_or(SAME, |(_, _, apart)| *apart);
     let differ = differences(&ours, &theirs, [ow, oh], limit);
-    let excused: Vec<&str> = OURS_ONLY
-        .iter()
-        .filter(|(sha, ..)| *sha == sha256)
-        .map(|(_, part, _)| *part)
-        .collect();
-    let ours_only = |d: &String| {
-        excused
-            .iter()
-            .any(|part| *d == format!("{part}: ours has a table, RAWmakase none"))
-    };
-    let mut left_over: Vec<String> = differ.iter().filter(|d| !ours_only(d)).cloned().collect();
-    for part in &excused {
-        if !differ
-            .iter()
-            .any(|d| d.starts_with(&format!("{part}: ours has")))
-        {
-            left_over.push(format!(
-                "{part}: OURS_ONLY excuses a difference there is no longer - delete its entry"
-            ));
-        }
-    }
-    if left_over.is_empty() {
+    if differ.is_empty() {
         Ok(())
     } else {
-        Err(left_over.join("; "))
+        Err(differ.join("; "))
     }
 }
 
@@ -458,24 +426,20 @@ mod tests {
         assert!(merged.chromatic.is_some() && merged.vignetting.is_none());
     }
 
-    /// The DJI photo's vignetting is ours alone, and excused while it is.
+    /// A part only one side reads fails the check, and says which side: the
+    /// DJI photo's OpcodeList3 vignette, which RAWmakase records since v0.7.2.
     #[test]
-    fn a_part_only_ours_reads_is_excused_while_it_differs() {
-        let (sha, _, _) = OURS_ONLY[0];
+    fn a_part_only_one_side_reads_is_a_difference() {
+        let sha = "fb4f294e12cab7b507fd0b7c07f24e5d13e7c0dd127b534ce12c48d644c9363d";
         let (frame, theirs) = recorded(sha).unwrap();
         let theirs = theirs.unwrap();
+        assert!(theirs.vignetting.is_some());
         let developed = Some(developed(frame));
         let mut ours = as_ours(frame, &theirs);
-        assert!(
-            check(sha, Some(&ours), developed)
-                .unwrap_err()
-                .contains("OURS_ONLY")
-        );
-        ours.vignetting = Some(Radial {
-            knots: vec![0., 1.],
-            values: vec![1., 1.5],
-        });
         assert_eq!(check(sha, Some(&ours), developed), Ok(()));
+        ours.vignetting = None;
+        let said = check(sha, Some(&ours), developed).unwrap_err();
+        assert_eq!(said, "vignetting: RAWmakase has a table, ours none");
     }
 
     /// A photo placed apart passes within what was measured, and fails past it.

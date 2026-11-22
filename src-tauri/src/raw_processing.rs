@@ -97,7 +97,6 @@ fn develop_internal(
         crate::mods::raw_decoder::raw_image(&source, decoder.as_ref(), file_bytes, photo_path)?;
     let orientation = metadata_orientation(decoder.as_ref(), &source)?;
     let rule = crate::mods::highlight_rule::rule_for(photo_path); // Argentum
-    let demosaic = crate::mods::demosaic_rule::rule_for(photo_path); // Argentum
     let image = develop_decoded(
         raw_image,
         file_bytes,
@@ -106,15 +105,12 @@ fn develop_internal(
         cancel_token,
         photo_path,
         rule,
-        demosaic,
     )?;
     Ok((image, orientation))
 }
 
 /// Argentum: everything after rawler's decode, on `raw_image` as it decoded
-/// `file_bytes`, its clipped highlights by `rule`, demosaiced by
-/// `demosaic`. Not oriented.
-#[allow(clippy::too_many_arguments)]
+/// `file_bytes`, by the decode rule `rule`. Not oriented.
 pub(crate) fn develop_decoded(
     mut raw_image: RawImage,
     file_bytes: &[u8],
@@ -123,7 +119,6 @@ pub(crate) fn develop_decoded(
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
     photo_path: Option<&str>,
     rule: crate::mods::highlight_rule::Rule,
-    demosaic: crate::mods::demosaic_rule::Demosaic,
 ) -> Result<DynamicImage> {
     let check_cancel = || -> Result<()> {
         if let Some((tracker, generation)) = &cancel_token
@@ -179,6 +174,12 @@ pub(crate) fn develop_decoded(
         developer.steps.retain(|&step| step != ProcessingStep::SRgb);
     }
 
+    // Argentum: an edit made since the shadow rule keeps the colour of a
+    // full-size Bayer pixel below black (rawler fork, from RAWmakase 23d6c1c4:
+    // crates/rawmakase-decode/src/demosaic.rs); edits saved before clip each
+    // channel at zero (mods/highlight_rule.rs).
+    developer.keep_colour_below_black = rule.keeps_shadow_colour();
+
     raw_image.wb_coeffs =
         crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
     // Argentum: the white balance this decode applies, for the camera colour the DNG way (mods/dng_colour.rs)
@@ -206,14 +207,15 @@ pub(crate) fn develop_decoded(
     }
 
     // Argentum: an edit made since RapidRAW 1.7.0's demosaic was taken
-    // demosaics with it (mods/demosaic_rule.rs); rawler then develops the
+    // demosaics with it (mods/rr_demosaic.rs); rawler then develops the
     // picture as it would its own demosaic's, without rescaling it again.
-    if !fast_demosaic
-        && !is_linear_format
-        && demosaic == crate::mods::demosaic_rule::Demosaic::RapidRaw
-    {
+    if !fast_demosaic && !is_linear_format && rule.demosaics_rapidraw() {
         check_cancel()?;
-        if crate::mods::demosaic_rule::demosaic_in_place(&mut raw_image, original_white_level) {
+        if crate::mods::rr_demosaic::demosaic_in_place(
+            &mut raw_image,
+            original_white_level,
+            developer.keep_colour_below_black,
+        ) {
             developer
                 .steps
                 .retain(|&step| step != ProcessingStep::Rescale);

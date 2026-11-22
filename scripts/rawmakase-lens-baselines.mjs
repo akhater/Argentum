@@ -40,6 +40,12 @@ export const LEFT_OUT = [
     reason: "a DNG's gain maps are applied in Argentum's decode (mods/decode.rs), not carried in the lens correction",
     removedWhen: 'the lens correction carries them',
   },
+  {
+    field: 'vignetting_measured',
+    reason:
+      "says the photo is measured (Auto, Whites) with an OpcodeList3 vignette applied; it changes what is measured, not the correction, and Argentum's LensCorrection has no such flag",
+    removedWhen: "Argentum's measurement takes the file's OpcodeList3 vignette from the lens correction",
+  },
 ];
 
 /** The golden photos, in samples.tsv's order: [id, sha256]. */

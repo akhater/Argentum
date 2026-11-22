@@ -24,7 +24,19 @@
 //!
 //! - It runs on the CPU, tiles in parallel (rayon), not on the GPU: the same
 //!   picture on every machine, with or without a graphics adapter, and in the
-//!   tests. The tile is smaller (`TILE_INNER`), the margins theirs.
+//!   tests. The tile is smaller (`TILE_INNER`).
+//! - For speed, each stage runs only where the stages after it read, along
+//!   each axis, so nothing is clamped at a tile's edge and a tile's pixels
+//!   are the untiled picture's. The Bayer margin is then 25, what the stages
+//!   reach along one axis; theirs is 40. The X-Trans margin is theirs, 32.
+//! - For speed too: the RI statistics are two sliding 9 x 9 box sums in f64
+//!   (theirs: four nine-tap passes in f32), the high-pass and the smoothing
+//!   criterion are worked out once a texel, X-Trans keeps a texel's eight
+//!   directions side by side, and its output vote counts in two passes.
+//!   X-Trans gives the shader's numbers exactly; Bayer's green is the
+//!   shader's, red and blue differ where its f32 sums lose digits.
+//! - What the unpack clips below black is added back as a local mean
+//!   (`add_below_black`), so a noisy area near black keeps its own colour.
 //! - The output is the whole domain (rawler's active area), as rawler's own
 //!   demosaic gives it; the caller crops it as it crops rawler's.
 //! - The mosaic may hold float samples too (`RawImageData::Float`).
@@ -227,7 +239,8 @@ impl<'a> Mosaic<'a> {
     }
 
     /// Demosaic the whole domain: camera RGB, row by row, white balanced,
-    /// 1 at the white level, nothing below 0 and nothing clipped above.
+    /// 1 at the white level, nothing clipped above. Nothing is below 0 but
+    /// near photosites below black (`add_below_black`).
     pub fn develop(&self) -> Vec<[f32; 3]> {
         let (width, height) = (self.domain.d.w, self.domain.d.h);
         let mut out = vec![[0.0f32; 3]; width * height];
@@ -285,10 +298,12 @@ impl<'a> Mosaic<'a> {
         };
         scratch.fit(self.pattern, tile.texels());
         unpack(&tile, scratch);
-        match self.pattern {
+        let mut out = match self.pattern {
             Pattern::Bayer => bayer(&tile, scratch),
             Pattern::XTrans => markesteijn(&tile, scratch),
-        }
+        };
+        add_below_black(&tile, scratch, &mut out);
+        out
     }
 }
 
@@ -300,6 +315,10 @@ struct Scratch {
     cfa: Vec<f32>,
     /// Each texel's colour: 0 red, 1 green, 2 blue.
     color: Vec<u8>,
+    /// What the unpack clipped below black, balanced as `cfa` is: 0 or less.
+    below: Vec<f32>,
+    /// Whether any texel of the tile is below black.
+    any_below: bool,
     b0: Vec<f32>,
     b1: Vec<V4>,
     b2: Vec<f32>,
@@ -311,6 +330,8 @@ impl Scratch {
         let mut scratch = Self {
             cfa: Vec::new(),
             color: Vec::new(),
+            below: Vec::new(),
+            any_below: false,
             b0: Vec::new(),
             b1: Vec::new(),
             b2: Vec::new(),
@@ -327,6 +348,7 @@ impl Scratch {
         let (planes4, planes1) = pattern.planes();
         self.cfa.resize(texels, 0.0);
         self.color.resize(texels, 0);
+        self.below.resize(texels, 0.0);
         self.b0.resize(2 * texels, 0.0);
         self.b1.resize(planes4 * texels, V4::ZERO);
         self.b2.resize(planes1 * texels, 0.0);
@@ -468,9 +490,43 @@ fn unpack(t: &Tile, s: &mut Scratch) {
         let value = m.samples.at(ay as usize * m.stride + ax as usize);
         let black = m.black[((ay & 1) * 2 + (ax & 1)) as usize];
         let color = t.color(x, y);
+        let balanced = (value - black) * m.scale * m.wb[color as usize];
         s.color[i] = color;
-        s.cfa[i] = (value - black).max(0.0) * m.scale * m.wb[color as usize];
+        s.cfa[i] = balanced.max(0.0);
+        s.below[i] = balanced.min(0.0);
     });
+    s.any_below = s.below.iter().any(|v| *v < 0.0);
+}
+
+/// Ours, not RapidRAW's: the part of the mosaic below black, which the
+/// unpack clipped, added back to `out` as each colour's mean over the 3 x 3
+/// around a pixel. A noisy area near black then keeps its own mean, not a
+/// mean raised by the clip that white balance would turn into a colour cast,
+/// and a photosite below black gets its own value back; the app's rule for
+/// pixels below black (rawler's `clip_at_black`) then judges them. Nothing
+/// changes where no photosite is below black.
+fn add_below_black(t: &Tile, s: &Scratch, out: &mut [[f32; 3]]) {
+    if !s.any_below {
+        return;
+    }
+    let (w, m, cols) = (t.w as usize, t.margin as usize, t.cols as usize);
+    for (k, px) in out.iter_mut().enumerate() {
+        let i = (m + k / cols) * w + m + k % cols;
+        let mut sum = [0.0f32; 3];
+        let mut count = [0u32; 3];
+        for row in [i - w, i, i + w] {
+            for j in row - 1..=row + 1 {
+                let c = s.color[j] as usize;
+                sum[c] += s.below[j];
+                count[c] += 1;
+            }
+        }
+        for c in 0..3 {
+            if count[c] > 0 {
+                px[c] += sum[c] / count[c] as f32;
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -955,6 +1011,7 @@ fn markesteijn(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
         b2,
         words,
         color,
+        ..
     } = s;
     let (w, h) = (t.w as usize, t.h as usize);
     // Each texel's eight directions side by side (`DIRECTIONS` four-float
@@ -1393,6 +1450,30 @@ mod tests {
         for (i, (a, b)) in tiled.iter().zip(&whole).enumerate() {
             for c in 0..3 {
                 assert!((a[c] - b[c]).abs() < 1e-5, "pixel {i}: {a:?} against {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn noise_near_black_keeps_its_mean() {
+        // Each colour's level just above black, with noise reaching below it.
+        for (colors, pattern) in [(bayer_colors(), Pattern::Bayer), (XTRANS, Pattern::XTrans)] {
+            let (w, h) = (300, 300);
+            let level = [0.004f32, 0.006, 0.003];
+            let data: Vec<f32> = (0..w * h)
+                .map(|i| {
+                    let noise = ((i * 2654435761usize) % 1001) as f32 / 1000.0 - 0.5;
+                    level[colors[(i / w) % 6][(i % w) % 6] as usize] + 0.03 * noise
+                })
+                .collect();
+            let out = mosaic_of(&data, w, h, colors, pattern).develop();
+            for c in 0..3 {
+                let mean = out.iter().map(|p| p[c] as f64).sum::<f64>() / out.len() as f64;
+                assert!(
+                    (mean - level[c] as f64).abs() < 0.001,
+                    "{pattern:?} channel {c}: mean {mean}, level {}",
+                    level[c]
+                );
             }
         }
     }

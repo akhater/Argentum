@@ -214,7 +214,10 @@ rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data
 matrices and white levels of a few bodies (`data/raw-matrices.toml` and
 `data/raw-cameras.toml` @ `a8c5d6d7`), which carry Adobe DNG Converter 18.7's.
 Noise below black is clipped where RAWmakase clips it, after demosaicing a Bayer
-sensor's samples (`crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`).
+sensor's samples (`crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`), and
+in new edits as RAWmakase clips it: a full-size pixel below black keeps the
+brightness of a clip of each channel but its own colour, pulled toward grey, so
+very high ISO deep shadows do not turn magenta (`clip_at_black` @ `23d6c1c4`).
 
 **Highlight Recovery** in new edits rebuilds clipped highlights as
 RAWmakase does (`crates/rawmakase-engine/src/develop/quality/highlights.rs` @
@@ -254,6 +257,11 @@ Windows a message naming it when a panic ends the app, kept in
 (`crates/rawmakase-inference/src/runtime.rs` @ `4b8d6d04`): every AI feature runs
 in one environment built without Microsoft's usage telemetry, made in
 `private_environment` in `src-tauri/rm_selection/src/runtime.rs`.
+
+**A mask's red overlay hides once its sliders move**, as RAWmakase hides it
+(`src/app/develop/tools/mask_tool.rs` @ `d2bafbff`, v0.7.2): it stays hidden
+until O, or until another mask or component is selected, and an overlay turned
+off with O stays off. Kept in `src/argentum/maskOverlay.ts`.
 
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not

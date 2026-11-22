@@ -411,7 +411,6 @@ impl DecodeFingerprint {
             settings,
             crate::mods::highlights::enabled(),
             crate::mods::highlight_rule::rule_for(path.to_str()),
-            crate::mods::demosaic_rule::rule_for(path.to_str()),
         ))
     }
 
@@ -431,7 +430,6 @@ impl DecodeFingerprint {
         settings: &AppSettings,
         highlight_recovery: bool,
         highlight_rule: crate::mods::highlight_rule::Rule,
-        demosaic: crate::mods::demosaic_rule::Demosaic,
     ) -> Self {
         let mut hasher = DefaultHasher::new();
         settings
@@ -453,12 +451,6 @@ impl DecodeFingerprint {
         highlight_recovery.hash(&mut hasher);
         // And by the rule of the photo's edit (mods/highlight_rule.rs).
         highlight_rule.hash(&mut hasher);
-        // And its demosaic (mods/demosaic_rule.rs), hashed only when it is
-        // RapidRAW's: an older edit's decode keeps the key it had, and so
-        // its caches on disk (mods/camera_look.rs).
-        if demosaic != crate::mods::demosaic_rule::Demosaic::Rawler {
-            demosaic.hash(&mut hasher);
-        }
         Self {
             len: metadata.len(),
             modified: metadata.modified().ok(),
@@ -617,7 +609,6 @@ mod tests {
             settings,
             recovery,
             crate::mods::highlight_rule::rule_for(path.to_str()),
-            crate::mods::demosaic_rule::rule_for(path.to_str()),
         )
     }
 

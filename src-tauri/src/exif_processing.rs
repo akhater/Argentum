@@ -323,23 +323,19 @@ pub fn write_sidecar(
         }
     }
 
-    // Argentum: the photo's highlight rule and demosaic, from the sidecar
-    // this replaces (mods/highlight_rule.rs, mods/demosaic_rule.rs). A
-    // virtual copy's sidecar carries neither: the decode reads the photo's own.
+    // Argentum: the photo's highlight rule, from the sidecar this replaces
+    // (mods/highlight_rule.rs). A virtual copy's sidecar carries none: the
+    // decode reads the photo's own.
     let own = sidecar_path == crate::file_management::sidecar_for(source_path, None);
     let mark = own
         .then(|| crate::mods::highlight_rule::stamped(sidecar_path))
         .flatten();
-    let demosaic = own
-        .then(|| crate::mods::demosaic_rule::stamped(sidecar_path))
-        .flatten();
     let stamped;
-    let metadata = if metadata.ag_highlights == mark && metadata.ag_demosaic == demosaic {
+    let metadata = if metadata.ag_highlights == mark {
         metadata
     } else {
         stamped = ImageMetadata {
             ag_highlights: mark,
-            ag_demosaic: demosaic,
             ..metadata.clone()
         };
         &stamped
@@ -2041,11 +2037,9 @@ fn load_primary_metadata(image_path: &Path) -> ImageMetadata {
 fn save_primary_metadata(image_path: &Path, metadata: &ImageMetadata) -> std::io::Result<()> {
     let primary = crate::file_management::sidecar_for(image_path, None);
     // Argentum: stamped as `write_sidecar` stamps: a sidecar this makes for a
-    // new file (a denoised DNG, a panorama) marks it new (mods/highlight_rule.rs,
-    // mods/demosaic_rule.rs).
+    // new file (a denoised DNG, a panorama) marks it new (mods/highlight_rule.rs).
     let metadata = ImageMetadata {
         ag_highlights: crate::mods::highlight_rule::stamped(&primary),
-        ag_demosaic: crate::mods::demosaic_rule::stamped(&primary),
         ..metadata.clone()
     };
     let json = serde_json::to_string_pretty(&metadata).map_err(std::io::Error::other)?;
@@ -2186,13 +2180,13 @@ mod highlight_mark_tests {
     /// Argentum: a sidecar made for a new file through the EXIF copy (a
     /// denoised DNG, a panorama) marks it new, as `write_sidecar` would.
     #[test]
-    fn a_sidecar_made_for_a_new_file_takes_the_pull() {
+    fn a_sidecar_made_for_a_new_file_takes_the_latest_rule() {
         use crate::mods::highlight_rule::{Rule, rule_for};
         let dir = std::env::temp_dir().join("argentum-primary-mark");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let image = dir.join("out.dng");
         super::save_primary_metadata(&image, &super::ImageMetadata::default()).unwrap();
-        assert_eq!(rule_for(image.to_str()), Rule::Pull);
+        assert_eq!(rule_for(image.to_str()), Rule::LATEST);
     }
 }

@@ -93,6 +93,7 @@ import {
   useSelectionMasks,
 } from '../../../argentum/selection/selection';
 import { agText } from '../../../argentum/locales';
+import { useMaskOverlay } from '../../../argentum/maskOverlay';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR } from '../../ui/AppProperties';
 import { createSubMask } from '../../../utils/maskUtils';
@@ -1418,8 +1419,11 @@ function ContainerRow({
       {
         label: t('editor.masks.actions.resetMaskAdjustments'),
         icon: RotateCcw,
-        onClick: () =>
-          updateContainer(container.id, { adjustments: JSON.parse(JSON.stringify(INITIAL_MASK_ADJUSTMENTS)) }),
+        onClick: () => {
+          updateContainer(container.id, { adjustments: JSON.parse(JSON.stringify(INITIAL_MASK_ADJUSTMENTS)) });
+          // Argentum: resetting the selected mask's sliders hides its overlay too (argentum/maskOverlay.ts).
+          if (container.id === useEditorStore.getState().activeMaskContainerId) useMaskOverlay.getState().adjusted();
+        },
       },
       {
         label: t('editor.masks.actions.deleteMask'),
@@ -1928,6 +1932,8 @@ function SettingsPanel({
   const handleMaskPropertyChange = (key: string, value: any) => {
     if (!isActive) return;
     updateContainer(container.id, { [key]: value });
+    // Argentum: the mask's Opacity is its amount, so moving it hides the overlay (argentum/maskOverlay.ts).
+    if (key === 'opacity') useMaskOverlay.getState().adjusted();
   };
 
   const handleSubMaskParametersChange = (changes: Record<string, number>) => {
@@ -1959,6 +1965,8 @@ function SettingsPanel({
     const currentAdjustments = container.adjustments;
     const newAdjustments = typeof updater === 'function' ? updater(currentAdjustments) : updater;
     updateContainer(container.id, { adjustments: newAdjustments });
+    // Argentum: as in Lightroom, adjusting a mask hides its red overlay (argentum/maskOverlay.ts).
+    useMaskOverlay.getState().adjusted();
   };
 
   const handleToggleSection = (section: string) => {
