@@ -29,6 +29,7 @@ import { takeFromPaste } from '../argentum/looks/providerLooksStore';
 import { asksOf, withoutOutlines } from '../argentum/selection/foundAgain';
 import { findMasksAgain } from '../argentum/selection/findAgain';
 import { fileNameOf } from '../argentum/paths';
+import { stillOpen } from '../argentum/stillOpen';
 import { screenDpr, transformScaleForZoom } from '../argentum/zoomScale';
 
 // Argentum: the 500 ms step lives with the History rules, where undo flushes it.
@@ -76,7 +77,7 @@ export const reloadAdjustmentsForPaths = async (paths: string[]) => {
   const { libraryActivePath, setLibrary } = useLibraryStore.getState();
   if (selectedImage && paths.includes(selectedImage.path)) {
     const meta: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
-    if (meta.adjustments && !meta.adjustments.is_null) {
+    if (stillOpen(selectedImage.path) && meta.adjustments && !meta.adjustments.is_null) {
       const normalized = normalizeLoadedAdjustments(meta.adjustments);
       setEditor({ adjustments: normalized });
       resetHistory(normalized);
@@ -153,6 +154,7 @@ export function useEditorActions() {
     if (!selectedImage?.isReady) return;
     try {
       const autoAdjustments: Adjustments = await invoke(Invokes.CalculateAutoAdjustments);
+      if (!stillOpen(selectedImage.path)) return;
       setAdjustments((prev: Adjustments) => ({
         ...prev,
         ...autoAdjustments,
@@ -234,8 +236,10 @@ export function useEditorActions() {
 
   const handleLutSelect = useCallback(
     async (path: string, isBuiltIn: boolean = false) => {
+      const openPath = useEditorStore.getState().selectedImage?.path;
       try {
         const result: { size: number } = await invoke('load_and_parse_lut', { path });
+        if (!stillOpen(openPath)) return;
         const name = fileNameOf(path) || 'LUT';
         setAdjustments((prev: Adjustments) => ({
           ...prev,
@@ -288,7 +292,7 @@ export function useEditorActions() {
         .then(() => {
           if (libraryActivePath && pathsToReset.includes(libraryActivePath))
             setLibrary({ libraryActiveAdjustments: { ...INITIAL_ADJUSTMENTS } });
-          if (selectedImage && pathsToReset.includes(selectedImage.path)) {
+          if (selectedImage && pathsToReset.includes(selectedImage.path) && stillOpen(selectedImage.path)) {
             const resetData = { ...INITIAL_ADJUSTMENTS, aiPatches: [] };
             resetHistory(resetData);
             setEditor({ adjustments: resetData });
@@ -436,7 +440,7 @@ export function useEditorActions() {
           void findMasksAgain(pathsToUpdate, asks, setAdjustments);
           if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
             invoke('load_metadata', { path: selectedImage.path }).then((meta: any) => {
-              if (meta.adjustments) {
+              if (meta.adjustments && stillOpen(selectedImage.path)) {
                 setAdjustments((prev: any) => ({
                   ...prev,
                   lensMaker: meta.adjustments.lensMaker,
