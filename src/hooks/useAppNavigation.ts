@@ -13,7 +13,8 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes, LibraryViewMode, ImageFile } from '../components/ui/AppProperties';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 import { globalImageCache } from '../utils/ImageLRUCache';
-import { debouncedSave, debouncedSetHistory } from './useEditorActions';
+import { debouncedSetHistory } from './useEditorActions';
+import { flushPendingSave } from '../argentum/pendingSave';
 import { clearLibrarySelection } from './useLibraryActions';
 import { computeSortedLibrary } from './useSortedLibrary';
 
@@ -145,7 +146,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       previewOverride: null,
     });
 
-    debouncedSave.flush();
+    flushPendingSave(prevAdjustmentsRef);
     debouncedSetHistory.cancel();
 
     const lastActivePath = selectedImage?.path ?? null;
@@ -179,7 +180,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       if (selectedImage?.path === path) return;
 
       useEditorStore.getState().patchesSentToBackend.clear();
-      debouncedSave.flush();
+      flushPendingSave(prevAdjustmentsRef);
       debouncedSetHistory.cancel();
 
       if (selectedImage?.path && cachedEditStateRef.current) {
@@ -404,7 +405,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         });
 
         if (!preserveEditor && selectedImage) {
-          debouncedSave.flush();
+          flushPendingSave(prevAdjustmentsRef);
           debouncedSetHistory.cancel();
           setEditor({ selectedImage: null, finalPreviewUrl: null, uncroppedAdjustedPreviewUrl: null, histogram: null });
           setEditor({ adjustments: INITIAL_ADJUSTMENTS });
