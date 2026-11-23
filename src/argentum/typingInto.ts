@@ -1,13 +1,15 @@
 /**
  * Is focus where keys are text? The one rule every shortcut path uses. Ours.
  *
- * Typing: a text-like input, a textarea, a select (its keys pick an option) and a
- * contenteditable. Not typing: a checkbox, radio or range input (a switch or a
- * slider, whose keys are not text), a button, the body. Read by property, so it
- * answers the same for a real element and for the plain object a test passes.
+ * Typing: a text-like input, a textarea, a select (its keys pick an option), a
+ * range input (its arrow keys, Home, End and PageUp/PageDown move the slider, so
+ * shortcuts stay out as they always did) and a contenteditable. Not typing: a
+ * checkbox or radio (a switch, whose keys are not text), a button, the body.
+ * Read by property, so it answers the same for a real element and for the plain
+ * object a test passes.
  */
 
-const NOT_TEXT_INPUT = new Set(['checkbox', 'radio', 'range']);
+const NOT_TEXT_INPUT = new Set(['checkbox', 'radio']);
 
 interface Focusable {
   tagName?: string;

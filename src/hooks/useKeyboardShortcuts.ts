@@ -578,6 +578,7 @@ export const useKeyboardShortcuts = ({
 
     const builtinShortcuts = [
       {
+        id: 'escape',
         match: (e: KeyboardEvent) => e.code === 'Escape',
         execute: (e: KeyboardEvent, s: any) => {
           e.preventDefault();
@@ -594,6 +595,7 @@ export const useKeyboardShortcuts = ({
         },
       },
       {
+        id: 'delete_mask',
         match: (e: KeyboardEvent, s: any) => {
           const isDeleteKey = s.settings.osPlatform === 'macos' ? e.code === 'Backspace' : e.code === 'Delete';
           return isDeleteKey && (!!s.editor.activeMaskContainerId || !!s.editor.activeAiPatchContainerId);
@@ -604,7 +606,7 @@ export const useKeyboardShortcuts = ({
         },
       },
       {
-        repeatable: true,
+        id: 'library_arrows',
         match: (e: KeyboardEvent, s: any) =>
           s.ui.activeView === 'library' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code),
         execute: (e: KeyboardEvent, s: any) => {
@@ -656,7 +658,7 @@ export const useKeyboardShortcuts = ({
       for (const builtin of builtinShortcuts) {
         if (builtin.match(event, state)) {
           // Argentum: the OS repeat of a held key runs only what is meant to repeat (argentum/keyRepeat.ts).
-          if (event.repeat && !builtin.repeatable) return;
+          if (ignoreKeyRepeat(event, builtin.id)) return;
           builtin.execute(event, state);
           return;
         }

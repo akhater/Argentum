@@ -13,6 +13,7 @@ describe('typingInto', () => {
     ['textarea', el('TEXTAREA')],
     ['contenteditable', el('DIV', { isContentEditable: true })],
     ['select', el('SELECT')],
+    ['range slider (its own arrow keys, Home/End, PageUp/PageDown stay with it)', el('INPUT', { type: 'range' })],
   ])('%s is typing', (_name, target) => {
     expect(typingInto(target)).toBe(true);
   });
@@ -20,7 +21,6 @@ describe('typingInto', () => {
   it.each([
     ['checkbox (a switch)', el('INPUT', { type: 'checkbox' })],
     ['radio', el('INPUT', { type: 'radio' })],
-    ['range slider', el('INPUT', { type: 'range' })],
     ['button', el('BUTTON')],
     ['body', el('BODY')],
     ['plain div', el('DIV')],

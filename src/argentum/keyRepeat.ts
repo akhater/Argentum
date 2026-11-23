@@ -28,9 +28,16 @@ export const KEY_REPEAT_ACTIONS: ReadonlySet<string> = new Set([
   'redo',
   'brush_size_up',
   'brush_size_down',
+  'library_arrows', // the built-in arrow keys of the library grid
 ]);
 
-/** True for the OS repeat of a key whose action runs once per press. */
-export function ignoreKeyRepeat(event: { repeat: boolean }, action: string): boolean {
-  return event.repeat && !KEY_REPEAT_ACTIONS.has(action);
+/**
+ * True for the OS repeat of a key whose action runs once per press. The key
+ * still counts as handled: the browser default (scroll, select-all, a download)
+ * is prevented, as it is on a first press.
+ */
+export function ignoreKeyRepeat(event: { repeat: boolean; preventDefault(): void }, action: string): boolean {
+  if (!event.repeat || KEY_REPEAT_ACTIONS.has(action)) return false;
+  event.preventDefault();
+  return true;
 }

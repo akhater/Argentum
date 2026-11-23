@@ -58,8 +58,11 @@ export default function ConfirmModal({
 
   const handleConfirm = useCallback(() => {
     if (!confirmGate.claim()) return;
-    if (onConfirm) {
-      onConfirm();
+    try {
+      onConfirm?.();
+    } catch (err) {
+      confirmGate.reset(); // the dialog stays open: let the next click try again
+      throw err;
     }
     onClose();
   }, [onConfirm, onClose, confirmGate]);
