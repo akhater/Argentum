@@ -19,6 +19,9 @@ interface SnapshotsState {
   keep: (path: string, list: Snapshot[]) => void;
 }
 
+/** The last save of each photo, which the next one waits for. */
+const saving = new Map<string, Promise<void>>();
+
 export const useSnapshots = create<SnapshotsState>((set, get) => ({
   byPath: {},
 
@@ -40,9 +43,17 @@ export const useSnapshots = create<SnapshotsState>((set, get) => ({
     }
     const was = get().byPath[path];
     set((s) => ({ byPath: { ...s.byPath, [path]: list } }));
-    ag('set_snapshots', { path, snapshots: list }).catch((err) => {
-      console.error('Snapshots: could not keep them:', err);
-      set((s) => ({ byPath: { ...s.byPath, [path]: was } }));
-    });
+    // One save at a time per photo, in the order asked: two saves in flight
+    // could land the older list last.
+    const save = (saving.get(path) ?? Promise.resolve())
+      .then(() => ag('set_snapshots', { path, snapshots: list }))
+      .then(
+        () => undefined,
+        (err) => {
+          console.error('Snapshots: could not keep them:', err);
+          set((s) => ({ byPath: { ...s.byPath, [path]: was } }));
+        },
+      );
+    saving.set(path, save);
   },
 }));
