@@ -728,6 +728,7 @@
         "clickToOpenTooltip": "Klicken, um die Karte in neuem Tab zu öffnen",
         "latitude": "Breitengrad",
         "longitude": "Längengrad",
+        "showMap": "Karte anzeigen",
         "title": "GPS-Standort"
       },
       "organization": {

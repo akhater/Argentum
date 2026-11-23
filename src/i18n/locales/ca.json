@@ -729,6 +729,7 @@
         "clickToOpenTooltip": "Feu clic per obrir el mapa en una pestanya nova",
         "latitude": "Latitud",
         "longitude": "Longitud",
+        "showMap": "Mostra el mapa",
         "title": "Ubicació GPS"
       },
       "organization": {

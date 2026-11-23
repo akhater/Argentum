@@ -772,6 +772,7 @@
         "clickToOpenTooltip": "Нажмите, чтобы открыть карту в новой вкладке",
         "latitude": "Широта",
         "longitude": "Долгота",
+        "showMap": "Показать карту",
         "title": "Координаты GPS"
       },
       "organization": {

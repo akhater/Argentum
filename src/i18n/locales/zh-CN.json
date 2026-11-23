@@ -726,6 +726,7 @@
         "clickToOpenTooltip": "点击在新标签页中打开地图",
         "latitude": "纬度",
         "longitude": "经度",
+        "showMap": "显示地图",
         "title": "GPS 位置"
       },
       "organization": {

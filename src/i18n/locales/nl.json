@@ -722,6 +722,7 @@
         "clickToOpenTooltip": "Klik om kaart in nieuw tabblad te openen",
         "latitude": "Breedtegraad",
         "longitude": "Lengtegraad",
+        "showMap": "Kaart tonen",
         "title": "GPS-locatie"
       },
       "organization": {
