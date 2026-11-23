@@ -2,6 +2,7 @@ import Argentum from './argentum/Argentum';
 import { ModernWindow, refreshModernTrees, startModernLibrary } from './argentum/modern';
 import { useLightPalette } from './argentum/layout/editorLayout';
 import { usePhotoStep } from './argentum/photoStep';
+import { useSaveOnClose } from './argentum/saveOnClose';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -336,6 +337,7 @@ function App() {
     markGenerated,
   });
 
+  useSaveOnClose(prevAdjustmentsRef);
   const stepPhoto = usePhotoStep(sortedImageList, handleImageSelect);
 
   useKeyboardShortcuts({

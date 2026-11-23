@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash.debounce';
 import { Adjustments, COPYABLE_ADJUSTMENT_KEYS, ADJUSTMENT_GROUPS, INITIAL_ADJUSTMENTS } from '../utils/adjustments';
 import { Folder, Invokes, Preset } from '../components/ui/AppProperties';
+import { trackSave } from '../argentum/savesInFlight';
 
 export enum PresetListType {
   Folder = 'folder',
@@ -33,6 +34,15 @@ function arrayMove(array: any, from: any, to: any) {
   return newArray;
 }
 
+// Module level so closing the window can flush the last change (argentum/saveOnClose.ts).
+export const savePresetsSoon = debounce((presetsToSave: Array<UserPreset>) => {
+  trackSave(
+    invoke(Invokes.SavePresets, { presets: presetsToSave }).catch((err) =>
+      console.error('Failed to save presets:', err),
+    ),
+  );
+}, 500);
+
 export function usePresets(currentAdjustments: Adjustments) {
   const [presets, setPresets] = useState<Array<UserPreset>>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,14 +60,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     }
   }, []);
 
-  const savePresetsToBackend = useCallback(
-    debounce((presetsToSave: Array<UserPreset>) => {
-      invoke(Invokes.SavePresets, { presets: presetsToSave }).catch((err) =>
-        console.error('Failed to save presets:', err),
-      );
-    }, 500),
-    [],
-  );
+  const savePresetsToBackend = savePresetsSoon;
 
   useEffect(() => {
     loadPresets();

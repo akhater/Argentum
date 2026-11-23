@@ -25,6 +25,7 @@ import debounce from 'lodash.debounce';
 import { useEditorStore } from '../../store/useEditorStore';
 import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
+import { trackSave } from '../savesInFlight';
 import { historyNames, keepNames } from '../layout/historyNames';
 import { compact, expand } from './historyRecord';
 
@@ -47,7 +48,7 @@ let restored: Adjustments[] | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
 const inOrder = (task: () => Promise<unknown>) => {
-  queue = queue.then(task).catch((err) => console.error('History: could not keep it:', err));
+  queue = trackSave(queue.then(task).catch((err) => console.error('History: could not keep it:', err)));
 };
 
 /** What `shown` keeps: its steps, or with a change not yet a step, the step it would have been. */
@@ -61,6 +62,9 @@ const writeSoon = debounce((shown: Shown) => {
   const record = toKeep(shown);
   inOrder(() => ag('set_history', { path: shown.path, record }));
 }, WRITE_AFTER_MS);
+
+/** Writes the History now instead of 600 ms after the last change (closing the window). */
+export const flushHistoryWrite = () => writeSoon.flush();
 
 /** Put the photo's kept History in place of `fresh`, the one their code just started, if it still fits. */
 const restore = (path: string, fresh: Adjustments[]) => {

@@ -23,6 +23,7 @@ import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cr
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { debouncedSetHistory } from '../argentum/historyOnRelease';
+import { trackSave } from '../argentum/savesInFlight';
 import { builtinKeys } from '../argentum/lensBuiltin';
 import { lookOnto, providerLookOff } from '../argentum/looks/providerLook';
 import { takeFromPaste } from '../argentum/looks/providerLooksStore';
@@ -36,10 +37,12 @@ import { screenDpr, transformScaleForZoom } from '../argentum/zoomScale';
 export { debouncedSetHistory };
 
 export const debouncedSave = debounce((path: string, adjustmentsToSave: Adjustments) => {
-  invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path, adjustments: adjustmentsToSave }).catch((err) => {
-    console.error('Auto-save failed:', err);
-    toast.error(`Failed to save changes: ${err}`);
-  });
+  trackSave(
+    invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path, adjustments: adjustmentsToSave }).catch((err) => {
+      console.error('Auto-save failed:', err);
+      toast.error(`Failed to save changes: ${err}`);
+    }),
+  );
 }, 300);
 
 const waitForImageReady = (path: string) =>
