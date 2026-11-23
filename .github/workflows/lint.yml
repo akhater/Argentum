@@ -18,10 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The release builds' Node (build.yml); i18next-cli needs 22.
+      # The release builds' Node (.nvmrc, also read by build.yml); i18next-cli needs 22.
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies

@@ -43,10 +43,12 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
 
+      # The toolchain is the one in src-tauri/rust-toolchain.toml; rust-src-dir makes the action read it.
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ''
+          rust-src-dir: src-tauri
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -57,7 +59,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install additional system dependencies (Linux)
