@@ -137,8 +137,9 @@ jobs:
       # step installed. A test is in the set when its path contains `::gpu_`
       # and it carries the one shared ignore reason, which a unit test in
       # the lib tests keeps together: a new GPU-only test written that way runs here without
-      # this file changing. One at a time, as the tests that hold the GPU
-      # (sharpen_gpu) are written to be run.
+      # this file changing. One at a time (--test-threads=1): two of the sharpen_gpu
+      # tests are written to be run that way, and gpu_tests.rs documents the
+      # same command.
       #
       # Left out by name: a test that passes on a real GPU and cannot pass on a
       # software one. Each is listed here with its reason; none so far.

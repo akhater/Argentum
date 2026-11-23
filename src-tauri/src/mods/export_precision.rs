@@ -1261,7 +1261,7 @@ mod tests {
 /// any machine that has one:
 ///
 /// ```bash
-/// cargo test --lib -- --ignored ::gpu_
+/// cargo test --lib -- --ignored ::gpu_ --test-threads=1
 /// ```
 #[cfg(test)]
 mod real_render {

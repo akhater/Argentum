@@ -15,6 +15,17 @@
 //! Vulkan driver), so a new test written this way runs in CI without anyone
 //! editing the workflow.
 //!
+//! Run the set one test at a time, here and in CI:
+//!
+//! ```bash
+//! cargo test --lib -- --ignored ::gpu_ --test-threads=1
+//! ```
+//!
+//! Two of them, `gpu_panning_matches_sharpening_it_all_at_once` and
+//! `gpu_the_mask_view_and_the_drag_preview_keep_the_result` in `sharpen_gpu`,
+//! were written to be run that way (their reasons used to say so). The others
+//! do not need it, but the set has one command and `app.yml` uses it.
+//!
 //! A test that needs more than a GPU says so in its own reason ("reads local
 //! photos and needs a GPU", "timing ...") and keeps an ordinary name: it is
 //! not in the set. A GPU test that cannot pass on a software GPU is left out
