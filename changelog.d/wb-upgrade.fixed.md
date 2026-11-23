@@ -1,0 +1,1 @@
+- Converting old white balance edits in a folder now works from each photo's saved edit at the moment it is saved, so exposure or other changes made while the folder was still being converted are no longer overwritten; the session also keeps far less of each converted edit in memory.
