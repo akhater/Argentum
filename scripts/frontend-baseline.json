@@ -186,7 +186,7 @@
       "@typescript-eslint/no-unused-vars": 4
     },
     "src/components/panel/Editor.tsx": {
-      "@typescript-eslint/no-explicit-any": 16,
+      "@typescript-eslint/no-explicit-any": 13,
       "@typescript-eslint/no-unused-vars": 1,
       "prefer-const": 9,
       "react-hooks/exhaustive-deps": 1

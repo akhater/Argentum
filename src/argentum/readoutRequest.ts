@@ -20,6 +20,7 @@
 import type { SubMask } from '../components/panel/right/Masks';
 import type { Adjustments } from '../utils/adjustments';
 import { PER_PHOTO_MAPS } from './editSections';
+import { withoutMaskBitmap } from './maskBitmaps';
 
 /** The switch each map hangs on. */
 export const EFFECT_OF_MAP: Record<string, string> = {
@@ -28,24 +29,7 @@ export const EFFECT_OF_MAP: Record<string, string> = {
   fogDepthMap: 'fogEnabled',
 };
 
-/** Where a sub-mask keeps its bitmap, under either spelling. */
-export const MASK_BITMAP_KEYS = ['mask_data_base64', 'maskDataBase64'];
-
 type Loose = Record<string, unknown>;
-type WithParameters = { parameters?: Record<string, unknown> };
-
-function withoutBitmap<T extends WithParameters>(subMask: T, gone: boolean): T {
-  if (!gone || !subMask.parameters) {
-    return subMask;
-  }
-  const parameters = { ...subMask.parameters };
-  for (const key of MASK_BITMAP_KEYS) {
-    if (parameters[key] !== undefined && parameters[key] !== null) {
-      parameters[key] = null;
-    }
-  }
-  return { ...subMask, parameters };
-}
 
 export function readoutAdjustments(adjustments: Adjustments, sentToBackend: ReadonlySet<string>) {
   const { masks, aiPatches, ...rest } = adjustments as Adjustments & {
@@ -62,14 +46,14 @@ export function readoutAdjustments(adjustments: Adjustments, sentToBackend: Read
   if (masks) {
     out.masks = masks.map((mask) => ({
       ...mask,
-      subMasks: mask.subMasks.map((subMask) => withoutBitmap(subMask, true)),
+      subMasks: mask.subMasks.map((subMask) => withoutMaskBitmap(subMask, true)),
     }));
   }
   if (aiPatches) {
     out.aiPatches = aiPatches.map((patch) => ({
       ...patch,
       patchData: patch.id && sentToBackend.has(patch.id) ? null : patch.patchData,
-      subMasks: patch.subMasks?.map((subMask) => withoutBitmap(subMask, sentToBackend.has(subMask.id))),
+      subMasks: patch.subMasks?.map((subMask) => withoutMaskBitmap(subMask, sentToBackend.has(subMask.id))),
     }));
   }
   return out as Adjustments;
