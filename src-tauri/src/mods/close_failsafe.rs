@@ -9,7 +9,7 @@
 use std::time::Duration;
 use tauri::{Manager, WebviewWindow};
 
-/// How long the page may take to save before closing: `CLOSE_WAIT_MS` in saveOnClose.ts, kept
+/// How long the page may take to save before closing: `CLOSE_WAIT_MS` in editTimings.ts, kept
 /// equal by a test below (the generated contract carries types, not constants).
 const PAGE_WAIT_MS: u64 = 2000;
 /// Room for the page to finish its wait and ask for the destroy, so the failsafe never beats it.
@@ -52,7 +52,7 @@ mod tests {
     #[test]
     fn page_wait_equals_the_one_in_the_page() {
         let path =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/argentum/saveOnClose.ts");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/argentum/editTimings.ts");
         let source = std::fs::read_to_string(path).unwrap();
         let line = source
             .lines()
