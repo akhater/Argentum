@@ -1,0 +1,1 @@
+- A photo's snapshots are saved one at a time and through the sidecar's lock and atomic write, so a quick second change, or the editor's own save, can no longer put an older edit or snapshot list back, and a failed save leaves the sidecar as it was.

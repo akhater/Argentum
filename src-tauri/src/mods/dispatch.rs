@@ -895,8 +895,8 @@ commands! {
     }
     "set_snapshots" => (a: SnapshotsArgs) -> () {
         tokio::task::spawn_blocking(move || {
-            let (_, sidecar) = crate::file_management::parse_virtual_path(&a.path);
-            crate::mods::snapshots::write(&sidecar, a.snapshots)
+            let (source, sidecar) = crate::file_management::parse_virtual_path(&a.path);
+            crate::mods::snapshots::write(&sidecar, &source, a.snapshots)
         })
             .await
             .map_err(|e| e.to_string())??;
