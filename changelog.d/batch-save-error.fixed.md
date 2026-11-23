@@ -1,0 +1,1 @@
+- Batch edits (paste, reset) no longer carry on as if a photo was saved when its edit file could not be written: the failure is logged with the path, and that photo's XMP is not updated and its thumbnail is not redrawn.

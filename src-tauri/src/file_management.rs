@@ -2779,12 +2779,18 @@ fn update_sidecars_and_thumbnails(
         .par_iter()
         .for_each_with(updated_tx, |updated_tx, path| {
             let (source_path, sidecar_path) = parse_virtual_path(path);
-            let metadata = {
+            let (metadata, saved) = {
                 let _sidecar = crate::mods::write_locks::lock_sidecar(&sidecar_path);
                 let metadata = update(&source_path, &sidecar_path);
-                let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
-                metadata
+                let saved =
+                    crate::mods::write_locks::write_edit_or_log(&sidecar_path, &source_path, &metadata);
+                (metadata, saved)
             };
+            if !saved {
+                // Not redrawn, so its share of the progress is counted here.
+                increment_thumbnail_progress(&state, &app_handle);
+                return;
+            }
             if enable_xmp_sync {
                 sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
             }
