@@ -34,6 +34,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::Duration;
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -48,6 +49,33 @@ pub const STOPPED: &str = "Download stopped.";
 
 /// Report at most once per this many bytes.
 const REPORT_EVERY: u64 = 1 << 20;
+
+/// How long to wait for a connection to a server. A server that is up answers
+/// in well under a second; this only has to outlast a slow mobile line, and
+/// after it the file's next address is tried.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// How long a download may go without a single byte arriving (the answer's
+/// start, or the next piece of the body) before its address is given up on.
+/// Deliberately not a limit on the whole transfer: a large model on a slow line
+/// must still finish, so only silence counts, and any bytes start it afresh.
+const STALL_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How often a wait for the network looks at Stop, so Stop acts within about
+/// this long whatever the server is doing.
+const STOP_POLL: Duration = Duration::from_millis(250);
+
+/// The two waits a download puts up with; the tests use short ones.
+#[derive(Clone, Copy)]
+struct Limits {
+    connect: Duration,
+    stall: Duration,
+}
+
+const LIMITS: Limits = Limits {
+    connect: CONNECT_TIMEOUT,
+    stall: STALL_TIMEOUT,
+};
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(ts_rs::TS))]
@@ -112,6 +140,16 @@ pub async fn fetch_missing(
     files: &[File],
     progress: impl Fn(&Progress),
 ) -> Result<u64, String> {
+    fetch_missing_with(dir, id, files, LIMITS, progress).await
+}
+
+async fn fetch_missing_with(
+    dir: &Path,
+    id: &str,
+    files: &[File],
+    limits: Limits,
+    progress: impl Fn(&Progress),
+) -> Result<u64, String> {
     let _running = RUNNING.lock().await;
     STOP.store(false, Ordering::Relaxed);
     {
@@ -138,7 +176,7 @@ pub async fn fetch_missing(
         let mut last_error = String::new();
         let mut fetched = false;
         for url in std::iter::once(file.url).chain(file.fallback) {
-            match fetch(dir, file, url, done, &report).await {
+            match fetch(dir, file, url, done, limits, &report).await {
                 Ok(()) => {
                     fetched = true;
                     break;
@@ -378,6 +416,30 @@ impl Drop for Part {
     }
 }
 
+/// `wait`, a request or the next piece of a body, failing when nothing
+/// arrives for `stall`, and with `STOPPED` soon after Stop, not when the
+/// server next speaks.
+async fn waiting<T, E: ToString>(
+    wait: impl std::future::Future<Output = Result<T, E>>,
+    stall: Duration,
+) -> Result<T, String> {
+    let mut wait = std::pin::pin!(wait);
+    let mut silent = Duration::ZERO;
+    loop {
+        if STOP.load(Ordering::Relaxed) {
+            return Err(STOPPED.to_string());
+        }
+        let poll = STOP_POLL.min(stall.saturating_sub(silent));
+        match tokio::time::timeout(poll, wait.as_mut()).await {
+            Ok(done) => return done.map_err(|e| e.to_string()),
+            Err(_) => silent += poll,
+        }
+        if silent >= stall {
+            return Err(format!("no data for {} s", stall.as_secs_f32()));
+        }
+    }
+}
+
 /// One file from one address, into its part file, moved into place once its
 /// checksum matches.
 async fn fetch<F: Fn(&Progress)>(
@@ -385,13 +447,18 @@ async fn fetch<F: Fn(&Progress)>(
     file: &File,
     url: &str,
     before: u64,
+    limits: Limits,
     report: &Reporter<F>,
 ) -> Result<(), String> {
     let mut part = Part {
         path: dir.join(format!("{}.part", file.name)),
         kept: false,
     };
-    let mut response = reqwest::get(url).await.map_err(|e| e.to_string())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(limits.connect)
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut response = waiting(client.get(url).send(), limits.stall).await?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status()));
     }
@@ -399,7 +466,7 @@ async fn fetch<F: Fn(&Progress)>(
     let mut out = std::fs::File::create(&part.path).map_err(|e| e.to_string())?;
     let mut hasher = Sha256::new();
     let mut got = 0u64;
-    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+    while let Some(chunk) = waiting(response.chunk(), limits.stall).await? {
         if STOP.load(Ordering::Relaxed) {
             return Err(STOPPED.to_string());
         }
@@ -711,6 +778,145 @@ mod tests {
         assert_eq!(err, STOPPED);
         assert!(names_in(tmp.path()).is_empty());
         assert!(current().is_none_or(|p| p.id != "stopped"));
+    }
+
+    /// Accepts connections and holds them open. Each is answered with `sent`
+    /// (when not empty) and then nothing more: a server that has gone quiet.
+    fn quiet_server(sent: &'static [u8]) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for mut stream in listener.incoming().flatten() {
+                if !sent.is_empty() {
+                    // Hear the request out first, as a real server does.
+                    let mut reader = std::io::BufReader::new(stream.try_clone().unwrap());
+                    let mut line = String::new();
+                    while reader.read_line(&mut line).is_ok_and(|n| n > 2) {
+                        line.clear();
+                    }
+                    let _ = stream.write_all(sent);
+                }
+                held.push(stream);
+            }
+        });
+        base
+    }
+
+    const HALF_BODY: &[u8] =
+        b"HTTP/1.1 200 OK\r\nContent-Length: 20\r\nConnection: close\r\n\r\nthe mod";
+
+    fn quick() -> Limits {
+        Limits {
+            connect: std::time::Duration::from_millis(300),
+            stall: std::time::Duration::from_millis(300),
+        }
+    }
+
+    /// The first address takes the connection and says nothing; the second has
+    /// the file. The first is given up on after the stall time, not waited for.
+    #[tokio::test]
+    async fn a_silent_address_fails_over_to_the_next() {
+        let body = b"the model".to_vec();
+        let (good, _) = serve(vec![("m", body.clone())]);
+        let silent = quiet_server(b"");
+        let tmp = tempfile::tempdir().unwrap();
+        let mut files = [file("m.onnx", format!("{silent}/m"), &body)];
+        files[0].fallback = Some(leak(format!("{good}/m")));
+
+        let fetched = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            fetch_missing_with(tmp.path(), "silent", &files, quick(), |_| {}),
+        )
+        .await
+        .expect("must not wait forever");
+        assert_eq!(fetched, Ok(body.len() as u64));
+        assert_eq!(std::fs::read(tmp.path().join("m.onnx")).unwrap(), body);
+        assert_eq!(names_in(tmp.path()), ["m.onnx"]);
+    }
+
+    /// The first address starts the body and then stops sending.
+    #[tokio::test]
+    async fn an_address_that_stalls_mid_body_fails_over_to_the_next() {
+        let body = b"the model, all of it".to_vec();
+        let (good, _) = serve(vec![("m", body.clone())]);
+        let stalling = quiet_server(HALF_BODY);
+        let tmp = tempfile::tempdir().unwrap();
+        let mut files = [file("m.onnx", format!("{stalling}/m"), &body)];
+        files[0].fallback = Some(leak(format!("{good}/m")));
+
+        let fetched = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            fetch_missing_with(tmp.path(), "mid-body", &files, quick(), |_| {}),
+        )
+        .await
+        .expect("must not wait forever");
+        assert_eq!(fetched, Ok(body.len() as u64));
+        assert_eq!(std::fs::read(tmp.path().join("m.onnx")).unwrap(), body);
+        assert_eq!(names_in(tmp.path()), ["m.onnx"]);
+    }
+
+    /// With no address left the download fails, and leaves nothing behind.
+    #[tokio::test]
+    async fn a_stalled_download_with_no_address_left_fails_cleanly() {
+        let body = b"the model, all of it".to_vec();
+        let stalling = quiet_server(HALF_BODY);
+        let tmp = tempfile::tempdir().unwrap();
+        let files = [file("m.onnx", format!("{stalling}/m"), &body)];
+
+        let err = fetch_missing_with(tmp.path(), "stalled", &files, quick(), |_| {})
+            .await
+            .unwrap_err();
+        assert!(err.contains("m.onnx"), "{err}");
+        assert!(names_in(tmp.path()).is_empty());
+    }
+
+    /// Stop while the server is quiet, before or after the body began, takes
+    /// effect within about a second even with a long stall time.
+    #[tokio::test]
+    async fn stop_is_honoured_while_a_read_is_waiting() {
+        for (id, sent) in [("stop-silent", &b""[..]), ("stop-mid-body", HALF_BODY)] {
+            let quiet = quiet_server(sent);
+            let tmp = tempfile::tempdir().unwrap();
+            let files = [file("m.onnx", format!("{quiet}/m"), &[9u8; 20])];
+            let limits = Limits {
+                connect: std::time::Duration::from_secs(60),
+                stall: std::time::Duration::from_secs(60),
+            };
+            let dir = tmp.path().to_path_buf();
+            let mut running =
+                tokio::spawn(
+                    async move { fetch_missing_with(&dir, id, &files, limits, |_| {}).await },
+                );
+            let begun = std::time::Instant::now();
+            while current().is_none_or(|p| p.id != id) {
+                assert!(
+                    begun.elapsed() < std::time::Duration::from_secs(10),
+                    "{id}: never started; finished={} current={:?} result={:?}",
+                    running.is_finished(),
+                    current(),
+                    if running.is_finished() {
+                        Some((&mut running).await)
+                    } else {
+                        None
+                    }
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            let asked = std::time::Instant::now();
+            stop();
+            let result = tokio::time::timeout(std::time::Duration::from_secs(5), running)
+                .await
+                .expect("Stop must not wait for the server")
+                .unwrap();
+            assert_eq!(result, Err(STOPPED.to_string()), "{id}");
+            assert!(
+                asked.elapsed() < std::time::Duration::from_millis(1500),
+                "{id}"
+            );
+            assert!(names_in(tmp.path()).is_empty(), "{id}");
+        }
     }
 
     #[tokio::test]
