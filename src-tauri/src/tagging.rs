@@ -533,16 +533,12 @@ fn clear_tags_under(
             continue;
         }
 
-        // Read first: a sidecar with nothing to clear is never rewritten.
-        let has_tags_to_clear = match crate::exif_processing::try_load_sidecar(sidecar) {
-            Ok(metadata) => metadata
-                .tags
-                .is_some_and(|tags| tags.iter().any(|tag| !keep(tag.as_str()))),
-            Err(e) => {
-                log::warn!("Not clearing the tags of {}: {e}", sidecar.display());
-                continue;
-            }
-        };
+        // Peek first: a sidecar with nothing to clear is never rewritten, and
+        // peeking never writes (no .bak copies). One that cannot be read is
+        // skipped here and left as it is.
+        let has_tags_to_clear = crate::exif_processing::peek_sidecar(sidecar)
+            .and_then(|metadata| metadata.tags)
+            .is_some_and(|tags| tags.iter().any(|tag| !keep(tag.as_str())));
         if !has_tags_to_clear {
             continue;
         }
@@ -570,19 +566,22 @@ fn clear_tags_under(
     changed
 }
 
-#[tauri::command]
-pub fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
-    let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
+/// Clears the tags `keep` does not keep under the folder `root_path`, on a
+/// blocking thread: the walk reads every sidecar, and a cleared one that becomes
+/// empty is removed, which reads the photo's EXIF.
+async fn clear_tags_in_folder(
+    root_path: String,
+    app_handle: AppHandle,
+    keep: fn(&str) -> bool,
+) -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<usize, String> {
+        let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
 
-    let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
+        let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
+        let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
+        let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
 
-    // Keep color tags and user tags, remove others (AI tags)
-    Ok(clear_tags_under(
-        folder,
-        |tag| tag.starts_with(COLOR_TAG_PREFIX) || tag.starts_with(USER_TAG_PREFIX),
-        |source, sidecar, metadata| {
+        Ok(clear_tags_under(folder, keep, |source, sidecar, metadata| {
             if enable_xmp_sync {
                 file_management::sync_metadata_to_xmp(
                     source,
@@ -591,33 +590,28 @@ pub fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, 
                     create_xmp_if_missing,
                 );
             }
-        },
-    ))
+        }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
+/// Keeps color tags and user tags, removes the others (AI tags).
 #[tauri::command]
-pub fn clear_all_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
-    let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
+pub async fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
+    clear_tags_in_folder(root_path, app_handle, |tag| {
+        tag.starts_with(COLOR_TAG_PREFIX) || tag.starts_with(USER_TAG_PREFIX)
+    })
+    .await
+}
 
-    let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-
-    // Keep only color tags, remove AI and user tags
-    Ok(clear_tags_under(
-        folder,
-        |tag| tag.starts_with(COLOR_TAG_PREFIX),
-        |source, sidecar, metadata| {
-            if enable_xmp_sync {
-                file_management::sync_metadata_to_xmp(
-                    source,
-                    sidecar,
-                    metadata,
-                    create_xmp_if_missing,
-                );
-            }
-        },
-    ))
+/// Keeps only color tags, removes AI and user tags.
+#[tauri::command]
+pub async fn clear_all_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
+    clear_tags_in_folder(root_path, app_handle, |tag| {
+        tag.starts_with(COLOR_TAG_PREFIX)
+    })
+    .await
 }
 
 #[cfg(test)]

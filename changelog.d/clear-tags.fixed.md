@@ -1,1 +1,1 @@
-- Clear AI tags and Clear all tags now find each photo's current edit file (`.agdata`, virtual copies included) and change it under its lock, through an atomic write. Before, they looked only for the old extension, so they cleared nothing, and a save made at the same moment could be overwritten.
+- Clear AI tags and Clear all tags now work on current edit files (`.agdata`, virtual copies included), and clearing tags no longer risks overwriting an edit saved at the same moment.
