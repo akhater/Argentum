@@ -59,7 +59,7 @@ impl Gpu {
 /// A device opened on first use, or the reason there is none. A clone
 /// shares it.
 #[derive(Default, Clone)]
-pub struct GpuSlot(Arc<OnceLock<std::result::Result<Arc<Gpu>, String>>>);
+pub struct GpuSlot(Arc<OnceLock<std::result::Result<Arc<Gpu>, Error>>>);
 
 impl GpuSlot {
     /// Opens `Gpu::new()` the first time it is asked.
@@ -75,14 +75,27 @@ impl GpuSlot {
     }
 
     pub fn get(&self) -> Result<Arc<Gpu>> {
-        self.0
-            .get_or_init(|| Gpu::new().map(Arc::new).map_err(|e| e.to_string()))
-            .clone()
-            .map_err(Error::NoGpu)
+        self.0.get_or_init(|| Gpu::new().map(Arc::new)).clone()
     }
 
     /// The device, if it has been opened; never opens it.
     pub fn opened(&self) -> Option<Arc<Gpu>> {
         self.0.get()?.as_ref().ok().cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_slot_that_failed_to_open_keeps_its_error_unchanged() {
+        let slot = GpuSlot::default();
+        let _ = slot.0.set(Err(Error::NoGpu("no adapter".into())));
+        let Err(err) = slot.get() else {
+            panic!("opened a device")
+        };
+        let err = err.to_string();
+        assert_eq!(err.matches("no GPU").count(), 1, "{err}");
     }
 }
