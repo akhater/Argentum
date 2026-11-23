@@ -86,7 +86,7 @@ const LUT_KEYS = [
  * directions for Relight): another photo needs its own, so no section copies
  * them, as Copy settings never carries `rawToneCurve`.
  */
-const PER_PHOTO_MAPS = ['lensBlurDepthMap', 'relightNormalMap', 'fogDepthMap'];
+export const PER_PHOTO_MAPS = ['lensBlurDepthMap', 'relightNormalMap', 'fogDepthMap'];
 
 const without = (keys: string[], gone: string[]) => keys.filter((key) => !gone.includes(key));
 
