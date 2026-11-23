@@ -1,0 +1,35 @@
+{
+  "compactSliderGap": 6,
+  "editorLayoutPanels": {
+    "folded": [
+      "crop.rotation"
+    ],
+    "historyHeightPx": 180,
+    "historyOpen": true,
+    "navigatorAt": [
+      0.25,
+      0.5
+    ],
+    "navigatorFloating": true,
+    "navigatorOpen": false,
+    "snapshotsHeightPx": null,
+    "tab": "presets",
+    "tabWidthPx": 320
+  },
+  "focusPointsShown": true,
+  "highlightRecovery": true,
+  "looksFavourites": [
+    "example-look"
+  ],
+  "lutProvider": "",
+  "modernTextSize": "large",
+  "modernTheme": "deep",
+  "preSharpeningRetired": true,
+  "providerLooksOn": false,
+  "rawDecoder": "flashraw",
+  "recentFolders": [
+    "/example/photos"
+  ],
+  "tiffBitDepth": 8,
+  "whiteBalancePresetsMigrated": true
+}

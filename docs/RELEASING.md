@@ -7,12 +7,37 @@ A release is a merge commit on `main`, published in this order.
    ISO week has rolled over since (`date +%g.%V`), the release sets the real
    `yy.ww.n` in `src-tauri/Cargo.toml`, Argentum's entry in `src-tauri/Cargo.lock`
    and `src-tauri/tauri.conf.json`.
-2. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
+2. **Compatibility corpus.** With the real version set by step 1, from
+   `src-tauri/`, write this release's folder and the snapshot of what the code
+   renders for it:
+
+   ```bash
+   cargo test --lib mods::compat_fixture -- --ignored
+   AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus
+   ```
+
+   Open `src-tauri/fixtures/compat/<version>/` and
+   `src-tauri/fixtures/compat/snapshots/<version>.txt` and check that they hold
+   only synthetic values (no path, name or value taken from a real photo or
+   machine), and that the snapshot's diff from the previous release's is what
+   the release changed. Commit both with the release. The folder of a version
+   that has shipped is never written again. Then confirm nothing is missing:
+
+   ```bash
+   cargo test --lib mods::compat_corpus -- --include-ignored
+   ```
+
+   `the_release_being_cut_has_its_folder` in that run fails, naming what is
+   absent, if the version in `Cargo.toml` has no folder, snapshot or
+   processing-settings file. The release does not continue until it passes. (It is
+   ignored in CI because the development version is always one ahead of the
+   last folder.)
+3. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
    `changelog.d/` into the version's section of `CHANGELOG.md`. That section, its plain-language line in
    `src/argentum/releases.ts`, and its rows in `docs/ROADMAP.md` and
    `src/argentum/roadmap.ts` say what actually shipped. Whatever a later PR made
    stale is fixed in a "Release <version>" PR.
-3. **Speed check.** At the commit being released, on the laptop the budgets come
+4. **Speed check.** At the commit being released, on the laptop the budgets come
    from (named in `src-tauri/src/mods/speed_budgets.rs`), on mains power and with
    nothing else using the GPU, from `src-tauri/`:
 
@@ -64,7 +89,7 @@ A release is a merge commit on `main`, published in this order.
    `drafts.local/look/LEDGER.tsv`. If they do not, it blocks the release like a
    speed breach. The first run has no references: bless every case with
    `AG_LOOK_CASES="*"`.
-4. **Publish.** `gh release create <version> --target <merge sha> --title
+5. **Publish.** `gh release create <version> --target <merge sha> --title
    "Argentum <version> — <summary>" --notes-file <notes>`, with no `v` in the
    tag. Creating the release starts `.github/workflows/release.yml`, which builds
    the installers and attaches them. Its last job then opens the notes with a
@@ -83,7 +108,7 @@ A release is a merge commit on `main`, published in this order.
    `MACOS_CERTIFICATE` secret, and fail without it. Keep that certificate:
    macOS ties each user's privacy answers to it, so a new one makes every Mac
    ask again once.
-5. **Bump.** A "Bump development version to <next>" PR changes the same three
+6. **Bump.** A "Bump development version to <next>" PR changes the same three
    lines as step 1.
 
 ## Periodic checks
