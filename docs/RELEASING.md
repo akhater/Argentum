@@ -85,3 +85,12 @@ A release is a merge commit on `main`, published in this order.
    ask again once.
 5. **Bump.** A "Bump development version to <next>" PR changes the same three
    lines as step 1.
+
+## Periodic checks
+
+- **Workflow action pins.** Every third-party action in `.github/workflows/` and
+  `.github/actions/` is pinned to a full commit sha, with the tag it was taken
+  from in a trailing comment. Nothing updates them on its own: review them at each
+  release (`git grep -n "uses: .*@[0-9a-f]\{40\}"`) and move a pin by resolving
+  the new tag with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>`. The
+  `tauri-action` pin is a commit from its `dev` branch; its FIXME says why.

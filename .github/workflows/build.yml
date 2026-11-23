@@ -22,9 +22,6 @@ on:
       bundles:
         required: false
         type: string
-      upload-artifacts:
-        required: false
-        type: boolean
       repository:
         required: false
         type: string
@@ -35,29 +32,32 @@ on:
 
 jobs:
   build:
+    # tauri-action attaches the installers to the release; the caller grants the same.
+    permissions:
+      contents: write
     runs-on: ${{ inputs.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
 
       # The toolchain is the one in src-tauri/rust-toolchain.toml; rust-src-dir makes the action read it.
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           rustflags: ''
           rust-src-dir: src-tauri
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           key: ${{ inputs.platform }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
@@ -142,7 +142,7 @@ jobs:
         name: Build with tauri-action
         # FIXME set this back to a release major version, ex. v0 . This is a commit from the `dev` branch which includes PR
         # https://github.com/tauri-apps/tauri-action/pull/1099 , adding the assetNamePattern feature.
-        uses: tauri-apps/tauri-action@cf3eb9b18add8548a40584695215c80ab7274f31
+        uses: tauri-apps/tauri-action@cf3eb9b18add8548a40584695215c80ab7274f31 # dev branch, see FIXME
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NO_STRIP: ${{ startsWith(inputs.platform, 'ubuntu') }}
@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload Windows Artifacts
         if: ${{ startsWith(inputs.platform, 'windows') && inputs.release-id == '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ inputs.asset-prefix }}_${{ inputs.platform }}${{ inputs.target && format('_{0}', inputs.target) || '' }}_artifacts
           path: |
@@ -189,7 +189,7 @@ jobs:
 
       - name: Upload Linux/macOS Artifacts
         if: ${{ !startsWith(inputs.platform, 'windows') && inputs.release-id == '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ inputs.asset-prefix }}_${{ inputs.platform }}${{ inputs.target && format('_{0}', inputs.target) || '' }}_artifacts
           path: |
