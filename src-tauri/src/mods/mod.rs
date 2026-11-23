@@ -145,6 +145,7 @@ pub mod redecode;
 #[cfg(test)]
 mod render_check;
 pub mod restore;
+pub mod retired_keys;
 pub mod rr_demosaic;
 pub mod rt_profiles;
 pub mod salvage;
