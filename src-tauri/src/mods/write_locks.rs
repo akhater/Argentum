@@ -29,13 +29,34 @@ use crate::image_processing::ImageMetadata;
 const SIDECAR_STRIPES: usize = 64;
 static SIDECAR_LOCKS: [Mutex<()>; SIDECAR_STRIPES] = [const { Mutex::new(()) }; SIDECAR_STRIPES];
 
-/// Held while one pass reads, changes and writes `sidecar`.
-pub fn lock_sidecar(sidecar: &Path) -> MutexGuard<'static, ()> {
+fn stripe_of(sidecar: &Path) -> usize {
     let mut hasher = DefaultHasher::new();
     sidecar.hash(&mut hasher);
-    SIDECAR_LOCKS[hasher.finish() as usize % SIDECAR_STRIPES]
+    hasher.finish() as usize % SIDECAR_STRIPES
+}
+
+fn lock_stripe(stripe: usize) -> MutexGuard<'static, ()> {
+    SIDECAR_LOCKS[stripe]
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Held while one pass reads, changes and writes `sidecar`.
+pub fn lock_sidecar(sidecar: &Path) -> MutexGuard<'static, ()> {
+    lock_stripe(stripe_of(sidecar))
+}
+
+/// Held while a move or other pass handles all of `sidecars` (a photo's edit and
+/// its virtual copies'). Two sidecars on one stripe are locked once (a second
+/// take would wait for itself) and stripes are taken in order, so two such
+/// passes never wait for each other. Ours.
+pub fn lock_sidecars<'a>(
+    sidecars: impl IntoIterator<Item = &'a Path>,
+) -> Vec<MutexGuard<'static, ()>> {
+    let mut stripes: Vec<usize> = sidecars.into_iter().map(stripe_of).collect();
+    stripes.sort_unstable();
+    stripes.dedup();
+    stripes.into_iter().map(lock_stripe).collect()
 }
 
 /// Reads `sidecar`, applies `update` and writes it back, with no other pass on

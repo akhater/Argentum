@@ -93,6 +93,22 @@ enum Arrived {
 }
 
 fn move_photo(disk: &dyn Disk, photo: &PhotoMove) -> Result<(), String> {
+    // No save of this photo's edits (or of a virtual copy's) in between: one
+    // made while the photo is still being copied would be deleted with the
+    // original, or overwritten by an undo. Held until the originals are gone
+    // or the undo is done.
+    let _edits = crate::mods::write_locks::lock_sidecars(
+        photo
+            .files
+            .iter()
+            .map(|(from, _, _)| from.as_path())
+            .filter(|from| from.extension().is_some_and(|e| e == "agdata")),
+    );
+    // A partial file an earlier, killed move left is ours: copy_whole would
+    // overwrite it, but it is not left behind if this move renames instead.
+    for (_, to, _) in &photo.files {
+        let _ = fs::remove_file(partial_name(to));
+    }
     // Everything but the photo, then the photo.
     let own = photo
         .files
@@ -145,12 +161,17 @@ fn arrive(disk: &dyn Disk, from: &Path, to: &Path, keep_source: bool) -> Result<
     })
 }
 
+/// The temporary name a copy to `to` is written under.
+fn partial_name(to: &Path) -> PathBuf {
+    let mut name: OsString = to.file_name().unwrap_or_default().to_os_string();
+    name.push(".argentum-partial");
+    to.with_file_name(name)
+}
+
 /// A copy that reaches `to` only when complete: written under a temporary
 /// name beside it, then renamed. A failure leaves nothing behind.
 fn copy_whole(disk: &dyn Disk, from: &Path, to: &Path) -> Result<(), String> {
-    let mut name: OsString = to.file_name().unwrap_or_default().to_os_string();
-    name.push(".argentum-partial");
-    let partial = to.with_file_name(name);
+    let partial = partial_name(to);
     let done = disk
         .copy(from, &partial)
         .map_err(|e| format!("Move failed during copy for {}: {}", from.display(), e))
@@ -197,6 +218,8 @@ mod tests {
     use std::cell::RefCell;
     use std::collections::BTreeMap;
 
+    type CopyHook = Box<dyn Fn()>;
+
     /// What goes wrong with one named file of the photo.
     #[derive(Clone, Copy, PartialEq, Debug)]
     enum Fault {
@@ -213,10 +236,26 @@ mod tests {
         fault: Option<(&'static str, Fault)>,
         renamed: RefCell<Vec<String>>,
         removed: RefCell<Vec<String>>,
+        /// Nothing can be renamed from folder `b` back into `a`.
+        no_rename_back: bool,
+        /// Nothing can be copied from folder `b` back into `a`.
+        no_copy_back: bool,
+        /// Called before the copy of the file of this name starts.
+        on_copy: Option<(&'static str, CopyHook)>,
     }
 
     fn name_of(path: &Path) -> String {
         path.file_name().unwrap().to_string_lossy().into_owned()
+    }
+
+    fn back_to_a(from: &Path, to: &Path) -> bool {
+        from.parent()
+            .and_then(Path::file_name)
+            .is_some_and(|f| f == "b")
+            && to
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|f| f == "a")
     }
 
     impl Flaky {
@@ -226,6 +265,9 @@ mod tests {
                 fault,
                 renamed: RefCell::new(Vec::new()),
                 removed: RefCell::new(Vec::new()),
+                no_rename_back: false,
+                no_copy_back: false,
+                on_copy: None,
             }
         }
     }
@@ -233,6 +275,9 @@ mod tests {
     impl Disk for Flaky {
         fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
             let from_name = name_of(from);
+            if self.no_rename_back && back_to_a(from, to) {
+                return Err(io::Error::other("cannot go back"));
+            }
             if let Some((file, Fault::NoFinalName)) = self.fault
                 && from_name == format!("{file}.argentum-partial")
             {
@@ -251,6 +296,14 @@ mod tests {
             fs::rename(from, to)
         }
         fn copy(&self, from: &Path, to: &Path) -> io::Result<u64> {
+            if self.no_copy_back && back_to_a(from, to) {
+                return Err(io::Error::other("cannot copy back"));
+            }
+            if let Some((file, call)) = &self.on_copy
+                && name_of(from) == *file
+            {
+                call();
+            }
             if let Some((file, Fault::Locked)) = self.fault
                 && name_of(from) == file
                 && from.parent() != to.parent()
@@ -431,5 +484,103 @@ mod tests {
                 assert_eq!(contents(&source), original(&["IMG.xmp"]));
             }
         }
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_renamed_back_is_copied_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let plan = setup(dir.path(), &FILES);
+        let mut disk = Flaky::new(false, Some(("IMG.CR2", Fault::Locked)));
+        disk.no_rename_back = true;
+        let (_, result) = plan.carry_out_on(&disk);
+
+        assert!(result.is_err());
+        assert_eq!(contents(&dir.path().join("a")), original(&FILES));
+        assert!(contents(&dir.path().join("b")).is_empty());
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_put_back_is_named_and_kept_at_the_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let plan = setup(dir.path(), &FILES);
+        let mut disk = Flaky::new(false, Some(("IMG.CR2", Fault::Locked)));
+        disk.no_rename_back = true;
+        disk.no_copy_back = true;
+        let (renames, result) = plan.carry_out_on(&disk);
+
+        let error = result.unwrap_err();
+        assert!(error.contains("could not put back"), "{error}");
+        assert!(error.contains("IMG.CR2.agdata"), "{error}");
+        assert!(renames.is_empty());
+        // Nothing is deleted: the edits wait at the destination, the photo at home.
+        assert_eq!(contents(&dir.path().join("a")), original(&["IMG.CR2"]));
+        assert_eq!(contents(&dir.path().join("b")), original(&FILES[1..]));
+    }
+
+    #[test]
+    fn a_partial_file_an_earlier_move_left_is_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let plan = setup(dir.path(), &FILES);
+        write(
+            &dir.path().join("b").join("IMG.CR2.agdata.argentum-partial"),
+            "half",
+        );
+        plan.carry_out_on(&Flaky::new(false, None)).1.unwrap();
+
+        assert_eq!(contents(&dir.path().join("b")), original(&FILES));
+    }
+
+    #[test]
+    fn a_save_during_a_move_waits_for_it_and_is_not_lost() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::{Arc, mpsc};
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let plan = setup(dir.path(), &["IMG.CR2", "IMG.CR2.agdata"]);
+        let sidecar = dir.path().join("a").join("IMG.CR2.agdata");
+        let (started_tx, started_rx) = mpsc::channel();
+        let (go_tx, go_rx) = mpsc::channel();
+        let mover = std::thread::spawn(move || {
+            let mut disk = Flaky::new(true, None);
+            disk.on_copy = Some((
+                "IMG.CR2",
+                Box::new(move || {
+                    started_tx.send(()).unwrap();
+                    go_rx.recv().unwrap();
+                }),
+            ));
+            plan.carry_out_on(&disk).1
+        });
+        // The sidecar is copied; the photo is being copied.
+        started_rx.recv().unwrap();
+
+        let saved = Arc::new(AtomicBool::new(false));
+        let saver = {
+            let (saved, sidecar) = (saved.clone(), sidecar.clone());
+            std::thread::spawn(move || {
+                let _lock = crate::mods::write_locks::lock_sidecar(&sidecar);
+                saved.store(true, Ordering::SeqCst);
+                fs::write(&sidecar, "saved").unwrap();
+            })
+        };
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!saved.load(Ordering::SeqCst), "the save did not wait");
+
+        go_tx.send(()).unwrap();
+        mover.join().unwrap().unwrap();
+        saver.join().unwrap();
+
+        assert!(saved.load(Ordering::SeqCst));
+        // The move took the edit as it was, and the save after it was not deleted.
+        assert_eq!(
+            read_in(&dir.path().join("b"), "IMG.CR2.agdata"),
+            "content of IMG.CR2.agdata"
+        );
+        assert_eq!(read_in(&dir.path().join("a"), "IMG.CR2.agdata"), "saved");
+    }
+
+    fn read_in(folder: &Path, name: &str) -> String {
+        fs::read_to_string(folder.join(name)).unwrap()
     }
 }
