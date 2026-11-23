@@ -4034,25 +4034,73 @@ mod tests {
         }
     }
 
-    /// Argentum: on a normal-sized image the per-channel sampler gives the
-    /// same pixels as before the edge handling changed (hash recorded from the
-    /// earlier code).
-    #[test]
-    fn the_per_channel_sampler_is_unchanged_on_a_normal_image() {
-        let (w, h) = (64u32, 48u32);
-        let mut img = Rgb32FImage::new(w, h);
-        for (x, y, p) in img.enumerate_pixels_mut() {
-            let (xf, yf) = (x as f32, y as f32);
-            *p = image::Rgb([xf / 63.0, yf / 47.0, ((x * 7 + y * 13) % 29) as f32 / 28.0]);
+    /// The sampler as it was before the edge handling changed, with checked
+    /// indexing so a read past the buffer is `None`, not a read.
+    fn earlier_sampler(
+        raw: &[f32],
+        (w, h): (usize, usize),
+        (tx, ty): (f32, f32),
+        channel: usize,
+    ) -> Option<f32> {
+        let x_clamped = tx.clamp(0.0, w as f32 - 1.0);
+        let y_clamped = ty.clamp(0.0, h as f32 - 1.0);
+        let mut x0 = x_clamped.floor() as usize;
+        let mut y0 = y_clamped.floor() as usize;
+        if x0 >= w - 1 {
+            x0 = w.saturating_sub(2);
         }
-        let out = warp_image_geometry(&DynamicImage::ImageRgb32F(img), tca_params()).to_rgb32f();
-        let mut hash = 0xcbf29ce484222325u64;
-        for v in out.as_raw() {
-            for b in v.to_bits().to_le_bytes() {
-                hash = (hash ^ b as u64).wrapping_mul(0x100000001b3);
+        if y0 >= h - 1 {
+            y0 = h.saturating_sub(2);
+        }
+        let (wx, wy) = (x_clamped - x0 as f32, y_clamped - y0 as f32);
+        let stride = w * 3;
+        let p00 = *raw.get(y0 * stride + x0 * 3 + channel)?;
+        let p10 = *raw.get(y0 * stride + x0 * 3 + 3 + channel)?;
+        let p01 = *raw.get((y0 + 1) * stride + x0 * 3 + channel)?;
+        let p11 = *raw.get((y0 + 1) * stride + x0 * 3 + 3 + channel)?;
+        let top = p00 * (1.0 - wx) + p10 * wx;
+        let bot = p01 * (1.0 - wx) + p11 * wx;
+        Some(top * (1.0 - wy) + bot * wy)
+    }
+
+    /// Argentum: the per-channel sampler gives, bit for bit, what it gave
+    /// before the edge handling changed wherever the old one could read; the
+    /// two differ only where the old one read past the buffer.
+    #[test]
+    fn the_per_channel_sampler_matches_the_earlier_one_where_that_could_read() {
+        for (w, h) in [(64usize, 48usize), (2, 2), (2, 9), (9, 2), (1, 8), (8, 1), (1, 1)] {
+            let raw: Vec<f32> = (0..w * h * 3).map(|i| ((i * 7) % 29) as f32 / 28.0).collect();
+            let ctx = TcaContext {
+                src_raw: &raw,
+                src_width: w,
+                src_height: h,
+                cx: w as f32 / 2.0,
+                cy: h as f32 / 2.0,
+            };
+            for yi in -2..(h as i32 * 4 + 2) {
+                for xi in -2..(w as i32 * 4 + 2) {
+                    let (x, y) = (xi as f32 * 0.25, yi as f32 * 0.25);
+                    let mut out = [0.0f32; 3];
+                    interpolate_pixel_with_tca(&ctx, x, y, 1.01, 0.99, &mut out);
+                    let targets = [
+                        (ctx.cx + (x - ctx.cx) * 1.01, ctx.cy + (y - ctx.cy) * 1.01),
+                        (x, y),
+                        (ctx.cx + (x - ctx.cx) * 0.99, ctx.cy + (y - ctx.cy) * 0.99),
+                    ];
+                    for (c, t) in targets.into_iter().enumerate() {
+                        assert!(out[c].is_finite(), "{w}x{h} at {x},{y}");
+                        match earlier_sampler(&raw, (w, h), t, c) {
+                            Some(old) => assert_eq!(
+                                out[c].to_bits(),
+                                old.to_bits(),
+                                "{w}x{h} at {x},{y} channel {c}"
+                            ),
+                            None => assert!(w == 1 || h == 1, "{w}x{h} at {x},{y}"),
+                        }
+                    }
+                }
             }
         }
-        assert_eq!(hash, 14796702225879000652, "recorded from the earlier code");
     }
 
     /// Argentum: the Lens Correction eye closed switches every part off and
