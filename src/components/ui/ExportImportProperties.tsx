@@ -118,38 +118,5 @@ export enum Status {
   Success = 'success',
 }
 
-export interface ExportPreset {
-  id: string;
-  name: string;
-  fileFormat: string;
-  jpegQuality: number;
-  dpi?: number;
-  enableResize: boolean;
-  resizeMode: string;
-  resizeValue: number;
-  dontEnlarge: boolean;
-  enablePad?: boolean;
-  padRatioWidth?: number;
-  padRatioHeight?: number;
-  padColor?: string;
-  enableBorder?: boolean;
-  borderBasis?: string;
-  borderHorizontalPercent?: number;
-  borderVerticalPercent?: number;
-  borderColor?: string;
-  keepMetadata: boolean;
-  preserveTimestamps: boolean;
-  stripGps: boolean;
-  exportMasks?: boolean;
-  preserveFolders?: boolean;
-  filenameTemplate: string;
-  enableWatermark: boolean;
-  watermarkPath: string | null;
-  watermarkAnchor: string;
-  watermarkScale: number;
-  watermarkSpacing: number;
-  watermarkOpacity: number;
-  lastExportPath?: string;
-  destinationType?: string;
-  subfolder?: string;
-}
+// Generated from the Rust type the settings file stores (src-tauri/src/app_settings.rs).
+export type { ExportPreset } from '../../argentum/ag.generated';
