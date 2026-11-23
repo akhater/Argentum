@@ -1,9 +1,20 @@
 #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
 use mimalloc::MiMalloc;
 
-#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+#[cfg(not(any(test, all(target_os = "windows", target_arch = "aarch64"))))]
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
+
+// The lib's tests run mimalloc under a counter (`mods/mem_probe.rs`), which
+// counts nothing until a test measures.
+#[cfg(test)]
+#[global_allocator]
+static GLOBAL: mods::mem_probe::Counting = mods::mem_probe::Counting(
+    #[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+    MiMalloc,
+    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+    std::alloc::System,
+);
 
 // Like println!/eprintln!, but ignores write errors: when stdout/stderr is a
 // closed pipe (e.g. `RapidRAW export ... | head`), println! panics, which
