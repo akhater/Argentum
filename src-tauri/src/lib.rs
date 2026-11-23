@@ -2355,7 +2355,7 @@ fn run_app() {
             mask_cache: Mutex::new(crate::mods::mask_cache::MaskCache::default()),
             patch_cache: Mutex::new(HashMap::new()),
             geometry_cache: Mutex::new(HashMap::new()),
-            thumbnail_geometry_cache: Mutex::new(HashMap::new()),
+            thumbnail_geometry_cache: Mutex::new(Default::default()),
             lens_db: Default::default(),
             load_image_generation: Arc::new(AtomicUsize::new(0)),
             full_warped_cache: Mutex::new(None),

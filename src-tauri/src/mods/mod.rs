@@ -168,6 +168,7 @@ pub mod startup;
 pub mod startup_marks;
 pub mod super_resolution;
 pub mod text_mask;
+pub mod thumbnail_geometry_cache;
 pub mod tif_raw;
 pub mod touch_up;
 #[cfg(test)]
