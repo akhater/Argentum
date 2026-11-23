@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Panel } from '../components/ui/AppProperties';
-import { DEFAULT_PANEL_WIDTH, readWorkspace, useUIStore } from './useUIStore';
+import { DEFAULT_LEFT_PANEL_WIDTH_PX, DEFAULT_RIGHT_PANEL_WIDTH_PX, readWorkspace, useUIStore } from './useUIStore';
 
 // A panel's key or menu item opens the column the Modern window shows it in (argentum/modern/panels.ts).
 describe('setPanel', () => {
@@ -27,11 +27,12 @@ describe('setPanel', () => {
 });
 
 describe('Reset Layout', () => {
-  it('gives back only the two default widths', () => {
+  it('gives back only the two default widths, the designed 268 and 330', () => {
     useUIStore.setState({ leftPanelWidth: 500, rightPanelWidth: 600 });
-    const defaults = { leftPanelWidth: DEFAULT_PANEL_WIDTH, rightPanelWidth: DEFAULT_PANEL_WIDTH };
+    const defaults = { leftPanelWidth: 268, rightPanelWidth: 330 };
     expect(useUIStore.getState().resetWorkspaceLayout()).toEqual(defaults);
-    expect(useUIStore.getState().leftPanelWidth).toBe(DEFAULT_PANEL_WIDTH);
+    expect(useUIStore.getState().leftPanelWidth).toBe(DEFAULT_LEFT_PANEL_WIDTH_PX);
+    expect(useUIStore.getState().rightPanelWidth).toBe(DEFAULT_RIGHT_PANEL_WIDTH_PX);
     expect(useUIStore.getState().activePanel).toBe(Panel.Adjustments);
   });
 
@@ -55,10 +56,36 @@ describe('readWorkspace', () => {
     expect(readWorkspace(saved)).toEqual({ leftPanelWidth: 280, rightPanelWidth: 360 });
   });
 
-  it('uses the default width for a missing workspace', () => {
-    expect(readWorkspace(undefined)).toEqual({
-      leftPanelWidth: DEFAULT_PANEL_WIDTH,
-      rightPanelWidth: DEFAULT_PANEL_WIDTH,
+  it('uses the default widths for a missing workspace', () => {
+    expect(readWorkspace(undefined)).toEqual({ leftPanelWidth: 268, rightPanelWidth: 330 });
+  });
+
+  it('starts a saved legacy default (350) at each column default', () => {
+    expect(readWorkspace({ leftPanelWidth: 350, rightPanelWidth: 350 })).toEqual({
+      leftPanelWidth: 268,
+      rightPanelWidth: 330,
     });
+  });
+
+  it('keeps 320 and any other saved width as they are', () => {
+    expect(readWorkspace({ leftPanelWidth: 320, rightPanelWidth: 320 })).toEqual({
+      leftPanelWidth: 320,
+      rightPanelWidth: 320,
+    });
+    expect(readWorkspace({ leftPanelWidth: 300, rightPanelWidth: 360 })).toEqual({
+      leftPanelWidth: 300,
+      rightPanelWidth: 360,
+    });
+  });
+});
+
+describe('reopening a hidden column', () => {
+  it('opens a narrow column at its own default', () => {
+    useUIStore.setState({
+      uiVisibility: { filmstrip: true, leftPanel: false, rightPanel: false },
+      leftPanelWidth: 300,
+    });
+    useUIStore.getState().setPanel(Panel.FolderTree);
+    expect(useUIStore.getState().leftPanelWidth).toBe(268);
   });
 });

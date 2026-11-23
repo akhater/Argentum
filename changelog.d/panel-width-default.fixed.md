@@ -1,0 +1,2 @@
+- New installs and Reset layout start the side panels at their designed widths, 268 px for the left column and 330 px for the right, in the Modern window.
+- Panels still at the old starting width (320 px in both columns) move to the designed widths once; widths you set yourself are kept.

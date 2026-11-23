@@ -391,13 +391,42 @@ pub struct WorkspaceState {
     pub right_panel_width: u32,
 }
 
+/// Starting width of the left column (the Modern window's design): `DEFAULT_LEFT_PANEL_WIDTH` in
+/// src/store/useUIStore.ts, kept equal by a test below (the generated contract carries types,
+/// not constants).
+pub const DEFAULT_LEFT_PANEL_WIDTH_PX: u32 = 268;
+/// Starting width of the right panel, the same way as `DEFAULT_LEFT_PANEL_WIDTH_PX`.
+pub const DEFAULT_RIGHT_PANEL_WIDTH_PX: u32 = 330;
+
 impl Default for WorkspaceState {
     fn default() -> Self {
         Self {
-            left_panel_width: 320,
-            right_panel_width: 320,
+            left_panel_width: DEFAULT_LEFT_PANEL_WIDTH_PX,
+            right_panel_width: DEFAULT_RIGHT_PANEL_WIDTH_PX,
         }
     }
+}
+
+/// The widths an earlier release wrote on every fresh install, both columns at 320. A workspace
+/// still holding exactly this pair was never touched, so it moves to the designed widths.
+/// A pair with either column changed is the user's own and stays. (The interface's old 350
+/// default is a separate, per-column rule in src/store/useUIStore.ts, LEGACY_PANEL_WIDTHS_PX.)
+const LEGACY_FRESH_WORKSPACE_WIDTHS_PX: (u32, u32) = (320, 320);
+
+/// Moves an untouched workspace to the designed widths, once. Returns true when the settings
+/// changed. Once `panel_widths_migrated_v1` is set (after the first load), nothing here runs
+/// again, so a 320 / 320 the user sets later is kept.
+pub fn migrate_panel_widths(settings: &mut AppSettings) -> bool {
+    if settings.panel_widths_migrated_v1.unwrap_or(false) {
+        return false;
+    }
+    let workspace = &mut settings.workspace;
+    if (workspace.left_panel_width, workspace.right_panel_width) == LEGACY_FRESH_WORKSPACE_WIDTHS_PX {
+        workspace.left_panel_width = DEFAULT_LEFT_PANEL_WIDTH_PX;
+        workspace.right_panel_width = DEFAULT_RIGHT_PANEL_WIDTH_PX;
+    }
+    settings.panel_widths_migrated_v1 = Some(true);
+    true
 }
 
 pub fn default_linear_raw_mode() -> String {
@@ -478,6 +507,10 @@ pub struct AppSettings {
     pub linux_gpu_optimization: Option<bool>,
     #[serde(default)]
     pub linux_gpu_optimization_migrated_v1: Option<bool>,
+    /// Set once the side-panel widths were checked against the designed defaults (see
+    /// `migrate_panel_widths`); after that a width the user sets is never moved by the migration.
+    #[serde(default)]
+    pub panel_widths_migrated_v1: Option<bool>,
     #[serde(default)]
     pub library_view_mode: Option<String>,
     #[serde(default = "default_export_presets")]
@@ -599,6 +632,7 @@ impl Default for AppSettings {
             processing_backend: Some("auto".to_string()),
             linux_gpu_optimization: Some(false),
             linux_gpu_optimization_migrated_v1: Some(true),
+            panel_widths_migrated_v1: Some(true),
             library_view_mode: Some("flat".to_string()),
             export_presets: default_export_presets(),
             my_lenses: Some(Vec::new()),
@@ -704,6 +738,10 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         settings_modified = true;
     }
 
+    if migrate_panel_widths(&mut settings) {
+        settings_modified = true;
+    }
+
     #[cfg(target_os = "linux")]
     if !settings.linux_gpu_optimization_migrated_v1.unwrap_or(false) {
         if settings.linux_gpu_optimization == Some(true) {
@@ -792,5 +830,123 @@ mod cloud_provider_tests {
             assert!(!retire_cloud_provider(&mut s));
             assert_eq!(s.ai_provider.as_deref(), Some(p));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The number after `export const <name> =` in src/store/useUIStore.ts.
+    fn interface_constant(name: &str) -> u32 {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/store/useUIStore.ts");
+        let source = std::fs::read_to_string(path).unwrap();
+        let prefix = format!("export const {name} =");
+        let line = source.lines().find(|l| l.starts_with(&prefix)).unwrap();
+        line.split('=')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .trim_end_matches(';')
+            .trim()
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn default_panel_widths_equal_the_ones_in_the_interface() {
+        let workspace = WorkspaceState::default();
+        assert_eq!(interface_constant("DEFAULT_LEFT_PANEL_WIDTH_PX"), workspace.left_panel_width);
+        assert_eq!(interface_constant("DEFAULT_RIGHT_PANEL_WIDTH_PX"), workspace.right_panel_width);
+        assert_eq!(workspace.left_panel_width, DEFAULT_LEFT_PANEL_WIDTH_PX);
+        assert_eq!(workspace.right_panel_width, DEFAULT_RIGHT_PANEL_WIDTH_PX);
+    }
+
+    fn settings_with_widths(left: u32, right: u32, migrated: Option<bool>) -> AppSettings {
+        AppSettings {
+            workspace: WorkspaceState {
+                left_panel_width: left,
+                right_panel_width: right,
+            },
+            panel_widths_migrated_v1: migrated,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_fresh_default_is_the_designed_pair() {
+        let settings = AppSettings::default();
+        assert_eq!(settings.workspace.left_panel_width, 268);
+        assert_eq!(settings.workspace.right_panel_width, 330);
+        assert_eq!(settings.panel_widths_migrated_v1, Some(true));
+    }
+
+    #[test]
+    fn an_untouched_320_pair_moves_to_the_designed_widths_once() {
+        let mut settings = settings_with_widths(320, 320, None);
+        assert!(migrate_panel_widths(&mut settings));
+        assert_eq!(settings.workspace.left_panel_width, 268);
+        assert_eq!(settings.workspace.right_panel_width, 330);
+        assert_eq!(settings.panel_widths_migrated_v1, Some(true));
+    }
+
+    #[test]
+    fn a_320_pair_the_user_set_after_the_migration_stays() {
+        let mut settings = settings_with_widths(320, 320, None);
+        migrate_panel_widths(&mut settings);
+        settings.workspace.left_panel_width = 320;
+        settings.workspace.right_panel_width = 320;
+        assert!(!migrate_panel_widths(&mut settings));
+        assert_eq!(settings.workspace.left_panel_width, 320);
+        assert_eq!(settings.workspace.right_panel_width, 320);
+    }
+
+    /// The settings file 26.44.1 wrote: it predates the flag, so the migration must run on it.
+    fn shipped_26_44_1_settings() -> AppSettings {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/compat/26.44.1/settings.json");
+        let text = std::fs::read_to_string(path).unwrap();
+        serde_json::from_str(&text).unwrap()
+    }
+
+    #[test]
+    fn a_shipped_settings_file_without_the_flag_migrates_once() {
+        let mut settings = shipped_26_44_1_settings();
+        assert_eq!(settings.panel_widths_migrated_v1, None);
+        // The shipped file's own widths are the user's: they stay.
+        let (left, right) = (settings.workspace.left_panel_width, settings.workspace.right_panel_width);
+        assert!(migrate_panel_widths(&mut settings));
+        assert_eq!(settings.panel_widths_migrated_v1, Some(true));
+        assert_eq!((settings.workspace.left_panel_width, settings.workspace.right_panel_width), (left, right));
+        assert!(!migrate_panel_widths(&mut settings));
+    }
+
+    #[test]
+    fn a_shipped_settings_file_at_the_old_default_moves_to_the_designed_widths() {
+        let mut settings = shipped_26_44_1_settings();
+        settings.workspace = WorkspaceState {
+            left_panel_width: 320,
+            right_panel_width: 320,
+        };
+        assert!(migrate_panel_widths(&mut settings));
+        assert_eq!(settings.workspace.left_panel_width, 268);
+        assert_eq!(settings.workspace.right_panel_width, 330);
+    }
+
+    #[test]
+    fn a_pair_with_one_column_changed_stays() {
+        let mut settings = settings_with_widths(320, 400, None);
+        assert!(migrate_panel_widths(&mut settings));
+        assert_eq!(settings.workspace.left_panel_width, 320);
+        assert_eq!(settings.workspace.right_panel_width, 400);
+        assert_eq!(settings.panel_widths_migrated_v1, Some(true));
+    }
+
+    #[test]
+    fn the_legacy_350_is_left_to_the_interface() {
+        let mut settings = settings_with_widths(350, 350, None);
+        assert!(migrate_panel_widths(&mut settings));
+        assert_eq!(settings.workspace.left_panel_width, 350);
+        assert_eq!(settings.workspace.right_panel_width, 350);
     }
 }
