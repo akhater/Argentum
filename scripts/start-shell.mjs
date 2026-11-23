@@ -2,7 +2,7 @@
 // (src/shell): `npm run start:shell`, or `npm run start:shell -- <photo>` to
 // open a RAW at once. `npm run tauri dev` starts today's interface as before.
 //
-// Vite hands VITE_SHELL to the page, and src/shell/switch.tsx opens the shell
+// Vite hands VITE_SHELL to the page, and src/main.tsx opens the shell
 // when it is "new". An environment variable rather than a Tauri config, so
 // going between the two interfaces never rebuilds the Rust side.
 
