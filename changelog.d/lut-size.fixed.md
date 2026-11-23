@@ -1,0 +1,1 @@
+- A LUT file whose declared size does not match its data, or is outside 2 to 256, is refused with a message instead of being imported.

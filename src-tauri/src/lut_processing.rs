@@ -341,6 +341,23 @@ pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result
     Ok(imported_paths)
 }
 
+/// Smallest and largest edge a 3D LUT file may declare. Shared by the .cube,
+/// .3dl and HALD parsers.
+const LUT_MIN_SIZE: u32 = 2;
+const LUT_MAX_SIZE: u32 = 256;
+
+fn check_lut_size(size: u32) -> anyhow::Result<()> {
+    if !(LUT_MIN_SIZE..=LUT_MAX_SIZE).contains(&size) {
+        return Err(anyhow!(
+            "LUT size {} is outside the supported range of {} to {}",
+            size,
+            LUT_MIN_SIZE,
+            LUT_MAX_SIZE
+        ));
+    }
+    Ok(())
+}
+
 fn parse_cube(reader: impl BufRead) -> anyhow::Result<Lut> {
     let mut size: Option<u32> = None;
     let mut data: Vec<f32> = Vec::new();
@@ -423,7 +440,13 @@ fn parse_cube(reader: impl BufRead) -> anyhow::Result<Lut> {
     }
 
     let lut_size = size.ok_or(anyhow!("LUT_3D_SIZE not found in .cube file"))?;
-    let expected_len = (lut_size * lut_size * lut_size * 3) as usize;
+    check_lut_size(lut_size)?;
+    let edge = lut_size as usize;
+    let expected_len = edge
+        .checked_mul(edge)
+        .and_then(|n| n.checked_mul(edge))
+        .and_then(|n| n.checked_mul(3))
+        .ok_or_else(|| anyhow!("LUT_3D_SIZE {} is too large", lut_size))?;
     if data.len() != expected_len {
         return Err(anyhow!(
             "LUT data size mismatch. Expected {} float values (for size {}), but found {}. The file may be corrupt or incomplete.",
@@ -465,6 +488,7 @@ fn parse_3dl(reader: impl BufRead) -> anyhow::Result<Lut> {
     }
     let num_entries = total_values / 3;
     let size = (num_entries as f64).cbrt().round() as u32;
+    check_lut_size(size)?;
 
     if size * size * size != num_entries as u32 {
         return Err(anyhow!(
@@ -488,6 +512,7 @@ pub fn parse_hald(image: DynamicImage) -> anyhow::Result<Lut> {
 
     let total_pixels = width * height;
     let size = (total_pixels as f64).cbrt().round() as u32;
+    check_lut_size(size)?;
 
     if size * size * size != total_pixels {
         return Err(anyhow!(
@@ -1057,5 +1082,63 @@ mod path_tests {
         let up = dir.path().join("sub").join("..").join("Teal..Orange.cube");
         let error = parse_lut_file(&up.to_string_lossy()).unwrap_err();
         assert!(error.to_string().contains("traversal"), "{error}");
+    }
+}
+
+#[cfg(test)]
+mod size_tests {
+    use super::{parse_3dl, parse_cube};
+
+    fn cube_with_size(size: u32) -> String {
+        let mut text = format!("LUT_3D_SIZE {size}\n");
+        for _z in 0..size {
+            for _y in 0..size {
+                for x in 0..size {
+                    let v = x as f32 / (size - 1) as f32;
+                    text.push_str(&format!("{v} 0 0\n"));
+                }
+            }
+        }
+        text
+    }
+
+    #[test]
+    fn a_cube_size_whose_length_overflows_is_refused() {
+        let Err(error) = parse_cube(b"LUT_3D_SIZE 2048\n".as_slice()) else {
+            panic!("size 2048 with no data must be refused");
+        };
+        assert!(error.to_string().contains("2048"), "{error}");
+    }
+
+    #[test]
+    fn a_cube_size_of_zero_or_one_is_refused() {
+        assert!(parse_cube(b"LUT_3D_SIZE 0\n".as_slice()).is_err());
+        assert!(parse_cube(b"LUT_3D_SIZE 1\n0 0 0\n".as_slice()).is_err());
+    }
+
+    #[test]
+    fn a_three_dl_size_of_one_is_refused() {
+        assert!(parse_3dl(b"0 0 0\n".as_slice()).is_err());
+    }
+
+    #[test]
+    fn a_valid_size_two_cube_parses_to_its_data() {
+        let text = "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
+        let lut = parse_cube(text.as_bytes()).expect("valid 2^3 cube");
+        assert_eq!(lut.size, 2);
+        assert_eq!(
+            lut.data,
+            vec![
+                0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0,
+                0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_valid_size_thirty_three_cube_parses() {
+        let lut = parse_cube(cube_with_size(33).as_bytes()).expect("valid 33^3 cube");
+        assert_eq!(lut.size, 33);
+        assert_eq!(lut.data.len(), 33 * 33 * 33 * 3);
     }
 }
