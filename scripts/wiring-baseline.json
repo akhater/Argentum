@@ -2,11 +2,11 @@
   "uncalledCommands": [],
   "uncalledAg": [],
   "cargoPackages": 812,
-  "npmPackages": 362,
+  "npmPackages": 361,
   "dist": {
     "assets/AnimatePresence.js": 4298,
     "assets/App.css": 37904,
-    "assets/App.js": 1527763,
+    "assets/App.js": 1527305,
     "assets/AppProperties.js": 5197,
     "assets/Button.js": 126891,
     "assets/CollageModal.js": 30647,

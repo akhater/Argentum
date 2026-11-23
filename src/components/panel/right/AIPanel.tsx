@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
@@ -533,7 +532,7 @@ export default function AIPanel() {
     }
 
     const newContainer: AiPatch = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       invert: false,
       isLoading: false,
       name: name,
@@ -700,14 +699,14 @@ export default function AIPanel() {
   const clonePatchData = (container: AiPatch, options: { invert?: boolean; rename?: boolean } = {}): AiPatch => {
     const clonedContainer = JSON.parse(JSON.stringify(container));
 
-    clonedContainer.id = uuidv4();
+    clonedContainer.id = crypto.randomUUID();
     clonedContainer.invert = options.invert ? !clonedContainer.invert : clonedContainer.invert;
     clonedContainer.isLoading = false;
     clonedContainer.name = options.rename === false ? clonedContainer.name : `${container.name} Copy`;
     clonedContainer.patchData = null;
     clonedContainer.subMasks = clonedContainer.subMasks.map((subMask: SubMask) => ({
       ...subMask,
-      id: uuidv4(),
+      id: crypto.randomUUID(),
     }));
 
     return clonedContainer;
@@ -716,7 +715,7 @@ export default function AIPanel() {
   const cloneSubMaskData = (subMask: SubMask, options: { invert?: boolean; rename?: boolean } = {}): SubMask => {
     const clonedSubMask = JSON.parse(JSON.stringify(subMask));
 
-    clonedSubMask.id = uuidv4();
+    clonedSubMask.id = crypto.randomUUID();
     clonedSubMask.invert = options.invert ? !clonedSubMask.invert : clonedSubMask.invert;
     clonedSubMask.name = options.rename === false ? clonedSubMask.name : `${getSubMaskName(subMask)} Copy`;
 
@@ -975,7 +974,7 @@ export default function AIPanel() {
           const [movedSubMask] = sourceContainer.subMasks.splice(subMaskIndex, 1);
 
           const newContainer: AiPatch = {
-            id: uuidv4(),
+            id: crypto.randomUUID(),
             invert: false,
             isLoading: false,
             name: t('editor.ai.patches.aiEdit', { count: newPatches.length + 1 }),

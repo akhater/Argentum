@@ -12,7 +12,6 @@
  */
 
 import { CopyPlus, Trash2 } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
 import { useCallback } from 'react';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -45,7 +44,7 @@ export function addLight(setAdjustments: SetAdjustments) {
 
 /** A copy of a light, right after it in the list, shown. */
 export function duplicateLight(setAdjustments: SetAdjustments, id: string) {
-  const copyId = uuidv4();
+  const copyId = crypto.randomUUID();
   setAdjustments((prev) => {
     const lights = prev.relightLights || [];
     const index = lights.findIndex((l: RelightLight) => l.id === id);
