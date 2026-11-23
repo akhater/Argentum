@@ -9,7 +9,8 @@ import { toast } from 'react-toastify';
  * After the first open it stays mounted, exactly as the eager dialogs do: each
  * dialog plays its own closing animation and keeps its own state between
  * openings, so unmounting on close would cut those off. While the chunk loads
- * (a local file, a few milliseconds) nothing is drawn.
+ * (a local file, a few milliseconds) nothing is drawn; the hidden marker
+ * lets the UI walk wait for the load.
  *
  * A failed import (dev server only; the packaged app reads local files) closes
  * the dialog and shows an error toast instead of blanking the app.
@@ -35,7 +36,7 @@ export function LazyDialog({
         toast.error('Could not open this window. Please try again.');
       }}
     >
-      <Suspense fallback={null}>{children}</Suspense>
+      <Suspense fallback={<span data-dialog-loading hidden />}>{children}</Suspense>
     </LoadFailure>
   );
 }
