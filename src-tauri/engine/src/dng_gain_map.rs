@@ -36,6 +36,17 @@ use crate::dng_opcodes::{self, Params};
 const VERSION: u32 = 0x0107_0100;
 /// The GainMap opcode's ID.
 const GAIN_MAP: u32 = 9;
+/// Most opcodes a list may declare. A phone's list is a short list of its
+/// GainMaps and little else; the bound is far above that.
+const MAX_OPCODES: u32 = 64;
+/// Most GainMaps applied from one list. A phone writes four, one per colour
+/// of its mosaic, and each map is a pass over the whole image.
+const MAX_GAIN_MAPS: usize = 16;
+/// Most points a map has along each axis. A real lens-shading grid is small;
+/// the bound is far beyond any that a camera writes.
+const MAX_GAIN_POINTS: usize = 256;
+/// Most planes a map has: one per colour of a four-colour mosaic.
+const MAX_GAIN_PLANES: usize = 4;
 
 /// One GainMap: the part of the image it applies to (bottom and right
 /// exclusive, every `pitch` rows and columns), and `points` (vertical,
@@ -187,10 +198,20 @@ impl GainMap {
 /// The list's gain maps, the opcodes skipped left out; `None` when the list
 /// does not parse (it is then not applied at all).
 fn parse(list: &[u8]) -> Option<Vec<GainMap>> {
+    // The declared count is read first, so a list over the bound is refused
+    // before any of its opcodes is read. An unreadable count is left to
+    // `opcodes`, which refuses it.
+    let declared = Params { data: list, at: 0 }.u32().unwrap_or(0);
+    if declared > MAX_OPCODES {
+        return None;
+    }
     let mut out = Vec::new();
     for op in dng_opcodes::opcodes(list)? {
         if op.id == GAIN_MAP && op.version <= VERSION {
             out.extend(gain_map(op.params)?);
+            if out.len() > MAX_GAIN_MAPS {
+                return None;
+            }
         }
     }
     Some(out)
@@ -207,6 +228,11 @@ fn gain_map(data: &[u8]) -> Option<Option<GainMap>> {
     let spacing = [p.f64()?, p.f64()?];
     let origin = [p.f64()?, p.f64()?];
     let planes = p.usize()?;
+    // The bounds come before the sizes are multiplied, so no count can make
+    // them overflow, and before any gain is read.
+    if points.iter().any(|&n| n > MAX_GAIN_POINTS) || planes > MAX_GAIN_PLANES {
+        return None;
+    }
     let n = points[0]
         .checked_mul(points[1])?
         .checked_mul(planes)
@@ -350,6 +376,49 @@ mod tests {
         // A zero pitch.
         let zero = gain_map_params([0, 0, 2, 2, 0], [1, 1], &[2.0]);
         assert_eq!(parse(&list(&[(9, zero)])), None);
+    }
+
+    /// A list that declares more opcodes than the bound is refused before its
+    /// opcodes are read; one at the bound is still read.
+    #[test]
+    fn a_list_declaring_too_many_opcodes_is_not_applied() {
+        let skipped = (3, doubles(&[0.1]));
+        let too_many = vec![skipped.clone(); MAX_OPCODES as usize + 1];
+        assert_eq!(parse(&list(&too_many)), None);
+        let at_bound = vec![skipped; MAX_OPCODES as usize];
+        assert_eq!(parse(&list(&at_bound)), Some(Vec::new()));
+    }
+
+    /// A list with more non-trivial maps than the bound is not applied; one
+    /// at the bound is.
+    #[test]
+    fn a_list_with_too_many_gain_maps_is_not_applied() {
+        let map = (9, gain_map_params([0, 0, 2, 2, 1], [2, 2], &[2.0; 4]));
+        assert_eq!(parse(&list(&vec![map.clone(); MAX_GAIN_MAPS + 1])), None);
+        let parsed = parse(&list(&vec![map; MAX_GAIN_MAPS])).expect("at the bound");
+        assert_eq!(parsed.len(), MAX_GAIN_MAPS);
+    }
+
+    /// A map whose points or planes exceed their bounds is not applied.
+    #[test]
+    fn a_gain_map_with_too_many_points_or_planes_is_not_applied() {
+        let width = MAX_GAIN_POINTS + 1;
+        let wide = gain_map_params([0, 0, 2, 2, 1], [width as u32, 2], &vec![2.0; width * 2]);
+        assert_eq!(parse(&list(&[(9, wide)])), None);
+        let mut planes = longs(&[0, 0, 2, 2, 0, 1, 1, 1, 1, 1]);
+        planes.extend(doubles(&[1.0, 1.0, 0.0, 0.0]));
+        planes.extend(longs(&[MAX_GAIN_PLANES as u32 + 1]));
+        planes.extend(floats(&[2.0; MAX_GAIN_PLANES + 1]));
+        assert_eq!(parse(&list(&[(9, planes)])), None);
+    }
+
+    /// Points times planes overflowing is refused, not wrapped around.
+    #[test]
+    fn a_gain_map_whose_size_overflows_is_not_applied() {
+        let mut p = longs(&[0, 0, 2, 2, 0, 1, 1, 1, u32::MAX, u32::MAX]);
+        p.extend(doubles(&[1.0, 1.0, 0.0, 0.0]));
+        p.extend(longs(&[u32::MAX]));
+        assert_eq!(parse(&list(&[(9, p)])), None);
     }
 
     /// A real phone DNG (AG_RAW): how many maps apply, and the corners'
