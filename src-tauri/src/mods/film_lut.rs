@@ -265,7 +265,7 @@ mod tests {
     /// working RGB, as it comes, for one put on before.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_shader_feeds_a_marked_film_look_v_gamut() {
+    fn gpu_the_shader_feeds_a_marked_film_look_v_gamut() {
         let miss = worst_miss(film_look(true, "default", vec![]), |c| fed_now(c, 0.0));
         assert!(miss < 1.5, "marked: {miss:.2}/255 from the reference");
         let miss = worst_miss(film_look(false, "default", vec![]), |c| c);
@@ -277,7 +277,7 @@ mod tests {
     /// one put on before, at the RAW's own exposure.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_marked_film_look_takes_a_raw_at_its_offset() {
+    fn gpu_a_marked_film_look_takes_a_raw_at_its_offset() {
         for ev in [-0.4f32, 0.5] {
             let renderings = [
                 (dng_standard::MODE, dng_standard::curve_points(ev)),

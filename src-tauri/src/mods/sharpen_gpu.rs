@@ -1744,7 +1744,7 @@ pub(crate) mod tests {
 
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn capture_sharpening_steepens_a_blurred_edge() {
+    fn gpu_capture_sharpening_steepens_a_blurred_edge() {
         let ctx = device(false).expect("no wgpu adapter");
         deconvolution_steepens_the_edge(&ctx);
     }
@@ -1753,8 +1753,8 @@ pub(crate) mod tests {
     /// graphics card (WARP). Every slider in the app already runs that way on
     /// such a machine; this is the proof that sharpening does too.
     #[test]
-    #[ignore = "needs a GPU driver stack; run with --ignored"]
-    fn capture_sharpening_runs_on_the_software_adapter() {
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn gpu_capture_sharpening_runs_on_the_software_adapter() {
         let ctx =
             device(true).expect("no software adapter on this machine - nothing proven either way");
         deconvolution_steepens_the_edge(&ctx);
@@ -1764,7 +1764,7 @@ pub(crate) mod tests {
     /// and compared with the shader along a row.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_unsharp_mask_is_darktables() {
+    fn gpu_the_unsharp_mask_is_darktables() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (128u32, 16u32);
         let px = edge(w, h, 1.5);
@@ -1842,7 +1842,7 @@ pub(crate) mod tests {
 
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_mask_view_shows_edges_white_and_flat_black() {
+    fn gpu_the_mask_view_shows_edges_white_and_flat_black() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (256, 32);
         let px = edge(w, h, 1.0);
@@ -1899,7 +1899,7 @@ pub(crate) mod tests {
     /// carries the settings to the stage, in the real pipeline.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_whole_render_comes_out_sharper() {
+    fn gpu_the_whole_render_comes_out_sharper() {
         let ctx = device(false).expect("no wgpu adapter");
         let off = render(
             &ctx,
@@ -1927,7 +1927,7 @@ pub(crate) mod tests {
     /// Mode 7 reaches the screen as the mask itself, past the tone curve.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_mask_view_survives_the_whole_render() {
+    fn gpu_the_mask_view_survives_the_whole_render() {
         let ctx = device(false).expect("no wgpu adapter");
         let row = render(
             &ctx,
@@ -2676,7 +2676,7 @@ pub(crate) mod tests {
     /// Where nothing is sharpened the picture comes back bit for bit.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_pass_that_moves_nothing_changes_nothing() {
+    fn gpu_a_pass_that_moves_nothing_changes_nothing() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (64u32, 8u32);
         let px: Vec<[f32; 4]> = (0..w * h).map(|_| [0.05, 0.05, 0.05, 1.0]).collect();
@@ -2716,7 +2716,7 @@ pub(crate) mod tests {
     /// negative one softens.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_masks_sharpen_stays_inside_the_mask() {
+    fn gpu_a_masks_sharpen_stays_inside_the_mask() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (256u32, 64u32);
         let px = edge(w, h, 1.5);
@@ -2789,7 +2789,7 @@ pub(crate) mod tests {
     /// inside it and nowhere else.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_masks_own_radius_and_its_mask_view() {
+    fn gpu_a_masks_own_radius_and_its_mask_view() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (256u32, 64u32);
         let px = edge(w, h, 1.5);
@@ -2868,8 +2868,8 @@ pub(crate) mod tests {
     /// Panning sharpens only the strips that come into view, and the result
     /// is the one sharpening the whole picture gives.
     #[test]
-    #[ignore = "needs a GPU; run with --ignored --test-threads=1"]
-    fn panning_matches_sharpening_it_all_at_once() {
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn gpu_panning_matches_sharpening_it_all_at_once() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (2400u32, 1600u32);
         let px = textured(w, h);
@@ -2907,8 +2907,8 @@ pub(crate) mod tests {
     /// Turning the mask view off hands back the sharpened result kept under
     /// it, and the drag preview and the still one do not evict each other.
     #[test]
-    #[ignore = "needs a GPU; run with --ignored --test-threads=1"]
-    fn the_mask_view_and_the_drag_preview_keep_the_result() {
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn gpu_the_mask_view_and_the_drag_preview_keep_the_result() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (512u32, 256u32);
         let src = upload(&ctx, w, h, &textured(w, h));
@@ -2945,7 +2945,7 @@ pub(crate) mod tests {
 
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_region_leaves_the_rest_of_the_picture_alone() {
+    fn gpu_a_region_leaves_the_rest_of_the_picture_alone() {
         let ctx = device(false).expect("no wgpu adapter");
         let (w, h) = (1400, 64);
         let px = edge(w, h, 1.2);

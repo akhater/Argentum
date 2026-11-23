@@ -342,7 +342,7 @@ mod gpu {
     /// CPU by `rm_color_grade::apply` in linear ProPhoto.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_shader_grades_as_the_engine_does() {
+    fn gpu_the_shader_grades_as_the_engine_does() {
         let ctx = device().expect("no wgpu adapter");
         let wb = WhiteBalance::reference();
         let image = image_of(&colours());
@@ -403,7 +403,7 @@ mod gpu {
     /// almost untouched, and an unmarked block still renders with theirs.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn lightroom_s_sepia_reaches_the_mid_greys() {
+    fn gpu_lightroom_s_sepia_reaches_the_mid_greys() {
         let ctx = device().expect("no wgpu adapter");
         let wb = WhiteBalance::reference();
         let image = image_of(&colours());

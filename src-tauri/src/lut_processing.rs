@@ -1031,7 +1031,7 @@ mod tests {
     /// place a look goes on.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_look_whose_file_is_gone_leaves_the_photo_as_it_is() {
+    fn gpu_a_look_whose_file_is_gone_leaves_the_photo_as_it_is() {
         const PATCHES: [[f32; 3]; 4] = [
             [0.18, 0.18, 0.18],
             [0.9, 0.9, 0.9],

@@ -7,8 +7,9 @@ name: App
 # patterns FXC, DirectX 12's compiler, cannot build.
 #
 # The tests that need a GPU or test photos are #[ignore]d and skipped there;
-# dx12.yml runs the shaders on a software GPU. The golden photos run after
-# them, on the same build (see below).
+# the GPU-only ones, the golden photos and the FlashRaw check run after them,
+# on the same build and a software GPU (see below). dx12.yml runs the shaders
+# on DirectX 12.
 on:
   push:
     branches:
@@ -129,4 +130,29 @@ jobs:
             "$bin" mods::raw_decoder::tests::flashraw_gives_rawlers_image --ignored --exact --nocapture
           else
             cargo test --lib mods::raw_decoder::tests::flashraw_gives_rawlers_image -- --ignored --exact --nocapture
+          fi
+
+      # THE GPU-ONLY TESTS (src-tauri/src/mods/gpu_tests.rs): the #[ignore]d
+      # tests that need a GPU and nothing else, on the software GPU the samples
+      # step installed. A test is in the set when its path contains `::gpu_`
+      # and it carries the one shared ignore reason, which a unit test in
+      # the lib tests keeps together: a new GPU-only test written that way runs here without
+      # this file changing. One at a time (--test-threads=1): two of the sharpen_gpu
+      # tests are written to be run that way, and gpu_tests.rs documents the
+      # same command.
+      #
+      # Left out by name: a test that passes on a real GPU and cannot pass on a
+      # software one. Each is listed here with its reason; none so far.
+      - name: GPU tests
+        if: steps.look-samples.outputs.ok == 'true'
+        working-directory: src-tauri
+        timeout-minutes: 25
+        env:
+          WGPU_BACKEND: vulkan
+        run: |
+          bin=$(ls -t target/debug/deps/argentum_lib-* 2>/dev/null | grep -v '\.d$' | head -n 1)
+          if [ -x "$bin" ]; then
+            "$bin" --ignored ::gpu_ --test-threads=1
+          else
+            cargo test --lib -- --ignored ::gpu_ --test-threads=1
           fi

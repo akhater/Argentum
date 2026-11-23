@@ -670,7 +670,7 @@ pub(crate) mod tests {
 
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn noise_reduction_runs_before_sharpening_here() {
+    fn gpu_noise_reduction_runs_before_sharpening_here() {
         let ctx = device(false).expect("a GPU");
         noise_reduction_runs_before_sharpening(&ctx);
         a_masks_own_noise_reduction_still_runs(&ctx);
