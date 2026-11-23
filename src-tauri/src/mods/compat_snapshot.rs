@@ -546,6 +546,22 @@ mod tests {
     }
 
     #[test]
+    fn a_field_added_since_the_snapshot_passes_at_zero_and_fails_otherwise() {
+        let was = "[a / geometry]\nlens_dist_k1 = 0\n";
+        // A field the printer learned later, resolving to zero: the render
+        // is what it was, so the older snapshot stays valid.
+        let added_zero = "[a / geometry]\nlens_dist_k1 = 0\ntca_cr = 0\ntca_bb = 0\n";
+        assert!(differences(was, added_zero).is_empty());
+        // The same field resolving to a value: an old edit now renders
+        // differently, which must stop the test.
+        let added_value = "[a / geometry]\nlens_dist_k1 = 0\ntca_cr = 0.002\n";
+        assert_eq!(
+            differences(was, added_value),
+            ["[a / geometry] tca_cr: was (none), now 0.002"]
+        );
+    }
+
+    #[test]
     fn a_mask_cell_may_move_half_a_level() {
         let was = "[a / mask 0 \"M\" radial]\nrow 00 = 10.0 20.0\n";
         assert!(differences(was, "[a / mask 0 \"M\" radial]\nrow 00 = 10.4 20.0\n").is_empty());
