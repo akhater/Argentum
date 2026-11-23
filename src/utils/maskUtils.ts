@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { Mask, SubMaskMode, formatMaskTypeName } from '../components/panel/right/Masks';
 import { ImageDimensions } from '../hooks/useImageRenderSize';
 
@@ -9,7 +8,7 @@ export const createSubMask = (
 ) => {
   const { width, height } = imageDimensions || { width: 1000, height: 1000 };
   const common = {
-    id: uuidv4(),
+    id: crypto.randomUUID(),
     visible: true,
     invert: false,
     opacity: 100,
