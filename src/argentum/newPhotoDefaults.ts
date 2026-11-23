@@ -27,6 +27,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { ag } from './ag';
 import { ask, type Found } from './lensBuiltin';
+import { stillOpen } from './stillOpen';
 import type { Adjustments } from '../utils/adjustments';
 
 /** A row of My Lenses (`MyLens` in src-tauri/src/app_settings.rs). */
@@ -67,12 +68,6 @@ async function onOpen(path: string, exif: Record<string, string>, isRaw: boolean
 function unanswered(err: unknown): null {
   console.warn('New photo defaults: a question to the app failed:', err);
   return null;
-}
-
-/** The edit as it is now, when `path` is still the open photo. */
-function stillOpen(path: string) {
-  const { selectedImage, adjustments, setEditor } = useEditorStore.getState();
-  return selectedImage?.path === path ? { adjustments, setEditor } : null;
 }
 
 async function profileOnOpen(path: string, exif: Record<string, string>, isRaw: boolean, found: Found) {
