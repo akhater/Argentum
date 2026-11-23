@@ -2299,6 +2299,9 @@ fn run_app() {
 
                         *pending_state_for_handler.lock().unwrap() = Some(state);
                     }
+                    tauri::WindowEvent::CloseRequested { .. } => {
+                        mods::close_failsafe::arm(&window_for_handler); // Argentum: the page may not answer
+                    }
                     _ => {}
                 });
             }
