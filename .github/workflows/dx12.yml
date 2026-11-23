@@ -14,27 +14,43 @@ name: DirectX 12
 #
 # Runs only when a file that goes into a GPU pipeline changes: the shaders, the
 # files that build the pipelines, and the one that composes the main shader.
+# GPU modules are matched by name (`*gpu*.rs`); any other file that builds a
+# shader module or pipeline needs its path added here.
 # A wgpu update is worth a run by hand from the Actions tab.
 on:
   push:
     branches:
       - main
     paths:
-      - 'src-tauri/src/shaders/**'
-      - 'src-tauri/src/gpu_processing.rs'
-      - 'src-tauri/src/mods/sharpen_gpu.rs'
-      - 'src-tauri/src/mods/denoise_gpu.rs'
-      - 'src-tauri/src/mods/input_stage.rs'
+      - 'src-tauri/**/*.wgsl'
+      - 'src-tauri/**/*gpu*.rs'
+      - 'src-tauri/engine/src/pixels/**'
+      - 'src-tauri/engine/src/tools/rr_basic_tone/**'
+      - 'src-tauri/engine/tests/common/app_shader.rs'
+      - 'src-tauri/engine/tests/parity_basic_tone.rs'
+      - 'src-tauri/src/mods/camera_look.rs'
       - 'src-tauri/src/mods/export_precision.rs'
+      - 'src-tauri/src/mods/film_lut.rs'
+      - 'src-tauri/src/mods/input_stage.rs'
+      - 'src-tauri/src/mods/look_check/**'
+      - 'src-tauri/src/mods/look_grain.rs'
+      - 'src-tauri/src/mods/shader_check.rs'
       - '.github/workflows/dx12.yml'
   pull_request:
     paths:
-      - 'src-tauri/src/shaders/**'
-      - 'src-tauri/src/gpu_processing.rs'
-      - 'src-tauri/src/mods/sharpen_gpu.rs'
-      - 'src-tauri/src/mods/denoise_gpu.rs'
-      - 'src-tauri/src/mods/input_stage.rs'
+      - 'src-tauri/**/*.wgsl'
+      - 'src-tauri/**/*gpu*.rs'
+      - 'src-tauri/engine/src/pixels/**'
+      - 'src-tauri/engine/src/tools/rr_basic_tone/**'
+      - 'src-tauri/engine/tests/common/app_shader.rs'
+      - 'src-tauri/engine/tests/parity_basic_tone.rs'
+      - 'src-tauri/src/mods/camera_look.rs'
       - 'src-tauri/src/mods/export_precision.rs'
+      - 'src-tauri/src/mods/film_lut.rs'
+      - 'src-tauri/src/mods/input_stage.rs'
+      - 'src-tauri/src/mods/look_check/**'
+      - 'src-tauri/src/mods/look_grain.rs'
+      - 'src-tauri/src/mods/shader_check.rs'
       - '.github/workflows/dx12.yml'
   workflow_dispatch:
 
