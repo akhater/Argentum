@@ -23,9 +23,12 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+#[cfg(test)]
+use std::time::Instant;
+
+use super::ai_session::IdleSlot;
 
 use base64::{Engine as _, engine::general_purpose};
 use image::imageops::FilterType;
@@ -76,15 +79,13 @@ pub struct Frame {
 }
 
 struct Loaded {
-    dir: PathBuf,
     session: Session,
     analysis: Option<(u64, Analysis)>,
     /// The photo's embedding alone, when Object came before any analysis.
     embedding: Option<(u64, Embedding)>,
-    used: Instant,
 }
 
-static LOADED: Mutex<Option<Loaded>> = Mutex::new(None);
+static LOADED: IdleSlot<Loaded> = IdleSlot::new("selection models");
 
 /// Which photo and geometry a picture is: the analysis is reused while it stays the same.
 pub fn picture_key(path: &str, js_adjustments: &serde_json::Value) -> u64 {
@@ -283,25 +284,23 @@ fn with_models<T>(
     dir: &Path,
     work: impl FnOnce(&mut Loaded) -> Result<T, String>,
 ) -> Result<T, String> {
-    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
-    if slot.as_ref().is_none_or(|l| l.dir != dir) {
-        let options = LoadOptions {
-            // The runtime the app's other models already use (lib.rs sets it).
-            runtime_library: std::env::var_os("ORT_DYLIB_PATH").map(PathBuf::from),
-            ..LoadOptions::default()
-        };
-        let session = Subject::load_with(dir, &options).map_err(|e| format!("{e:?}"))?;
-        *slot = Some(Loaded {
-            dir: dir.to_path_buf(),
-            session,
-            analysis: None,
-            embedding: None,
-            used: Instant::now(),
-        });
-    }
-    let loaded = slot.as_mut().ok_or("the selection models did not load")?;
-    loaded.used = Instant::now();
-    work(loaded)
+    LOADED.with(
+        dir,
+        || {
+            let options = LoadOptions {
+                // The runtime the app's other models already use (lib.rs sets it).
+                runtime_library: std::env::var_os("ORT_DYLIB_PATH").map(PathBuf::from),
+                ..LoadOptions::default()
+            };
+            let session = Subject::load_with(dir, &options).map_err(|e| format!("{e:?}"))?;
+            Ok(Loaded {
+                session,
+                analysis: None,
+                embedding: None,
+            })
+        },
+        work,
+    )
 }
 
 /// The coverage at the working image's size, as the mask stores it.
@@ -349,18 +348,6 @@ pub(super) fn png_data_url(mask: &GrayImage) -> Result<String, String> {
         "data:image/png;base64,{}",
         general_purpose::STANDARD.encode(bytes.get_ref())
     ))
-}
-
-/// Let the models go once nothing has asked for a while (memory.rs's watcher).
-pub fn unload_if_idle(after: Duration) -> bool {
-    let Ok(mut slot) = LOADED.try_lock() else {
-        return false;
-    };
-    if slot.as_ref().is_some_and(|l| l.used.elapsed() > after) {
-        *slot = None;
-        return true;
-    }
-    false
 }
 
 #[cfg(test)]

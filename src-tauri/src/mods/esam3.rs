@@ -16,9 +16,8 @@
 //! boxes (`run_esam3_boxes`). The encoder and decoder are loaded once for
 //! both, with the last picture encoded, and let go when idle.
 
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use super::ai_session::IdleSlot;
+use std::path::Path;
 
 use anyhow::{Result, anyhow};
 use image::imageops::{self, FilterType};
@@ -97,14 +96,12 @@ pub fn load(path: &Path) -> Result<Session> {
 
 /// The encoder and decoder, with the last picture encoded.
 pub struct Sessions {
-    dir: PathBuf,
     pub encoder: Session,
     pub decoder: Session,
     features: Option<(u64, Features)>,
-    used: Instant,
 }
 
-static LOADED: Mutex<Option<Sessions>> = Mutex::new(None);
+static LOADED: IdleSlot<Sessions> = IdleSlot::new("text and face mask models");
 
 /// Run `work` with the encoder, the decoder and `picture`'s encoding, loading
 /// them from the models folder `dir` and encoding the picture first when they
@@ -116,45 +113,31 @@ pub fn with_picture<T>(
     key: u64,
     work: impl FnOnce(&mut Session, &mut Session, &Features) -> Result<T>,
 ) -> Result<T, String> {
-    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
-    if slot.as_ref().is_none_or(|s| s.dir != dir) {
-        *slot = None;
-        let session = |name: &str| load(&dir.join(name)).map_err(|e| format!("{name}: {e}"));
-        *slot = Some(Sessions {
-            dir: dir.to_path_buf(),
-            encoder: session(IMAGE_ENCODER)?,
-            decoder: session(DECODER)?,
-            features: None,
-            used: Instant::now(),
-        });
-    }
-    let sessions = slot.as_mut().ok_or("EfficientSAM3 did not load")?;
-    sessions.used = Instant::now();
-    if sessions.features.as_ref().map(|(k, _)| *k) != Some(key) {
-        sessions.features = None;
-        let features = encode(picture, &mut sessions.encoder).map_err(|e| e.to_string())?;
-        sessions.features = Some((key, features));
-    }
-    let Sessions {
-        encoder,
-        decoder,
-        features,
-        ..
-    } = sessions;
-    let (_, features) = features.as_ref().ok_or("the picture was not encoded")?;
-    work(encoder, decoder, features).map_err(|e| e.to_string())
-}
-
-/// Let them go once nothing has asked for a while (memory.rs's watcher).
-pub fn unload_if_idle(after: Duration) -> bool {
-    let Ok(mut slot) = LOADED.try_lock() else {
-        return false;
-    };
-    if slot.as_ref().is_some_and(|s| s.used.elapsed() > after) {
-        *slot = None;
-        return true;
-    }
-    false
+    LOADED.with(
+        dir,
+        || {
+            let session = |name: &str| load(&dir.join(name)).map_err(|e| format!("{name}: {e}"));
+            Ok(Sessions {
+                encoder: session(IMAGE_ENCODER)?,
+                decoder: session(DECODER)?,
+                features: None,
+            })
+        },
+        |sessions| {
+            if sessions.features.as_ref().map(|(k, _)| *k) != Some(key) {
+                sessions.features = None;
+                let features = encode(picture, &mut sessions.encoder).map_err(|e| e.to_string())?;
+                sessions.features = Some((key, features));
+            }
+            let Sessions {
+                encoder,
+                decoder,
+                features,
+            } = sessions;
+            let (_, features) = features.as_ref().ok_or("the picture was not encoded")?;
+            work(encoder, decoder, features).map_err(|e| e.to_string())
+        },
+    )
 }
 
 fn sigmoid(value: f32) -> f32 {
