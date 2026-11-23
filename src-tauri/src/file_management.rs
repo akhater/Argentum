@@ -4256,15 +4256,18 @@ pub fn sync_metadata_to_xmp(
         if !create_if_missing {
             return;
         }
-        let skeleton = r#"<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="RapidRAW">
+        let skeleton = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+{}
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
   <rdf:Description rdf:about=""
     xmlns:xmp="http://ns.adobe.com/xap/1.0/"
     xmlns:dc="http://purl.org/dc/elements/1.1/">
   </rdf:Description>
  </rdf:RDF>
-</x:xmpmeta>"#;
+</x:xmpmeta>"#,
+            crate::mods::app_stamp::xmpmeta_open()
+        );
         if let Err(e) = fs::write(&xmp_path, skeleton) {
             log::error!("Failed to create skeleton XMP: {}", e);
             return;

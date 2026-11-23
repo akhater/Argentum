@@ -1686,7 +1686,9 @@ fn write_exif_metadata(
         apply_sidecar_field_overrides(&mut metadata, &map);
     }
 
-    metadata.set_tag(ExifTag::Software("RapidRAW".to_string()));
+    metadata.set_tag(ExifTag::Software(
+        crate::mods::app_stamp::APP_NAME.to_string(),
+    ));
     metadata.set_tag(ExifTag::Orientation(vec![1u16]));
     metadata.set_tag(ExifTag::ColorSpace(vec![1u16]));
     metadata.set_tag(ExifTag::ExifVersion(b"0232".to_vec()));
@@ -1815,11 +1817,12 @@ fn build_export_xmp(xmp: &ExportXmp, source_xmp: Option<&str>) -> Option<String>
 
     Some(format!(
         "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n\
-<x:xmpmeta xmlns:x=\"adobe:ns:meta/\" x:xmptk=\"RapidRAW\">\n \
+{}\n \
 <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n\
 {} </rdf:RDF>\n\
 </x:xmpmeta>\n\
 <?xpacket end=\"w\"?>",
+        crate::mods::app_stamp::xmpmeta_open(),
         description
     ))
 }
@@ -2188,5 +2191,35 @@ mod highlight_mark_tests {
         let image = dir.join("out.dng");
         super::save_primary_metadata(&image, &super::ImageMetadata::default()).unwrap();
         assert_eq!(rule_for(image.to_str()), Rule::LATEST);
+    }
+}
+
+#[cfg(test)]
+mod app_stamp_tests {
+    use super::*;
+
+    /// The export packet names this application as its toolkit and is
+    /// otherwise the packet it always was.
+    #[test]
+    fn the_export_xmp_packet_names_argentum_and_is_otherwise_unchanged() {
+        let xmp = ExportXmp {
+            keywords: Vec::new(),
+            rating: Some("3".to_string()),
+            label: None,
+        };
+        let packet = build_export_xmp(&xmp, None).expect("a rating makes a packet");
+        let expected = "<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>
+<x:xmpmeta xmlns:x=\"adobe:ns:meta/\" x:xmptk=\"Argentum\">
+ <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">
+  <rdf:Description rdf:about=\"\"
+    xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"
+    xmlns:dc=\"http://purl.org/dc/elements/1.1/\">
+   <xmp:Rating>3</xmp:Rating>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end=\"w\"?>";
+        assert_eq!(packet, expected);
+        assert!(!packet.contains("RapidRAW"));
     }
 }
