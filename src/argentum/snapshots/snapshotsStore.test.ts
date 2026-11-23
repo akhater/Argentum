@@ -56,8 +56,6 @@ describe("a photo's snapshots", () => {
     useSnapshots.getState().keep('IMG.CR2', [snapshot('second')]);
     await vi.waitFor(() => expect(events).toEqual(['start first']));
     releaseFirst();
-    await vi.waitFor(() =>
-      expect(events).toEqual(['start first', 'end first', 'start second', 'end second']),
-    );
+    await vi.waitFor(() => expect(events).toEqual(['start first', 'end first', 'start second', 'end second']));
   });
 });
