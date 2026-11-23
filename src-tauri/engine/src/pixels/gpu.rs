@@ -3,7 +3,6 @@
 
 use std::fmt::Display;
 use std::sync::Arc;
-use std::time::Duration;
 
 use half::f16;
 use rayon::prelude::*;
@@ -12,6 +11,7 @@ use wgpu::util::DeviceExt;
 use super::Shader;
 use crate::contract::RenderTicket;
 use crate::frame::{Frame, Layout};
+use crate::gpu::{band_rows, read_rows, wait};
 use crate::{Error, Gpu, Result, Rgb};
 
 /// The app's guided filter, used in place: its passes are the app's own
@@ -140,11 +140,6 @@ fn texture(
     })
 }
 
-/// Rows per band for a row of `row_bytes`, so a band is about 64 MB.
-fn band_rows(row_bytes: usize) -> u32 {
-    ((64 << 20) / row_bytes.max(1)).max(1) as u32
-}
-
 impl Run {
     /// Compile `shader`. A tool's WGSL that does not compile is refused here,
     /// with what the compiler said.
@@ -228,8 +223,20 @@ impl Run {
             ],
         });
         self.dispatch(&self.linear, &bind_group, size);
-        let texels: Vec<[f32; 4]> = read(&gpu, &out, size)?;
-        Ok(input.with_pixels(texels.par_iter().map(|t| [t[0], t[1], t[2]]).collect()))
+        // The alpha channel is dropped as each band arrives, not kept for the
+        // whole picture.
+        let mut pixels: Vec<[f32; 3]> = Vec::with_capacity(input.pixels.len());
+        read_rows(&gpu, &out, size.0, 0, size.1, |band| {
+            for line in band.lines() {
+                pixels.extend(
+                    bytemuck::cast_slice::<u8, [f32; 4]>(line)
+                        .iter()
+                        .map(|t| [t[0], t[1], t[2]]),
+                );
+            }
+        })
+        .map_err(|e| failed("reading the pixel pass back", e))?;
+        Ok(input.with_pixels(pixels))
     }
 
     /// `input` through the run, as `layout`'s frame of a view: each frame
@@ -423,12 +430,7 @@ fn upload(gpu: &Gpu, rgb: &Rgb) -> Result<wgpu::Texture> {
             },
         );
         let sent = gpu.queue.submit([]);
-        gpu.device
-            .poll(wgpu::PollType::Wait {
-                submission_index: Some(sent),
-                timeout: Some(Duration::from_secs(120)),
-            })
-            .map_err(|e| failed("sending the pixel pass its input", e))?;
+        wait(&gpu.device, Some(sent)).map_err(|e| failed("sending the pixel pass its input", e))?;
     }
     Ok(input)
 }
@@ -441,70 +443,14 @@ fn read<T: bytemuck::Pod>(
     texture: &wgpu::Texture,
     (w, h): (u32, u32),
 ) -> Result<Vec<T>> {
-    let device = &gpu.device;
-    let texel_bytes = texture
-        .format()
-        .block_copy_size(None)
-        .ok_or_else(|| failed("reading the pixel pass back", "a texture with no copy size"))?;
-    let tight = (w * texel_bytes) as usize;
-    let row = (w * texel_bytes).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-        * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-    let rows = band_rows(row as usize).min(h);
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("pixel pass readback"),
-        size: (row * rows) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-    let mut out = Vec::with_capacity(tight * h as usize / std::mem::size_of::<T>());
-    for y0 in (0..h).step_by(rows as usize) {
-        let n = rows.min(h - y0);
-        let mut encoder = device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d { x: 0, y: y0, z: 0 },
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: Some(n),
-                },
-            },
-            wgpu::Extent3d {
-                width: w,
-                height: n,
-                depth_or_array_layers: 1,
-            },
-        );
-        gpu.queue.submit(Some(encoder.finish()));
-        let slice = buffer.slice(..(row * n) as u64);
-        let (tx, rx) = std::sync::mpsc::channel();
-        slice.map_async(wgpu::MapMode::Read, move |r| {
-            let _ = tx.send(r);
-        });
-        device
-            .poll(wgpu::PollType::Wait {
-                submission_index: None,
-                timeout: Some(Duration::from_secs(120)),
-            })
-            .map_err(|e| failed("reading the pixel pass back", e))?;
-        rx.recv()
-            .map_err(|e| failed("reading the pixel pass back", e))?
-            .map_err(|e| failed("reading the pixel pass back", e))?;
-        {
-            let bytes = slice.get_mapped_range();
-            for r in 0..n as usize {
-                let line = &bytes[r * row as usize..r * row as usize + tight];
-                out.extend_from_slice(bytemuck::cast_slice::<u8, T>(line));
-            }
+    let mut out = Vec::new();
+    read_rows(gpu, texture, w, 0, h, |band| {
+        out.reserve(band.tight * band.rows / std::mem::size_of::<T>());
+        for line in band.lines() {
+            out.extend_from_slice(bytemuck::cast_slice::<u8, T>(line));
         }
-        buffer.unmap();
-    }
+    })
+    .map_err(|e| failed("reading the pixel pass back", e))?;
     Ok(out)
 }
 
