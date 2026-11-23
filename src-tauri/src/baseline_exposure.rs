@@ -2,10 +2,10 @@ use rawler::bits::Endian;
 use rawler::decoders::{Decoder, FormatHint, WellKnownIFD};
 use rawler::formats::bmff::Bmff;
 use rawler::formats::tiff::reader::TiffReader;
-use rawler::formats::tiff::{ifd::OffsetMode, Value, IFD};
+use rawler::formats::tiff::{IFD, Value, ifd::OffsetMode};
 use rawler::tags::{DngTag, ExifTag};
 use std::io::Cursor;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 const HIGHLIGHT_BIAS_MIN: f32 = -1.0;
 const HIGHLIGHT_BIAS_MAX: f32 = 4.0;
