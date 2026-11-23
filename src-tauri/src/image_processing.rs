@@ -4043,7 +4043,7 @@ mod tests {
         let mut img = Rgb32FImage::new(w, h);
         for (x, y, p) in img.enumerate_pixels_mut() {
             let (xf, yf) = (x as f32, y as f32);
-            *p = image::Rgb([xf / 63.0, yf / 47.0, (xf * 0.37 + yf * 0.91).sin().abs()]);
+            *p = image::Rgb([xf / 63.0, yf / 47.0, ((x * 7 + y * 13) % 29) as f32 / 28.0]);
         }
         let out = warp_image_geometry(&DynamicImage::ImageRgb32F(img), tca_params()).to_rgb32f();
         let mut hash = 0xcbf29ce484222325u64;
@@ -4052,7 +4052,7 @@ mod tests {
                 hash = (hash ^ b as u64).wrapping_mul(0x100000001b3);
             }
         }
-        assert_eq!(hash, 16375033489333317640, "recorded from the earlier code");
+        assert_eq!(hash, 14796702225879000652, "recorded from the earlier code");
     }
 
     /// Argentum: the Lens Correction eye closed switches every part off and
