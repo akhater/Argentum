@@ -728,6 +728,10 @@ fn interpolate_pixel_with_tca(
         if y0 >= src_height - 1 {
             y0 = src_height.saturating_sub(2);
         }
+        // The second row and column never pass the last one, so an image one
+        // pixel wide or tall samples its only pixel twice.
+        let x1 = (x0 + 1).min(src_width - 1);
+        let y1 = (y0 + 1).min(src_height - 1);
 
         let wx = x_clamped - x0 as f32;
         let wy = y_clamped - y0 as f32;
@@ -735,21 +739,12 @@ fn interpolate_pixel_with_tca(
         let one_minus_wy = 1.0 - wy;
 
         let stride = src_width * 3;
-        let idx_row0 = y0 * stride;
-        let idx_row1 = idx_row0 + stride;
+        let at = |x: usize, y: usize| src_raw[y * stride + x * 3 + channel_idx];
+        let (p00, p10, p01, p11) = (at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1));
 
-        let idx_p00 = idx_row0 + x0 * 3 + channel_idx;
-
-        unsafe {
-            let p00 = *src_raw.get_unchecked(idx_p00);
-            let p10 = *src_raw.get_unchecked(idx_p00 + 3);
-            let p01 = *src_raw.get_unchecked(idx_row1 + x0 * 3 + channel_idx);
-            let p11 = *src_raw.get_unchecked(idx_row1 + x0 * 3 + 3 + channel_idx);
-
-            let top = p00 * one_minus_wx + p10 * wx;
-            let bot = p01 * one_minus_wx + p11 * wx;
-            top * one_minus_wy + bot * wy
-        }
+        let top = p00 * one_minus_wx + p10 * wx;
+        let bot = p01 * one_minus_wx + p11 * wx;
+        top * one_minus_wy + bot * wy
     };
 
     pixel_out[0] = sample_channel(rx, ry, 0);
@@ -4008,6 +4003,105 @@ pub fn calculate_auto_adjustments(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tca_params() -> GeometryParams {
+        GeometryParams {
+            tca_vr: 1.01,
+            tca_vb: 0.99,
+            ..GeometryParams::default()
+        }
+    }
+
+    fn flat_image(w: u32, h: u32) -> DynamicImage {
+        let mut img = Rgb32FImage::new(w, h);
+        for p in img.pixels_mut() {
+            *p = image::Rgb([0.25, 0.5, 0.75]);
+        }
+        DynamicImage::ImageRgb32F(img)
+    }
+
+    /// Argentum: the per-channel lens sampler stays inside the image on
+    /// images one pixel tall or wide, and a flat colour stays flat.
+    #[test]
+    fn the_per_channel_sampler_handles_one_pixel_wide_and_tall_images() {
+        for (w, h) in [(1, 8), (8, 1), (1, 1)] {
+            let out = warp_image_geometry(&flat_image(w, h), tca_params());
+            let out = out.to_rgb32f();
+            assert_eq!(out.dimensions(), (w, h));
+            for p in out.pixels() {
+                assert_eq!(p.0, [0.25, 0.5, 0.75], "{w}x{h}");
+            }
+        }
+    }
+
+    /// The sampler as it was before the edge handling changed, with checked
+    /// indexing so a read past the buffer is `None`, not a read.
+    fn earlier_sampler(
+        raw: &[f32],
+        (w, h): (usize, usize),
+        (tx, ty): (f32, f32),
+        channel: usize,
+    ) -> Option<f32> {
+        let x_clamped = tx.clamp(0.0, w as f32 - 1.0);
+        let y_clamped = ty.clamp(0.0, h as f32 - 1.0);
+        let mut x0 = x_clamped.floor() as usize;
+        let mut y0 = y_clamped.floor() as usize;
+        if x0 >= w - 1 {
+            x0 = w.saturating_sub(2);
+        }
+        if y0 >= h - 1 {
+            y0 = h.saturating_sub(2);
+        }
+        let (wx, wy) = (x_clamped - x0 as f32, y_clamped - y0 as f32);
+        let stride = w * 3;
+        let p00 = *raw.get(y0 * stride + x0 * 3 + channel)?;
+        let p10 = *raw.get(y0 * stride + x0 * 3 + 3 + channel)?;
+        let p01 = *raw.get((y0 + 1) * stride + x0 * 3 + channel)?;
+        let p11 = *raw.get((y0 + 1) * stride + x0 * 3 + 3 + channel)?;
+        let top = p00 * (1.0 - wx) + p10 * wx;
+        let bot = p01 * (1.0 - wx) + p11 * wx;
+        Some(top * (1.0 - wy) + bot * wy)
+    }
+
+    /// Argentum: the per-channel sampler gives, bit for bit, what it gave
+    /// before the edge handling changed wherever the old one could read; the
+    /// two differ only where the old one read past the buffer.
+    #[test]
+    fn the_per_channel_sampler_matches_the_earlier_one_where_that_could_read() {
+        for (w, h) in [(64usize, 48usize), (2, 2), (2, 9), (9, 2), (1, 8), (8, 1), (1, 1)] {
+            let raw: Vec<f32> = (0..w * h * 3).map(|i| ((i * 7) % 29) as f32 / 28.0).collect();
+            let ctx = TcaContext {
+                src_raw: &raw,
+                src_width: w,
+                src_height: h,
+                cx: w as f32 / 2.0,
+                cy: h as f32 / 2.0,
+            };
+            for yi in -2..(h as i32 * 4 + 2) {
+                for xi in -2..(w as i32 * 4 + 2) {
+                    let (x, y) = (xi as f32 * 0.25, yi as f32 * 0.25);
+                    let mut out = [0.0f32; 3];
+                    interpolate_pixel_with_tca(&ctx, x, y, 1.01, 0.99, &mut out);
+                    let targets = [
+                        (ctx.cx + (x - ctx.cx) * 1.01, ctx.cy + (y - ctx.cy) * 1.01),
+                        (x, y),
+                        (ctx.cx + (x - ctx.cx) * 0.99, ctx.cy + (y - ctx.cy) * 0.99),
+                    ];
+                    for (c, t) in targets.into_iter().enumerate() {
+                        assert!(out[c].is_finite(), "{w}x{h} at {x},{y}");
+                        match earlier_sampler(&raw, (w, h), t, c) {
+                            Some(old) => assert_eq!(
+                                out[c].to_bits(),
+                                old.to_bits(),
+                                "{w}x{h} at {x},{y} channel {c}"
+                            ),
+                            None => assert!(w == 1 || h == 1, "{w}x{h} at {x},{y}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     /// Argentum: the Lens Correction eye closed switches every part off and
     /// keeps the panel's own switches as they are, for when it opens again.

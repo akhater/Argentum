@@ -1,0 +1,1 @@
+- Lens colour-fringe correction now stays inside the image on images one pixel wide or tall, and leaves normal images unchanged.
