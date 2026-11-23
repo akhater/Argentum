@@ -435,7 +435,8 @@ fn modify_tags_for_path(
     let (source_path, sidecar_path) = parse_virtual_path(path_str);
 
     let sidecar_lock = crate::mods::write_locks::lock_sidecar(&sidecar_path);
-    let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+    let mut metadata =
+        crate::exif_processing::try_load_sidecar(&sidecar_path).map_err(|e| e.to_string())?;
 
     let mut tags = metadata.tags.unwrap_or_default();
     modify_fn(&mut tags);

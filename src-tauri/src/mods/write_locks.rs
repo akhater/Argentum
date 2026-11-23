@@ -47,7 +47,7 @@ pub fn update_sidecar(
     update: impl FnOnce(&mut ImageMetadata),
 ) -> std::io::Result<ImageMetadata> {
     let _sidecar = lock_sidecar(sidecar);
-    let mut metadata = crate::exif_processing::load_sidecar(sidecar);
+    let mut metadata = crate::exif_processing::try_load_sidecar(sidecar)?;
     update(&mut metadata);
     crate::exif_processing::write_sidecar(sidecar, source, &metadata)?;
     Ok(metadata)

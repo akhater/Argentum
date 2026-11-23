@@ -1025,7 +1025,7 @@ fn write_super_resolution_sidecar(
         return Ok(());
     }
 
-    let mut metadata = crate::exif_processing::load_sidecar(source_sidecar);
+    let mut metadata = crate::exif_processing::try_load_sidecar(source_sidecar)?;
     if is_raw {
         let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
         carry_raw_look(
