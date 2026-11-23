@@ -46,3 +46,51 @@ jobs:
         env:
           AG_REQUIRE_GPU: '1'
         run: cargo test
+
+  # The same lint and format checks the app's crate gets in lint.yml, for the
+  # engine and rm-selection (src-tauri/rm_selection), which nothing else checks.
+  clippy:
+    name: Engine clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+          rustflags: ''
+          rust-src-dir: src-tauri
+          cache-workspaces: |
+            src-tauri/engine
+            src-tauri/rm_selection
+
+      - name: Clippy (engine)
+        working-directory: src-tauri/engine
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Clippy (rm-selection)
+        working-directory: src-tauri/rm_selection
+        run: cargo clippy --all-targets -- -D warnings
+
+  fmt:
+    name: Engine fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+          rustflags: ''
+          rust-src-dir: src-tauri
+          cache-workspaces: |
+            src-tauri/engine
+            src-tauri/rm_selection
+
+      - name: Check formatting (engine)
+        working-directory: src-tauri/engine
+        run: cargo fmt --check
+
+      - name: Check formatting (rm-selection)
+        working-directory: src-tauri/rm_selection
+        run: cargo fmt --check

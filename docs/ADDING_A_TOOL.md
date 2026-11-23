@@ -118,11 +118,13 @@ character should be recognisably darktable's.
 npm run check:sources
 npm run check:frontend
 npm run check:wiring
+npm run check:fmt
 npm run check:ui
 ```
 
 The first fails if wiring a feature depends on is gone; the second if types,
-lint or formatting got worse than `scripts/frontend-baseline.json`; the third
+lint or formatting got worse than `scripts/frontend-baseline.json`; `check:fmt`
+if a Rust module in `src-tauri/src/mods/` is not rustfmt-clean; the third
 if the interface calls a command or shortcut that is not wired, or the
 dependencies changed without `scripts/wiring-baseline.json` saying so. The
 last opens the interface in headless Edge or Chrome over a stub of the app,
