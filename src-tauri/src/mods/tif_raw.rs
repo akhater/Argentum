@@ -41,6 +41,7 @@
 //! sniffed once; every other extension never touches the disk at all.
 
 use std::collections::HashMap;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
@@ -60,8 +61,12 @@ fn cache() -> &'static Mutex<HashMap<String, (Stamp, bool)>> {
 /// False for every other extension without touching the disk, so this is safe
 /// to put in front of a path that does not exist yet — an export target, say.
 pub fn is_camera_raw<P: AsRef<Path>>(path: P) -> bool {
-    let path = path.as_ref();
+    is_camera_raw_with(path.as_ref(), &a_raw_decoder_opens_it)
+}
 
+/// `is_camera_raw` with the decoder probe passed in, so a test can stand in a
+/// probe that panics.
+fn is_camera_raw_with(path: &Path, probe: &dyn Fn(&Path) -> bool) -> bool {
     let ambiguous = path
         .extension()
         .and_then(|e| e.to_str())
@@ -83,7 +88,7 @@ pub fn is_camera_raw<P: AsRef<Path>>(path: P) -> bool {
         return *answer;
     }
 
-    let answer = a_raw_decoder_opens_it(path);
+    let answer = probe_guarded(path, probe);
 
     if let Ok(mut cache) = cache().lock() {
         // Not a hot path — one entry per .tif ever opened — but a library of
@@ -94,6 +99,19 @@ pub fn is_camera_raw<P: AsRef<Path>>(path: P) -> bool {
         cache.insert(key, (stamp, answer));
     }
     answer
+}
+
+/// Runs the probe, turning a decoder panic into a negative answer. Callers
+/// reach this from browsing and thumbnails, where a panic would take the
+/// worker down with it.
+fn probe_guarded(path: &Path, probe: &dyn Fn(&Path) -> bool) -> bool {
+    catch_unwind(AssertUnwindSafe(|| probe(path))).unwrap_or_else(|_| {
+        log::warn!(
+            "{} could not be read as a raw TIFF: the decoder panicked; treating it as an ordinary TIFF",
+            path.display()
+        );
+        false
+    })
 }
 
 /// The whole test: can rawler initialize a raw image from this file?
@@ -229,6 +247,26 @@ mod tests {
             .expect("write");
         drop(f);
         assert!(!is_camera_raw(&path));
+    }
+
+    /// A decoder that panics reads as "not a raw TIFF", and that negative
+    /// answer is remembered: the probe is not asked again for the same file.
+    #[test]
+    fn a_decoder_panic_is_a_negative_answer_and_is_cached() {
+        let path = write_an_ordinary_tiff("panic-probe.tif");
+        let panicking = |_: &Path| -> bool { panic!("decoder fault") };
+        assert!(!is_camera_raw_with(&path, &panicking));
+
+        let calls = std::cell::Cell::new(0);
+        let counting = |_: &Path| {
+            calls.set(calls.get() + 1);
+            true
+        };
+        assert!(
+            !is_camera_raw_with(&path, &counting),
+            "the cached negative answer is served"
+        );
+        assert_eq!(calls.get(), 0, "the probe is not run again");
     }
 
     /// The answer is remembered, and forgotten when the file changes.
