@@ -27,7 +27,8 @@ use half::f16;
 /// DNG Standard off.
 fn developed(source: &Source) -> Rgb {
     let mut p = Pipeline::standard().unwrap();
-    p.set_edit(&p.registry().defaults_for(source)).unwrap();
+    p.set_edit(&p.registry().defaults_for(source).unwrap())
+        .unwrap();
     p.set::<RtCaptureSharpen>(rt_capture_sharpen::Settings {
         capture: false,
         ..Default::default()

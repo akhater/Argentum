@@ -18,6 +18,7 @@ import {
   normalizeCropChange,
 } from '../../utils/cropUtils';
 import ImageCanvas from './editor/ImageCanvas';
+import { overlayAdjustments, overlayMaskDef } from '../../argentum/overlayRequest';
 import { Mask, SubMask } from './right/Masks';
 import { Panel, TransformState, Invokes } from '../ui/AppProperties';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -1258,26 +1259,8 @@ export default function Editor({ onContextMenu, transformWrapperRef }: EditorPro
 
       const { patchesSentToBackend } = useEditorStore.getState();
 
-      const stripSubMasks = (subMasks: any[]) => {
-        if (!Array.isArray(subMasks)) return;
-        subMasks.forEach((sm) => {
-          if (sm.id && sm.parameters && patchesSentToBackend.has(sm.id)) {
-            if (sm.parameters.mask_data_base64 !== undefined) sm.parameters.mask_data_base64 = null;
-            if (sm.parameters.maskDataBase64 !== undefined) sm.parameters.maskDataBase64 = null;
-          }
-        });
-      };
-
-      const strippedAdjustments = structuredClone(jsAdjustments);
-      if (strippedAdjustments.masks) {
-        strippedAdjustments.masks.forEach((m: any) => stripSubMasks(m.subMasks));
-      }
-      if (strippedAdjustments.aiPatches) {
-        strippedAdjustments.aiPatches.forEach((p: any) => stripSubMasks(p.subMasks));
-      }
-
-      const strippedMaskDef = structuredClone(maskDef);
-      stripSubMasks(strippedMaskDef.subMasks);
+      const strippedAdjustments = overlayAdjustments(jsAdjustments, patchesSentToBackend);
+      const strippedMaskDef = overlayMaskDef(maskDef, patchesSentToBackend);
 
       const dataUrl: string = await invoke(Invokes.GenerateMaskOverlay, {
         cropOffset,

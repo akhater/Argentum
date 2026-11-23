@@ -410,7 +410,7 @@ mod gpu {
     /// after it, tone curve included.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_shader_turns_each_colour_into_the_grey_the_chart_gives() {
+    fn gpu_the_shader_turns_each_colour_into_the_grey_the_chart_gives() {
         let ctx = device().expect("no wgpu adapter");
         let wb = WhiteBalance::reference();
         let colours = colours();
@@ -455,7 +455,7 @@ mod gpu {
     /// B&W off, Saturation and the Color Mixer work as before.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn grading_tints_the_grey_and_colour_controls_wait() {
+    fn gpu_grading_tints_the_grey_and_colour_controls_wait() {
         let ctx = device().expect("no wgpu adapter");
         let wb = WhiteBalance::reference();
         let image = image_of(&colours());

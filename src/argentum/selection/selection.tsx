@@ -36,7 +36,7 @@ import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
 import { formatSize } from '../formatSize';
 import { agText, type AgKey } from '../locales';
-import type { Bounds, Click } from '../ag.generated';
+import { AG_EVENTS, type AgEventPayloads, type Bounds, type Click } from '../ag.generated';
 export type { Bounds, Click } from '../ag.generated';
 
 export type SelectionKind = 'subject' | 'sky' | 'background' | 'object' | 'text' | 'face';
@@ -193,11 +193,14 @@ export async function ensureModels(models: Models = SELECTION_MODELS): Promise<b
   if (!(await askToDownload(models, status.missingBytes))) return false;
   const note = toast.info(agText(models.downloading).replace('{percent}', '0'), { autoClose: false });
   // mods/model_download.rs reports every model download on this one event.
-  const unlisten = await listen<{ id: string; done: number; total: number }>('ag-model-download', (event) => {
-    if (event.payload.id !== models.id) return;
-    const percent = Math.floor((100 * event.payload.done) / Math.max(1, event.payload.total));
-    toast.update(note, { render: agText(models.downloading).replace('{percent}', String(percent)) });
-  });
+  const unlisten = await listen<AgEventPayloads[typeof AG_EVENTS.AG_MODEL_DOWNLOAD]>(
+    AG_EVENTS.AG_MODEL_DOWNLOAD,
+    (event) => {
+      if (event.payload.id !== models.id) return;
+      const percent = Math.floor((100 * event.payload.done) / Math.max(1, event.payload.total));
+      toast.update(note, { render: agText(models.downloading).replace('{percent}', String(percent)) });
+    },
+  );
   try {
     await ag(models.download);
     toast.update(note, { render: agText(models.downloaded), type: 'success', autoClose: 3000 });

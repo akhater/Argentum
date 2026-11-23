@@ -74,7 +74,6 @@ interface EditorState {
   activeAiPatchContainerId: string | null;
   activeAiSubMaskId: string | null;
   isMaskControlHovered: boolean;
-  aiDenoiseProgress: Record<string, number>;
   isAIConnectorConnected: boolean;
   hasRenderedFirstFrame: boolean;
   patchesSentToBackend: Set<string>;
@@ -140,7 +139,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   copiedAdjustments: null,
 
   isAIConnectorConnected: false,
-  aiDenoiseProgress: {},
   isMaskControlHovered: false,
   hasRenderedFirstFrame: false,
   patchesSentToBackend: new Set<string>(),

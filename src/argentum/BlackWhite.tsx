@@ -27,6 +27,7 @@ import type { Adjustments } from '../utils/adjustments';
 import { useEditorStore } from '../store/useEditorStore';
 import { ag as agCommand } from './ag';
 import { useAgTranslation } from './locales';
+import { typingInto } from './typingInto';
 import './blackWhite.css';
 
 export const BLACK_WHITE_KEY = 'agBlackWhite';
@@ -79,9 +80,6 @@ function withBlackWhite(prev: Edit, change: Partial<BlackWhite>): Edit {
   const current = prev?.[BLACK_WHITE_KEY] ?? { enabled: false };
   return { ...prev, [BLACK_WHITE_KEY]: { ...current, ...change } };
 }
-
-const typingInto = (target: EventTarget | null) =>
-  target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 
 /** As the panels pass them: the setter also takes an update of the previous edit. */
 interface Props {

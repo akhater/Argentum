@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditorStore } from '../store/useEditorStore';
+import { HISTORY_STEP_AFTER_MS } from './editTimings';
 import { debouncedSetHistory } from '../hooks/useEditorActions';
 import { INITIAL_ADJUSTMENTS, type Adjustments } from '../utils/adjustments';
 import type { SelectedImage } from '../components/ui/AppProperties';
@@ -58,10 +59,10 @@ describe('history on release', () => {
     expect(steps()).toBe(0);
   });
 
-  it('keeps their 500 ms for a change without a drag', () => {
+  it('keeps their step delay for a change without a drag', () => {
     change(0.3);
     expect(steps()).toBe(0);
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(HISTORY_STEP_AFTER_MS);
     expect(steps()).toBe(1);
   });
 
@@ -100,7 +101,7 @@ describe('undo after a change that is not a step yet', () => {
 
   it('undoes the latest change, not the step before it', () => {
     change(0.3);
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(HISTORY_STEP_AFTER_MS);
     change(0.6);
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().adjustments.exposure).toBe(0.3);

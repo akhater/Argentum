@@ -68,88 +68,7 @@ use crate::image_processing::ImageMetadata;
 use crate::mask_generation::{AiPatchDefinition, MaskDefinition};
 use crate::mods::compat_snapshot::{differences, render, sections_for};
 
-/// The two files of a release folder.
-pub const SETTINGS: &str = "settings.json";
-pub const EDIT: &str = "photo.agdata";
-
-/// A stored key today's code no longer keeps, on purpose. Its path is a JSON
-/// Pointer into the file, `*` standing for any one key or index
-/// (`/masks/*/adjustments/oldKey`).
-pub struct Dropped {
-    pub file: &'static str,
-    pub path: &'static str,
-    pub reason: &'static str,
-    pub pr: &'static str,
-}
-
-pub const DROPPED: &[Dropped] = &[
-    Dropped {
-        file: SETTINGS,
-        path: "/enableBaselineExposure",
-        reason: "no control ever wrote it; Argentum adds no baseline stops to Exposure (its reader returned 0)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/baselineExposure",
-        reason: "no control ever wrote it; Argentum adds no baseline stops to Exposure (its reader returned 0)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/compensateHighlightPreservation",
-        reason: "no control ever wrote it; DNG Standard handles held-back highlights in its own curve",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/requireMatchingExif",
-        reason: "no control ever wrote it; grouping no longer reads it (always off)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/groupEditedFiles",
-        reason: "no control ever wrote it; grouping no longer reads it (edited files always group)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/leftTopHeight",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/rightTopHeight",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/panelLayout",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/activePanels",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/panelSwitcherPlacement",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/lastImportSettings",
-        reason: "the Import dialog stored it; Import is gone, Shoebox does the importing",
-        pr: "#296",
-    },
-];
+pub use crate::mods::retired_keys::{DROPPED, Dropped, EDIT, SETTINGS};
 
 /// Lists held in a `HashSet`, written in no fixed order: compared as sets.
 pub const UNORDERED: &[(&str, &str)] = &[
@@ -506,6 +425,221 @@ fn the_newest_fixture_has_every_key() {
          Write this version's with `cargo test --lib mods::compat_fixture -- --ignored`, \
          after adding a non-default value for each to compat_fixture.rs.",
         missing.join("\n  ")
+    );
+}
+
+// NEWER FILES (a user who goes back a release, two machines on different
+// releases sharing a folder): a key this release does not know is kept, not
+// dropped, by every load and save of the two files.
+
+/// Keys of several JSON types a newer release might add at the top level.
+fn newer_keys() -> serde_json::Map<String, Value> {
+    let Value::Object(keys) = serde_json::json!({
+        "agFutureObject": { "x": 1, "nested": { "list": [1, 2.5, "three"] } },
+        "agFutureList": [1, "two", null, { "k": false }],
+        "agFutureText": "a value",
+        "agFutureNumber": 42.5,
+        "agFutureFlag": true,
+        "agFutureNothing": null,
+    }) else {
+        unreachable!("an object")
+    };
+    keys
+}
+
+fn with_keys(text: &str, keys: &serde_json::Map<String, Value>) -> String {
+    let mut file: Value = serde_json::from_str(text).expect("JSON");
+    file.as_object_mut()
+        .expect("an object")
+        .extend(keys.clone());
+    serde_json::to_string_pretty(&file).expect("writes")
+}
+
+fn assert_kept(what: &str, written: &str, keys: &serde_json::Map<String, Value>) {
+    let kept: Value = serde_json::from_str(written).expect("reads back");
+    for (key, value) in keys {
+        assert_eq!(kept.get(key), Some(value), "{what}: {key} was not kept");
+    }
+}
+
+/// What the newest fixtures are written back as: the settings, then the edit.
+fn newest_written() -> (String, String) {
+    let newest = releases().pop().expect("a release folder");
+    let settings: AppSettings = serde_json::from_str(&read(&newest, SETTINGS)).expect("reads");
+    let metadata: ImageMetadata = serde_json::from_str(&read(&newest, EDIT)).expect("reads");
+    (
+        serde_json::to_string_pretty(&settings).expect("writes"),
+        serde_json::to_string_pretty(&metadata).expect("writes"),
+    )
+}
+
+/// A file with no unknown key is written as it was before they were kept:
+/// every key it writes is one of the type's own, none else appears.
+#[test]
+fn a_file_with_no_unknown_key_is_written_with_none() {
+    let newest = releases().pop().expect("a release folder");
+    let (settings, edit) = newest_written();
+    let own = |value: Result<Value, serde_json::Error>| -> Vec<String> {
+        value
+            .expect("to JSON")
+            .as_object()
+            .expect("an object")
+            .keys()
+            .cloned()
+            .collect()
+    };
+    for (file, written, own_keys) in [
+        (
+            SETTINGS,
+            settings,
+            own(serde_json::to_value(AppSettings::default())),
+        ),
+        (
+            EDIT,
+            edit,
+            own(serde_json::to_value(ImageMetadata::default())),
+        ),
+    ] {
+        let stored: Value = serde_json::from_str(&read(&newest, file)).expect("JSON");
+        let kept: Value = serde_json::from_str(&written).expect("JSON");
+        for key in kept.as_object().expect("an object").keys() {
+            assert!(
+                stored.get(key).is_some() || own_keys.contains(key),
+                "{newest}/{file}: {key} appears when it is read and saved"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_newer_settings_file_keeps_its_unknown_keys_through_load_and_save() {
+    let newest = releases().pop().expect("a release folder");
+    let keys = newer_keys();
+    let dir = tempfile::tempdir().expect("a folder");
+    let path = dir.path().join("settings.json");
+    std::fs::write(&path, with_keys(&read(&newest, SETTINGS), &keys)).expect("writes");
+
+    // load_settings: read_or_keep on the file's text.
+    let content = std::fs::read_to_string(&path).expect("reads");
+    let loaded: AppSettings = crate::mods::salvage::read_or_keep(&path, &content, Default::default);
+    // To the webview and back as save_settings receives it, then written as it writes.
+    let sent = serde_json::to_value(&loaded).expect("to the webview");
+    assert_kept("sent to the webview", &sent.to_string(), &keys);
+    let returned: AppSettings = serde_json::from_value(sent).expect("from the webview");
+    let written = serde_json::to_string_pretty(&returned).expect("writes");
+    assert_kept("settings.json", &written, &keys);
+}
+
+#[test]
+fn a_newer_settings_file_with_a_key_of_a_new_shape_keeps_its_unknown_keys() {
+    let newest = releases().pop().expect("a release folder");
+    let keys = newer_keys();
+    let mut file: Value =
+        serde_json::from_str(&with_keys(&read(&newest, SETTINGS), &keys)).expect("JSON");
+    file["theme"] = serde_json::json!({ "a": "newer shape" });
+    let dir = tempfile::tempdir().expect("a folder");
+    let path = dir.path().join("settings.json");
+    let content = file.to_string();
+    std::fs::write(&path, &content).expect("writes");
+
+    let loaded: AppSettings = crate::mods::salvage::read_or_keep(&path, &content, Default::default);
+    let written = serde_json::to_string_pretty(&loaded).expect("writes");
+    assert_kept("settings.json", &written, &keys);
+}
+
+#[test]
+fn a_retired_settings_key_is_not_kept_with_the_unknown_ones() {
+    let newest = releases().pop().expect("a release folder");
+    let keys = newer_keys();
+    let retired = serde_json::json!({ "baselineExposure": 1.5, "lastImportSettings": { "a": 1 } });
+    let mut file: Value =
+        serde_json::from_str(&with_keys(&read(&newest, SETTINGS), &keys)).expect("JSON");
+    file.as_object_mut()
+        .expect("an object")
+        .extend(retired.as_object().expect("an object").clone());
+    let dir = tempfile::tempdir().expect("a folder");
+    let path = dir.path().join("settings.json");
+    let content = file.to_string();
+
+    // As load_settings reads it, then save_settings writes it.
+    let mut loaded: AppSettings =
+        crate::mods::salvage::read_or_keep(&path, &content, Default::default);
+    assert!(crate::mods::retired_keys::strip(
+        &mut loaded.extra,
+        SETTINGS
+    ));
+    let written = serde_json::to_string_pretty(&loaded).expect("writes");
+    assert_kept("settings.json", &written, &keys);
+    let kept: Value = serde_json::from_str(&written).expect("JSON");
+    for key in retired.as_object().expect("an object").keys() {
+        assert!(kept.get(key).is_none(), "{key} was kept");
+    }
+}
+
+#[test]
+fn a_retired_key_in_an_edit_file_is_not_kept_with_the_unknown_ones() {
+    use crate::exif_processing::try_load_sidecar;
+    // The edit file has none retired today: a list entry for it is stripped on load.
+    let keys = newer_keys();
+    let dir = tempfile::tempdir().expect("a folder");
+    let sidecar = dir.path().join("IMG.CR2.agdata");
+    let plain = serde_json::to_string(&ImageMetadata::default()).expect("writes");
+    std::fs::write(&sidecar, with_keys(&plain, &keys)).expect("writes");
+    let metadata = try_load_sidecar(&sidecar).expect("reads");
+    assert_eq!(
+        metadata.extra, keys,
+        "the unknown keys are kept as they are"
+    );
+}
+
+#[test]
+fn a_newer_edit_file_keeps_its_unknown_keys_through_every_save() {
+    use crate::exif_processing::{try_load_sidecar, write_sidecar};
+    let newest = releases().pop().expect("a release folder");
+    let keys = newer_keys();
+    let dir = tempfile::tempdir().expect("a folder");
+    let photo = dir.path().join("IMG.CR2");
+    std::fs::write(&photo, "raw").expect("a photo");
+    let sidecar = crate::file_management::sidecar_for(&photo, None);
+    std::fs::write(&sidecar, with_keys(&read(&newest, EDIT), &keys)).expect("writes");
+
+    // write_sidecar of what try_load_sidecar read.
+    let metadata = try_load_sidecar(&sidecar).expect("reads");
+    write_sidecar(&sidecar, &photo, &metadata).expect("saves");
+    assert_kept(
+        EDIT,
+        &std::fs::read_to_string(&sidecar).expect("reads"),
+        &keys,
+    );
+
+    // A rating and a tag take the same read-change-write path.
+    crate::mods::write_locks::update_sidecar(&sidecar, &photo, |m| m.rating = 1).expect("rates");
+    let written = std::fs::read_to_string(&sidecar).expect("reads");
+    assert_kept(EDIT, &written, &keys);
+    assert_eq!(
+        serde_json::from_str::<Value>(&written).expect("JSON")["rating"],
+        1
+    );
+}
+
+#[test]
+fn an_unedited_edit_file_with_unknown_keys_is_not_deleted() {
+    use crate::exif_processing::{try_load_sidecar, write_sidecar};
+    let keys = newer_keys();
+    let dir = tempfile::tempdir().expect("a folder");
+    let photo = dir.path().join("IMG.CR2");
+    std::fs::write(&photo, "raw").expect("a photo");
+    let sidecar = crate::file_management::sidecar_for(&photo, None);
+    let plain = serde_json::to_string(&ImageMetadata::default()).expect("writes");
+    std::fs::write(&sidecar, with_keys(&plain, &keys)).expect("writes");
+
+    // Nothing but the newer release's keys is on it: a save must not take it for a default.
+    let metadata = try_load_sidecar(&sidecar).expect("reads");
+    write_sidecar(&sidecar, &photo, &metadata).expect("saves");
+    assert_kept(
+        EDIT,
+        &std::fs::read_to_string(&sidecar).expect("the file is still there"),
+        &keys,
     );
 }
 

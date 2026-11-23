@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -4108,72 +4108,10 @@ pub fn resolve_xmp_path(image_path: &Path) -> Option<PathBuf> {
     }
 }
 
-fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
-    }
-    haystack.windows(needle.len()).position(|w| w == needle)
-}
-
-/// Scan an image file for an embedded XMP packet (`<?xpacket begin=…?> … <?xpacket end=…?>`).
-/// Cameras like Sony and phone exports store the rating/label there instead of a `.xmp` sidecar.
-/// Reads sequentially in chunks and stops as soon as the packet is complete.
+/// Scan an image file for an embedded XMP packet. Cameras like Sony and phone exports
+/// store the rating/label there instead of a `.xmp` sidecar. See `mods::xmp_packet`.
 fn read_embedded_xmp_packet(source_path: &Path) -> Option<String> {
-    const CHUNK_SIZE: usize = 64 * 1024;
-    const MAX_XMP_PACKET_SIZE: usize = 16 * 1024 * 1024;
-    const XMP_START: &[u8] = b"<?xpacket begin=";
-    const XMP_END: &[u8] = b"<?xpacket end=";
-    const XMP_CLOSE: &[u8] = b"?>";
-
-    let mut file = fs::File::open(source_path).ok()?;
-    let mut chunk = vec![0u8; CHUNK_SIZE];
-    let mut pending = Vec::new();
-    let mut packet: Option<Vec<u8>> = None;
-
-    loop {
-        let read = file.read(&mut chunk).ok()?;
-        if read == 0 {
-            return None;
-        }
-
-        if let Some(packet_bytes) = packet.as_mut() {
-            packet_bytes.extend_from_slice(&chunk[..read]);
-            if packet_bytes.len() > MAX_XMP_PACKET_SIZE {
-                return None;
-            }
-            if let Some(end_idx) = find_bytes(packet_bytes, XMP_END)
-                && let Some(close_idx) = find_bytes(&packet_bytes[end_idx..], XMP_CLOSE)
-            {
-                let packet_end = end_idx + close_idx + XMP_CLOSE.len();
-                packet_bytes.truncate(packet_end);
-                return String::from_utf8(std::mem::take(packet_bytes)).ok();
-            }
-        } else {
-            pending.extend_from_slice(&chunk[..read]);
-            if let Some(start_idx) = find_bytes(&pending, XMP_START) {
-                let mut packet_bytes = pending.split_off(start_idx);
-                pending.clear();
-
-                if let Some(end_idx) = find_bytes(&packet_bytes, XMP_END)
-                    && let Some(close_idx) = find_bytes(&packet_bytes[end_idx..], XMP_CLOSE)
-                {
-                    let packet_end = end_idx + close_idx + XMP_CLOSE.len();
-                    packet_bytes.truncate(packet_end);
-                    return String::from_utf8(packet_bytes).ok();
-                }
-
-                if packet_bytes.len() > MAX_XMP_PACKET_SIZE {
-                    return None;
-                }
-                packet = Some(packet_bytes);
-            } else {
-                let keep = XMP_START.len().saturating_sub(1);
-                if pending.len() > keep {
-                    pending.drain(..pending.len() - keep);
-                }
-            }
-        }
-    }
+    crate::mods::xmp_packet::find_in_reader(fs::File::open(source_path).ok()?)
 }
 
 pub fn sync_metadata_from_xmp(
@@ -4523,33 +4461,6 @@ mod xmp_embedded_tests {
         let mut f = fs::File::create(&p).unwrap();
         f.write_all(bytes).unwrap();
         p
-    }
-
-    #[test]
-    fn reads_rating_from_embedded_xmp_packet() {
-        let mut buf = vec![0u8; 200_000];
-        buf.extend_from_slice(
-            b"<?xpacket begin='\xef\xbb\xbf' id='W5M0MpCehiHzreSzNTczkc9d'?>\n\
-              <x:xmpmeta xmlns:x='adobe:ns:meta/'>\n\
-              <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n\
-              <rdf:Description rdf:about='' xmlns:xmp='http://ns.adobe.com/xap/1.0/'>\n\
-              <xmp:Rating>5</xmp:Rating>\n</rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n\
-              <?xpacket end='w'?>",
-        );
-        buf.extend_from_slice(&vec![0xffu8; 50_000]);
-
-        let path = write_temp("rating.bin", &buf);
-        let packet = read_embedded_xmp_packet(&path).expect("packet found");
-        assert!(packet.contains("<xmp:Rating>5</xmp:Rating>"));
-        assert_eq!(extract_xmp_rating(&packet), Some(5));
-        let _ = fs::remove_file(&path);
-    }
-
-    #[test]
-    fn returns_none_when_no_packet() {
-        let path = write_temp("nopacket.bin", &vec![0x11u8; 400_000]);
-        assert!(read_embedded_xmp_packet(&path).is_none());
-        let _ = fs::remove_file(&path);
     }
 
     #[test]

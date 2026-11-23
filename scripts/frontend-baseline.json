@@ -186,7 +186,7 @@
       "@typescript-eslint/no-unused-vars": 4
     },
     "src/components/panel/Editor.tsx": {
-      "@typescript-eslint/no-explicit-any": 16,
+      "@typescript-eslint/no-explicit-any": 13,
       "@typescript-eslint/no-unused-vars": 1,
       "prefer-const": 9,
       "react-hooks/exhaustive-deps": 1
@@ -316,7 +316,7 @@
       "no-useless-assignment": 1
     },
     "src/hooks/useTauriListeners.ts": {
-      "@typescript-eslint/no-explicit-any": 30
+      "@typescript-eslint/no-explicit-any": 26
     },
     "src/store/useEditorStore.ts": {
       "@typescript-eslint/no-explicit-any": 1,

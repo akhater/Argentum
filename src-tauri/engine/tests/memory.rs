@@ -67,7 +67,7 @@ fn memory_stays_within_the_budget_and_is_given_back() {
     let (opened, name) = match common::raw("memory_stays_within_the_budget_and_is_given_back") {
         Some(path) => (engine.open(&path).unwrap(), path.display().to_string()),
         None => (
-            engine.insert(common::source(9504, 6336)),
+            engine.insert(common::source(9504, 6336)).unwrap(),
             "synthetic".to_string(),
         ),
     };

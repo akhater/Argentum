@@ -108,7 +108,7 @@ interface MyLens {
   model: string;
 }
 
-const EXECUTE_TIMEOUT = 3000;
+const EXECUTE_TIMEOUT_MS = 3000;
 
 const resolutions: OptionItem<number>[] = [
   { value: 720, label: '720px' },
@@ -686,7 +686,7 @@ export default function SettingsPanel({
       setTimeout(() => {
         setIsClearing(false);
         setClearMessage('');
-      }, EXECUTE_TIMEOUT);
+      }, EXECUTE_TIMEOUT_MS);
     }
   };
 
@@ -710,7 +710,7 @@ export default function SettingsPanel({
       setTimeout(() => {
         setIsResettingLayout(false);
         setLayoutResetMessage('');
-      }, EXECUTE_TIMEOUT);
+      }, EXECUTE_TIMEOUT_MS);
     }
   };
 
@@ -750,7 +750,7 @@ export default function SettingsPanel({
       setTimeout(() => {
         setIsClearingAiTags(false);
         setAiTagsClearMessage('');
-      }, EXECUTE_TIMEOUT);
+      }, EXECUTE_TIMEOUT_MS);
     }
   };
 
@@ -779,7 +779,7 @@ export default function SettingsPanel({
       setTimeout(() => {
         setIsClearingTags(false);
         setTagsClearMessage('');
-      }, EXECUTE_TIMEOUT);
+      }, EXECUTE_TIMEOUT_MS);
     }
   };
 
@@ -813,7 +813,7 @@ export default function SettingsPanel({
       setTimeout(() => {
         setIsClearingCache(false);
         setCacheClearMessage('');
-      }, EXECUTE_TIMEOUT);
+      }, EXECUTE_TIMEOUT_MS);
     }
   };
 
@@ -840,7 +840,7 @@ export default function SettingsPanel({
       setTestStatus({ testing: false, message: t('settings.processing.ai.connector.failed'), success: false });
       console.error('AI Connector connection test failed:', err);
     } finally {
-      setTimeout(() => setTestStatus({ testing: false, message: '', success: null }), EXECUTE_TIMEOUT);
+      setTimeout(() => setTestStatus({ testing: false, message: '', success: null }), EXECUTE_TIMEOUT_MS);
     }
   };
 

@@ -9,7 +9,9 @@ import Slider from '../ui/Slider';
 import clsx from 'clsx';
 import throttle from 'lodash.throttle';
 import Text from '../ui/Text';
+import { createBlobUrlSlot } from '../../argentum/objectUrl';
 import { TextColors, TextVariants } from '../../types/typography';
+import { AG_EVENTS } from '../../argentum/ag.generated';
 
 interface NegativeParams {
   red_weight: number;
@@ -70,10 +72,15 @@ export default function NegativeConversionModal({
     isDragging: false,
   });
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const originalUrlSlot = useRef(createBlobUrlSlot());
+  useEffect(() => {
+    const slot = originalUrlSlot.current;
+    return () => slot.release();
+  }, []);
   const selectedImagePath = targetPaths.length > 0 ? targetPaths[0] : null;
 
   useEffect(() => {
-    const unlisten = listen('negative-batch-progress', (e: any) => {
+    const unlisten = listen(AG_EVENTS.NEGATIVE_BATCH_PROGRESS, (e: any) => {
       setProgress(e.payload);
     });
     return () => {
@@ -226,21 +233,27 @@ export default function NegativeConversionModal({
       updatePreview(DEFAULT_PARAMS, true);
 
       if (selectedImagePath) {
+        let stale = false;
         invoke('generate_preview_for_path', {
           path: selectedImagePath,
           jsAdjustments: {},
         })
           .then((res: any) => {
+            if (stale) return;
             const blob = new Blob([new Uint8Array(res)], { type: 'image/jpeg' });
-            setOriginalUrl(URL.createObjectURL(blob));
+            setOriginalUrl(originalUrlSlot.current.replace(blob));
           })
           .catch(console.error);
+        return () => {
+          stale = true;
+        };
       }
     } else {
       setShow(false);
       setTimeout(() => {
         setIsMounted(false);
         setPreviewUrl(null);
+        originalUrlSlot.current.release();
         setOriginalUrl(null);
         setParams(DEFAULT_PARAMS);
         setZoom(1);

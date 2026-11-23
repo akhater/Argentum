@@ -60,11 +60,11 @@ fn open_apply_view_and_what_comes_back() {
         return;
     }
     let (engine, rx) = engine();
-    let opened = engine.insert(common::source(512, 384));
+    let opened = engine.insert(common::source(512, 384)).unwrap();
     assert_eq!((opened.width, opened.height), (512, 384));
     assert_eq!(
         opened.edit,
-        Pipeline::standard().unwrap().edit(),
+        Pipeline::standard().unwrap().edit().unwrap(),
         "all defaults"
     );
     assert_eq!(engine.tools().len(), 7);
@@ -192,7 +192,7 @@ fn open_apply_view_and_what_comes_back() {
 #[test]
 fn a_closed_photo_hands_back_its_edit_and_lets_go() {
     let (engine, rx) = engine();
-    let id = engine.insert(common::source(128, 96)).photo_id;
+    let id = engine.insert(common::source(128, 96)).unwrap().photo_id;
     let applied = engine
         .apply(
             id,
@@ -260,7 +260,7 @@ fn renders_are_latest_wins() {
         return;
     }
     let (engine, rx) = engine_with(|| standard().with::<AgSlowA>().with::<AgSlowB>());
-    let id = engine.insert(common::source(256, 192)).photo_id;
+    let id = engine.insert(common::source(256, 192)).unwrap().photo_id;
 
     // t1 starts, and is in the first slow tool when t2 and t3 arrive: they
     // are asked for as soon as it has started there.
@@ -336,7 +336,7 @@ fn a_failed_render_says_so() {
         return;
     }
     let (engine, rx) = engine_with(|| standard().with::<AgFails>());
-    let id = engine.insert(common::source(128, 96)).photo_id;
+    let id = engine.insert(common::source(128, 96)).unwrap().photo_id;
     let t = engine
         .apply(
             id,

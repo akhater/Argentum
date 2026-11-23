@@ -4,11 +4,11 @@
 //! @ 2bcb953d, capture sharpening only; the shader is `passes.wgsl`.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use bytemuck::{Pod, Zeroable};
 
 use super::{MAX_RADIUS_PX, Resolved, RtCaptureSharpen};
+use crate::gpu::{band_rows, read_rows, wait};
 use crate::{Error, Gpu, Result, Rgb, Tool};
 const TILE: u32 = 1024;
 const BORDER: u32 = 64;
@@ -387,7 +387,7 @@ impl Passes {
                     band_y: band_y as i32,
                     ..base
                 };
-                self.tile(&bind_group, &uniform, plan);
+                self.tile(&bind_group, &uniform, plan)?;
                 tx += TILE;
             }
             self.read(&ratio, w, ty - band_y, th, each)?;
@@ -400,7 +400,7 @@ impl Passes {
     /// rgba32float, a few at a time so the staging copy stays small.
     fn upload(&self, texture: &wgpu::Texture, rgb: &Rgb, y0: u32, rows: u32) {
         let w = rgb.width as u32;
-        let step = band_rows(w as usize * 16);
+        let step = band_rows(w as usize * 16) as usize;
         for at in (0..rows).step_by(step) {
             let n = step.min((rows - at) as usize);
             let start = (y0 + at) as usize * rgb.width;
@@ -440,78 +440,26 @@ impl Passes {
         rows: u32,
         each: &mut dyn FnMut(&[f32]),
     ) -> Result<()> {
-        let device = &self.gpu.device;
-        let row = (w * 4).div_ceil(256) * 256;
-        let step = band_rows(row as usize) as u32;
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("rt_capture_sharpen readback"),
-            size: (row * step.min(rows)) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        for at in (y0..y0 + rows).step_by(step as usize) {
-            let n = step.min(y0 + rows - at);
-            let mut encoder = device.create_command_encoder(&Default::default());
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d { x: 0, y: at, z: 0 },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &buffer,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(row),
-                        rows_per_image: Some(n),
-                    },
-                },
-                wgpu::Extent3d {
-                    width: w,
-                    height: n,
-                    depth_or_array_layers: 1,
-                },
-            );
-            self.gpu.queue.submit(Some(encoder.finish()));
-            let slice = buffer.slice(..(row * n) as u64);
-            let (tx, rx) = std::sync::mpsc::channel();
-            slice.map_async(wgpu::MapMode::Read, move |r| {
-                let _ = tx.send(r);
-            });
-            device
-                .poll(wgpu::PollType::Wait {
-                    submission_index: None,
-                    timeout: Some(Duration::from_secs(120)),
-                })
-                .map_err(|e| self.failed(e))?;
-            rx.recv()
-                .map_err(|e| self.failed(e))?
-                .map_err(|e| self.failed(e))?;
-            {
-                let bytes = slice.get_mapped_range();
-                let mut factors = Vec::with_capacity((w * n) as usize);
-                for r in 0..n as usize {
-                    let line = &bytes[r * row as usize..r * row as usize + w as usize * 4];
-                    factors.extend_from_slice(bytemuck::cast_slice::<u8, f32>(line));
-                }
-                each(&factors);
+        read_rows(&self.gpu, texture, w, y0, rows, |band| {
+            let mut factors = Vec::with_capacity(band.tight * band.rows / 4);
+            for line in band.lines() {
+                factors.extend_from_slice(bytemuck::cast_slice::<u8, f32>(line));
             }
-            buffer.unmap();
-        }
-        Ok(())
+            each(&factors);
+        })
+        .map_err(|e| self.failed(e))
     }
 
     fn failed(&self, e: impl std::fmt::Display) -> Error {
         Error::Tool {
             tool: RtCaptureSharpen::ID,
-            message: format!("reading the result back: {e}"),
+            message: format!("waiting for the GPU: {e}"),
         }
     }
 
     // Copied from src-tauri/src/mods/sharpen_gpu.rs @ 2bcb953d (`Engine::tile`),
     // the capture sharpening steps and the last pass.
-    fn tile(&self, bind_group: &wgpu::BindGroup, u: &Uniform, plan: &Plan) {
+    fn tile(&self, bind_group: &wgpu::BindGroup, u: &Uniform, plan: &Plan) -> Result<()> {
         let whole = (u.ext_w.div_ceil(WORKGROUP), u.ext_h.div_ceil(WORKGROUP));
         let one = (1, 1);
         let p = &self.pipelines;
@@ -572,31 +520,10 @@ impl Passes {
             }
             let index = queue.submit(Some(encoder.finish()));
             if self.gl {
-                wait_briefly(device, index);
+                wait(device, Some(index)).map_err(|e| self.failed(e))?;
             }
         }
-    }
-}
-
-/// Rows per band for a row of `row_bytes`, so a band is about 64 MB.
-fn band_rows(row_bytes: usize) -> usize {
-    ((64 << 20) / row_bytes.max(1)).max(1)
-}
-
-// Copied from src-tauri/src/mods/sharpen_gpu.rs @ 2bcb953d.
-/// Wait for one submission on OpenGL without holding its context long: a
-/// blocking poll on GL keeps the one context lock until the GPU is done, and
-/// every other thread that wants it panics after a second.
-fn wait_briefly(device: &wgpu::Device, index: wgpu::SubmissionIndex) {
-    let started = Instant::now();
-    while started.elapsed() < Duration::from_secs(30) {
-        match device.poll(wgpu::PollType::Wait {
-            submission_index: Some(index.clone()),
-            timeout: Some(Duration::from_millis(200)),
-        }) {
-            Err(wgpu::PollError::Timeout) => continue,
-            _ => return,
-        }
+        Ok(())
     }
 }
 

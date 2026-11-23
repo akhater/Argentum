@@ -75,7 +75,7 @@ fn a_photos_offset_is_its_bodys() {
     for path in common::raws("a_photos_offset_is_its_bodys") {
         let bytes = std::fs::read(&path).unwrap();
         let source = Source::decode(&bytes).unwrap();
-        let edit = argentum_engine::standard().defaults_for(&source);
+        let edit = argentum_engine::standard().defaults_for(&source).unwrap();
         let ours = edit.tools["ag_dng_standard"].settings["baseline_exposure_ev"]
             .as_f64()
             .unwrap() as f32;

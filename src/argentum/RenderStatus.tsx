@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from '../store/useEditorStore';
+import { AG_EVENTS } from './ag.generated';
 
 /** Below this, a render is imperceptible and the spinner is just noise. */
 const SHOW_AFTER_MS = 140;
@@ -48,7 +49,7 @@ export default function RenderStatus() {
       }
     });
 
-    const unlisten = listen('wgpu-frame-ready', () => {
+    const unlisten = listen(AG_EVENTS.WGPU_FRAME_READY, () => {
       clear();
       setBusy(false);
     });

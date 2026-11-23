@@ -1,5 +1,6 @@
 import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
 import { putLensOn } from '../../../argentum/lensPick';
+import { typingInto } from '../../../argentum/typingInto';
 import LensBuiltinSwitch from '../../../argentum/LensBuiltinSwitch'; // Argentum: the camera's own lens correction
 import { LENS_BUILTIN_RESET, LENSFUN_UNUSED, builtinInUse } from '../../../argentum/lensBuiltin';
 import { isLensShown, withLensShown } from '../../../argentum/lensEye'; // Argentum: the Lens Correction eye
@@ -255,8 +256,7 @@ export default function CropPanel() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea') return;
+      if (typingInto(document.activeElement)) return;
 
       if (e.ctrlKey || e.metaKey) return;
 

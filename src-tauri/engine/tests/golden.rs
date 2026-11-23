@@ -289,7 +289,7 @@ fn every_tool_renders_as_it_did_and_moves_the_picture_its_way() {
         let out = dir.join(&stem);
         std::fs::create_dir_all(&out).unwrap();
         let mut p = Pipeline::standard().unwrap();
-        let defaults = p.registry().defaults_for(&source);
+        let defaults = p.registry().defaults_for(&source).unwrap();
         let wb = &defaults.tools["rr_white_balance"].settings;
         let (kelvin, tint) = (
             wb["temperature_k"].as_f64().unwrap(),

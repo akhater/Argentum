@@ -1,0 +1,1 @@
+- Holding a key no longer runs a once-per-press shortcut again and again (delete, paste files, ratings, toggles); stepping, zoom, undo and brush size still follow the key. Paste files, Generate and a confirm dialog's action run once, however often they are triggered. Shortcuts now stay quiet while a dropdown has focus, and work again after a switch was clicked.

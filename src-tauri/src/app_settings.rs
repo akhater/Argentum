@@ -595,6 +595,11 @@ pub struct AppSettings {
     pub adjustment_layout: AdjustmentLayout,
     #[serde(default)]
     pub workspace: WorkspaceState,
+    /// Top-level keys this release does not know: a newer release wrote them,
+    /// the interface carries them untouched, and a save writes them back as
+    /// they were (after the keys above).
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
 }
 
 impl Default for AppSettings {
@@ -678,6 +683,7 @@ impl Default for AppSettings {
             custom_aspect_ratios: Vec::new(),
             adjustment_layout: AdjustmentLayout::default(),
             workspace: WorkspaceState::default(),
+            extra: serde_json::Map::new(),
         }
     }
 }
@@ -720,9 +726,14 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         AppSettings::default()
     };
 
+    // A key this release retired is not kept for a newer one (mods/retired_keys.rs).
+    let mut settings_modified = crate::mods::retired_keys::strip(
+        &mut settings.extra,
+        crate::mods::retired_keys::SETTINGS,
+    );
+
     let all_current_keys = all_available_adjustments();
     let default_included = default_included_adjustments();
-    let mut settings_modified = false;
 
     if settings.root_folders.is_empty()
         && let Some(last) = &settings.last_root_path

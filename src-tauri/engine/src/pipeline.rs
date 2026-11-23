@@ -103,7 +103,7 @@ impl Pipeline {
             .iter()
             .zip(&settings)
             .map(|(info, s)| settings_hash(info.id, info.version, s.as_ref()))
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         Ok(Pipeline {
             registry,
             settings,
@@ -131,8 +131,7 @@ impl Pipeline {
         let i = self.registry.position_of::<T>().ok_or_else(|| {
             Error::Registry(format!("{} is not in this pipeline's registry", T::ID))
         })?;
-        self.store(i, Box::new(tool::clamp(settings)));
-        Ok(())
+        self.store(i, Box::new(tool::clamp(settings)))
     }
 
     /// `T`'s settings.
@@ -149,12 +148,11 @@ impl Pipeline {
             .position(id)
             .ok_or_else(|| Error::UnknownTool(id.to_string()))?;
         let settings = self.registry.tools[i].read(version, value)?;
-        self.store(i, settings);
-        Ok(())
+        self.store(i, settings)
     }
 
     /// Every tool's settings, as an edit saves them.
-    pub fn edit(&self) -> EditDocument {
+    pub fn edit(&self) -> Result<EditDocument> {
         self.registry.edit_of(&self.settings)
     }
 
@@ -164,8 +162,16 @@ impl Pipeline {
     /// its cached results.
     pub fn set_edit(&mut self, doc: &EditDocument) -> Result<()> {
         let next = self.registry.read_edit(doc)?;
-        for (i, settings) in next.into_iter().enumerate() {
-            self.store(i, settings);
+        // Every key first, so one that cannot be made changes nothing.
+        let hashes = self
+            .registry
+            .infos()
+            .iter()
+            .zip(&next)
+            .map(|(info, s)| settings_hash(info.id, info.version, s.as_ref()))
+            .collect::<Result<Vec<_>>>()?;
+        for (i, (settings, hash)) in next.into_iter().zip(hashes).enumerate() {
+            self.commit(i, settings, hash);
         }
         Ok(())
     }
@@ -176,13 +182,19 @@ impl Pipeline {
     pub fn apply(&mut self, patch: &EditPatch) -> Result<()> {
         let doc = self
             .registry
-            .merge(&self.edit(), patch, &self.registry.default_edit())?;
+            .merge(&self.edit()?, patch, &self.registry.default_edit()?)?;
         self.set_edit(&doc)
     }
 
-    fn store(&mut self, i: usize, settings: Box<dyn AnySettings>) {
+    /// Keep `settings` as tool `i`'s, unless they have no cache key.
+    fn store(&mut self, i: usize, settings: Box<dyn AnySettings>) -> Result<()> {
         let info = &self.registry.infos()[i];
-        let hash = settings_hash(info.id, info.version, settings.as_ref());
+        let hash = settings_hash(info.id, info.version, settings.as_ref())?;
+        self.commit(i, settings, hash);
+        Ok(())
+    }
+
+    fn commit(&mut self, i: usize, settings: Box<dyn AnySettings>, hash: u64) {
         if hash != self.hashes[i] {
             self.changed = Some(i);
         }
@@ -543,8 +555,10 @@ fn mix(value: &impl Hash) -> u64 {
 
 /// A tool's settings, as a cache key: its id, its settings version and the
 /// settings as JSON.
-fn settings_hash(id: &str, version: u32, settings: &dyn AnySettings) -> u64 {
-    mix(&(id, version, settings.to_json().to_string()))
+/// Settings that cannot be written as JSON have no key: an error.
+fn settings_hash(id: &str, version: u32, settings: &dyn AnySettings) -> Result<u64> {
+    let json = tool::settings_json(id, settings)?;
+    Ok(mix(&(id, version, json.to_string())))
 }
 
 #[cfg(test)]
@@ -562,7 +576,7 @@ mod tests {
             "rr_basic_tone": { "contrast": 15.0, "shadows": 20.0 },
         })))
         .unwrap();
-        let doc = p.edit();
+        let doc = p.edit().unwrap();
         let tone = &doc.tools["rr_basic_tone"].settings;
         assert_eq!(
             (tone["contrast"].as_f64(), tone["shadows"].as_f64()),
@@ -572,7 +586,7 @@ mod tests {
             serde_json::json!({ "rr_basic_tone": { "contrast": null } }),
         ))
         .unwrap();
-        let tone = &p.edit().tools["rr_basic_tone"].settings;
+        let tone = &p.edit().unwrap().tools["rr_basic_tone"].settings;
         assert_eq!(tone["contrast"].as_f64(), Some(0.0), "back to its default");
         assert_eq!(tone["shadows"].as_f64(), Some(20.0), "the rest kept");
     }
@@ -580,7 +594,7 @@ mod tests {
     #[test]
     fn a_bad_patch_changes_nothing() {
         let mut p = Pipeline::standard().unwrap();
-        let before = p.edit();
+        let before = p.edit().unwrap();
         for bad in [
             serde_json::json!({ "ag_nothing": { "x": 1 } }),
             serde_json::json!({ "ag_exposure": { "contrast": 1 } }),
@@ -590,7 +604,7 @@ mod tests {
             serde_json::json!({ "ag_exposure": { "exposure_ev": 1 }, "dt_highlights": { "recover": 3 } }),
         ] {
             assert!(p.apply(&patch(bad.clone())).is_err(), "{bad}");
-            assert_eq!(p.edit(), before, "{bad}");
+            assert_eq!(p.edit().unwrap(), before, "{bad}");
         }
     }
 
@@ -601,15 +615,15 @@ mod tests {
             "rt_capture_sharpen": { "radius": 1.1, "autoRadius": false, "iterations": 30 },
         })))
         .unwrap();
-        let doc = p.edit();
+        let doc = p.edit().unwrap();
         let mut q = Pipeline::standard().unwrap();
         q.set_edit(&doc).unwrap();
-        assert_eq!(q.edit(), doc);
+        assert_eq!(q.edit().unwrap(), doc);
         let mut empty = EditDocument::new();
         q.set_edit(&empty).unwrap();
         assert_eq!(
-            q.edit(),
-            Pipeline::standard().unwrap().edit(),
+            q.edit().unwrap(),
+            Pipeline::standard().unwrap().edit().unwrap(),
             "all defaults"
         );
         empty.version = 2;

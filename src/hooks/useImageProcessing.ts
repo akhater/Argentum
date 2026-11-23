@@ -11,6 +11,7 @@ import { takeFromPaste } from '../argentum/looks/providerLooksStore';
 import { zoomRenderResolution } from '../argentum/zoomResolution';
 import { Invokes, Panel } from '../components/ui/AppProperties';
 import { debouncedSave } from './useEditorActions';
+import { EDIT_QUEUE_AFTER_MS } from '../argentum/editTimings';
 import { globalImageCache } from '../utils/ImageLRUCache';
 
 export function useImageProcessing(
@@ -207,8 +208,8 @@ export function useImageProcessing(
             const fullW = view.getUint32(16, true);
             const fullH = view.getUint32(20, true);
 
-            const imageBuffer = buffer.slice(24);
-            const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
+            // A view past the 24-byte header: Blob copies the bytes once, so no extra copy here.
+            const blob = new Blob([new Uint8Array(buffer, 24)], { type: 'image/jpeg' });
             const url = URL.createObjectURL(blob);
 
             setEditor((state) => {
@@ -470,7 +471,7 @@ export function useImageProcessing(
 
           prevAdjustmentsRef.current = { path: selectedImage.path, adjustments };
         }
-      }, 50);
+      }, EDIT_QUEUE_AFTER_MS);
     }
 
     return () => {

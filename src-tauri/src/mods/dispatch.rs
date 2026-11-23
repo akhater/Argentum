@@ -584,7 +584,7 @@ commands! {
         let dir = crate::mods::selection_models::dir(&app_handle)?;
         let app = app_handle.clone();
         crate::mods::selection_models::download(&dir, move |progress| {
-            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+            let _ = app.emit(crate::mods::events::AG_MODEL_DOWNLOAD, progress);
         })
         .await?;
     }
@@ -633,7 +633,7 @@ commands! {
         let dir = crate::mods::model_manager::models_dir(&app_handle)?;
         let app = app_handle.clone();
         crate::mods::text_mask::download(&dir, move |progress| {
-            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+            let _ = app.emit(crate::mods::events::AG_MODEL_DOWNLOAD, progress);
         })
         .await?;
     }
@@ -700,7 +700,7 @@ commands! {
         let dir = crate::mods::model_manager::models_dir(&app_handle)?;
         let app = app_handle.clone();
         crate::mods::face_mask::download(&dir, move |progress| {
-            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+            let _ = app.emit(crate::mods::events::AG_MODEL_DOWNLOAD, progress);
         })
         .await?;
     }
@@ -1047,7 +1047,7 @@ commands! {
         let dir = crate::mods::model_manager::models_dir(&app_handle)?;
         let app = app_handle.clone();
         crate::mods::model_download::download(&dir, &a.id, move |progress| {
-            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+            let _ = app.emit(crate::mods::events::AG_MODEL_DOWNLOAD, progress);
         })
         .await?
     }
