@@ -5,7 +5,7 @@
 // and fails when the committed list is out of date. Each file has two, our copy
 // first and its original second, so one that stops answering is a WARNING and
 // never a failure: hosts and networks flake, and the other address still serves
-// the file. A file with no address left is the one to act on.
+// the file. A file with no address left is the one to act on: the run exits 1.
 //
 // Run:  npm run check:downloads   (weekly in CI: .github/workflows/downloads.yml)
 // Test: node scripts/test-check-downloads.mjs
@@ -59,11 +59,15 @@ export async function check(entries, ask = answers) {
   return { results, lost };
 }
 
+/** The run's exit code: 1 when a file has no address left (its download fails), else 0. */
+export const exitCodeFor = (lost) => (lost.length > 0 ? 1 : 0);
+
 async function main() {
   const { results, lost } = await check(readList(readFileSync(LIST, 'utf8')));
   const failed = results.filter((r) => r.error);
   for (const r of failed) console.log(`  warning: ${r.name} does not answer at ${r.url} (${r.error})`);
   for (const name of lost) console.log(`  WARNING: ${name} has no address that answers: the download fails`);
+  process.exitCode = exitCodeFor(lost);
   console.log(`Download addresses: ${results.length - failed.length} of ${results.length} answer.`);
   if (process.env.GITHUB_ACTIONS && failed.length) {
     for (const r of failed) console.log(`::warning::${r.name} does not answer at ${r.url} (${r.error})`);
