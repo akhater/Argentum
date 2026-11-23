@@ -201,7 +201,14 @@ pub fn load_base_image_from_bytes(
         }
     } else {
         let rule = crate::mods::highlight_rule::rule_for(Some(path_for_ext_check)); // Argentum
-        let mut image = load_image_with_orientation(bytes, cancel_token, rule)?;
+        // Argentum: a fast load is a thumbnail or a preview, which holds a
+        // HEIC to a smaller size (mods/heic.rs).
+        let budget = if use_fast_raw_dev {
+            crate::mods::heic::Budget::Thumbnail
+        } else {
+            crate::mods::heic::Budget::Open
+        };
+        let mut image = load_image_with_orientation(bytes, cancel_token, rule, budget)?;
 
         if apply_to_non_raws
             && !use_fast_raw_dev
@@ -376,6 +383,7 @@ pub fn load_image_with_orientation(
     bytes: &[u8],
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
     rule: crate::mods::highlight_rule::Rule, // Argentum: whether its colour profile is read
+    budget: crate::mods::heic::Budget,       // Argentum: how large a HEIC may be
 ) -> Result<DynamicImage> {
     let check_cancel = || -> Result<()> {
         if let Some((tracker, generation)) = &cancel_token
@@ -390,7 +398,7 @@ pub fn load_image_with_orientation(
     // and comes back upright and in sRGB like everything below.
     if crate::mods::heic::is_heif(bytes) {
         check_cancel()?;
-        let image = crate::mods::heic::decode(bytes, rule)?;
+        let image = crate::mods::heic::decode(bytes, rule, budget)?;
         check_cancel()?;
         return Ok(image);
     }
@@ -1134,7 +1142,12 @@ mod decode_limit_tests {
     fn a_header_declaring_a_huge_image_is_refused_quickly() {
         let bytes = png_header_only(60_000, 60_000);
         let started = std::time::Instant::now();
-        let result = load_image_with_orientation(&bytes, None, Rule::Rebuild);
+        let result = load_image_with_orientation(
+            &bytes,
+            None,
+            Rule::Rebuild,
+            crate::mods::heic::Budget::Open,
+        );
         assert!(result.is_err());
         assert!(started.elapsed() < std::time::Duration::from_secs(2));
     }
@@ -1148,7 +1161,8 @@ mod decode_limit_tests {
         DynamicImage::ImageRgb8(source.clone())
             .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
             .unwrap();
-        let loaded = load_image_with_orientation(&png, None, Rule::Rebuild)
+        let loaded =
+            load_image_with_orientation(&png, None, Rule::Rebuild, crate::mods::heic::Budget::Open)
             .unwrap()
             .to_rgb8();
         assert_eq!(loaded, source);

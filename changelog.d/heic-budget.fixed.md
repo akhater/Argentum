@@ -1,0 +1,1 @@
+- HEIC photos over 64 megapixels are no longer decoded for thumbnails and previews, so browsing a folder of very large HEIC files no longer exhausts memory; they show as "cannot open" there and still open for editing up to 150 megapixels. A HEIC with a colour profile is also converted to sRGB without a second full-size copy.

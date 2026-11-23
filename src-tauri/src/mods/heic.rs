@@ -34,6 +34,7 @@ use moxcms::{
     TransferCharacteristics, TransformOptions,
 };
 use rawler::Orientation;
+use rayon::prelude::*;
 use std::fmt;
 
 #[cfg(target_os = "macos")]
@@ -112,8 +113,8 @@ fn brands(bytes: &[u8]) -> Vec<&[u8; 4]> {
 
 /// The primary image of a HEIC, upright and in sRGB, as sRGB-encoded floats,
 /// its colours converted as `rule` says.
-pub fn decode(bytes: &[u8], rule: Rule) -> Result<DynamicImage, HeicError> {
-    let header = Header::read(bytes)?;
+pub fn decode(bytes: &[u8], rule: Rule, budget: Budget) -> Result<DynamicImage, HeicError> {
+    let header = Header::read(bytes, budget)?;
     let decoded = pixels(&header, bytes)?;
     let rgb = header.to_srgb(cropped(&header, decoded)?, rule)?;
     let image = Rgb32FImage::from_raw(header.crop.width, header.crop.height, rgb)
@@ -124,8 +125,40 @@ pub fn decode(bytes: &[u8], rule: Rule) -> Result<DynamicImage, HeicError> {
     ))
 }
 
-/// The most pixels a HEIC image may have, as RAWmakase holds it to.
+/// The most pixels a HEIC image may have to be opened, as RAWmakase holds it to.
 const MAX_PIXELS: u64 = 150_000_000;
+
+/// The most pixels a HEIC image may have to be shown small (a thumbnail, a
+/// preview): the decoder still makes the whole picture, at three bytes a
+/// pixel and then twelve as floats, for every photo of a folder at once.
+const MAX_THUMBNAIL_PIXELS: u64 = 64_000_000;
+
+/// What a HEIC is decoded for, which says how large it may be.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Budget {
+    /// Opened for editing or export.
+    Open,
+    /// Shown small, in a thumbnail or a preview.
+    Thumbnail,
+}
+
+impl Budget {
+    /// The most pixels an image may have under this budget.
+    fn max_pixels(self) -> u64 {
+        match self {
+            Self::Open => MAX_PIXELS,
+            Self::Thumbnail => MAX_THUMBNAIL_PIXELS,
+        }
+    }
+
+    /// What a photo over the budget is called, in [`HeicError::Unsupported`].
+    fn over(self) -> &'static str {
+        match self {
+            Self::Open => "over 150-megapixel",
+            Self::Thumbnail => "over 64-megapixel",
+        }
+    }
+}
 
 /// Decoded pixels: `width` × `height` of interleaved RGB, 8-bit samples or
 /// 16-bit ones (native endian), as [`Header::deep`] says, in the colour space
@@ -162,7 +195,7 @@ struct Header {
 }
 
 impl Header {
-    fn read(bytes: &[u8]) -> Result<Self, HeicError> {
+    fn read(bytes: &[u8], budget: Budget) -> Result<Self, HeicError> {
         let heif = Heif::read(bytes).ok_or(HeicError::Corrupt("its header is damaged"))?;
         let kind = heif
             .item(heif.primary)
@@ -179,8 +212,8 @@ impl Header {
             })
             .filter(|(w, h)| *w > 0 && *h > 0)
             .ok_or(HeicError::Corrupt("its image has no size"))?;
-        if u64::from(width) * u64::from(height) > MAX_PIXELS {
-            return Err(HeicError::Unsupported("over 150-megapixel"));
+        if u64::from(width) * u64::from(height) > budget.max_pixels() {
+            return Err(HeicError::Unsupported(budget.over()));
         }
         // A grid's tiles carry the HEVC configuration, and an iPhone's carry
         // the `nclx` too.
@@ -234,8 +267,8 @@ impl Header {
         };
         let profile = ColorProfile::new_from_slice(icc)
             .map_err(|_| HeicError::Corrupt("its colour profile is damaged"))?;
+        let mut samples = samples;
         if rule.reads_colour_profiles() {
-            let mut samples = samples;
             return match crate::mods::icc_input::convert_to_srgb(&mut samples, &profile) {
                 Ok(()) => Ok(samples),
                 Err(CmsError::UnsupportedProfileConnection) => {
@@ -252,12 +285,21 @@ impl Header {
                 TransformOptions::default(),
             )
             .map_err(|_| HeicError::Corrupt("its colour profile is not an RGB one"))?;
-        let mut out = vec![0.0; samples.len()];
-        transform
-            .transform(&samples, &mut out)
+        // In place, a chunk of whole pixels at a time, so no second copy of the
+        // picture is made; each pixel is converted alone, as it would be whole.
+        const CHUNK: usize = 3 * 4096;
+        samples
+            .par_chunks_mut(CHUNK)
+            .try_for_each(|chunk| {
+                let mut out = vec![0.0; chunk.len()];
+                transform.transform(chunk, &mut out)?;
+                for (sample, converted) in chunk.iter_mut().zip(out) {
+                    *sample = converted.clamp(0.0, 1.0);
+                }
+                Ok::<_, CmsError>(())
+            })
             .map_err(|_| HeicError::Corrupt("its colours can't be converted"))?;
-        out.iter_mut().for_each(|v| *v = v.clamp(0.0, 1.0));
-        Ok(out)
+        Ok(samples)
     }
 }
 
@@ -795,7 +837,7 @@ mod tests {
     /// can run. Where it can't they say so and pass, unless `AG_REQUIRE_HEIC`
     /// is set: then the decoder must be there.
     fn decoder_here() -> bool {
-        match decode(&fixture("metadata.heic"), Rule::LATEST) {
+        match decode(&fixture("metadata.heic"), Rule::LATEST, Budget::Open) {
             Err(HeicError::NoDecoder(why)) => {
                 assert!(
                     std::env::var_os("AG_REQUIRE_HEIC").is_none(),
@@ -877,7 +919,7 @@ mod tests {
 
     #[test]
     fn the_header_says_the_size_crop_and_depth() {
-        let header = Header::read(&fixture("metadata.heic")).unwrap();
+        let header = Header::read(&fixture("metadata.heic"), Budget::Open).unwrap();
         assert_eq!((header.width, header.height), (64, 64));
         assert_eq!(
             header.crop,
@@ -889,12 +931,87 @@ mod tests {
             }
         );
         assert!(!header.deep);
-        assert!(Header::read(&fixture("ten-bit.heic")).unwrap().deep);
+        assert!(
+            Header::read(&fixture("ten-bit.heic"), Budget::Open)
+                .unwrap()
+                .deep
+        );
+    }
+
+    /// `bytes` with every `ispe` (image size) box saying `width` × `height`.
+    fn declaring(mut bytes: Vec<u8>, width: u32, height: u32) -> Vec<u8> {
+        for at in 0..bytes.len().saturating_sub(16) {
+            if &bytes[at..at + 4] == b"ispe" {
+                bytes[at + 8..at + 12].copy_from_slice(&width.to_be_bytes());
+                bytes[at + 12..at + 16].copy_from_slice(&height.to_be_bytes());
+            }
+        }
+        bytes
+    }
+
+    #[test]
+    fn the_budgets_hold_their_boundaries() {
+        assert_eq!(Budget::Open.max_pixels(), 150_000_000);
+        assert_eq!(Budget::Thumbnail.max_pixels(), 64_000_000);
+        assert!(Budget::Thumbnail.max_pixels() < Budget::Open.max_pixels());
+        // 8000 × 8000 is exactly the thumbnail budget; one pixel row more is over.
+        let at = |w, h, budget| Header::read(&declaring(fixture("metadata.heic"), w, h), budget);
+        assert!(at(8000, 8000, Budget::Thumbnail).is_ok());
+        assert_eq!(
+            at(8000, 8001, Budget::Thumbnail).unwrap_err(),
+            HeicError::Unsupported("over 64-megapixel")
+        );
+        assert!(at(8000, 8001, Budget::Open).is_ok());
+        assert!(at(12_247, 12_247, Budget::Open).is_ok());
+        assert_eq!(
+            at(12_248, 12_247, Budget::Open).unwrap_err(),
+            HeicError::Unsupported("over 150-megapixel")
+        );
+    }
+
+    #[test]
+    fn a_header_over_the_thumbnail_budget_is_refused_for_a_thumbnail_only() {
+        let big = declaring(fixture("metadata.heic"), 12_000, 12_000);
+        assert_eq!(
+            Header::read(&big, Budget::Thumbnail).unwrap_err(),
+            HeicError::Unsupported("over 64-megapixel")
+        );
+        assert!(Header::read(&big, Budget::Open).is_ok());
+        // Refused before any decoder is asked, so on every system.
+        assert_eq!(
+            decode(&big, Rule::LATEST, Budget::Thumbnail),
+            Err(HeicError::Unsupported("over 64-megapixel"))
+        );
+    }
+
+    #[test]
+    fn colour_converted_in_chunks_is_the_whole_conversion() {
+        let header = Header::read(&fixture("p3.heic"), Budget::Open).unwrap();
+        // More than one chunk of whole pixels, in a rule that does not read
+        // profiles (the other converts in place already).
+        let samples: Vec<f32> = (0..3 * 10_000).map(|i| (i % 251) as f32 / 250.0).collect();
+        let converted = header
+            .to_srgb(samples.clone(), Rule::PullShadowsDemosaic)
+            .unwrap();
+        let profile = ColorProfile::new_from_slice(header.icc.as_ref().unwrap()).unwrap();
+        let mut whole = vec![0.0; samples.len()];
+        profile
+            .create_transform_f32(
+                Layout::Rgb,
+                &ColorProfile::new_srgb(),
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap()
+            .transform(&samples, &mut whole)
+            .unwrap();
+        whole.iter_mut().for_each(|v| *v = v.clamp(0.0, 1.0));
+        assert_eq!(converted, whole);
     }
 
     #[test]
     fn a_grids_size_is_its_own_and_its_colour_its_tiles_when_it_has_none() {
-        let header = Header::read(&fixture("grid.heic")).unwrap();
+        let header = Header::read(&fixture("grid.heic"), Budget::Open).unwrap();
         assert_eq!((header.crop.width, header.crop.height), (120, 100));
         // The grid's own ICC profile, over the tiles' nclx (sRGB's, which
         // would give none).
@@ -903,11 +1020,11 @@ mod tests {
 
     #[test]
     fn turns_and_mirrors_are_read_in_order() {
-        let turned = Header::read(&fixture("rotated.heic")).unwrap();
+        let turned = Header::read(&fixture("rotated.heic"), Budget::Open).unwrap();
         assert_eq!(turned.orientation, Orientation::Rotate270);
-        let mirrored = Header::read(&fixture("rotated-mirrored.heic")).unwrap();
+        let mirrored = Header::read(&fixture("rotated-mirrored.heic"), Budget::Open).unwrap();
         assert_eq!(mirrored.orientation, Orientation::Transpose);
-        let plain = Header::read(&fixture("metadata.heic")).unwrap();
+        let plain = Header::read(&fixture("metadata.heic"), Budget::Open).unwrap();
         assert_eq!(plain.orientation, Orientation::Normal);
     }
 
@@ -931,7 +1048,7 @@ mod tests {
 
     #[test]
     fn display_p3_is_described_and_srgb_is_not() {
-        let p3 = Header::read(&fixture("p3.heic")).unwrap();
+        let p3 = Header::read(&fixture("p3.heic"), Budget::Open).unwrap();
         let profile = ColorProfile::new_from_slice(p3.icc.as_ref().expect("a P3 profile")).unwrap();
         let want = ColorProfile::new_display_p3();
         assert!((profile.red_colorant.x - want.red_colorant.x).abs() < 1e-3);
@@ -945,7 +1062,7 @@ mod tests {
     /// either way.
     #[test]
     fn display_p3_samples_are_converted_to_srgb() {
-        let header = Header::read(&fixture("p3.heic")).unwrap();
+        let header = Header::read(&fixture("p3.heic"), Budget::Open).unwrap();
         for rule in [Rule::PullShadowsDemosaic, Rule::LATEST] {
             let out = header
                 .to_srgb(vec![1.0, 0.0, 0.0, 0.5, 0.5, 0.5, 0.5, 0.25, 0.25], rule)
@@ -966,7 +1083,7 @@ mod tests {
 
     #[test]
     fn hdr_is_refused_with_its_reason() {
-        let error = Header::read(&fixture("pq.heic")).unwrap_err();
+        let error = Header::read(&fixture("pq.heic"), Budget::Open).unwrap_err();
         assert_eq!(error, HeicError::Unsupported("HDR"));
         assert_eq!(error.to_string(), "Argentum can't open HDR HEIF photos yet");
     }
@@ -975,13 +1092,13 @@ mod tests {
     fn a_damaged_file_is_a_typed_error_not_a_panic() {
         let whole = fixture("metadata.heic");
         for cut in 0..whole.len() {
-            match decode(&whole[..cut], Rule::LATEST) {
+            match decode(&whole[..cut], Rule::LATEST, Budget::Open) {
                 Err(HeicError::Corrupt(_) | HeicError::NoDecoder(_)) => {}
                 other => panic!("cut at {cut}: {other:?}"),
             }
         }
         assert_eq!(
-            decode(b"\0\0\0\x10ftypheic\0\0\0\0", Rule::LATEST),
+            decode(b"\0\0\0\x10ftypheic\0\0\0\0", Rule::LATEST, Budget::Open),
             Err(HeicError::Corrupt("its header is damaged"))
         );
     }
@@ -1028,7 +1145,7 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = decode(&fixture("metadata.heic"), Rule::LATEST).unwrap();
+        let image = decode(&fixture("metadata.heic"), Rule::LATEST, Budget::Open).unwrap();
         assert_eq!((image.width(), image.height()), (16, 12));
         assert_corners(&image, [RED, GREEN, WHITE, BLUE]);
         assert!(near(at(&image, 8, 6), [128; 3]), "{:?}", at(&image, 8, 6));
@@ -1040,11 +1157,16 @@ mod tests {
             return;
         }
         // A quarter turn anticlockwise: green comes to the top left.
-        let turned = decode(&fixture("rotated.heic"), Rule::LATEST).unwrap();
+        let turned = decode(&fixture("rotated.heic"), Rule::LATEST, Budget::Open).unwrap();
         assert_eq!((turned.width(), turned.height()), (12, 16));
         assert_corners(&turned, [GREEN, WHITE, BLUE, RED]);
         // Then top and bottom swapped: the transpose.
-        let mirrored = decode(&fixture("rotated-mirrored.heic"), Rule::LATEST).unwrap();
+        let mirrored = decode(
+            &fixture("rotated-mirrored.heic"),
+            Rule::LATEST,
+            Budget::Open,
+        )
+        .unwrap();
         assert_eq!((mirrored.width(), mirrored.height()), (12, 16));
         assert_corners(&mirrored, [RED, BLUE, WHITE, GREEN]);
     }
@@ -1054,10 +1176,10 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let grid = decode(&fixture("grid.heic"), Rule::LATEST).unwrap();
+        let grid = decode(&fixture("grid.heic"), Rule::LATEST, Budget::Open).unwrap();
         assert_eq!((grid.width(), grid.height()), (120, 100));
         assert_corners(&grid, [RED, GREEN, WHITE, BLUE]);
-        let deep = decode(&fixture("ten-bit.heic"), Rule::LATEST).unwrap();
+        let deep = decode(&fixture("ten-bit.heic"), Rule::LATEST, Budget::Open).unwrap();
         assert_eq!((deep.width(), deep.height()), (16, 12));
         assert_corners(&deep, [RED, GREEN, WHITE, BLUE]);
     }
@@ -1070,7 +1192,7 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = decode(&fixture("p3.heic"), Rule::LATEST).unwrap();
+        let image = decode(&fixture("p3.heic"), Rule::LATEST, Budget::Open).unwrap();
         assert_corners(&image, [RED, GREEN, WHITE, BLUE]);
         assert!(near(at(&image, 8, 6), [128; 3]), "{:?}", at(&image, 8, 6));
     }
@@ -1090,8 +1212,13 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image =
-            crate::image_loader::load_image_with_orientation(&bytes, None, Rule::LATEST).unwrap();
+        let image = crate::image_loader::load_image_with_orientation(
+            &bytes,
+            None,
+            Rule::LATEST,
+            Budget::Open,
+        )
+        .unwrap();
         assert_eq!((image.width(), image.height()), (16, 12));
     }
 }
