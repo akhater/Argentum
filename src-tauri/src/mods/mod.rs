@@ -32,6 +32,7 @@ pub mod capture_bake;
 pub mod clear_scope;
 pub mod clipping;
 pub mod clone_heal;
+pub mod close_failsafe;
 pub mod color_grade;
 #[cfg(test)]
 mod colour_compare;
