@@ -729,6 +729,7 @@
         "clickToOpenTooltip": "Kliknutím otevřete mapu na nové kartě",
         "latitude": "Zeměpisná šířka",
         "longitude": "Zeměpisná délka",
+        "showMap": "Zobrazit mapu",
         "title": "Poloha GPS"
       },
       "organization": {

@@ -726,6 +726,7 @@
         "clickToOpenTooltip": "クリックして新しいタブで地図を表示",
         "latitude": "緯度",
         "longitude": "経度",
+        "showMap": "地図を表示",
         "title": "GPS位置情報"
       },
       "organization": {

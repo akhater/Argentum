@@ -729,6 +729,7 @@
         "clickToOpenTooltip": "Click to open map in a new tab",
         "latitude": "Latitude",
         "longitude": "Longitude",
+        "showMap": "Show map",
         "title": "GPS Location"
       },
       "organization": {

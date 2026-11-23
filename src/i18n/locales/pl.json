@@ -772,6 +772,7 @@
         "clickToOpenTooltip": "Kliknij, aby otworzyć mapę w nowej karcie",
         "latitude": "Szerokość geograficzna",
         "longitude": "Długość geograficzna",
+        "showMap": "Pokaż mapę",
         "title": "Lokalizacja GPS"
       },
       "organization": {

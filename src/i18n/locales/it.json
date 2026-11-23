@@ -752,6 +752,7 @@
         "clickToOpenTooltip": "Clicca per aprire la mappa in una nuova scheda",
         "latitude": "Latitudine",
         "longitude": "Longitudine",
+        "showMap": "Mostra mappa",
         "title": "Posizione GPS"
       },
       "organization": {

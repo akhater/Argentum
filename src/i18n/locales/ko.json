@@ -726,6 +726,7 @@
         "clickToOpenTooltip": "클릭하여 새 탭에서 지도 열기",
         "latitude": "위도",
         "longitude": "경도",
+        "showMap": "지도 표시",
         "title": "GPS 위치"
       },
       "organization": {

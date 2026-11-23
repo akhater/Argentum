@@ -750,6 +750,7 @@
         "clickToOpenTooltip": "Cliquer pour ouvrir la carte dans un nouvel onglet",
         "latitude": "Latitude",
         "longitude": "Longitude",
+        "showMap": "Afficher la carte",
         "title": "Localisation GPS"
       },
       "organization": {
