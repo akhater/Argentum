@@ -66,10 +66,10 @@ import Text from '../../ui/Text';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { useProcessStore } from '../../../store/useProcessStore';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useUIStore } from '../../../store/useUIStore';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 import { useAiMasking } from '../../../hooks/useAiMasking';
-import { useCloudUsage } from '../../../hooks/useCloudUsage';
 
 export const STANDALONE_MASK_TYPES: Mask[] = [Mask.Clone, Mask.Heal, Mask.Liquify, Mask.Retouch];
 
@@ -194,18 +194,9 @@ const BrushTools = ({ settings, onSettingsChange }: { settings: any; onSettingsC
 interface ConnectionStatusProps {
   aiProvider: string;
   isAIConnectorConnected: boolean;
-  isSignedIn: boolean;
-  isPro: boolean;
-  cloudUsage: { requests: number; limit: number; month: string } | null;
 }
 
-const ConnectionStatus = ({
-  aiProvider,
-  isAIConnectorConnected,
-  isSignedIn,
-  isPro,
-  cloudUsage,
-}: ConnectionStatusProps) => {
+const ConnectionStatus = ({ aiProvider, isAIConnectorConnected }: ConnectionStatusProps) => {
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
 
@@ -214,42 +205,7 @@ const ConnectionStatus = ({
   let titleText = t('editor.ai.connection.backendLabel');
   let hoverContent: React.ReactNode = null;
 
-  if (aiProvider === 'cloud') {
-    titleText = t('editor.ai.connection.cloudLabel');
-    if (isSignedIn && isPro) {
-      statusColor = 'bg-green-500';
-      statusText = t('editor.ai.connection.ready');
-
-      const reqs = cloudUsage?.requests ?? 0;
-      const limit = cloudUsage?.limit ?? 200;
-      const percent = Math.min(100, (reqs / limit) * 100);
-
-      hoverContent = (
-        <div className="w-full mt-1">
-          <div className="flex justify-between items-center mb-1.5">
-            <Text variant={TextVariants.small}>{t('editor.ai.connection.monthlyUsage')}</Text>
-            <Text variant={TextVariants.small}>
-              {t('settings.processing.ai.cloud.signedIn.usageStats', { requests: reqs, limit: limit })}
-            </Text>
-          </div>
-          <div className="w-full bg-bg-tertiary rounded-full h-1.5 border border-border-color">
-            <div
-              className="bg-accent h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-        </div>
-      );
-    } else if (isSignedIn && !isPro) {
-      statusColor = 'bg-red-500';
-      statusText = t('editor.ai.connection.upgradeRequired');
-      hoverContent = <Text variant={TextVariants.small}>{t('editor.ai.connection.proRequiredDesc')}</Text>;
-    } else {
-      statusColor = 'bg-red-500';
-      statusText = t('editor.ai.connection.notLoggedIn');
-      hoverContent = <Text variant={TextVariants.small}>{t('editor.ai.connection.loginRequiredDesc')}</Text>;
-    }
-  } else if (aiProvider === 'ai-connector') {
+  if (aiProvider === 'ai-connector') {
     titleText = t('editor.ai.connection.connectorLabel');
     if (isAIConnectorConnected) {
       statusColor = 'bg-green-500';
@@ -357,11 +313,10 @@ export default function AIPanel() {
     handleCancelAiTask,
   } = useAiMasking();
 
-  const { cloudUsage, isSignedIn, isPro, aiProvider } = useCloudUsage();
+  const aiProvider = useSettingsStore((s) => s.appSettings?.aiProvider || 'cpu');
   const isAiFree = aiProvider === 'ai-free';
 
-  const isGenerativeAvailable =
-    (aiProvider === 'cloud' && isSignedIn && isPro) || (aiProvider === 'ai-connector' && isAIConnectorConnected);
+  const isGenerativeAvailable = aiProvider === 'ai-connector' && isAIConnectorConnected;
 
   const hasAnyActiveAiTask = Object.keys(activeAiTasks).length > 0;
 
@@ -1099,13 +1054,7 @@ export default function AIPanel() {
         <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col min-h-0 p-3">
           {!isAiFree && (
             <div className="mb-4 shrink-0">
-              <ConnectionStatus
-                aiProvider={aiProvider}
-                isAIConnectorConnected={isAIConnectorConnected}
-                isSignedIn={!!isSignedIn}
-                isPro={!!isPro}
-                cloudUsage={cloudUsage}
-              />
+              <ConnectionStatus aiProvider={aiProvider} isAIConnectorConnected={isAIConnectorConnected} />
             </div>
           )}
 
@@ -1285,7 +1234,6 @@ export default function AIPanel() {
                       setCollapsibleState={setCollapsibleState}
                       isGenerativeAvailable={isGenerativeAvailable}
                       onManualCleanup={handleDirectPatch}
-                      aiProvider={aiProvider}
                     />
                   </motion.div>
                 )}
@@ -1964,7 +1912,6 @@ function SettingsPanel({
   setCollapsibleState,
   isGenerativeAvailable,
   onManualCleanup,
-  aiProvider,
 }: any) {
   const { t } = useTranslation();
   const isActive = !!container;
@@ -1974,7 +1921,6 @@ function SettingsPanel({
   const [useFastInpaint, setUseFastInpaint] = useState(!isGenerativeAvailable);
   const prevContainerId = useRef<string | null>(null);
 
-  const isCloud = aiProvider === 'cloud';
   const isContainerRunning = Boolean(activeAiTasks[displayContainer.id]) || Boolean(displayContainer.isLoading);
 
   useEffect(() => {
@@ -2007,9 +1953,8 @@ function SettingsPanel({
 
   const handleGenerateClick = () => {
     if (!container) return;
-    const finalPrompt = isCloud ? '' : prompt;
-    updateContainer(container.id, { prompt: finalPrompt });
-    onGenerativeReplace(container.id, finalPrompt, useFastInpaint);
+    updateContainer(container.id, { prompt });
+    onGenerativeReplace(container.id, prompt, useFastInpaint);
   };
 
   const handleToggleSection = (section: string) =>
@@ -2048,7 +1993,7 @@ function SettingsPanel({
             <Text variant={TextVariants.small}>
               {isQuickErasePatch
                 ? t('editor.ai.settings.quickEraseDesc')
-                : useFastInpaint || isCloud
+                : useFastInpaint
                   ? t('editor.ai.settings.fastInpaintDesc')
                   : t('editor.ai.settings.generativeDesc')}
             </Text>
@@ -2067,7 +2012,7 @@ function SettingsPanel({
               />
 
               <AnimatePresence>
-                {!useFastInpaint && !isCloud && (
+                {!useFastInpaint && (
                   <motion.div
                     animate={{ opacity: 1, height: 'auto', marginTop: '0.75rem' }}
                     className="overflow-hidden"

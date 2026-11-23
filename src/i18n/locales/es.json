@@ -408,17 +408,11 @@
         "backendLabel": "Backend de IA:",
         "builtinDesc": "Usando CPU local básica. Selecciona Cloud o AI Connector en ajustes para relleno generativo.",
         "builtinLabel": "IA integrada:",
-        "cloudLabel": "IA en la nube:",
         "connectorConnectedDesc": "Conectado al backend generativo local.",
         "connectorDisconnectedDesc": "Solo Inpainting básico disponible. Inicia tu backend local.",
         "connectorLabel": "AI Connector:",
-        "loginRequiredDesc": "Inicia sesión a través de Ajustes para usar la IA en la nube.",
-        "monthlyUsage": "Uso mensual",
         "notDetected": "No detectado",
-        "notLoggedIn": "No has iniciado sesión",
-        "proRequiredDesc": "Se requiere suscripción Pro. Mejora en Ajustes.",
-        "ready": "Listo",
-        "upgradeRequired": "Mejora requerida"
+        "ready": "Listo"
       },
       "createNewTitle": "Crear nueva edición generativa",
       "createNewTooltip": "Crear nueva edición {{name}}",
@@ -1776,32 +1770,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Para aquellos que desean una solución más simple, una suscripción opcional proporciona los mismos resultados de alta calidad que el autoalojamiento sin ninguna molestia. Esta es la opción más conveniente y la mejor manera de apoyar el proyecto.",
-          "feature1": "Máxima comodidad, sin configuración",
-          "feature2": "Mismos resultados que el autoalojamiento",
-          "feature3": "No se requiere hardware potente",
-          "signedIn": {
-            "active": "Suscripción en la nube Activa",
-            "inactive": "Sin suscripción activa",
-            "logout": "Cerrar sesión",
-            "manage": "Gestionar",
-            "usage": "Uso mensual",
-            "usageStats": "{{requests}} / {{limit}} peticiones"
-          },
-          "signedOut": {
-            "noAccount": "¿No tienes cuenta?",
-            "signup": "Regístrate en la página web",
-            "upgradeBtn": "Mejorar en la web",
-            "upgradeDesc": "Para usar las funciones de IA en la nube, necesitas una suscripción Cloud."
-          },
-          "statuses": {
-            "connecting": "Conectando…",
-            "retry": "Reintentar conexión",
-            "unsupported": "El inicio de sesión en la nube actualmente solo está disponible en escritorio."
-          },
-          "title": "Servicio en la nube"
-        },
         "connector": {
           "address": "Dirección de AI Connector",
           "addressDesc": "Introduce la dirección y el puerto de tu instancia en ejecución de AI Connector. Requerido para las funciones de IA generativa.",
@@ -1833,7 +1801,6 @@
         "providers": {
           "aiConnector": "AI Connector",
           "aiFree": "Sin IA",
-          "cloud": "Nube",
           "cpu": "CPU"
         },
         "title": "IA Generativa"

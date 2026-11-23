@@ -391,17 +391,11 @@
         "backendLabel": "AI 後端：",
         "builtinDesc": "使用基礎本地 CPU。在設定中選擇雲端或 AI 聯結器以使用生成式替換。",
         "builtinLabel": "內建 AI：",
-        "cloudLabel": "雲端 AI：",
         "connectorConnectedDesc": "已連線到本地生成式後端。",
         "connectorDisconnectedDesc": "僅可使用簡單修復。請啟動您的本地後端。",
         "connectorLabel": "AI 聯結器：",
-        "loginRequiredDesc": "透過設定登入以使用雲端 AI。",
-        "monthlyUsage": "月度使用量",
         "notDetected": "未檢測到",
-        "notLoggedIn": "未登入",
-        "proRequiredDesc": "需要 Pro 訂閱。請在設定中升級。",
-        "ready": "就緒",
-        "upgradeRequired": "需要升級"
+        "ready": "就緒"
       },
       "createNewTitle": "建立新的生成式編輯",
       "createNewTooltip": "建立新的 {{name}} 編輯",
@@ -1736,32 +1730,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "對於那些想要更簡單解決方案的使用者，可選訂閱提供與自託管相同的高品質結果，無需任何麻煩。這是最方便的選擇，也是支援本專案的最佳方式。",
-          "feature1": "最大便利，無需設定",
-          "feature2": "與自託管相同的結果",
-          "feature3": "無需強大硬體",
-          "signedIn": {
-            "active": "雲端訂閱已啟用",
-            "inactive": "無有效訂閱",
-            "logout": "退出登入",
-            "manage": "管理",
-            "usage": "月度使用量",
-            "usageStats": "{{requests}} / {{limit}} 請求"
-          },
-          "signedOut": {
-            "noAccount": "還沒有帳戶？",
-            "signup": "在網站上註冊",
-            "upgradeBtn": "在網站上升級",
-            "upgradeDesc": "要使用雲端 AI 功能，您需要訂閱雲端服務。"
-          },
-          "statuses": {
-            "connecting": "連線中…",
-            "retry": "重試連線",
-            "unsupported": "雲端登入目前僅在桌面裝置上可用。"
-          },
-          "title": "雲端服務"
-        },
         "connector": {
           "address": "AI 聯結器地址",
           "addressDesc": "輸入您正在執行的 AI 聯結器實例的地址和連接埠。這是使用生成式 AI 功能所必需的。",
@@ -1793,7 +1761,6 @@
         "providers": {
           "aiConnector": "AI 聯結器",
           "aiFree": "無 AI",
-          "cloud": "雲端",
           "cpu": "CPU"
         },
         "title": "生成式 AI"

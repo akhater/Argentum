@@ -391,17 +391,11 @@
         "backendLabel": "AI バックエンド:",
         "builtinDesc": "ローカルCPUを使用しています。生成塗りつぶしを使用するには、設定でクラウドまたはAI Connectorを選択してください。",
         "builtinLabel": "内蔵AI:",
-        "cloudLabel": "クラウドAI:",
         "connectorConnectedDesc": "ローカルの生成バックエンドに接続されました。",
         "connectorDisconnectedDesc": "簡易スポット修正のみ利用可能です。ローカルバックエンドを起動してください。",
         "connectorLabel": "AI Connector:",
-        "loginRequiredDesc": "クラウドAIを使用するには設定からログインしてください。",
-        "monthlyUsage": "月間使用量",
         "notDetected": "検出されませんでした",
-        "notLoggedIn": "未ログイン",
-        "proRequiredDesc": "Proサブスクリプションが必要です。設定からアップグレードしてください。",
-        "ready": "準備完了",
-        "upgradeRequired": "アップグレードが必要です"
+        "ready": "準備完了"
       },
       "createNewTitle": "新しい生成編集を作成",
       "createNewTooltip": "新しい {{name}} 編集を作成",
@@ -1736,32 +1730,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "手軽さを求める方には、セルフホストの手間をかけずに高品質な結果を得られる、オプションのサブスクリプションをおすすめします。最も便利かつプロジェクト開発への貢献につながる方法です。",
-          "feature1": "セットアップ不要で究極の快適性",
-          "feature2": "セルフホストと同様の高品質な仕上がり",
-          "feature3": "高スペックなハードウェアが不要",
-          "signedIn": {
-            "active": "クラウドサブスクリプション有効",
-            "inactive": "サブスクリプションが無効です",
-            "logout": "ログアウト",
-            "manage": "管理する",
-            "usage": "月間使用量",
-            "usageStats": "{{requests}} / {{limit}} 件のリクエスト"
-          },
-          "signedOut": {
-            "noAccount": "アカウントをお持ちではありませんか？",
-            "signup": "Webサイトで会員登録",
-            "upgradeBtn": "Webサイトでアップグレード",
-            "upgradeDesc": "クラウドAI機能を使用するには、クラウドサブスクリプションへの加入が必要です。"
-          },
-          "statuses": {
-            "connecting": "接続中…",
-            "retry": "接続を再試行",
-            "unsupported": "クラウドへのサインインは現在、デスクトップでのみ利用可能です。"
-          },
-          "title": "クラウドサービス"
-        },
         "connector": {
           "address": "AI Connectorのアドレス",
           "addressDesc": "起動中の AI Connector インスタンスのアドレスとポートを入力してください。生成AI機能に必要です。",
@@ -1793,7 +1761,6 @@
         "providers": {
           "aiConnector": "AI Connector",
           "aiFree": "AIなし",
-          "cloud": "クラウド",
           "cpu": "CPU"
         },
         "title": "生成AI"

@@ -1,0 +1,1 @@
+- The unused cloud client code and its two npm packages (`tauri-plugin-clerk`, `@tauri-apps/plugin-http`) were removed. No feature changes.

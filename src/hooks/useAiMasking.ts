@@ -4,7 +4,6 @@ import { toast } from 'react-toastify';
 import { useEditorStore } from '../store/useEditorStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorActions } from './useEditorActions';
-import { useCloudStore } from '../store/useCloudStore';
 import { Adjustments, AiPatch, MaskContainer, Coord } from '../utils/adjustments';
 import { SubMask } from '../components/panel/right/Masks';
 import { Invokes } from '../components/ui/AppProperties';
@@ -34,7 +33,6 @@ const getTransformAdjustments = (adj: Adjustments) => ({
 export function useAiMasking() {
   const { setAdjustments } = useEditorActions();
   const setEditor = useEditorStore((state) => state.setEditor);
-  const getToken = useCloudStore((s) => s.getToken);
   const registerAiTask = useProcessStore((state) => state.registerAiTask);
   const unregisterAiTask = useProcessStore((state) => state.unregisterAiTask);
 
@@ -139,7 +137,6 @@ export function useAiMasking() {
       if (!patch) return;
 
       const patchDefinition = { ...patch, prompt };
-      const token = await getToken();
 
       registerAiTask(patchId, 'inpaint');
       setAdjustments((prev: Adjustments) => ({
@@ -153,7 +150,6 @@ export function useAiMasking() {
           patchDefinition: patchDefinition,
           path: selectedImage.path,
           useFastInpaint: useFastInpaint,
-          token: token || null,
           taskId: patchId,
         });
 
@@ -174,9 +170,6 @@ export function useAiMasking() {
           ),
         }));
         setEditor({ activeAiPatchContainerId: null, activeAiSubMaskId: null });
-        if (!useFastInpaint) {
-          useCloudStore.getState().fetchUsage();
-        }
       } catch (err: any) {
         if (!String(err).includes('cancelled')) {
           toast.error(`AI Replace Failed: ${err}`);
@@ -189,14 +182,13 @@ export function useAiMasking() {
         unregisterAiTask(patchId);
       }
     },
-    [setAdjustments, getToken, registerAiTask, unregisterAiTask, setEditor],
+    [setAdjustments, registerAiTask, unregisterAiTask, setEditor],
   );
 
   const handleQuickErase = useCallback(
     async (subMaskId: string | null, startPoint: Coord, endPoint: Coord) => {
       const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
       if (!selectedImage?.path) return;
-      const token = await getToken();
 
       const patchId = adjustments.aiPatches?.find((p: AiPatch) =>
         p.subMasks.some((sm: SubMask) => sm.id === subMaskId),
@@ -248,7 +240,6 @@ export function useAiMasking() {
           patchDefinition: { ...patchDefinitionForBackend, prompt: '' },
           path: selectedImage.path,
           useFastInpaint: true,
-          token: token || null,
           taskId: patchId,
         });
 
@@ -283,7 +274,7 @@ export function useAiMasking() {
         unregisterAiTask(patchId);
       }
     },
-    [setAdjustments, getToken, registerAiTask, unregisterAiTask, setEditor],
+    [setAdjustments, registerAiTask, unregisterAiTask, setEditor],
   );
 
   const handleDeleteMaskContainer = useCallback(

@@ -392,17 +392,11 @@
         "backendLabel": "AI Backend:",
         "builtinDesc": "Použití základního místního CPU. Výběr cloudového, nebo AI konektoru v nastavení pro generativní náhradu.",
         "builtinLabel": "Vestavěná AI:",
-        "cloudLabel": "Cloud AI:",
         "connectorConnectedDesc": "Připojeno k místnímu generativnímu backendu.",
         "connectorDisconnectedDesc": "K dispozici pouze jednoduché úpravy. Spusťte lokální backend.",
         "connectorLabel": "AI konektor:",
-        "loginRequiredDesc": "Chcete-li používat Cloud AI, přihlaste se přes nastavení.",
-        "monthlyUsage": "Měsíční využití",
         "notDetected": "Nezjištěno",
-        "notLoggedIn": "Nepřihlášen",
-        "proRequiredDesc": "Vyžaduje se předplatné Pro. Aktualizujte v nastavení.",
-        "ready": "Připraven",
-        "upgradeRequired": "Je vyžadován upgrade"
+        "ready": "Připraven"
       },
       "createNewTitle": "Vytvořit novou generativní úpravu",
       "createNewTooltip": "Vytvořit novou {{name}} úpravu",
@@ -1742,32 +1736,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Pro ty, kteří chtějí jednodušší řešení, poskytuje volitelné předplatné stejně vysoce kvalitní výsledky jako vlastní hosting bez jakýchkoli starostí. Je to nejpohodlnější možnost a nejlepší způsob, jak podpořit projekt.",
-          "feature1": "Maximální pohodlí, žádné nastavování",
-          "feature2": "Stejné výsledky jako self-hosting",
-          "feature3": "Není potřeba žádný výkonný hardware",
-          "signedIn": {
-            "active": "Cloudové předplatné je aktivní",
-            "inactive": "Žádné aktivní předplatné",
-            "logout": "Odhlásit se",
-            "manage": "Spravovat",
-            "usage": "Měsíční využití",
-            "usageStats": "{{requests}} / {{limit}} žádosti"
-          },
-          "signedOut": {
-            "noAccount": "Nemáte účet?",
-            "signup": "Zaregistrujte se na webu",
-            "upgradeBtn": "Upgrade na webu",
-            "upgradeDesc": "Chcete-li používat funkce Cloud AI, potřebujete cloudové předplatné."
-          },
-          "statuses": {
-            "connecting": "Připojování…",
-            "retry": "Opakovat připojení",
-            "unsupported": "Přihlášení do cloudu je momentálně k dispozici pouze na počítači."
-          },
-          "title": "Cloudová služba"
-        },
         "connector": {
           "address": "Adresa konektoru AI",
           "addressDesc": "Zadejte adresu a port vaší spuštěné instance AI Connectoru. Vyžadováno pro generativní funkce AI.",
@@ -1799,7 +1767,6 @@
         "providers": {
           "aiConnector": "AI konektor",
           "aiFree": "Bez AI",
-          "cloud": "Cloud",
           "cpu": "CPU"
         },
         "title": "Generativní AI"

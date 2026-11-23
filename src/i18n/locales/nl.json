@@ -385,17 +385,11 @@
         "backendLabel": "AI-backend:",
         "builtinDesc": "Gebruikt basis lokale CPU. Selecteer Cloud of AI-verbinding in instellingen voor generatieve vervanging.",
         "builtinLabel": "Ingebouwde AI:",
-        "cloudLabel": "Cloud AI:",
         "connectorConnectedDesc": "Verbonden met lokale generatieve backend.",
         "connectorDisconnectedDesc": "Alleen eenvoudig inpainting beschikbaar. Start uw lokale backend.",
         "connectorLabel": "AI-verbinding:",
-        "loginRequiredDesc": "Meld u aan via Instellingen om Cloud AI te gebruiken.",
-        "monthlyUsage": "Maandelijks gebruik",
         "notDetected": "Niet gedetecteerd",
-        "notLoggedIn": "Niet aangemeld",
-        "proRequiredDesc": "Pro-abonnement vereist. Upgrade in Instellingen.",
-        "ready": "Gereed",
-        "upgradeRequired": "Upgrade vereist"
+        "ready": "Gereed"
       },
       "createNewTitle": "Nieuwe generatieve bewerking maken",
       "createNewTooltip": "Nieuwe {{name}} bewerking maken",
@@ -1712,32 +1706,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Voor wie een eenvoudigere oplossing wil, biedt een optioneel abonnement dezelfde hoogwaardige resultaten als zelfhosting zonder gedoe. Dit is de meest handige optie en de beste manier om het project te ondersteunen.",
-          "feature1": "Maximaal gemak, geen installatie",
-          "feature2": "Zelfde resultaten als zelfhosting",
-          "feature3": "Geen krachtige hardware vereist",
-          "signedIn": {
-            "active": "Cloudabonnement actief",
-            "inactive": "Geen actief abonnement",
-            "logout": "Afmelden",
-            "manage": "Beheren",
-            "usage": "Maandelijks gebruik",
-            "usageStats": "{{requests}} / {{limit}} verzoeken"
-          },
-          "signedOut": {
-            "noAccount": "Nog geen account?",
-            "signup": "Aanmelden op de website",
-            "upgradeBtn": "Upgraden op website",
-            "upgradeDesc": "Om Cloud AI-functies te gebruiken heeft u een cloudabonnement nodig."
-          },
-          "statuses": {
-            "connecting": "Verbinden…",
-            "retry": "Verbinding opnieuw proberen",
-            "unsupported": "Aanmelden bij de cloud is momenteel alleen beschikbaar op desktop."
-          },
-          "title": "Cloudservice"
-        },
         "connector": {
           "address": "AI-verbindingsadres",
           "addressDesc": "Voer het adres en poort in van uw actieve AI-verbindingsinstantie. Vereist voor generatieve AI-functies.",
@@ -1769,7 +1737,6 @@
         "providers": {
           "aiConnector": "AI-verbinding",
           "aiFree": "Zonder AI",
-          "cloud": "Cloud",
           "cpu": "CPU"
         },
         "title": "Generatieve AI"
