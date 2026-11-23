@@ -1,5 +1,7 @@
 pub fn is_incamera_multiexposure_canon(file_bytes: &[u8]) -> bool {
-    assert!(file_bytes.len() >= 8, "CR2 file must be at least 8 bytes");
+    if file_bytes.len() < 8 {
+        return false;
+    }
 
     match file_bytes.get(0..4) {
         Some([0x49, 0x49, 0x2A, 0x00]) => {}
@@ -62,5 +64,49 @@ pub fn neutralize_wb_if_multiexposure(wb_coeffs: [f32; 4], file_bytes: &[u8]) ->
         neutralized
     } else {
         wb_coeffs
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One little-endian IFD entry of a single LONG value.
+    fn long_entry(tag: u16, value: u32) -> [u8; 12] {
+        let mut e = [0u8; 12];
+        e[0..2].copy_from_slice(&tag.to_le_bytes());
+        e[2..4].copy_from_slice(&4u16.to_le_bytes());
+        e[4..8].copy_from_slice(&1u32.to_le_bytes());
+        e[8..12].copy_from_slice(&value.to_le_bytes());
+        e
+    }
+
+    /// A CR2 whose in-camera multi-exposure flag is set, laid out as the walk reads it.
+    fn multi_exposure_cr2() -> Vec<u8> {
+        let mut f = b"II*\0".to_vec();
+        f.extend(8u32.to_le_bytes()); // IFD0 at 8
+        f.extend(1u16.to_le_bytes());
+        f.extend(long_entry(0x8769, 26)); // Exif IFD at 26
+        f.extend(0u32.to_le_bytes());
+        f.extend(1u16.to_le_bytes());
+        f.extend(long_entry(0x927C, 44)); // maker note at 44
+        f.extend(0u32.to_le_bytes());
+        f.extend(1u16.to_le_bytes());
+        f.extend(long_entry(0x4021, 62)); // block at 62
+        f.extend(0u32.to_le_bytes());
+        f.extend(0u32.to_le_bytes()); // block: version 0
+        f.extend(1u32.to_le_bytes()); // flag 1 at 66
+        f
+    }
+
+    #[test]
+    fn a_multi_exposure_flag_is_read() {
+        assert!(is_incamera_multiexposure_canon(&multi_exposure_cr2()));
+    }
+
+    /// A file shorter than its own header is not multi-exposure: no assertion, no panic.
+    #[test]
+    fn a_file_shorter_than_the_header_is_not_multi_exposure() {
+        assert!(!is_incamera_multiexposure_canon(&[0x49, 0x49, 0x2A, 0x00]));
     }
 }

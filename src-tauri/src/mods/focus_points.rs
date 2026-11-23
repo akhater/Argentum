@@ -295,10 +295,10 @@ fn note_ifd<R: Read + Seek>(
     };
     // Older Nikon compacts: a name, then the directory; offsets from the file's TIFF header.
     if data.starts_with(b"Nikon\0\x01") {
-        return IFD::new(r, at + 8, 0, corr, endian, &[]).ok();
+        return IFD::new(r, at.checked_add(8)?, 0, corr, endian, &[]).ok();
     }
     if data.starts_with(b"Nikon\0") {
-        return IFD::new(r, 8, at + 10, 0, order(data.get(10..12)?)?, &[]).ok();
+        return IFD::new(r, 8, at.checked_add(10)?, 0, order(data.get(10..12)?)?, &[]).ok();
     }
     // Sony (and Hasselblad's Sony-made bodies), Panasonic and Leica's
     // Panasonic-made ones: a name, then the directory; offsets from the
@@ -311,31 +311,47 @@ fn note_ifd<R: Read + Seek>(
         b"Panasonic\0",
     ];
     if named.iter().any(|h| data.starts_with(h)) {
-        return IFD::new(r, at + 12, 0, corr, endian, &[]).ok();
+        return IFD::new(r, at.checked_add(12)?, 0, corr, endian, &[]).ok();
     }
     if data.starts_with(b"LEICA\0\0\0") {
-        return IFD::new(r, at + 8, 0, corr, endian, &[]).ok();
+        return IFD::new(r, at.checked_add(8)?, 0, corr, endian, &[]).ok();
     }
     // Fujifilm: its name, then where its directory starts; offsets from the
     // note's own start, always little-endian.
     if data.starts_with(b"FUJIFILM") {
         let start = u32::from_le_bytes(data.get(8..12)?.try_into().ok()?);
-        return IFD::new(r, at + start, 0, at as i32, Endian::Little, &[]).ok();
+        return IFD::new(r, at.checked_add(start)?, 0, at as i32, Endian::Little, &[]).ok();
     }
     // Olympus (since about 2004) and OM System: a name and a byte order, then
     // the directory, its camera settings a directory of their own; offsets
     // from the note's own start.
     let sub = [focus_points::OLYMPUS_CAMERA_SETTINGS];
     if data.starts_with(b"OLYMPUS\0") {
-        return IFD::new(r, at + 12, 0, at as i32, order(data.get(8..10)?)?, &sub).ok();
+        return IFD::new(
+            r,
+            at.checked_add(12)?,
+            0,
+            at as i32,
+            order(data.get(8..10)?)?,
+            &sub,
+        )
+        .ok();
     }
     if data.starts_with(b"OM SYSTEM\0") {
-        return IFD::new(r, at + 16, 0, at as i32, order(data.get(12..14)?)?, &sub).ok();
+        return IFD::new(
+            r,
+            at.checked_add(16)?,
+            0,
+            at as i32,
+            order(data.get(12..14)?)?,
+            &sub,
+        )
+        .ok();
     }
     if data.starts_with(b"AOC\0") {
         return IFD::new(
             r,
-            at + 6,
+            at.checked_add(6)?,
             0,
             corr,
             order(data.get(4..6)?).unwrap_or(endian),
@@ -345,7 +361,15 @@ fn note_ifd<R: Read + Seek>(
     }
     if data.starts_with(b"PENTAX ") {
         // Offsets from the note's own start.
-        return IFD::new(r, at + 10, 0, at as i32, order(data.get(8..10)?)?, &[]).ok();
+        return IFD::new(
+            r,
+            at.checked_add(10)?,
+            0,
+            at as i32,
+            order(data.get(8..10)?)?,
+            &[],
+        )
+        .ok();
     }
     IFD::new(r, at, 0, corr, endian, &[]).ok()
 }
@@ -379,8 +403,14 @@ fn dng_maker_note<R: Read + Seek>(root: &IFD, r: &mut R) -> Option<IFD> {
         _ => return None,
     };
     let original = u32::from_be_bytes(data.get(16..20)?.try_into().ok()?);
-    let at = entry.offset()? as u32 + 20;
-    note_ifd(r, at, data.get(20..)?, endian, at as i32 - original as i32)
+    let at = (entry.offset()? as u32).checked_add(20)?;
+    note_ifd(
+        r,
+        at,
+        data.get(20..)?,
+        endian,
+        (at as i32).checked_sub(original as i32)?,
+    )
 }
 
 fn short(ifd: &IFD, tag: u16) -> Option<u16> {
@@ -592,5 +622,72 @@ mod tests {
         let v = serde_json::to_value(&f).unwrap();
         assert_eq!(v["mode"], "Manual focus");
         assert_eq!(v["points"][0]["state"], "inFocus");
+    }
+
+    /// A maker note whose directory would start past the end of the u32 offsets
+    /// is not there, in any of the layouts `note_ifd` reads: no wrap, no panic.
+    #[test]
+    fn a_maker_note_placed_past_the_u32_offsets_is_not_there() {
+        let prefixes: [&[u8]; 9] = [
+            b"Nikon\0\x01",
+            b"Nikon\0\0\0\0\0\0II",
+            b"SONY DSC ",
+            b"LEICA\0\0\0",
+            b"FUJIFILM\x10\0\0\0",
+            b"OLYMPUS\0II",
+            b"OM SYSTEM\0\0\0II",
+            b"AOC\0II",
+            b"PENTAX \0II",
+        ];
+        for data in prefixes {
+            let mut r = Cursor::new(Vec::<u8>::new());
+            assert!(
+                note_ifd(&mut r, u32::MAX - 4, data, Endian::Little, 0).is_none(),
+                "{data:?}"
+            );
+        }
+    }
+
+    /// A DNG's kept maker note whose entry sits so its offset + 20 overflows u32.
+    #[test]
+    fn a_dng_maker_note_whose_offset_overflows_is_not_there() {
+        use rawler::formats::tiff::Entry;
+        let mut data = b"Adobe\0MakN".to_vec();
+        data.extend([0; 4]); // length
+        data.extend(b"II"); // byte order
+        data.extend([0; 4]); // original offset
+        let mut root = IFD::default();
+        root.entries.insert(
+            DNG_PRIVATE_DATA,
+            Entry {
+                tag: DNG_PRIVATE_DATA,
+                value: TiffValue::Undefined(data),
+                embedded: Some(u32::MAX - 10),
+            },
+        );
+        let mut r = Cursor::new(Vec::<u8>::new());
+        assert!(dng_maker_note(&root, &mut r).is_none());
+    }
+
+    /// The same note with its offset in range, but the original offset's
+    /// signed difference from it past i32: refused, not subtracted into a wrap.
+    #[test]
+    fn a_dng_maker_note_whose_correction_overflows_is_not_there() {
+        use rawler::formats::tiff::Entry;
+        let mut data = b"Adobe\0MakN".to_vec();
+        data.extend([0; 4]); // length
+        data.extend(b"II"); // byte order
+        data.extend(0x8000_0010u32.to_be_bytes()); // original offset
+        let mut root = IFD::default();
+        root.entries.insert(
+            DNG_PRIVATE_DATA,
+            Entry {
+                tag: DNG_PRIVATE_DATA,
+                value: TiffValue::Undefined(data),
+                embedded: Some(0x7FFF_FFE0),
+            },
+        );
+        let mut r = Cursor::new(Vec::<u8>::new());
+        assert!(dng_maker_note(&root, &mut r).is_none());
     }
 }
