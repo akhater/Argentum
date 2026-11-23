@@ -81,17 +81,24 @@ jobs:
 
       - name: rustup install target
         if: ${{ inputs.target != '' }}
-        run: rustup target add ${{ inputs.target }}
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: rustup target add "$TARGET"
 
       - id: patch-release-name
         shell: bash
         if: ${{ inputs.release-id != '' }}
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          ASSET_NAME_PATTERN: ${{ inputs.asset-name-pattern }}
+          ASSET_PREFIX: ${{ inputs.asset-prefix }}
         run: |
-          platform="${{ inputs.platform }}"
-          replacement="$(echo ${platform} | sed -E 's/-latest//')"
-          patched_platform=$(echo '${{ inputs.asset-name-pattern }}' | sed -E "s/\[platform\]/${replacement}/")
-          if [[ -n "${{ inputs.asset-prefix }}" ]]; then
-            patched_platform="${{ inputs.asset-prefix }}_${patched_platform}"
+          platform="$PLATFORM"
+          replacement="$(echo "${platform}" | sed -E 's/-latest//')"
+          patched_platform=$(echo "$ASSET_NAME_PATTERN" | sed -E "s/\[platform\]/${replacement}/")
+          if [[ -n "$ASSET_PREFIX" ]]; then
+            patched_platform="${ASSET_PREFIX}_${patched_platform}"
           fi
           echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
 
@@ -140,7 +147,7 @@ jobs:
           # Argentum: shipped builds keep MSVC's linker; rust-lld (.cargo/config.toml) is for dev.
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
         with:
-          args: --verbose ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }} ${{ inputs.bundles != '' && '--bundles' || '' }} ${{ inputs.bundles }}
+          args: --verbose ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }} ${{ inputs.bundles != '' && '--bundles' || '' }} ${{ inputs.bundles }} -- --locked
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           releaseId: ${{ inputs.release-id }}
           retryAttempts: 3
@@ -151,8 +158,10 @@ jobs:
       - name: Check the signature and the privacy prompts (macOS)
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
         run: |
-          app="$(echo src-tauri/target/${{ inputs.target }}/release/bundle/macos/*.app)"
+          app="$(echo src-tauri/target/${TARGET}/release/bundle/macos/*.app)"
           codesign --verify --deep --strict "$app"
           requirement="$(codesign -d -r- "$app" 2>&1)"
           echo "$requirement"

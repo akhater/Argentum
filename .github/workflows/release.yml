@@ -67,8 +67,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download table
-        run: node scripts/release-downloads.mjs "${{ github.event.release.tag_name }}"
+        run: node scripts/release-downloads.mjs "$TAG"
         env:
+          TAG: ${{ github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
 
@@ -82,7 +83,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Installer size against the last release
-        run: node scripts/installer-size.mjs "${{ github.event.release.tag_name }}"
+        run: node scripts/installer-size.mjs "$TAG"
         env:
+          TAG: ${{ github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
