@@ -109,6 +109,10 @@ interface MyLens {
 }
 
 const EXECUTE_TIMEOUT_MS = 3000;
+// Mirror mods/photo_cache_budget.rs: the size shown before the app has stored one,
+// and the megabytes one typical 24-megapixel decoded photo holds.
+const DECODED_PHOTO_CACHE_FALLBACK_MB = 1536;
+const TYPICAL_PHOTO_MB = 288;
 
 const resolutions: OptionItem<number>[] = [
   { value: 720, label: '720px' },
@@ -459,7 +463,7 @@ export default function SettingsPanel({
     useFullDpiRendering: appSettings?.useFullDpiRendering ?? false,
     useWgpuRenderer: appSettings?.useWgpuRenderer ?? osPlatform !== 'linux',
     thumbnailWorkerThreads: appSettings?.thumbnailWorkerThreads ?? 4,
-    imageCacheSize: appSettings?.imageCacheSize ?? 5,
+    decodedPhotoCacheMb: appSettings?.decodedPhotoCacheMb ?? DECODED_PHOTO_CACHE_FALLBACK_MB,
     rawPreprocessingColorNr: appSettings?.rawPreprocessingColorNr ?? 0.5,
     rawPreprocessingSharpening: appSettings?.rawPreprocessingSharpening ?? 0.35,
     applyPreprocessingToNonRaws: appSettings?.applyPreprocessingToNonRaws ?? false,
@@ -560,7 +564,7 @@ export default function SettingsPanel({
       useFullDpiRendering: appSettings?.useFullDpiRendering ?? false,
       useWgpuRenderer: appSettings?.useWgpuRenderer ?? true,
       thumbnailWorkerThreads: appSettings?.thumbnailWorkerThreads ?? 4,
-      imageCacheSize: appSettings?.imageCacheSize ?? 5,
+      decodedPhotoCacheMb: appSettings?.decodedPhotoCacheMb ?? DECODED_PHOTO_CACHE_FALLBACK_MB,
       rawPreprocessingColorNr: appSettings?.rawPreprocessingColorNr ?? 0.5,
       rawPreprocessingSharpening: appSettings?.rawPreprocessingSharpening ?? 0.35,
       applyPreprocessingToNonRaws: appSettings?.applyPreprocessingToNonRaws ?? false,
@@ -1683,17 +1687,23 @@ export default function SettingsPanel({
                         description={t('settings.processing.imageCacheDesc')}
                       >
                         <Slider
-                          label={t('settings.processing.images')}
-                          min={2}
-                          max={10}
-                          step={1}
-                          value={processingSettings.imageCacheSize}
-                          defaultValue={5}
+                          label={t('settings.processing.imageCacheSize')}
+                          min={512}
+                          max={8192}
+                          step={128}
+                          suffix="MB"
+                          value={processingSettings.decodedPhotoCacheMb}
+                          defaultValue={DECODED_PHOTO_CACHE_FALLBACK_MB}
                           onChange={(e: any) =>
-                            handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))
+                            handleProcessingSettingChange('decodedPhotoCacheMb', parseInt(e.target.value))
                           }
                           fillOrigin="min"
                         />
+                        <p className="text-xs text-text-secondary mt-2">
+                          {t('settings.processing.imageCacheHint', {
+                            photos: Math.floor(processingSettings.decodedPhotoCacheMb / TYPICAL_PHOTO_MB),
+                          })}
+                        </p>
                       </SettingItem>
 
                       <SettingItem

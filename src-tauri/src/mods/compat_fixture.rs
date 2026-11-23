@@ -766,7 +766,7 @@ const SETTINGS_JSON: &str = r##"{
   "zoomPhotoToPixelClick": true,
   "keybinds": { "open_image": ["ctrl", "Enter"], "copy_files": ["ctrl", "alt", "KeyC"] },
   "thumbnailWorkerThreads": 6,
-  "imageCacheSize": 8,
+  "decodedPhotoCacheMb": 2304,
   "tonemapperOverrideEnabled": true,
   "defaultRawTonemapper": "basic",
   "defaultNonRawTonemapper": "agx",

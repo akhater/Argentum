@@ -95,6 +95,12 @@ pub const DROPPED: &[Dropped] = &[
         reason: "the Import dialog stored it; Import is gone, Shoebox does the importing",
         pr: "#296",
     },
+    Dropped {
+        file: SETTINGS,
+        path: "/imageCacheSize",
+        reason: "the decoded-photo cache is limited by size now; the stored count is converted once to decodedPhotoCacheMb",
+        pr: "decoded-photo-cache-byte-budget",
+    },
 ];
 
 /// Removes from `extra`, the unknown top-level keys of `file` (`SETTINGS` or
