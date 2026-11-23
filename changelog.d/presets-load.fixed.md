@@ -1,0 +1,1 @@
+- Presets: a presets file that is there but cannot be read or parsed is no longer shown as an empty list and then saved over by the next change. A copy of it is kept beside it, changes are not saved while it cannot be loaded (a message says so), and importing presets or saving a community preset stops with an error instead of overwriting it.
