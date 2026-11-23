@@ -179,7 +179,7 @@ impl Registry {
             if let Some(before) = self.infos[..i].iter().find(|t| t.stage > tool.stage) {
                 return Err(Error::Registry(format!(
                     "{} runs at {:?} and is listed after {}, which runs at {:?}: \
-                     list every Raw tool first, then SceneLinear, then Display",
+                     list every Raw tool before the SceneLinear ones",
                     tool.id, tool.stage, before.id, before.stage
                 )));
             }

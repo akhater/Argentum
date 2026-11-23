@@ -347,7 +347,7 @@ fn clamp_json(mut value: Value, fields: &[Field]) -> std::result::Result<(Value,
 /// A tool's descriptor, read off its settings' defaults and fields. Refused
 /// when a setting is not a number, a boolean or a choice, a field names a
 /// setting that does not exist, a log scale is asked of something that is
-/// not a float, or a setting depends on itself, on a setting that does not
+/// not a float, a range holds no value, or a setting depends on itself, on a setting that does not
 /// exist, or on a value of the wrong type.
 fn describe(
     tool: ToolDescriptor,
@@ -394,6 +394,17 @@ fn describe(
         let log = field.is_some_and(|f| f.log);
         if log && kind != SettingKind::Float {
             return Err(format!("{id}: {key} is not a float, so has no log scale"));
+        }
+        // `clamp_json` would panic on a range with nothing inside it.
+        if let Some((min, max)) = field.and_then(|f| f.min.zip(f.max)) {
+            let empty = if kind == SettingKind::Int {
+                min.ceil() > max.floor()
+            } else {
+                min > max
+            };
+            if empty {
+                return Err(format!("{id}: {key} has no value between {min} and {max}"));
+            }
         }
         let enabled_when = match field.and_then(|f| f.enabled_when) {
             None => None,
@@ -787,5 +798,35 @@ mod tests {
         }
         let log = describe(tool(), &defaults, &[Field::new("amount").log(), mode]).unwrap();
         assert_eq!(log.settings[0].scale, Some(SettingScale::Log));
+    }
+}
+
+#[cfg(test)]
+mod range_tests {
+    use super::*;
+    use crate::contract::{Section, Stage};
+
+    #[test]
+    fn a_range_that_cannot_be_clamped_into_is_refused() {
+        let tool = || skeleton("ag_demo", Stage::SceneLinear, Section::Basic, 1, 0).unwrap();
+        let defaults = serde_json::json!({ "count": 1, "amount": 0.5 });
+        let ok = [
+            Field::new("count").range(0.0, 4.0),
+            Field::new("amount").range(0.0, 1.0),
+        ];
+        assert!(describe(tool(), &defaults, &ok).is_ok());
+        for wrong in [
+            // Minimum above maximum.
+            Field::new("amount").range(1.0, 0.0),
+            Field::new("count").range(4.0, 0.0),
+            // No integer inside the range.
+            Field::new("count").range(0.2, 0.8),
+        ] {
+            let e = describe(tool(), &defaults, &[wrong]).expect_err("refused");
+            assert!(e.contains("ag_demo") && e.contains(wrong.key), "{e}");
+        }
+        // A float may sit in a range that holds no integer.
+        let narrow = [Field::new("amount").range(0.2, 0.8)];
+        assert!(describe(tool(), &defaults, &narrow).is_ok());
     }
 }
