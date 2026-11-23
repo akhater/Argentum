@@ -60,31 +60,56 @@ impl Tool for DtHighlights {
             tool: Self::ID,
             message: format!("was handed {}", input.describe()),
         })?;
+        // Judged once, before recovery rewrites the photosites, as the app's
+        // decode does (`mods/decode.rs`). Most photos have nothing clipped:
+        // that is found out by reading them, before anything is copied.
+        let ceilings = ceilings(raw);
+        if !anything_clipped(&raw.data, ceilings) {
+            return Ok(None);
+        }
         let mut out = raw.clone();
-        Ok(apply(&mut out, settings.recover).then(|| Image::Raw(Arc::new(out))))
+        Ok(apply_judged(&mut out, settings.recover, ceilings).then(|| Image::Raw(Arc::new(out))))
     }
 }
 
 /// Recovery, then the blown highlights settled, as the app's decode does it.
 /// Says whether any value changed.
 pub fn apply(raw: &mut RawImage, recover_on: bool) -> bool {
-    let before_integer = matches!(raw.data, RawImageData::Integer(_));
-    let before_float = match &raw.data {
-        RawImageData::Float(v) => Some(v.clone()),
-        RawImageData::Integer(_) => None,
-    };
-    // Judged once, before recovery rewrites the photosites, as the app's
-    // decode does (`mods/decode.rs`).
     let ceilings = ceilings(raw);
-    let rebuilt = recover_on && recover(raw, ceilings);
+    anything_clipped(&raw.data, ceilings) && apply_judged(raw, recover_on, ceilings)
+}
+
+/// `apply` with the ceilings already judged on `raw` as it is.
+fn apply_judged(raw: &mut RawImage, recover_on: bool, ceilings: Option<[f32; 4]>) -> bool {
+    let (rebuilt, recovered) = if recover_on {
+        recover(raw, ceilings)
+    } else {
+        (false, false)
+    };
     let wb = raw.wb_coeffs;
-    settle_blown(raw, wb, rebuilt, ceilings);
-    // Both only ever replace an integer buffer with a new float one when they
-    // move something, so an integer buffer still integer is untouched.
-    match (&raw.data, before_float) {
-        (RawImageData::Integer(_), _) => !before_integer,
-        (RawImageData::Float(after), Some(before)) => *after != before,
-        (RawImageData::Float(_), None) => true,
+    let settled = settle_blown(raw, wb, rebuilt, ceilings);
+    recovered || settled
+}
+
+/// Whether any value in `data` reaches the lowest of `ceilings`. Where none
+/// does, neither `recover` nor `settle_blown` has anything to act on: both
+/// move only a value at or above its own colour's ceiling, or a block
+/// holding one.
+fn anything_clipped(data: &RawImageData, ceilings: Option<[f32; 4]>) -> bool {
+    ceilings.is_some_and(|c| reaches(data, lowest([c[0], c[1], c[2]])))
+}
+
+/// The lowest of the three colours' ceilings.
+fn lowest(ceiling: [f32; 3]) -> f32 {
+    ceiling.iter().copied().fold(f32::INFINITY, f32::min)
+}
+
+/// Whether any value in `data` is at or above `level`, read without copying.
+fn reaches(data: &RawImageData, level: f32) -> bool {
+    use rayon::prelude::*;
+    match data {
+        RawImageData::Integer(v) => v.par_iter().any(|&x| x as f32 >= level),
+        RawImageData::Float(v) => v.par_iter().any(|&x| x >= level),
     }
 }
 
@@ -402,20 +427,21 @@ const SAMPLE_STRIDE: usize = 4;
 ///
 /// Returns whether recovery was in charge of this photo's clipped pixels: with
 /// a measured highlight colour to rebuild them from. `settle_blown` needs to
-/// know, because when it was not, nothing has dealt with them yet.
+/// know, because when it was not, nothing has dealt with them yet. And,
+/// second, whether it changed any value.
 ///
 /// `ceilings` are this photo's, from `ceilings`, judged once before
 /// anything rewrites the photosites they are judged on.
-pub fn recover(raw: &mut RawImage, ceilings: Option<[f32; 4]>) -> bool {
+pub fn recover(raw: &mut RawImage, ceilings: Option<[f32; 4]>) -> (bool, bool) {
     let Some(ceil4) = ceilings else {
-        return false;
+        return (false, false);
     };
     let ceilings = [ceil4[0], ceil4[1], ceil4[2]];
 
     match raw.cpp {
         3 => recover_three_colour(raw, ceilings),
         1 => recover_mosaic(raw, ceilings),
-        _ => false,
+        _ => (false, false),
     }
 }
 
@@ -426,9 +452,9 @@ pub fn recover(raw: &mut RawImage, ceilings: Option<[f32; 4]>) -> bool {
 /// buffer is unsigned 16-bit, so where it happens the buffer is handed on as
 /// float; where it does not, the original integers are left exactly as they
 /// were.
-fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
+fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) -> (bool, bool) {
     let RawImageData::Integer(pixels) = &raw.data else {
-        return false;
+        return (false, false);
     };
 
     let colour = highlight_colour(
@@ -440,7 +466,9 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
             .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]),
         ceilings,
     );
-    let Some(colour) = colour else { return false };
+    let Some(colour) = colour else {
+        return (false, false);
+    };
 
     let mut out: Vec<f32> = Vec::with_capacity(pixels.len());
     let mut touched = false;
@@ -461,7 +489,7 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
     if touched {
         raw.data = RawImageData::Float(out);
     }
-    true
+    (true, touched)
 }
 
 // Copied from src-tauri/src/mods/highlights.rs @ 2bcb953d.
@@ -470,10 +498,10 @@ fn recover_three_colour(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
 /// A photosite holds one colour, so the block that will become a pixel is the
 /// unit: read the three colours out of it, rebuild the ones that clipped, and
 /// write each rebuilt value back only to the photosites it came from.
-fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
+fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> (bool, bool) {
     let (w, h) = (raw.width, raw.height);
     if w < 2 || h < 2 {
-        return false;
+        return (false, false);
     }
     // Copied out because reading the pattern borrows `raw` while writing pixels
     // needs it mutably, and the pattern is four numbers.
@@ -482,21 +510,27 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
         .collect();
 
     let RawImageData::Integer(pixels) = &raw.data else {
-        return false;
+        return (false, false);
     };
 
-    let read_block = |src: &[f32], row: usize, col: usize| -> [f32; 3] {
+    // Reads the integers as they are while the colour is learnt, and the
+    // float copy once there is one: the copy is made only when it is used.
+    fn read_block<T: Copy + Into<f32>>(
+        src: &[T],
+        w: usize,
+        pattern: &[usize],
+        row: usize,
+        col: usize,
+    ) -> [f32; 3] {
         let mut out = [0.0f32; 3];
         for (i, (dr, dc)) in [(0, 0), (0, 1), (1, 0), (1, 1)].into_iter().enumerate() {
-            let v = src[(row + dr) * w + (col + dc)];
+            let v: f32 = src[(row + dr) * w + (col + dc)].into();
             // Two greens: the brighter decides, because a block has lost green
             // as soon as either of them is at the ceiling.
             out[pattern[i]] = out[pattern[i]].max(v);
         }
         out
-    };
-
-    let mut out: Vec<f32> = pixels.iter().map(|&v| v as f32).collect();
+    }
 
     let colour = {
         let mut samples = Vec::new();
@@ -504,21 +538,25 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
         while row + 1 < h {
             let mut col = 0;
             while col + 1 < w {
-                samples.push(read_block(&out, row, col));
+                samples.push(read_block(pixels, w, &pattern, row, col));
                 col += 2 * SAMPLE_STRIDE;
             }
             row += 2 * SAMPLE_STRIDE;
         }
         highlight_colour(samples.into_iter(), ceilings)
     };
-    let Some(colour) = colour else { return false };
+    let Some(colour) = colour else {
+        return (false, false);
+    };
+
+    let mut out: Vec<f32> = pixels.iter().map(|&v| v as f32).collect();
 
     let mut touched = false;
     let mut row = 0;
     while row + 1 < h {
         let mut col = 0;
         while col + 1 < w {
-            let before = read_block(&out, row, col);
+            let before = read_block(&out, w, &pattern, row, col);
             if (0..3).any(|c| before[c] >= ceilings[c]) {
                 let after = rebuild(before, ceilings, &colour);
                 if after != before {
@@ -540,7 +578,7 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
     if touched {
         raw.data = RawImageData::Float(out);
     }
-    true
+    (true, touched)
 }
 
 // Copied from src-tauri/src/mods/highlights.rs @ 99f5e045 (the ceilings as an
@@ -568,8 +606,15 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
 ///
 /// `ceilings` are the ones `recover` was given: judged on the photo as decoded,
 /// not on what recovery made of it.
-pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool, ceilings: Option<[f32; 4]>) {
-    let Some(ceil4) = ceilings else { return };
+///
+/// Returns whether it changed any value.
+pub fn settle_blown(
+    raw: &mut RawImage,
+    wb: [f32; 4],
+    rebuilt: bool,
+    ceilings: Option<[f32; 4]>,
+) -> bool {
+    let Some(ceil4) = ceilings else { return false };
     let black = raw
         .blacklevel
         .levels
@@ -577,13 +622,13 @@ pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool, ceilings: O
         .map(|r| r.as_f32())
         .unwrap_or(0.0);
     let Some(settle) = Settle::new([ceil4[0], ceil4[1], ceil4[2]], black, wb) else {
-        return;
+        return false;
     };
 
     match raw.cpp {
         3 => {
             let (w, h) = (raw.width, raw.height);
-            settle_buffer(raw, w * 3, h, 1, |_, col| col % 3, &settle, rebuilt);
+            settle_buffer(raw, w * 3, h, 1, |_, col| col % 3, &settle, rebuilt)
         }
         1 => {
             let cfa = raw.camera.cfa.clone();
@@ -593,7 +638,7 @@ pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool, ceilings: O
             let block = match (cfa.width, cfa.height) {
                 (2, 2) if cfa.is_rgb() => 2,
                 (6, 6) if cfa.is_rgb() => 3,
-                _ => return,
+                _ => return false,
             };
             let (w, h) = (raw.width, raw.height);
             settle_buffer(
@@ -604,9 +649,9 @@ pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool, ceilings: O
                 |r, c| cfa.color_at(r, c),
                 &settle,
                 rebuilt,
-            );
+            )
         }
-        _ => {}
+        _ => false,
     }
 }
 
@@ -741,7 +786,8 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 /// `w` is in values, not pixels: a three-colour image is walked as a row of
 /// `3 * width` values with blocks of one row by three, where `colour_at` gives
 /// the channel. A partial block at the right or bottom edge is skipped; it is
-/// at most two photosites wide and outside every crop.
+/// at most two photosites wide and outside every crop. Returns whether any
+/// value moved.
 fn settle_buffer(
     raw: &mut RawImage,
     w: usize,
@@ -750,23 +796,18 @@ fn settle_buffer(
     colour_at: impl Fn(usize, usize) -> usize + Sync,
     settle: &Settle,
     rebuilt: bool,
-) {
+) -> bool {
     use rayon::prelude::*;
 
     // Most photos have nothing clipped at all. Find that out without copying
     // anything, and leave the decoded integers exactly as they were.
-    let lowest = settle.ceiling.iter().copied().fold(f32::INFINITY, f32::min);
-    let anything_clipped = match &raw.data {
-        RawImageData::Integer(v) => v.par_iter().any(|&x| x as f32 >= lowest),
-        RawImageData::Float(v) => v.par_iter().any(|&x| x >= lowest),
-    };
-    if !anything_clipped || w == 0 || h < block {
-        return;
+    if !reaches(&raw.data, lowest(settle.ceiling)) || w == 0 || h < block {
+        return false;
     }
 
     let mut out: Vec<f32> = raw.data.as_f32().into_owned();
     if out.len() != w * h {
-        return;
+        return false;
     }
     // A three-colour row is one block high and three values wide.
     let (block_h, block_w) = if block == 1 { (1, 3) } else { (block, block) };
@@ -807,6 +848,7 @@ fn settle_buffer(
     if moved > 0 {
         raw.data = RawImageData::Float(out);
     }
+    moved > 0
 }
 
 // Copied from src-tauri/src/mods/highlights.rs @ 2bcb953d (`recovery_tests`
