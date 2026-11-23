@@ -15,7 +15,8 @@ const tsRecommended = tseslint.configs.recommended.map((config) =>
 
 module.exports = [
   {
-    ignores: ['dist/**', 'node_modules/**', 'src-tauri/target/**', 'src-tauri/gen/**'],
+    // .claude/ holds agents' git worktrees, each a full copy of this tree. Flat config does not read .gitignore.
+    ignores: ['dist/**', 'node_modules/**', 'src-tauri/target/**', 'src-tauri/gen/**', '.claude/**'],
   },
   jsRecommendedForTs,
   ...tsRecommended,
