@@ -664,7 +664,7 @@ fn process_preview_job(
         unscaled_crop_offset.1 * effective_scale,
     );
 
-    let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+    let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
         .iter()
         .filter_map(|def| {
             get_cached_or_generate_mask(
@@ -1017,7 +1017,7 @@ async fn generate_uncropped_preview(
             .and_then(|m| serde_json::from_value(m.clone()).ok())
             .unwrap_or_default();
 
-        let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+        let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
             .iter()
             .filter_map(|def| {
                 get_cached_or_generate_mask(
@@ -1137,7 +1137,7 @@ fn render_preset_preview(
         unscaled_crop_offset.1 * scale_for_gpu,
     );
 
-    let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+    let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
         .iter()
         .filter_map(|def| {
             get_cached_or_generate_mask(
@@ -1301,7 +1301,7 @@ async fn generate_all_community_previews(
                 unscaled_crop_offset.1 * base_scale,
             );
 
-            let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+            let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
                 .iter()
                 .filter_map(|def| {
                     generate_mask_bitmap(
@@ -1313,6 +1313,7 @@ async fn generate_all_community_previews(
                         None,
                     )
                 })
+                .map(Arc::new)
                 .collect();
 
             let render = resolve_render_options_from_handle(&app_handle, *is_raw);
@@ -1598,7 +1599,7 @@ async fn generate_preview_for_path(
 
         let warped_image =
             build_warped_image_for_masks(&base_image, is_raw, &js_adjustments, &mask_definitions);
-        let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+        let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
             .iter()
             .filter_map(|def| {
                 generate_mask_bitmap(
@@ -1610,6 +1611,7 @@ async fn generate_preview_for_path(
                     warped_image.as_deref(),
                 )
             })
+            .map(Arc::new)
             .collect();
 
         let render = resolve_render_options(&settings, is_raw);
@@ -2350,7 +2352,7 @@ fn run_app() {
             thumbnail_progress: Mutex::new(ThumbnailProgressTracker { total: 0, completed: 0 }),
             preview_worker_tx: Mutex::new(None),
             analytics_worker_tx: Mutex::new(None),
-            mask_cache: Mutex::new(HashMap::new()),
+            mask_cache: Mutex::new(crate::mods::mask_cache::MaskCache::default()),
             patch_cache: Mutex::new(HashMap::new()),
             geometry_cache: Mutex::new(HashMap::new()),
             thumbnail_geometry_cache: Mutex::new(HashMap::new()),

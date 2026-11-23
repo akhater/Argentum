@@ -1721,7 +1721,7 @@ pub fn generate_thumbnail_data(
             .and_then(|m| serde_json::from_value(m.clone()).ok())
             .unwrap_or_else(Vec::new);
 
-        let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+        let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
             .iter()
             .filter_map(|def| {
                 crate::get_cached_or_generate_mask(

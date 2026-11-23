@@ -157,7 +157,7 @@ pub struct Job<'a> {
     /// Show a mask instead of sharpening.
     pub mask_view: MaskView,
     /// RapidRAW's mask bitmaps for this render, indexed as `params.local` is.
-    pub masks: &'a [MaskBitmap],
+    pub masks: &'a [std::sync::Arc<MaskBitmap>],
     /// Their region of interest, in render pixels: x, y, width, height.
     pub region: Option<[u32; 4]>,
 }
@@ -307,7 +307,7 @@ fn local_layers<'a>(job: &'a Job) -> Vec<(&'a MaskBitmap, Layer)> {
             _ => false,
         })
         .filter_map(|k| {
-            let bitmap = job.masks.get(k)?;
+            let bitmap = &**job.masks.get(k)?;
             let layer = Layer {
                 amount: p.local[k],
                 sigma: p.local_radius[k] * s,
@@ -2006,8 +2006,8 @@ pub(crate) mod tests {
                     let v = if x < w / 2 { 0.05 } else { 0.4 };
                     image::Rgb([v, v, v])
                 }));
-            let masks: Vec<MaskBitmap> = (0..3)
-                .map(|i| MaskBitmap::from_pixel(w, h, image::Luma([60 * (i + 1)])))
+            let masks: Vec<Arc<MaskBitmap>> = (0..3)
+                .map(|i| Arc::new(MaskBitmap::from_pixel(w, h, image::Luma([60 * (i + 1)]))))
                 .collect();
 
             for sharpen in [false, true] {
@@ -2306,16 +2306,16 @@ pub(crate) mod tests {
                 // Photo masks with a Sharpen of their own, each with its own
                 // radius: two eye-sized ones, then one over the whole frame.
                 let eye = |cx: u32| {
-                    MaskBitmap::from_fn(w, h, |x, y| {
+                    Arc::new(MaskBitmap::from_fn(w, h, |x, y| {
                         image::Luma(
                             [u8::from(x.abs_diff(cx) < 150 && y.abs_diff(h / 3) < 80) * 255],
                         )
-                    })
+                    }))
                 };
                 let masks = [
                     eye(w * 2 / 5),
                     eye(w * 3 / 5),
-                    MaskBitmap::from_pixel(w, h, image::Luma([255])),
+                    Arc::new(MaskBitmap::from_pixel(w, h, image::Luma([255]))),
                 ];
                 let with = |n: usize| {
                     let mut params = params;
@@ -2481,7 +2481,7 @@ pub(crate) mod tests {
         let (w, h) = (128u32, 32u32);
         let px = edge(w, h, 1.5);
         let src = upload(ctx, w, h, &px);
-        let mask = MaskBitmap::from_pixel(w, h, image::Luma([255]));
+        let mask = Arc::new(MaskBitmap::from_pixel(w, h, image::Luma([255])));
         let mut local = [0.0; MAX_LOCAL];
         local[0] = 0.8;
         let job = Job {
@@ -2580,7 +2580,7 @@ pub(crate) mod tests {
         let (w, h) = (128u32, 32u32);
         let px = edge(w, h, 1.5);
         let src = upload(&ctx, w, h, &px);
-        let mask = MaskBitmap::from_pixel(w, h, image::Luma([255]));
+        let mask = Arc::new(MaskBitmap::from_pixel(w, h, image::Luma([255])));
         let mut local = [0.0; MAX_LOCAL];
         local[0] = 0.8;
         let job = Job {
@@ -2723,7 +2723,7 @@ pub(crate) mod tests {
         let src = upload(&ctx, w, h, &px);
         // The top half of the picture.
         let top = MaskBitmap::from_fn(w, h, |_, y| image::Luma([if y < h / 2 { 255 } else { 0 }]));
-        let masks = [top];
+        let masks = [Arc::new(top)];
         let run_with = |amount: f32| {
             let mut local = [0.0; MAX_LOCAL];
             local[0] = amount;
@@ -2795,7 +2795,7 @@ pub(crate) mod tests {
         let px = edge(w, h, 1.5);
         let src = upload(&ctx, w, h, &px);
         let top = MaskBitmap::from_fn(w, h, |_, y| image::Luma([if y < h / 2 { 255 } else { 0 }]));
-        let masks = [top];
+        let masks = [Arc::new(top)];
         let run_with = |radius: f32, mask_view: MaskView| {
             let mut params = Params::default();
             params.local[0] = 0.8;

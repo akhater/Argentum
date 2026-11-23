@@ -28,7 +28,7 @@ pub struct Roi {
 
 pub struct RenderRequest<'a> {
     pub adjustments: AllAdjustments,
-    pub mask_bitmaps: &'a [ImageBuffer<Luma<u8>, Vec<u8>>],
+    pub mask_bitmaps: &'a [Arc<ImageBuffer<Luma<u8>, Vec<u8>>>],
     pub lut: Option<Arc<Lut>>,
     pub roi: Option<Roi>,
 }
@@ -1148,7 +1148,7 @@ impl GpuProcessor {
     // RapidRAW 7d6dd5c0, c756671d: src-tauri/src/gpu_processing.rs
     fn mask_view(
         &self,
-        mask_bitmaps: &[ImageBuffer<Luma<u8>, Vec<u8>>],
+        mask_bitmaps: &[Arc<ImageBuffer<Luma<u8>, Vec<u8>>>],
         width: u32,
         height: u32,
     ) -> wgpu::TextureView {

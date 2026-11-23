@@ -365,7 +365,7 @@ impl Held {
         }
         if let Some(g) = peek(&state.mask_cache) {
             held.mask_count = g.len();
-            held.masks = g.values().map(|m| m.as_raw().len()).sum();
+            held.masks = g.bytes();
         }
         for slot in [
             &state.hdr_result,

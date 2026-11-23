@@ -956,7 +956,7 @@ fn process_image_for_export_pipeline(
 
     let warped_image =
         build_warped_image_for_masks(base_image, is_raw, js_adjustments, &mask_definitions);
-    let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+    let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
         .iter()
         .filter_map(|def| {
             generate_mask_bitmap(
@@ -968,6 +968,7 @@ fn process_image_for_export_pipeline(
                 warped_image.as_deref(),
             )
         })
+        .map(Arc::new)
         .collect();
 
     let render = resolve_render_options_from_handle(app_handle, is_raw);
@@ -1260,7 +1261,7 @@ fn export_masks_for_image(
             unscaled_crop_offset,
             warped_image.as_deref(),
         ) {
-            mask_bitmaps.push(bitmap);
+            mask_bitmaps.push(Arc::new(bitmap));
         }
         ensure_export_not_cancelled(cancellation_token)?;
     }
@@ -1285,7 +1286,7 @@ fn export_masks_for_image(
             ensure_export_not_cancelled(cancellation_token)?;
             let single_adjustments = build_single_mask_adjustments(&all_adjustments, i);
             let full_white_mask = ImageBuffer::from_fn(img_w, img_h, |_, _| Luma([255u8]));
-            let single_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = vec![full_white_mask];
+            let single_bitmaps = vec![Arc::new(full_white_mask)];
 
             let processed = render_for_export(
                 context,
@@ -1307,7 +1308,7 @@ fn export_masks_for_image(
                 apply_export_geometry_and_watermark(processed, export_settings)?;
 
             let alpha_scaled = imageops::resize(
-                &mask_bitmaps[i],
+                mask_bitmaps[i].as_ref(),
                 geometry.photo_w,
                 geometry.photo_h,
                 imageops::FilterType::Lanczos3,
@@ -2229,7 +2230,7 @@ pub async fn estimate_export_sizes(
             unscaled_crop_offset.1 * scale,
         );
 
-        let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+        let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
             .iter()
             .filter_map(|def| {
                 get_cached_or_generate_mask(
@@ -2361,7 +2362,7 @@ pub async fn estimate_export_sizes(
             unscaled_crop_offset.1 * gpu_scale,
         );
 
-        let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+        let mask_bitmaps: Vec<Arc<ImageBuffer<Luma<u8>, Vec<u8>>>> = mask_definitions
             .iter()
             .filter_map(|def| {
                 get_cached_or_generate_mask(
