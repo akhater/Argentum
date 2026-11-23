@@ -364,7 +364,11 @@ pub fn sidecar_for(photo: &Path, copy_id: Option<&str>) -> PathBuf {
     let mut name = photo.file_name().unwrap_or_default().to_os_string();
     if let Some(id) = copy_id {
         name.push(".");
-        name.push(id);
+        name.push(if crate::mods::copy_id::is_valid(id) {
+            id
+        } else {
+            crate::mods::copy_id::INVALID_STAND_IN
+        });
     }
     name.push(".");
     name.push(SIDECAR_EXTENSION);
@@ -3918,6 +3922,7 @@ pub fn create_virtual_copy(
     target_album_id: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String, String> {
+    crate::mods::copy_id::checked_split(&source_virtual_path)?;
     let (source_path, source_sidecar_path) = parse_virtual_path(&source_virtual_path);
 
     let new_copy_id = Uuid::new_v4().to_string()[..6].to_string();
