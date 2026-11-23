@@ -15,6 +15,8 @@ import { rowNeighbour } from '../argentum/modern/gridRows';
 import { physicalPathOf } from '../argentum/paths';
 import { selectInGrid } from '../argentum/photoStep';
 import { useFocusPoints } from '../argentum/focusSwitch';
+import { ignoreKeyRepeat } from '../argentum/keyRepeat';
+import { typingInto } from '../argentum/typingInto';
 import { useMaskOverlay } from '../argentum/maskOverlay';
 import {
   fitZoomPercent,
@@ -602,6 +604,7 @@ export const useKeyboardShortcuts = ({
         },
       },
       {
+        repeatable: true,
         match: (e: KeyboardEvent, s: any) =>
           s.ui.activeView === 'library' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code),
         execute: (e: KeyboardEvent, s: any) => {
@@ -648,12 +651,12 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      const isInputFocused =
-        document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA';
-      if (isInputFocused) return;
+      if (typingInto(document.activeElement)) return;
 
       for (const builtin of builtinShortcuts) {
         if (builtin.match(event, state)) {
+          // Argentum: the OS repeat of a held key runs only what is meant to repeat (argentum/keyRepeat.ts).
+          if (event.repeat && !builtin.repeatable) return;
           builtin.execute(event, state);
           return;
         }
@@ -663,6 +666,7 @@ export const useKeyboardShortcuts = ({
       const action = comboMap.get(normalized.join('+'));
 
       if (action) {
+        if (ignoreKeyRepeat(event, action)) return;
         const handler = actions[action];
         if (handler && (!handler.shouldFire || handler.shouldFire(state))) {
           handler.execute(event, state);

@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { onceGate } from '../../argentum/singleRun';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import Button from '../ui/Button';
@@ -35,8 +36,12 @@ export default function ConfirmModal({
   const resolvedCancelText = cancelText || t('modals.confirm.cancel');
   const resolvedConfirmText = confirmText || t('modals.confirm.confirm');
 
+  // Argentum: the confirm acts once per opening, however often it is clicked (argentum/singleRun.ts).
+  const confirmGate = useRef(onceGate()).current;
+
   useEffect(() => {
     if (isOpen) {
+      confirmGate.reset();
       setIsMounted(true);
       const timer = setTimeout(() => {
         setShow(true);
@@ -49,14 +54,15 @@ export default function ConfirmModal({
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, confirmGate]);
 
   const handleConfirm = useCallback(() => {
+    if (!confirmGate.claim()) return;
     if (onConfirm) {
       onConfirm();
     }
     onClose();
-  }, [onConfirm, onClose]);
+  }, [onConfirm, onClose, confirmGate]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {

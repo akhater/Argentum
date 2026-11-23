@@ -10,6 +10,7 @@ import { Invokes } from '../components/ui/AppProperties';
 import { builtinKeys } from '../argentum/lensBuiltin';
 import { applyToPhoto } from '../argentum/lateEdit';
 import { stillOpen } from '../argentum/stillOpen';
+import { unlessRunning } from '../argentum/singleRun';
 
 const getTransformAdjustments = (adj: Adjustments) => ({
   transformDistortion: adj.transformDistortion,
@@ -136,7 +137,7 @@ export function useAiMasking() {
     [setAdjustments],
   );
 
-  const handleGenerativeReplace = useCallback(
+  const runGenerativeReplace = useCallback(
     async (patchId: string, prompt: string, useFastInpaint: boolean) => {
       const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
       if (!selectedImage?.path) return;
@@ -193,6 +194,13 @@ export function useAiMasking() {
       }
     },
     [setAdjustments, registerAiTask, unregisterAiTask, setEditor],
+  );
+
+  // Argentum: a second Generate for the patch while its job runs does nothing (argentum/singleRun.ts).
+  const handleGenerativeReplace = useCallback(
+    (patchId: string, prompt: string, useFastInpaint: boolean) =>
+      unlessRunning(`generate:${patchId}`, () => runGenerativeReplace(patchId, prompt, useFastInpaint)),
+    [runGenerativeReplace],
   );
 
   const handleQuickErase = useCallback(
