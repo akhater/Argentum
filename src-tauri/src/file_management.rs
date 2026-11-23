@@ -30,6 +30,7 @@ use crate::PendingMetadata;
 use crate::app_settings::*;
 use crate::as_shot::as_shot;
 use crate::exif_processing;
+use crate::mods::move_files::MovePlan;
 use crate::formats::{is_raw_file, is_supported_image_file};
 use crate::gpu_processing;
 use crate::image_loader;
@@ -2483,55 +2484,6 @@ pub(crate) fn move_files_on_disk(
 ) -> Result<HashMap<String, String>, String> {
     let (renames, result) = plan_move(source_paths, destination_folder)?.carry_out();
     result.map(|()| renames)
-}
-
-/// A move worked out before any file is touched: each file's destination,
-/// and each photo's new path.
-pub(crate) struct MovePlan {
-    /// A file, where it goes, and whether it stays where it is too (an XMP
-    /// another photo still uses).
-    operations: Vec<(PathBuf, PathBuf, bool)>,
-    renames: HashMap<String, String>,
-}
-
-impl MovePlan {
-    /// Moves the files in order, and stops at the first that fails. Returns
-    /// the photos that did move, old path to new, whether or not it stopped.
-    pub(crate) fn carry_out(self) -> (HashMap<String, String>, Result<(), String>) {
-        let mut moved = HashSet::new();
-        let mut result = Ok(());
-        for (source, dest, keep_source) in self.operations {
-            if let Err(e) = move_one_file(&source, &dest, keep_source) {
-                result = Err(e);
-                break;
-            }
-            moved.insert(source);
-        }
-        let mut renames = self.renames;
-        renames.retain(|photo, _| moved.contains(Path::new(photo)));
-        (renames, result)
-    }
-}
-
-fn move_one_file(source: &Path, dest: &Path, keep_source: bool) -> Result<(), String> {
-    if keep_source {
-        fs::copy(source, dest)
-            .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
-        return Ok(());
-    }
-    if fs::rename(source, dest).is_err() {
-        fs::copy(source, dest)
-            .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
-
-        if let Err(e) = fs::remove_file(source) {
-            log::warn!(
-                "Moved file successfully, but failed to delete original {}: {}",
-                source.display(),
-                e
-            );
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Result<MovePlan, String> {
