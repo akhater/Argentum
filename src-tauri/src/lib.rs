@@ -1878,6 +1878,7 @@ pub fn run() {
 }
 
 fn run_app() {
+    mods::startup_marks::begin();
     let _ = rayon::ThreadPoolBuilder::new()
         .stack_size(8 * 1024 * 1024)
         .build_global();
@@ -1889,6 +1890,7 @@ fn run_app() {
         std::process::exit(2);
     }
     let is_headless = matches!(launch_req, LaunchRequest::HeadlessExport(_));
+    mods::startup_marks::mark("args");
 
     let mut builder = tauri::Builder::default();
 
@@ -1970,6 +1972,7 @@ fn run_app() {
             let app_handle = app.handle().clone();
 
             mods::startup::init(&app_handle, is_headless);
+            mods::startup_marks::mark("startup init");
 
             if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
                 crate::exif_processing::initialize_cache_dir(cache_dir);
@@ -2010,6 +2013,7 @@ fn run_app() {
             let gpu_backend = app.state::<AppState>().gpu_setup_mark.running_backend().to_string();
 
             let lens_db = lens_correction::load_lensfun_db(&app_handle);
+            mods::startup_marks::mark("lens database");
             {
                 let state = app.state::<AppState>();
                 *state.lens_db.lock().unwrap() = Some(Arc::new(lens_db));
@@ -2054,6 +2058,7 @@ fn run_app() {
             }
 
             setup_logging(&app_handle, is_headless);
+            mods::startup_marks::mark("settings and logging");
 
             if let Some(note) = last_gpu_run.note {
                 log::warn!("{}", note);
@@ -2106,6 +2111,7 @@ fn run_app() {
             file_management::start_thumbnail_workers(app_handle.clone());
             file_management::start_metadata_workers(app_handle.clone());
             jxl_oxide::integration::register_image_decoding_hook();
+            mods::startup_marks::mark("workers");
 
             let window_cfg = app.config().app.windows.first().unwrap().clone();
             let decorations = settings.decorations.unwrap_or(window_cfg.decorations);
@@ -2126,6 +2132,7 @@ fn run_app() {
             window_builder = window_builder.decorations(decorations).visible(false);
 
             let window = window_builder.build().expect("Failed to build window");
+            mods::startup_marks::mark("window built");
 
             {
                 let app_state = app.state::<AppState>();
@@ -2135,6 +2142,7 @@ fn run_app() {
                         error
                     );
                 }
+                mods::startup_marks::mark("gpu context");
 
                 let scale = window.scale_factor().unwrap_or(1.0);
                 let default_w = (1280.0 * scale) as u32;
@@ -2295,6 +2303,8 @@ fn run_app() {
                 });
             }
 
+            mods::startup_marks::mark("window state");
+            mods::startup_marks::report();
             crate::register_exit_handler();
             Ok(())
         })

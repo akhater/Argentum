@@ -153,6 +153,7 @@ pub mod snapshots;
 mod speed_budgets;
 pub mod sraw_levels;
 pub mod startup;
+pub mod startup_marks;
 pub mod super_resolution;
 pub mod text_mask;
 pub mod tif_raw;
