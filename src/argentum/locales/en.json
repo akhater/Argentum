@@ -270,6 +270,7 @@
   "looksClear": "Clear the search",
   "looksImport": "Import",
   "looksImportTip": "Import presets (.rrpreset, .xmp, .lrtemplate) and LUTs (.cube, .3dl, .png, .jpg, .tiff)",
+  "looksLoadFailed": "Your saved presets could not be loaded, so changes to them are not saved. They are left as they are on disk; try again later.",
   "looksImportFailed": "Some files could not be imported.",
   "looksMore": "More",
   "looksCommunity": "Community presets…",

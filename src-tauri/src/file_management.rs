@@ -3254,11 +3254,7 @@ fn get_presets_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, String
 #[tauri::command]
 pub fn load_presets(app_handle: AppHandle) -> Result<Vec<PresetItem>, String> {
     let path = get_presets_path(&app_handle)?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&content).map_err(|e| e.to_string())
+    crate::mods::presets_read::read_list(&path)
 }
 
 #[tauri::command]

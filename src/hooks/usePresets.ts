@@ -3,7 +3,9 @@ import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash.debounce';
 import { Adjustments, COPYABLE_ADJUSTMENT_KEYS, ADJUSTMENT_GROUPS, INITIAL_ADJUSTMENTS } from '../utils/adjustments';
 import { Folder, Invokes, Preset } from '../components/ui/AppProperties';
+import { toast } from 'react-toastify';
 import { trackSave } from '../argentum/savesInFlight';
+import { agText } from '../argentum/locales';
 
 export enum PresetListType {
   Folder = 'folder',
@@ -34,14 +36,35 @@ function arrayMove(array: any, from: any, to: any) {
   return newArray;
 }
 
+// True while the saved presets could not be loaded: the list on screen is then "could not load", not
+// "empty", and saving it would write over the real file.
+let loadFailed = false;
+
 // Module level so closing the window can flush the last change (argentum/saveOnClose.ts).
 export const savePresetsSoon = debounce((presetsToSave: Array<UserPreset>) => {
+  if (loadFailed) {
+    toast.error(agText('looksLoadFailed'));
+    return;
+  }
   trackSave(
     invoke(Invokes.SavePresets, { presets: presetsToSave }).catch((err) =>
       console.error('Failed to save presets:', err),
     ),
   );
 }, 500);
+
+/** The saved presets; an empty list, with saving held off, when they could not be loaded. */
+export async function loadSavedPresets(): Promise<Array<UserPreset>> {
+  try {
+    const loaded: Array<UserPreset> = await invoke(Invokes.LoadPresets);
+    loadFailed = false;
+    return loaded;
+  } catch (error) {
+    console.error('Failed to load presets:', error);
+    loadFailed = true;
+    return [];
+  }
+}
 
 export function usePresets(currentAdjustments: Adjustments) {
   const [presets, setPresets] = useState<Array<UserPreset>>([]);
@@ -50,11 +73,7 @@ export function usePresets(currentAdjustments: Adjustments) {
   const loadPresets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const loadedPresets: Array<UserPreset> = await invoke(Invokes.LoadPresets);
-      setPresets(loadedPresets);
-    } catch (error) {
-      console.error('Failed to load presets:', error);
-      setPresets([]);
+      setPresets(await loadSavedPresets());
     } finally {
       setIsLoading(false);
     }
