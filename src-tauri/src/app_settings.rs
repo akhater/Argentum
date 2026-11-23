@@ -726,9 +726,14 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         AppSettings::default()
     };
 
+    // A key this release retired is not kept for a newer one (mods/retired_keys.rs).
+    let mut settings_modified = crate::mods::retired_keys::strip(
+        &mut settings.extra,
+        crate::mods::retired_keys::SETTINGS,
+    );
+
     let all_current_keys = all_available_adjustments();
     let default_included = default_included_adjustments();
-    let mut settings_modified = false;
 
     if settings.root_folders.is_empty()
         && let Some(last) = &settings.last_root_path

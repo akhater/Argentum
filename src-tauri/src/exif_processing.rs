@@ -260,6 +260,8 @@ pub fn try_load_sidecar(sidecar_path: &Path) -> std::io::Result<ImageMetadata> {
     let mut meta: ImageMetadata =
         crate::mods::salvage::read_or_keep(sidecar_path, &content, sidecar_base);
     let mut healed = false;
+    // A key this release retired is not kept for a newer one (mods/retired_keys.rs).
+    crate::mods::retired_keys::strip(&mut meta.extra, crate::mods::retired_keys::EDIT);
 
     if let Some(ref mut exif_map) = meta.exif {
         for val in exif_map.values_mut() {

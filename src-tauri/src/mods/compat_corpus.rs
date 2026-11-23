@@ -68,88 +68,7 @@ use crate::image_processing::ImageMetadata;
 use crate::mask_generation::{AiPatchDefinition, MaskDefinition};
 use crate::mods::compat_snapshot::{differences, render, sections_for};
 
-/// The two files of a release folder.
-pub const SETTINGS: &str = "settings.json";
-pub const EDIT: &str = "photo.agdata";
-
-/// A stored key today's code no longer keeps, on purpose. Its path is a JSON
-/// Pointer into the file, `*` standing for any one key or index
-/// (`/masks/*/adjustments/oldKey`).
-pub struct Dropped {
-    pub file: &'static str,
-    pub path: &'static str,
-    pub reason: &'static str,
-    pub pr: &'static str,
-}
-
-pub const DROPPED: &[Dropped] = &[
-    Dropped {
-        file: SETTINGS,
-        path: "/enableBaselineExposure",
-        reason: "no control ever wrote it; Argentum adds no baseline stops to Exposure (its reader returned 0)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/baselineExposure",
-        reason: "no control ever wrote it; Argentum adds no baseline stops to Exposure (its reader returned 0)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/compensateHighlightPreservation",
-        reason: "no control ever wrote it; DNG Standard handles held-back highlights in its own curve",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/requireMatchingExif",
-        reason: "no control ever wrote it; grouping no longer reads it (always off)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/groupEditedFiles",
-        reason: "no control ever wrote it; grouping no longer reads it (edited files always group)",
-        pr: "#258",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/leftTopHeight",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/rightTopHeight",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/panelLayout",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/activePanels",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/workspace/panelSwitcherPlacement",
-        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
-        pr: "#276",
-    },
-    Dropped {
-        file: SETTINGS,
-        path: "/lastImportSettings",
-        reason: "the Import dialog stored it; Import is gone, Shoebox does the importing",
-        pr: "#296",
-    },
-];
+pub use crate::mods::retired_keys::{DROPPED, Dropped, EDIT, SETTINGS};
 
 /// Lists held in a `HashSet`, written in no fixed order: compared as sets.
 pub const UNORDERED: &[(&str, &str)] = &[
@@ -626,6 +545,51 @@ fn a_newer_settings_file_with_a_key_of_a_new_shape_keeps_its_unknown_keys() {
     let loaded: AppSettings = crate::mods::salvage::read_or_keep(&path, &content, Default::default);
     let written = serde_json::to_string_pretty(&loaded).expect("writes");
     assert_kept("settings.json", &written, &keys);
+}
+
+#[test]
+fn a_retired_settings_key_is_not_kept_with_the_unknown_ones() {
+    let newest = releases().pop().expect("a release folder");
+    let keys = newer_keys();
+    let retired = serde_json::json!({ "baselineExposure": 1.5, "lastImportSettings": { "a": 1 } });
+    let mut file: Value =
+        serde_json::from_str(&with_keys(&read(&newest, SETTINGS), &keys)).expect("JSON");
+    file.as_object_mut()
+        .expect("an object")
+        .extend(retired.as_object().expect("an object").clone());
+    let dir = tempfile::tempdir().expect("a folder");
+    let path = dir.path().join("settings.json");
+    let content = file.to_string();
+
+    // As load_settings reads it, then save_settings writes it.
+    let mut loaded: AppSettings =
+        crate::mods::salvage::read_or_keep(&path, &content, Default::default);
+    assert!(crate::mods::retired_keys::strip(
+        &mut loaded.extra,
+        SETTINGS
+    ));
+    let written = serde_json::to_string_pretty(&loaded).expect("writes");
+    assert_kept("settings.json", &written, &keys);
+    let kept: Value = serde_json::from_str(&written).expect("JSON");
+    for key in retired.as_object().expect("an object").keys() {
+        assert!(kept.get(key).is_none(), "{key} was kept");
+    }
+}
+
+#[test]
+fn a_retired_key_in_an_edit_file_is_not_kept_with_the_unknown_ones() {
+    use crate::exif_processing::try_load_sidecar;
+    // The edit file has none retired today: a list entry for it is stripped on load.
+    let keys = newer_keys();
+    let dir = tempfile::tempdir().expect("a folder");
+    let sidecar = dir.path().join("IMG.CR2.agdata");
+    let plain = serde_json::to_string(&ImageMetadata::default()).expect("writes");
+    std::fs::write(&sidecar, with_keys(&plain, &keys)).expect("writes");
+    let metadata = try_load_sidecar(&sidecar).expect("reads");
+    assert_eq!(
+        metadata.extra, keys,
+        "the unknown keys are kept as they are"
+    );
 }
 
 #[test]
