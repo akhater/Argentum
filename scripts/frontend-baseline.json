@@ -229,7 +229,7 @@
       "@typescript-eslint/no-unused-vars": 1
     },
     "src/components/panel/right/CropPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 7,
+      "@typescript-eslint/no-explicit-any": 6,
       "@typescript-eslint/no-unused-vars": 1,
       "i18next/no-literal-string": 2
     },

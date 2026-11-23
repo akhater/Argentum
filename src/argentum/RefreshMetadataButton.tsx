@@ -23,6 +23,16 @@ import { ag } from './ag';
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useEditorStore } from '../store/useEditorStore';
+import { stillOpen } from './stillOpen';
+
+/** Re-reads photo `path`'s EXIF into the store; dropped when another photo was opened meanwhile. */
+export async function refreshMetadataFor(path: string) {
+  const exif = await ag('refresh_image_metadata', { path });
+  if (!stillOpen(path)) return;
+  useEditorStore.setState((state: any) => ({
+    selectedImage: { ...state.selectedImage, exif },
+  }));
+}
 
 export default function RefreshMetadataButton() {
   const [busy, setBusy] = useState(false);
@@ -36,15 +46,9 @@ export default function RefreshMetadataButton() {
 
     setBusy(true);
     try {
-      const exif = await ag('refresh_image_metadata', {
-        path: selected.path,
-      });
-
-      // Replace the EXIF in place. Their panel and the lens auto-detect both
+      // Replaces the EXIF in place. Their panel and the lens auto-detect both
       // read it from here, so both pick it up on the next render.
-      useEditorStore.setState((state: any) => ({
-        selectedImage: { ...state.selectedImage, exif },
-      }));
+      await refreshMetadataFor(selected.path);
     } catch (err) {
       console.error('Refresh metadata failed:', err);
     } finally {

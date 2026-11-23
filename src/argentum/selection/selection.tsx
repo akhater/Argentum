@@ -28,6 +28,8 @@ import { useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { Mask, type SubMask } from '../../components/panel/right/Masks';
 import { useEditorActions } from '../../hooks/useEditorActions';
+import { applyToPhoto } from '../lateEdit';
+import { stillOpen } from '../stillOpen';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import type { Adjustments } from '../../utils/adjustments';
@@ -378,8 +380,11 @@ export function useSelectionMasks() {
   const unregisterAiTask = useProcessStore((s) => s.unregisterAiTask);
 
   const fill = useCallback(
-    (subMaskId: string, parameters: object) =>
-      setAdjustments((prev: Adjustments) => ({
+    (subMaskId: string, parameters: object, path?: string) =>
+      // A result for the photo `path` goes to that photo, which may no longer be the open one.
+      (path
+        ? (update: (prev: Adjustments) => Adjustments) => applyToPhoto(path, update, setAdjustments)
+        : setAdjustments)((prev: Adjustments) => ({
         ...prev,
         masks: prev.masks.map((c) => ({
           ...c,
@@ -393,8 +398,10 @@ export function useSelectionMasks() {
 
   /** A selection that will not be made: its empty sub-mask goes, and its mask with it if it was alone. */
   const drop = useCallback(
-    (subMaskId: string) =>
-      setAdjustments((prev: Adjustments) => ({
+    (subMaskId: string, path?: string) =>
+      (path
+        ? (update: (prev: Adjustments) => Adjustments) => applyToPhoto(path, update, setAdjustments)
+        : setAdjustments)((prev: Adjustments) => ({
         ...prev,
         masks: prev.masks
           .map((c) => ({ ...c, subMasks: c.subMasks.filter((sm: SubMask) => sm.id !== subMaskId) }))
@@ -405,9 +412,10 @@ export function useSelectionMasks() {
 
   return useCallback(
     async (subMaskId: string, kind: SelectionKind) => {
-      if (!useEditorStore.getState().selectedImage?.path) return;
+      const path = useEditorStore.getState().selectedImage?.path;
+      if (!path) return;
       if (!(await ensureModels(modelsOf(kind)))) {
-        drop(subMaskId);
+        drop(subMaskId, path);
         return;
       }
       // Object waits for clicks on the photo (refineObject), Text for its words (findWords).
@@ -428,8 +436,8 @@ export function useSelectionMasks() {
           orientationSteps: adjustments.orientationSteps,
         });
         patchesSentToBackend.delete(subMaskId);
-        fill(subMaskId, parameters);
-        if (!found) toast.info(agText(kind === 'sky' ? 'selNoSky' : 'selNoSubject'));
+        fill(subMaskId, parameters, path);
+        if (!found && stillOpen(path)) toast.info(agText(kind === 'sky' ? 'selNoSky' : 'selNoSubject'));
       } catch (err) {
         toast.error(agText('selFailed').replace('{error}', String(err)));
       } finally {

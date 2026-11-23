@@ -1,4 +1,5 @@
 import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
+import { putLensOn } from '../../../argentum/lensPick';
 import LensBuiltinSwitch from '../../../argentum/LensBuiltinSwitch'; // Argentum: the camera's own lens correction
 import { LENS_BUILTIN_RESET, LENSFUN_UNUSED, builtinInUse } from '../../../argentum/lensBuiltin';
 import { isLensShown, withLensShown } from '../../../argentum/lensEye'; // Argentum: the Lens Correction eye
@@ -627,24 +628,8 @@ export default function CropPanel() {
     [setEditor, updateLocalRotation, setAdjustments],
   );
 
-  const fetchDistortionParams = useCallback(
-    async (maker: string, model: string) => {
-      try {
-        const distParams: any = await invoke('get_lens_distortion_params', {
-          maker,
-          model,
-          exif: selectedImage?.exif ?? {},
-        });
-        return distParams;
-      } catch (error) {
-        console.error('Failed to fetch lens distortion params', error);
-        return null;
-      }
-    },
-    [selectedImage?.exif],
-  );
-
   const handleAutoDetectLens = useCallback(async () => {
+    const path = selectedImage?.path;
     const exifMaker = selectedImage?.exif?.Make;
     const exifModel = selectedImage?.exif?.LensModel;
     const exifCameraModel = selectedImage?.exif?.Model;
@@ -665,15 +650,13 @@ export default function CropPanel() {
 
       if (result) {
         const [detectedMaker, detectedModel] = result;
-        const distParams = await fetchDistortionParams(detectedMaker, detectedModel);
-
-        setAdjustments((prev) => ({
-          ...prev,
-          lensMaker: detectedMaker,
-          lensModel: detectedModel,
-          lensDistortionParams: distParams,
+        const applied = await putLensOn(path, selectedImage?.exif ?? {}, detectedMaker, detectedModel, setAdjustments, {
           lensCorrectionMode: 'auto',
-        }));
+        });
+        if (!applied) {
+          setDetectionStatus('idle'); // another photo was opened meanwhile
+          return;
+        }
 
         setDetectionStatus('success');
         setTimeout(() => setDetectionStatus('idle'), 2000);
@@ -683,7 +666,7 @@ export default function CropPanel() {
     } catch {
       setDetectionStatus('not_found');
     }
-  }, [selectedImage?.exif, fetchDistortionParams, setAdjustments]);
+  }, [selectedImage?.path, selectedImage?.exif, setAdjustments]);
 
   // Argentum: auto-detect on load, not only when the Auto button is clicked.
   useAutoDetectOnLoad(selectedImage, adjustments, handleAutoDetectLens);
@@ -704,14 +687,9 @@ export default function CropPanel() {
   const handleModelChange = useCallback(
     async (model: string) => {
       if (!adjustments.lensMaker) return;
-      const distParams = await fetchDistortionParams(adjustments.lensMaker, model);
-      setAdjustments((prev) => ({
-        ...prev,
-        lensModel: model,
-        lensDistortionParams: distParams,
-      }));
+      await putLensOn(selectedImage?.path, selectedImage?.exif ?? {}, adjustments.lensMaker, model, setAdjustments);
     },
-    [adjustments.lensMaker, fetchDistortionParams, setAdjustments],
+    [adjustments.lensMaker, selectedImage?.path, selectedImage?.exif, setAdjustments],
   );
 
   const handleMyLensSelect = useCallback(
@@ -725,16 +703,9 @@ export default function CropPanel() {
         .then((l: any) => setLenses(l))
         .catch(console.error);
 
-      const distParams = await fetchDistortionParams(selected.maker, selected.model);
-
-      setAdjustments((prev) => ({
-        ...prev,
-        lensMaker: selected.maker,
-        lensModel: selected.model,
-        lensDistortionParams: distParams,
-      }));
+      await putLensOn(selectedImage?.path, selectedImage?.exif ?? {}, selected.maker, selected.model, setAdjustments);
     },
-    [myLenses, fetchDistortionParams, setAdjustments],
+    [myLenses, selectedImage?.path, selectedImage?.exif, setAdjustments],
   );
 
   // Argentum: while the camera's own correction is on, the rows act on it.
