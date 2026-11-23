@@ -82,6 +82,14 @@ jobs:
         if: steps.look-scope.outputs.run == 'true'
         uses: ./.github/actions/golden-samples
 
+      # A check that was due must not pass by not running: with a sample
+      # missing (raw.pixls.us down and the cache cold) this job fails.
+      - name: Golden photos - samples present
+        if: steps.look-scope.outputs.run == 'true' && steps.look-samples.outputs.ok != 'true'
+        run: |
+          echo "::error::golden photos: the samples could not be fetched from raw.pixls.us, so the check did not run. Re-run this job once the host is back."
+          exit 1
+
       - name: Golden photos
         if: steps.look-samples.outputs.ok == 'true'
         working-directory: src-tauri

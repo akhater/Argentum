@@ -4,8 +4,9 @@ description: >
   ~/look-samples, from the Actions cache or else from raw.pixls.us, each checked
   against its sha256, and Mesa's software Vulkan driver (lavapipe) to render
   them. raw.pixls.us is slow and sometimes down: a sample that cannot be fetched
-  makes `ok` false and the summary say SKIPPED, never fails. Used by app.yml
-  and golden-bless.yml.
+  makes `ok` false and the summary say so. This action does not fail on it:
+  the caller does (app.yml and golden-bless.yml both stop the job when `ok`
+  is not true).
 outputs:
   ok:
     description: "'true' when every sample is there and checked"
@@ -40,7 +41,7 @@ runs:
         done < src-tauri/tests/look/samples.tsv
         if [ "$missing" -gt 0 ]; then
           echo "ok=false" >> "$GITHUB_OUTPUT"
-          echo "## Golden photos: SKIPPED - $missing sample(s) could not be fetched from raw.pixls.us" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Golden photos: NOT CHECKED - $missing sample(s) could not be fetched from raw.pixls.us" >> "$GITHUB_STEP_SUMMARY"
         else
           echo "ok=true" >> "$GITHUB_OUTPUT"
         fi
