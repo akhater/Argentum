@@ -21,4 +21,4 @@
 - [ ] Credits updated in both `CREDITS.md` and `src/argentum/credits.ts` when a source is new or its scope changed
 - [ ] Any new dependency (crate or npm package) has its reason above
 - [ ] `npm run check:sources`, `npm run check:frontend`, `npm run check:wiring` and `npm run test:frontend` pass
-- [ ] `cargo test --lib` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri`, `rustfmt --edition 2024 --check src/mods/*.rs` there finds nothing, and `cargo test` passes in `src-tauri/engine` for engine changes
+- [ ] `npm run check:fmt` passes, `cargo test --lib` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri`, and `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/engine` for engine changes
