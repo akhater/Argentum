@@ -32,7 +32,8 @@ pub mod clear_scope;
 pub mod clipping;
 pub mod clone_heal;
 pub mod color_grade;
-pub mod colour_compare;
+#[cfg(test)]
+mod colour_compare;
 pub mod commands;
 #[cfg(test)]
 mod compat_corpus;

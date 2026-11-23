@@ -55,11 +55,29 @@ mod tests_support {
 /// AG_RAW_ROOT   the RAW library root, scanned by year and then date
 /// AG_COMPARE    the directory holding darktable's renders
 /// ```
+///
+/// Each test also names its own input with a variable (AG_RAW, AG_DT, AG_SRAW,
+/// AG_PAIRS, AG_A, AG_B, AG_OUT). A test whose variables are not set says so and
+/// returns, so a plain `--ignored` run skips instead of failing.
 #[cfg(test)]
 mod fixtures {
     fn var(name: &str) -> String {
         std::env::var(name)
             .unwrap_or_else(|_| panic!("set {name} - see `mod fixtures` in colour_compare.rs"))
+    }
+
+    /// True, after saying why, when any of `names` is not set: the caller returns.
+    pub fn skip_unless_set(names: &[&str]) -> bool {
+        let missing: Vec<&str> = names
+            .iter()
+            .copied()
+            .filter(|n| std::env::var(n).is_err())
+            .collect();
+        if missing.is_empty() {
+            return false;
+        }
+        println!("skipped: set {} to run this test", missing.join(", "));
+        true
     }
 
     pub fn raw_root() -> String {
@@ -68,11 +86,6 @@ mod fixtures {
 
     pub fn compare_root() -> String {
         var("AG_COMPARE")
-    }
-
-    /// A RAW under the library root.
-    pub fn raw(rel: &str) -> String {
-        format!("{}/{rel}", raw_root())
     }
 
     /// A darktable render under the comparison root.
@@ -121,6 +134,9 @@ mod tests {
     #[test]
     #[ignore = "needs a darktable render alongside; run by hand"]
     fn how_does_our_colour_differ_from_darktables() {
+        if fixtures::skip_unless_set(&["AG_RAW", "AG_COMPARE"]) {
+            return;
+        }
         let darktable = fixtures::compare("darktable_yourdefaults.tif");
         let dt_path = std::path::Path::new(&darktable);
         assert!(
@@ -130,10 +146,7 @@ mod tests {
 
         let dt = image::open(dt_path).expect("open darktable render");
 
-        let bytes = std::fs::read(fixtures::raw(
-            "2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2",
-        ))
-        .expect("read raw");
+        let bytes = std::fs::read(std::env::var("AG_RAW").expect("AG_RAW")).expect("read raw");
         let ours = crate::raw_processing::develop_raw_image(
             &bytes,
             false,
@@ -327,6 +340,9 @@ mod across_a_set {
     #[test]
     #[ignore = "renders dozens of RAWs; run by hand"]
     fn colour_and_brightness_across_many_photos() {
+        if fixtures::skip_unless_set(&["AG_RAW_ROOT", "AG_COMPARE"]) {
+            return;
+        }
         let set = fixtures::compare("set");
         let dir = std::path::Path::new(&set);
         let mut rows = Vec::new();
@@ -426,14 +442,11 @@ mod distribution {
     #[test]
     #[ignore = "reads local files; run by hand"]
     fn compare_tone_distribution() {
-        let dt = image::open(fixtures::compare(
-            "set/2023-06-25_Canon_EOS_5D_Mark_II_104-5897.tif",
-        ))
-        .expect("darktable render");
-        let bytes = std::fs::read(fixtures::raw(
-            "2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2",
-        ))
-        .expect("raw");
+        if fixtures::skip_unless_set(&["AG_RAW", "AG_DT"]) {
+            return;
+        }
+        let dt = image::open(std::env::var("AG_DT").expect("AG_DT")).expect("darktable render");
+        let bytes = std::fs::read(std::env::var("AG_RAW").expect("AG_RAW")).expect("raw");
         let mut ours = crate::raw_processing::develop_raw_image(
             &bytes,
             false,
@@ -486,9 +499,10 @@ mod crush {
     #[test]
     #[ignore = "reads a local file; run by hand"]
     fn how_much_is_clipped_to_black() {
-        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| {
-            fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2")
-        });
+        if fixtures::skip_unless_set(&["AG_RAW"]) {
+            return;
+        }
+        let raw_path = std::env::var("AG_RAW").expect("AG_RAW");
         println!(
             "
 file {raw_path}"
@@ -637,12 +651,12 @@ mod linear_stage {
     #[test]
     #[ignore = "reads a local file and a darktable render; run by hand"]
     fn where_is_the_cast_born() {
-        // Point at any pair with AG_RAW / AG_DT; the constants are the default.
-        let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| {
-            fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")
-        });
-        let dt_path = std::env::var("AG_DT")
-            .unwrap_or_else(|_| fixtures::compare("dt_none_linrec709_16.tif"));
+        // Point at any pair with AG_RAW / AG_DT.
+        if fixtures::skip_unless_set(&["AG_RAW", "AG_DT"]) {
+            return;
+        }
+        let raw_path = std::env::var("AG_RAW").expect("AG_RAW");
+        let dt_path = std::env::var("AG_DT").expect("AG_DT");
         println!(
             "
 raw: {raw_path}
@@ -731,9 +745,10 @@ mod sraw_facts {
     #[test]
     #[ignore = "reads a local file; run by hand"]
     fn what_rawler_reads_from_an_sraw() {
-        let path = std::env::var("AG_SRAW").unwrap_or_else(|_| {
-            fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")
-        });
+        if fixtures::skip_unless_set(&["AG_SRAW"]) {
+            return;
+        }
+        let path = std::env::var("AG_SRAW").expect("AG_SRAW");
         let bytes = std::fs::read(&path).expect("read raw");
         let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
         let decoder = rawler::get_decoder(&source).expect("decoder");
@@ -865,6 +880,9 @@ mod linear_across_a_set {
     #[test]
     #[ignore = "reads local files and darktable renders; run by hand"]
     fn how_close_are_we_across_the_set() {
+        if fixtures::skip_unless_set(&["AG_RAW_ROOT", "AG_COMPARE"]) {
+            return;
+        }
         // The decode only reaches for a camera profile once startup has told it
         // where the library is, and startup does not run in a test. Point it at
         // one with AG_PROFILES to measure with profiles, or leave it unset to
@@ -979,6 +997,9 @@ mod render_both_ways {
     #[test]
     #[ignore = "writes a preview; run by hand"]
     fn render_one_photo() {
+        if super::fixtures::skip_unless_set(&["AG_RAW", "AG_OUT"]) {
+            return;
+        }
         let raw = std::env::var("AG_RAW").expect("set AG_RAW");
         let out = std::env::var("AG_OUT").expect("set AG_OUT");
 
@@ -1030,6 +1051,9 @@ mod how_different {
     #[test]
     #[ignore = "compares rendered pairs; run by hand"]
     fn compare_rendered_pairs() {
+        if super::fixtures::skip_unless_set(&["AG_PAIRS"]) {
+            return;
+        }
         let dir = std::env::var("AG_PAIRS").expect("set AG_PAIRS to the folder of renders");
         let dir = std::path::Path::new(&dir);
 
@@ -1092,6 +1116,9 @@ mod difference_image {
     #[test]
     #[ignore = "writes a preview; run by hand"]
     fn amplified_difference() {
+        if super::fixtures::skip_unless_set(&["AG_PAIRS"]) {
+            return;
+        }
         let dir = std::env::var("AG_PAIRS").expect("set AG_PAIRS");
         let dir = std::path::Path::new(&dir);
         let gain: f32 = std::env::var("AG_GAIN")
@@ -1126,6 +1153,9 @@ mod side_by_side {
     #[test]
     #[ignore = "writes a comparison; run by hand"]
     fn crop_where_they_differ() {
+        if super::fixtures::skip_unless_set(&["AG_A", "AG_B", "AG_OUT"]) {
+            return;
+        }
         let before = image::open(std::env::var("AG_A").expect("set AG_A"))
             .expect("a")
             .to_rgb8();
