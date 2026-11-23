@@ -30,9 +30,7 @@
 //! be added without disturbing this.
 //!
 //! This is the last resort, not the reader. `lens_name` reads every format and
-//! comes here only when a body never wrote the standard `LensModel` tag. This
-//! file used to be the whole fix, which is how CR3 went unread: it was tested on
-//! a folder of CR2s and nothing else.
+//! comes here only when a body never wrote the standard `LensModel` tag.
 
 /// Canon MakerNote tag 0x0095 — the lens name as ASCII.
 ///
@@ -223,7 +221,7 @@ mod tests {
         assert_eq!(parse_canon_ifd(&blob, &[]).as_deref(), Some("EF"));
     }
 
-    /// The end-to-end check, against the file the bug was found on.
+    /// The end-to-end check, against a real Canon file.
     ///
     /// Ignored by default because it reads a real Canon file, which is not in
     /// the repository. Point `AG_CANON_SAMPLE` at one of your own:

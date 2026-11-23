@@ -1,4 +1,4 @@
-// Closing the window used to exit at once, taking what the timers still held: the open photo's last
+// Closing the window would exit at once, taking what the timers still hold: the open photo's last
 // change (EDIT_QUEUE_AFTER_MS idle timer + EDIT_SAVE_AFTER_MS save), the last History step
 // (HISTORY_STEP_AFTER_MS, written HISTORY_WRITE_AFTER_MS later) and the last preset change
 // (PRESETS_SAVE_AFTER_MS). Tauri holds the window open while a close-requested listener

@@ -32,8 +32,7 @@
 //! finishes, and `highlights::recover` runs there, on the Bayer data, long before
 //! anything reaches a texture. Recovery sees the full sensor precision. What the
 //! f16 upload costs is the *rendering* of those stops, not their reconstruction -
-//! a real cost, and a smaller one. Checked, because the first version of this
-//! paragraph was wrong and read as though it had been.
+//! a real cost, and a smaller one.
 //!
 //! It is left alone deliberately rather than overlooked. The flare pass binds the
 //! input texture as filterable and reads it through a `Filtering` sampler
@@ -62,8 +61,7 @@
 //!
 //! The *idea* is borrowed, not the text: their override is a `u32` tested with
 //! `== 0u`, this is a `bool` and a negation. Same behaviour, different source. So
-//! the borrow markers in `shader.wgsl` record where the thinking came from; they
-//! do not promise git will merge their version without an argument.
+//! the borrow markers in `shader.wgsl` record where the thinking came from.
 //!
 //! Those markers are written out only in the file that carries their code. Quoting
 //! one here made this file look like it held a borrowed fix of its own, and the
@@ -234,11 +232,9 @@ pub fn load(library: &std::path::Path) {
 /// The saved depth, with no global involved.
 ///
 /// Apart from `load` so the awkward values can be tested without writing to
-/// `TIFF_DEPTH`. The first version of that test did write to it, and since
-/// `for_extension` reads the same global and `cargo test` runs in parallel, it
-/// was a flake that would have passed hundreds of times and then failed once
-/// on CI for a commit that touched nothing near it. That is the whole reason
-/// `for_extension_at` exists, and the test went round it.
+/// `TIFF_DEPTH`: `for_extension` reads the same global and `cargo test` runs
+/// in parallel, so a test that wrote to it would be a flake. That is the
+/// reason `for_extension_at` exists.
 ///
 /// Unset or not a byte means "not a depth we know", which is 16 - what an
 /// export did before the setting existed.
@@ -264,12 +260,11 @@ pub fn save(library: &std::path::Path, depth: TiffDepth) -> Result<(), String> {
 /// `"tiff"` - a gap that has always been here, where exporting to a `.tif` path
 /// failed with "Unsupported file format".
 ///
-/// What is not borrowed is how the decision arrives. Theirs adds a fourth
-/// parameter to `encode_image_to_bytes` and threads it through six call sites in
-/// their files, which is the exact pattern `CLAUDE.md` names as the thing that
-/// kills a fork. Here the depth is already in the image: an 8-bit export renders
-/// to `ImageRgba8` and a 16-bit one to `ImageRgba32F`, so the encoder reads what
-/// it was handed and their file keeps one call.
+/// What is not borrowed is how the decision arrives. #1466 adds a fourth
+/// parameter to `encode_image_to_bytes` and threads it through six call sites.
+/// Here the depth is already in the image: an 8-bit export renders to
+/// `ImageRgba8` and a 16-bit one to `ImageRgba32F`, so the encoder reads what
+/// it was handed and the callers keep one call.
 ///
 /// `dpi`, when set, is written as the TIFF resolution in pixels per inch, for
 /// print. The tag writing is RapidRAW's `write_tiff` (src-tauri/src/export_processing.rs
@@ -372,7 +367,7 @@ impl tiff::encoder::TiffValue for Undefined<'_> {
 /// reachable from this one value: the storage format, the shader text, the
 /// pipeline constant that silences the dither, and how many bytes a pixel takes
 /// coming back. `gpu_processing.rs` imports this type and nothing else of ours,
-/// so the whole feature costs their file a single line that mentions Argentum.
+/// so the whole feature is one import in `gpu_processing.rs`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Precision {
     /// Upstream's own path, byte for byte: 8-bit storage, dither on.
@@ -447,7 +442,7 @@ impl Precision {
     /// Which precision an export to this file should render at.
     ///
     /// The policy lives here rather than in the export code so that adding a
-    /// format, or a third precision, costs nothing in a file upstream owns. TIFF
+    /// format, or a third precision, costs nothing in the export code. TIFF
     /// only: it is the one container in the list that carries more than eight
     /// bits per channel. JPEG and WebP are 8-bit formats, and PNG's branch in
     /// `encode_image_to_bytes` only widens for `Rgb32F`, so routing it here would
@@ -613,7 +608,7 @@ fn render_on(
     let (gf_coeffs_view, gf_dehaze_view) =
         processor.build_guided_coeffs(&input_view, width, height, is_raw);
     // Noise Reduction and sharpening, as the preview path gets them through
-    // their anchor - this render does not go through
+    // `input_stage::run` - this render does not go through
     // `process_and_get_dynamic_image`, so it asks for itself. Textures of its
     // own: this runs outside their processor lock.
     let staged = super::input_stage::run_for_export(context, base_image, &input_view, request);
@@ -749,9 +744,9 @@ pub fn overlay_preserving_precision(base: &mut DynamicImage, top: &DynamicImage,
 
 /// The one entry point the export code calls, whichever precision it wants.
 ///
-/// The branch lives here rather than in `export_processing.rs` so that their file
+/// The branch lives here rather than in `export_processing.rs` so that file
 /// carries a call and not a decision: adding a format, or a third precision,
-/// changes this function and nothing of theirs.
+/// changes this function and nothing there.
 pub fn render_for_export(
     context: &GpuContext,
     state: &tauri::State<AppState>,
@@ -870,9 +865,8 @@ mod tests {
     /// The ramp has to be finer than f16's own grid or the test measures
     /// nothing. In [0.5, 1) f16 steps by 2^-11, so a ramp spanning that whole
     /// stop in 512 samples steps by *more* than f16 does and every value
-    /// survives intact. The first version of this test did exactly that, and
-    /// reported half-float as indistinguishable from f32. This one walks 0.02
-    /// in 512 steps - roughly twelve samples per f16 step - so anything
+    /// survives intact, and half-float would look indistinguishable from f32.
+    /// This one walks 0.02 in 512 steps - roughly twelve samples per f16 step - so anything
     /// quantised to half collapses and anything carrying f32 does not.
     #[test]
     fn half_float_rounding_is_detectable_and_our_output_is_not_it() {
@@ -1066,7 +1060,7 @@ mod tests {
     }
 
     /// The borrowed encoder arm: the depth of the file follows the depth of the
-    /// pixels it was handed, which is what lets their file keep one call.
+    /// pixels it was handed, which is what lets the callers keep one call.
     #[test]
     fn the_encoder_writes_the_depth_the_image_carries() {
         let eight = DynamicImage::ImageRgba8(ImageBuffer::from_fn(4, 2, |x, y| {
@@ -1490,15 +1484,14 @@ mod real_render {
 
     /// What actually limits the precision, asserted rather than eyeballed.
     ///
-    /// THE MISTAKE THIS REPLACES
+    /// WHY NOT COUNT DISTINCT LEVELS
     ///
-    /// The first version of this test printed "distinct levels" for one ramp
-    /// width and called the result a ceiling. It is not a ceiling: half-float
+    /// The count of distinct levels for one ramp width is not a ceiling: half-float
     /// holds 1024 values in *every* octave, so a full-range ramp of W samples
     /// returns 1024 for each octave the ramp out-resolves plus everything below
     /// it, and the count climbs by 1024 on every doubling of W. Reading one
-    /// number as "about 12 bits" produced a release headline that was wrong, and
-    /// `log2(count)` of a sampling artefact is not a bit depth.
+    /// number as "about 12 bits" would be wrong, and `log2(count)` of a sampling
+    /// artefact is not a bit depth.
     ///
     /// WHAT IS TRUE
     ///

@@ -26,12 +26,12 @@
  *
  * HOW IT GETS THERE WITHOUT A HOOK
  *
- * `ImageCanvas.tsx` has no anchor left, so this works as the object brush did:
- * a capturing listener on the window takes a press that lands on their mask
- * stage before their handler hears it, and lets it through when it is not on
- * one of our lines. Their stage still draws its three lines, on its own
+ * It works from outside `ImageCanvas.tsx`, as the object brush does:
+ * a capturing listener on the window takes a press that lands on the mask
+ * stage before its handler hears it, and lets it through when it is not on
+ * one of our lines. The stage still draws its three lines, on its own
  * canvas; while this is active that canvas is hidden. It is drawn into the
- * layer that holds the photo's overlay svg, so it follows their pan and zoom.
+ * layer that holds the photo's overlay svg, so it follows the pan and zoom.
  *
  * In the masks panel and the AI panel, which share their canvas.
  */

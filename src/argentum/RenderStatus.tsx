@@ -6,8 +6,7 @@
  * There was no signal for the thing you actually wait for, which matters most
  * when judging colour: a reading taken mid-render is a reading of the old frame.
  *
- * No changes to their files were needed. The pipeline already emits
- * `wgpu-frame-ready` when the native render completes (lib.rs), and adjustments
+ * The pipeline already emits `wgpu-frame-ready` when the native render completes (lib.rs), and adjustments
  * live in a store we can subscribe to. Busy is simply "adjustments changed and
  * no frame has arrived since".
  *

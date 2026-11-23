@@ -1,7 +1,7 @@
 //! Reading a SHORT or LONG array straight out of the Canon MakerNote.
 //!
-//! Two decode fixes need this â€” `sraw_levels` wants ColorData (0x4001), and
-//! `canon_old_wb` wants the old white balance table (0x00a4) â€” and rawler
+//! Two decode fixes need this — `sraw_levels` wants ColorData (0x4001), and
+//! `canon_old_wb` wants the old white balance table (0x00a4) — and rawler
 //! exposes neither. The route is the same for both, so it lives once.
 //!
 //! Standard EXIF hands us the MakerNote as an undefined blob. On Canon that
@@ -11,13 +11,11 @@
 //!
 //! BYTE ORDER IS NOT A CONSTANT
 //!
-//! This began life inside `sraw_levels`, reading CR2, and CR2 is always `II`.
-//! So it read little-endian and said so in a comment. The EOS-1Ds writes `MM` —
-//! its raw is a big-endian TIFF from before the CR2 container existed — and a
-//! big-endian IFD read little-endian does not fail: the entry count comes back
-//! as some huge number, the walk finds nothing, and the answer is a polite
-//! `None`. It cost a whole render cycle to notice, because "no white balance
-//! found" is exactly the symptom the fix was for.
+//! CR2 is always `II`, but the EOS-1Ds writes `MM` — its raw is a big-endian
+//! TIFF from before the CR2 container existed — and a big-endian IFD read
+//! little-endian does not fail: the entry count comes back as some huge number,
+//! the walk finds nothing, and the answer is a polite `None`, which looks
+//! exactly like "no white balance found".
 //!
 //! The IFD inside a MakerNote uses the container's byte order, so it is read
 //! from the file's own TIFF header.

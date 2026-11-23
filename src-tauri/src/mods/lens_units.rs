@@ -99,9 +99,9 @@ pub fn tca_scale(v_blended: f32, c: f32, b: f32, r: f32, amount: f32) -> f32 {
 
 /// The gain that corrects a pa vignetting factor `v` (`1 + k₁r² + k₂r⁴ + k₃r⁶`
 /// of the radius over the photo's half-diagonal) at the Vignetting `amount` (1
-/// at 100%): Lensfun's `1/v` at 100%, none at 0. Until now the renderer took
-/// 0.8 of the amount, a factor RapidRAW added with its distortion gain
-/// ("hack to align it", 147d52e6), so 100% corrected a fifth too little.
+/// at 100%): Lensfun's `1/v` at 100%, none at 0, with no 0.8 factor on the
+/// amount (RapidRAW's, added with its distortion gain, "hack to align it",
+/// 147d52e6, which left 100% a fifth short).
 pub fn vignetting_gain(v: f64, amount: f64) -> f64 {
     1.0 + (1.0 / v - 1.0) * amount
 }

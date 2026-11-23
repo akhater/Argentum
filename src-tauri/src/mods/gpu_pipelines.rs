@@ -3,11 +3,10 @@
 //! one-pixel placeholder textures.
 //!
 //! A processor is rebuilt whenever an image needs bigger textures than the
-//! one kept (a zoom to 100%, a portrait after landscapes, an export), and each
-//! rebuild compiled every shader again. They are now built once per GPU
-//! context and precision and shared: a rebuild only allocates textures and
-//! buffers. Precision::High (16-bit TIFF export) has its own set, built on the
-//! first such export and kept for the next.
+//! one kept (a zoom to 100%, a portrait after landscapes, an export). These are
+//! built once per GPU context and precision and shared, so a rebuild only
+//! allocates textures and buffers. Precision::High (16-bit TIFF export) has its
+//! own set, built on the first such export and kept for the next.
 
 use std::sync::{Arc, Mutex};
 

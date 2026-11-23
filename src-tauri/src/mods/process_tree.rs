@@ -2,14 +2,14 @@
 //! Ours.
 //!
 //! On Windows the child goes into a job object as it starts, and its own
-//! children join that job by themselves, so one call ends them all. The old way,
-//! `taskkill /T`, is a process of its own: about half a second on an idle
+//! children join that job by themselves, so one call ends them all. The
+//! alternative, `taskkill /T`, is a process of its own: about half a second on an idle
 //! machine and seconds on a busy one, and a run being killed holds its place in
 //! mods/lut_provider.rs's queue all that time. It stays only for a child the
 //! job could not take. Closing the job kills nothing, so a child that ends on
-//! its own leaves what it started running, as before.
+//! its own leaves what it started running.
 //!
-//! Elsewhere the child alone is killed, as before.
+//! Elsewhere the child alone is killed.
 
 use std::process::{Child, Command};
 
@@ -93,7 +93,7 @@ mod windows_job {
         }
     }
 
-    /// The old way, for a child with no job.
+    /// `taskkill /T`, for a child with no job.
     pub fn taskkill(pid: u32) {
         let system = std::env::var_os("SystemRoot").map_or_else(PathBuf::new, PathBuf::from);
         let _ = Command::new(system.join("System32").join("taskkill.exe"))

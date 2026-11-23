@@ -1,29 +1,27 @@
 /**
- * Their strings, worded differently. Ours.
+ * The inherited strings, worded differently. Ours.
  *
- * WHY NOT EDIT THEIR LOCALE FILES
+ * WHY NOT EDIT THE LOCALE FILES
  *
- * Because there are fifteen of them and upstream edits them every release. A
- * changed word there is a line in each, in the files most likely to conflict,
- * and a rename is exactly the change that should cost nothing. So the word is
+ * There are fifteen of them, so a changed word is a line in each. The word is
  * replaced in i18next as each language loads (English at start, the others
- * when picked, languages.ts): their key, our value. Their files keep
- * saying what they said, and every place that reads the key shows ours.
+ * when picked, languages.ts): the inherited key, our value. Every place that
+ * reads the key shows ours.
  *
- * If a key here is ever renamed upstream, the override lands on a key nobody
- * reads and their wording comes back. That is the right failure: an old label
- * beats a merge conflict.
+ * If a key here is ever renamed in the locale files, the override lands on a
+ * key nobody reads and the original wording comes back. That is the right
+ * failure: an old label beats a broken screen.
  *
  * SUBJECT IS OBJECT
  *
- * Their Subject mask selects whatever you draw a box round. Lightroom calls
+ * The inherited Subject mask selects whatever you draw a box round. Lightroom calls
  * that Select Object; its Select Subject is one click and finds the main thing
  * by itself, which is what our Foreground does. A photographer coming from
  * Lightroom reads "Subject" as the wrong tool, so it says Object, in each
  * language in Lightroom's own word for it.
  *
  * Only the label changes. The type stays `ai-subject`, so every saved mask
- * still loads, and a mask already named "Subject" keeps that name: their code
+ * still loads, and a mask already named "Subject" keeps that name: the editor
  * stores the label as the mask's name when it is created, and that is the
  * user's to change.
  */

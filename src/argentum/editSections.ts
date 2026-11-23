@@ -19,7 +19,7 @@ import AG_DEFAULT_ADJUSTMENTS from './defaultAdjustments.json';
 /**
  * Which sections' eyes are open: `sectionVisibility` in an edit, read by the
  * renderer's section checks. RapidRAW 1.6.6 replaced it with an eye per tool
- * (`activeTools`), which Argentum did not take, so the type lives here now.
+ * (`activeTools`), which Argentum does not use, so the type lives here.
  */
 export interface SectionVisibility {
   [index: string]: boolean;
@@ -100,7 +100,7 @@ export const EDIT_SECTION_KEYS: Record<string, string[]> = {
   effects: without(ADJUSTMENT_SECTIONS.effects, [...LUT_KEYS, ...PER_PHOTO_MAPS]),
 };
 
-/** Their tools that left their section, for Basic, Crop or the Looks tab; the Customise menu no longer lists them. */
+/** Tools that left their section, for Basic, Crop or the Looks tab; the Customise menu does not list them. */
 export const MOVED_TOOLS = ['whiteBalance', 'colorPresence', 'presence', 'lut', 'chromaticAberration'];
 
 /** What `keys` start as on a new photo; a key with no starting value of theirs is cleared. */

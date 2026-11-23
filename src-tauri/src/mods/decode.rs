@@ -1,12 +1,9 @@
 //! Everything Argentum does to a RAW as it is decoded. One anchor.
 //!
 //! `raw_processing.rs` calls `on_raw_decoded` once, immediately after rawler
-//! hands back the decoded image and before anything is done with it. That call
-//! is the entire upstream cost of every decode-level fix we will ever make.
-//!
-//! The alternative — a call per fix — is one line of their file each time, in
-//! the function every RAW passes through. This way the file that changes is
-//! ours.
+//! hands back the decoded image and before anything is done with it. Every
+//! decode-level fix is a step here, so the function every RAW passes through
+//! keeps a single call.
 //!
 //! ORDER IS THE CONTRACT
 //!
@@ -137,19 +134,13 @@ pub fn on_raw_decoded_watched(
 
 /// Record the matrix rawler is about to use, for the profile correction.
 ///
-/// The profile itself is no longer applied here. It used to be — substituting
-/// its matrix for rawler's during the decode — and that is the natural place
-/// for it, but not in this app: every other adjustment is applied per frame on
-/// the GPU, so there is no mechanism for a setting that needs the file read
-/// again. Four attempts to add one each broke something else: a black flash on
-/// every switch, a debounced save racing the choice and reverting it, a preview
-/// worker finding no image because the decode had cleared it.
+/// The profile itself is not applied here. Every other adjustment is applied
+/// per frame on the GPU, so there is no mechanism for a setting that needs the
+/// file read again; substituting the profile's matrix during the decode would
+/// need one. darktable and RawTherapee both apply the input profile in the
+/// pipeline rather than at load.
 ///
-/// darktable and RawTherapee both apply the input profile in the pipeline
-/// rather than at load, so this is the ordinary way round and the previous
-/// arrangement was the unusual one.
-///
-/// What is left here is the one thing only the decode knows: which matrix was
+/// What is done here is the one thing only the decode knows: which matrix was
 /// used, so the correction can be worked out later. See
 /// mods/profile_correction.rs.
 fn apply_camera_profile(raw: &mut RawImage, photo_path: Option<&str>) {

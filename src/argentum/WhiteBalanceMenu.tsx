@@ -1,9 +1,7 @@
 /**
  * The white balance menu: Lightroom's list of presets, with Auto among them.
  *
- * Ours. Upstream RapidRAW has never seen this file, so it can never conflict.
- * Auto moved into the menu, as in Lightroom, and the auto white balance wand
- * went.
+ * Ours. Auto is in the menu, as in Lightroom, rather than a separate wand.
  *
  * WHERE IT GOES
  *
@@ -28,8 +26,8 @@
  *
  * A preset is written as an absolute kelvin whichever slider mode is on. That
  * is what a preset means - Daylight is 5500 K on every photo, pasted or not -
- * and their engine keeps the `whiteBalance` field for exactly that. In relative
- * mode their sliders show it as an offset from the camera's as-shot setting,
+ * and the engine keeps the `whiteBalance` field for exactly that. In relative
+ * mode the sliders show it as an offset from the camera's as-shot setting,
  * as they already do for any absolute white balance.
  *
  * AUTO

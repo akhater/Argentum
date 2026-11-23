@@ -1,14 +1,14 @@
 //! Turning a camera profile's ForwardMatrix into something rawler can use.
 //!
-//! THE FIRST ATTEMPT, AND WHY IT WAS WRONG
+//! WHY NOT THE PROFILE'S `ColorMatrix`
 //!
-//! Substituting a profile's `ColorMatrix` for rawler's made colour worse —
+//! Substituting a profile's `ColorMatrix` for rawler's makes colour worse —
 //! measured against darktable over ten photos, red went from 4.2% off to 9.5%.
 //! A `.dcp` is not a bag of interchangeable matrices. Its `ColorMatrix` exists
 //! to *find the illuminant*; the thing that actually renders is
 //! `ForwardMatrix`, which maps white-balanced camera RGB straight to XYZ D50.
 //! Using half of a profile inside a pipeline built for a different convention
-//! produced colour that was differently wrong, not better.
+//! gives colour that is differently wrong, not better.
 //!
 //! WHAT RAWLER ACTUALLY DOES
 //!
@@ -42,8 +42,8 @@
 //! ```
 //!
 //! Row scaling drops out because `normalize` reimposes it. So the profile still
-//! goes in through `raw.color_matrix` and not one line of their pipeline
-//! changes — but what rawler now applies is the profile's own rendering
+//! goes in through `raw.color_matrix` and the pipeline is unchanged — but what
+//! rawler now applies is the profile's own rendering
 //! transform rather than a matrix borrowed from a different job.
 
 // Bradford D65 to D50, because `ForwardMatrix` is defined against D50 and
@@ -119,8 +119,8 @@ mod tests {
     use argentum_engine::colour::SRGB_TO_XYZ_D65;
 
     /// Canon EOS 5D Mark II, ForwardMatrix2, read out of the profile
-    /// RawTherapee publishes. Not typed from memory: the first version of this
-    /// test used numbers I had invented, and the D50 check below caught them.
+    /// RawTherapee publishes. Not typed from memory: the D50 check below
+    /// catches invented numbers.
     const CANON_5D2_FORWARD: [f32; 9] = [
         0.6399, 0.1294, 0.1949, 0.2827, 0.6579, 0.0594, 0.0001, 0.0051, 0.8199,
     ];

@@ -1,10 +1,9 @@
 /**
  * Calling Argentum's Rust side. Ours.
  *
- * Every Argentum command goes through one Tauri command, `ag`, because
- * registering them individually costs a line of upstream `lib.rs` per feature —
- * see `mods/dispatch.rs` for why that matters. This hides the envelope so
- * callers write what they mean.
+ * Every Argentum command goes through one Tauri command, `ag`, rather than
+ * being registered individually in `lib.rs` — see `mods/dispatch.rs`. This
+ * hides the envelope so callers write what they mean.
  *
  *     const wb = await ag('detect_auto_white_balance', { jsAdjustments, mode });
  *

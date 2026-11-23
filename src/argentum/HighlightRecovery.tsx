@@ -14,9 +14,9 @@
  * It runs while the RAW is decoded: right after demosaic, before white balance,
  * for a new edit (mods/highlight_pull.rs), and on the mosaic for an edit saved
  * before that (mods/highlight_rule.rs). Everything else in this app is applied
- * per frame on the GPU; this cannot be. It used to say "applies to the next photo you open"
- * and did not even manage that, because recently opened photos are served
- * from memory without decoding again.
+ * per frame on the GPU; this cannot be. "Applies to the next photo you open"
+ * would not hold either, because recently opened photos are served from
+ * memory without decoding again.
  *
  * So the switch decodes the open photo again, to one side, and swaps it in
  * when done — see `mods/redecode.rs` for why it is not `load_image`, which is
@@ -80,12 +80,10 @@ export default function HighlightRecovery() {
   return (
     <div>
       {/*
-        Their Switch, not one of ours. The first version was hand-rolled, and
-        besides looking like a stranger in the panel its knob was white on an
-        accent that is near-white in this theme — so turning it on made the
-        knob vanish. Theirs already carries the label and the tooltip, so the
-        explanation lives on hover instead of as a paragraph in a panel this
-        narrow.
+        The panel's shared Switch, not a hand-rolled one: it matches the panel
+        and its knob stays visible on this theme's near-white accent. It already
+        carries the label and the tooltip, so the explanation lives on hover
+        instead of as a paragraph in a panel this narrow.
       */}
       <Switch checked={on} disabled={busy} label={t('recoveryLabel')} onChange={toggle} tooltip={t('recoveryHelp')} />
     </div>

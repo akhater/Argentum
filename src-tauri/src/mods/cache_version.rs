@@ -24,10 +24,8 @@
 //!
 //! WHY NOT PUT THE VERSION IN THE HASH
 //!
-//! That is the better fix and it is one line — in `file_management.rs`, which
-//! is at 30 of its 30 approved lines, all of them the `.agdata` rename. The
-//! rule is that a budget is never raised, so this does the same job from our
-//! own side: same effect, nothing of theirs touched.
+//! That is the better fix and it is one line in `file_management.rs`. This
+//! does the same job from our own module, with the same effect.
 //!
 //! Deleting the files is enough on its own. The thumbnails are served over
 //! `http://asset.localhost/...` with no cache headers, and the webview was

@@ -17,7 +17,7 @@
  * than the step before, and the first change of a photo can be undone at once.
  *
  * Installed at import by replacing the store's pushHistory, undo, redo and
- * goToHistoryIndex, so no line of theirs changes.
+ * goToHistoryIndex.
  */
 
 import debounce from 'lodash.debounce';

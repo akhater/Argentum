@@ -48,10 +48,10 @@
 //!
 //! WHY HERE AND NOT IN RAWLER
 //!
-//! rawler is an upstream dependency pulled by git; patching it would mean
-//! carrying a fork of a fork. Overriding two public fields on the decoded image
-//! costs one line in `raw_processing.rs` and is trivially removable if the fix
-//! lands upstream.
+//! rawler is a dependency pulled by git; patching it would mean carrying a
+//! fork of a fork. Overriding two public fields on the decoded image costs one
+//! line in `raw_processing.rs` and is trivially removable if the fix lands in
+//! rawler.
 //!
 //! A SECOND sRAW PROBLEM, WHICH IS NOT OURS
 //!

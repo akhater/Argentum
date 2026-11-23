@@ -132,7 +132,7 @@ export function readSharpen(adjustments: any, isRaw = false): AgSharpen {
  * while Ctrl is down during a drag of one of that group's sliders, as
  * Lightroom holds it on Alt.
  *
- * Shown through `previewOverride`, which is theirs and is exactly a render
+ * Shown through `previewOverride`, which is exactly a render
  * that is never saved - the same way the Ctrl-drag clipping view works (see
  * useThresholdPreview.ts). The override is a copy of the adjustments, so it
  * is rewritten whenever they change, or the mask would freeze on the values

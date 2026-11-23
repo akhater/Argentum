@@ -2,9 +2,9 @@
 //! CPU memory arena off.
 //!
 //! The arena keeps the largest working memory a model has ever needed for as
-//! long as the session lives, so the next run need not ask for it again. Their
-//! models live for the whole session, so their working memory did too. Measured
-//! on 2026-10-09 with a Canon R6 Mark III raw: the five mask models (SAM's
+//! long as the session lives, so the next run need not ask for it again. The
+//! models live for the whole session, so their working memory would too.
+//! Measured on 2026-10-09 with a Canon R6 Mark III raw: the five mask models (SAM's
 //! encoder and decoder, U2-Net, the sky model, Depth Anything) took the app from
 //! 3.3 GB to 8.5 GB after one selection, of which loading them was 1.4 GB, and
 //! unloading them gave back 6.1 GB. Without the arena a run's working memory is
@@ -13,10 +13,9 @@
 //! The price is an allocation per tensor per run instead of reuse from the
 //! pool. Against a model run that takes a second or more, that is noise.
 //!
-//! One import in their ai_processing.rs, on an anchor taken 2026-10-09: each of
-//! their eight `Session::builder()?` became `session_builder()?`, one line for
-//! one. Unloading models nothing is using stays in mods/memory.rs; this makes a
-//! loaded one cheap, that makes an idle one free.
+//! `ai_processing.rs` imports it: each of its eight `Session::builder()?` is
+//! `session_builder()?`. Unloading models nothing is using stays in
+//! mods/memory.rs; this makes a loaded one cheap, that makes an idle one free.
 
 //!
 //! Every session also goes through [`builder`], which first makes the process's

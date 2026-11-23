@@ -2,14 +2,14 @@
 //!
 //! WHAT CHANGED
 //!
-//! From 26.37.2 until the 1.6.5 merge, Temperature and Tint ran through our own
+//! Until the 1.6.5 white balance, Temperature and Tint ran through our own
 //! `dt_white_balance` in `modules.wgsl`. Each slider named an illuminant: the
 //! temperature, divided by 25, went through `6500 * exp(t * 0.28)` onto the
 //! daylight locus, the tint (divided by 100) moved its `y` by `n * 0.05`, and
 //! the picture was adapted from that illuminant to D65 in Bradford cone space.
 //!
-//! RapidRAW 1.6.5 shipped its own engine and we took it (see `modules.wgsl`).
-//! Its sliders mean something else: 1.5 mired and 1.5 tint units per step away
+//! RapidRAW 1.6.5's engine replaced it (see `modules.wgsl`). Its sliders mean
+//! something else: 1.5 mired and 1.5 tint units per step away
 //! from the camera's as-shot white balance, with an optional absolute
 //! `whiteBalance` in kelvin beside them. The same number now asks for a
 //! different correction. Cooling by 50 was 115 mired and is now 75, and a tint
@@ -19,21 +19,18 @@
 //! WHICH EDITS ARE OLD
 //!
 //! Every adjustments object the app writes since 1.6.5 carries a `whiteBalance`
-//! key, null when the sliders are relative (their `INITIAL_ADJUSTMENTS` has it).
-//! An edit without the key was saved before the merge. That is the whole test,
+//! key, null when the sliders are relative (`INITIAL_ADJUSTMENTS` has it). An
+//! edit without the key was saved before that change. That is the whole test,
 //! and once a converted edit is saved with the key it is never converted again.
 //!
-//! WHERE, WITHOUT A LINE OF THEIRS
+//! WHERE
 //!
-//! The obvious places are a line at the top of their
-//! `get_all_adjustments_from_json` and one in their `load_metadata`. The anchor
-//! check refused both: those files have no allowance left, and an allowance
-//! does not go up for a feature. So everything happens from our side:
+//! Everything happens from our side:
 //!
 //! - **The editor.** `src/argentum/wbLegacy.ts` sees every `load_metadata`
-//!   answer before their code does and, when the edit is old, swaps in
-//!   `upgraded` and saves it through their `save_metadata_and_update_thumbnail`.
-//!   Their editor never holds an old edit, so it can never save one back with
+//!   answer before the editor does and, when the edit is old, swaps in
+//!   `upgraded` and saves it through `save_metadata_and_update_thumbnail`.
+//!   The editor never holds an old edit, so it can never save one back with
 //!   the new key and the old numbers, which would fix the wrong colour for good.
 //! - **Everything else.** When the library lists a folder, `find_old` reports
 //!   the old edits in it, converted, and the frontend saves each the same way,
@@ -46,13 +43,13 @@
 //! HOW
 //!
 //! Exactly, not by curve fitting. The old adaptation took the colour of its
-//! illuminant to white, which is what auto white balance asks of their engine
-//! too: `auto_wb::removing_illuminant` hands the illuminant to their
+//! illuminant to white, which is what auto white balance asks of the engine
+//! too: `auto_wb::removing_illuminant` hands the illuminant to
 //! `pick_white_balance` and gets back the white balance that makes the same
-//! correction, in their units.
+//! correction, in 1.6.5's units.
 //! The tests below check the gains agree.
 //!
-//! Relative when it fits on their sliders, absolute when it does not: a
+//! Relative when it fits on the sliders, absolute when it does not: a
 //! relative edit keeps meaning "this much warmer than the camera" when it is
 //! copied to another photo, which is what it meant before.
 //!
@@ -61,9 +58,9 @@
 //! The old shader decoded the RAW a second time before adapting and clipped at
 //! white on the way back, so its correction was weaker than its own maths said
 //! (about three quarters of it in the midtones) and every highlight above white
-//! was lost whenever the sliders were off zero. That was a bug. This converts
-//! what the sliders asked for, so an old edit comes back slightly stronger, and
-//! with its highlights.
+//! was lost whenever the sliders were off zero. This converts what the sliders
+//! asked for, so an old edit comes back slightly stronger, and with its
+//! highlights.
 
 use std::collections::HashMap;
 use std::path::Path;

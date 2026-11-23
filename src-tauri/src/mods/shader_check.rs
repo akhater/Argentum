@@ -18,10 +18,7 @@
 /// The shader source, exactly as `gpu_processing.rs` assembles it.
 ///
 /// Not a second copy of the concatenation: it is the same constant the renderer
-/// compiles. This file used to hold its own `concat!` of the same two includes,
-/// which was fine until a third caller appeared and the whole point of the check
-/// (that the text under test is the text that runs) stopped being guaranteed by
-/// anything but everyone remembering.
+/// compiles, so the text under test is the text that runs.
 #[cfg(test)]
 pub use super::export_precision::SHADER_SOURCE as SOURCE;
 
@@ -272,8 +269,8 @@ mod tests {
         );
     }
 
-    /// The stages exist and are called, which is the whole mergeability
-    /// arrangement: their file calls two functions of ours and nothing else.
+    /// The stages exist and are called: the shader calls two functions of ours
+    /// and nothing else.
     #[test]
     fn both_stages_are_wired() {
         assert!(

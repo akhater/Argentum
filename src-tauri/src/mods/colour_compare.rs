@@ -102,11 +102,11 @@ mod tests {
 
     /// Compare the two renders pixel by pixel.
     ///
-    /// The first version averaged each image separately over pixels above a
-    /// brightness threshold - and the two images passed *different numbers of
-    /// pixels* (611,504 against 527,665). Comparing those means is partly a
-    /// measurement of which pixels survived the threshold in each, not of
-    /// colour. Same pixel against same pixel, or the number means nothing.
+    /// Averaging each image separately over pixels above a brightness threshold
+    /// would pass *different numbers of pixels* for the two images, so the
+    /// comparison would partly measure which pixels survived the threshold in
+    /// each, not colour. Same pixel against same pixel, or the number means
+    /// nothing.
     ///
     /// Ratios are taken per pixel and then averaged, so a bright area cannot
     /// dominate the answer.

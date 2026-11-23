@@ -2,14 +2,13 @@
 //!
 //! WHY THIS EXISTS
 //!
-//! The profile used to be applied while the RAW was decoded, by substituting
-//! its matrix for rawler's. That is the natural place for it and it does not
-//! work here, for a reason that has nothing to do with colour: every other
-//! adjustment in this app is applied on the GPU, per frame, so the app has no
-//! notion of a setting that needs the file read again. Four attempts to bolt
-//! one on each broke something else — a black flash on every switch, a
-//! debounced save racing the choice and reverting it, a preview worker finding
-//! no image because the decode had cleared it.
+//! Substituting the profile's matrix for rawler's while the RAW is decoded is
+//! the natural place for it and it does not work here, for a reason that has
+//! nothing to do with colour: every other adjustment in this app is applied on
+//! the GPU, per frame, so the app has no notion of a setting that needs the
+//! file read again (it would mean a black flash on every switch, a debounced
+//! save racing the choice and reverting it, a preview worker finding no image
+//! because the decode had cleared it).
 //!
 //! So: decode once, normally, with rawler's own matrix. Then apply the
 //! *difference* between that matrix and the profile's, where every other
@@ -72,9 +71,8 @@ pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0
 /// which is the one arrangement that cannot go stale: it is tied to a scope
 /// rather than to the history of a thread.
 ///
-/// It costs two lines in their files, at the two places a render begins without
-/// a decode of its own — the preview worker and the export worker. That is a
-/// deliberate exception to the anchor rule, taken because the alternative was a
+/// It is set at the two places a render begins without a decode of its own —
+/// the preview worker and the export worker — because the alternative was a
 /// heuristic that is wrong in a case a person would hit.
 /// One photo's built-in matrix, and its camera (maker, model) once the decode
 /// has said, remembered against the photo they came from; and what its camera
@@ -206,13 +204,12 @@ pub fn forget_built_in() {
 fn built_in_for_this_render(photo: Option<&str>) -> Option<[f32; 9]> {
     // `None` means no photo was named, and that is the end of it.
     //
-    // It used to mean "the one the app has open", which reads like a kindness
-    // and is a guess wearing a default's clothes: a caller that captured a
-    // photo, queued the work and rendered it later would silently be told about
-    // whichever photo had been opened in the meantime. Every render that has a
-    // photo now says so, and the only caller left passing `None` is the check
-    // that asks whether adjustments differ from neutral — which renders nothing
-    // and has no photo to name.
+    // Not "the one the app has open": that is a guess wearing a default's
+    // clothes, because a caller that captured a photo, queued the work and
+    // rendered it later would silently be told about whichever photo had been
+    // opened in the meantime. Every render that has a photo says so, and the
+    // only caller passing `None` is the check that asks whether adjustments
+    // differ from neutral — which renders nothing and has no photo to name.
     let path = photo?.to_string();
     let mut known = BUILT_IN.lock().ok()?;
     let known = known.as_mut()?;
@@ -494,14 +491,11 @@ mod tests {
         forget_built_in();
     }
 
-    /// The export bug, as a test.
-    ///
-    /// Two photos decoded, in the order that used to break it: the second
-    /// decode overwrote the first photo's matrix, so the first photo's render
-    /// got the second's. Deliberately two files from the *same* camera with
-    /// different matrices, because keying by camera was the first fix and this
-    /// is the case it still got wrong — a DNG carries its own matrix, so one
-    /// body can produce several.
+    /// Two photos decoded in turn: the second decode must not overwrite the
+    /// first photo's matrix, or the first photo's render gets the second's.
+    /// Deliberately two files from the *same* camera with different matrices,
+    /// because keying by camera is not enough — a DNG carries its own matrix,
+    /// so one body can produce several.
     #[test]
     fn a_second_photo_does_not_take_the_first_ones_matrix() {
         let _guard = serialised();
@@ -542,12 +536,8 @@ mod tests {
         forget_built_in();
     }
 
-    /// The stale-thread bug, as a test.
-    ///
-    /// This used to be a guard held for the length of a render, and it worked
-    /// wherever it was placed — which turned out to be three of the many places
-    /// a render begins. A render now takes the photo as an argument, so a
-    /// caller cannot forget to say and there is no thread history to go stale.
+    /// A render takes the photo as an argument, so a caller cannot forget to
+    /// say and there is no thread history to go stale.
     #[test]
     fn a_render_gets_its_own_photos_matrix_whatever_was_decoded_last() {
         let _guard = serialised();
@@ -611,16 +601,12 @@ mod tests {
         }
     }
 
-    /// The idle-editor bug, as a test.
+    /// Least-recently-used would protect the open photo only while somebody is
+    /// dragging a slider. Leave the app sitting on a photo, start an export of
+    /// three hundred, and nothing reads it — it would be evicted, and every
+    /// frame afterwards would render without its profile.
     ///
-    /// The rule before this was least-recently-used, which protects the open
-    /// photo only while somebody is dragging a slider. Leave the app sitting on
-    /// a photo, start an export of three hundred, and nothing reads it — so it
-    /// was evicted anyway, and every frame afterwards rendered without its
-    /// profile.
-    ///
-    /// My own test for the previous fix read the open photo every fifty inserts
-    /// and so could never have caught this. This one never reads it at all.
+    /// The test never reads the open photo, so it cannot be kept alive by a read.
     #[test]
     fn an_open_photo_survives_an_export_even_if_nobody_looks_at_it() {
         let mut known: Vec<BuiltInMatrix> = vec![entry("OPEN.CR2", [1.0; 9])];

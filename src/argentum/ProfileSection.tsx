@@ -7,7 +7,7 @@
  * photo sat in the third section. The tone mapper joins them from Basic, where
  * it shared a card with Exposure.
  *
- * A section like theirs, folding with them (their focus mode included) and
+ * A section like the others, folding with them (focus mode included) and
  * remembered with them (`adjustmentLayout.openSections`, under "profile"). No
  * eye, since none of it can be turned off; its reset puts the camera profile,
  * the rendering and the tone mapper back (editSections.ts PROFILE_KEYS).

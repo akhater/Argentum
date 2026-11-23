@@ -3,21 +3,20 @@
  *
  * 1.6.5's Temperature and Tint mean something different from the ones they
  * replaced, so an edit saved earlier would change colour. `mods/wb_legacy.rs`
- * does the conversion; this decides when, because the places their code reads
- * an edit — `load_metadata`, `get_all_adjustments_from_json` — are files with
- * no anchor allowance left, and an allowance does not go up for a feature.
+ * does the conversion; this decides when, from outside the places that read an
+ * edit — `load_metadata`, `get_all_adjustments_from_json`.
  *
- * Two things, both through their own machinery:
+ * Two things, both through the editor's own machinery:
  *
  * - **A folder sweep.** When the library lists a folder, Rust converts the old
- *   edits in it and saves them through their `save_metadata_and_update_thumbnail`,
+ *   edits in it and saves them through `save_metadata_and_update_thumbnail`,
  *   which keeps the rest of the sidecar and redraws the thumbnail, so the grid
  *   and any batch export see the converted edit. One at a time, each waiting for
- *   its thumbnail: the first version fired every save at once, each redraw
- *   decoded a whole RAW on a thread of its own, and on a real first start the
- *   preview worker died under it. See wb_legacy::save_in_turn.
+ *   its thumbnail: firing every save at once would decode a whole RAW per
+ *   redraw on a thread of its own and starve the preview worker. See
+ *   wb_legacy::save_in_turn.
  * - **The open photo.** The editor may have loaded an old edit before the sweep
- *   reached it — session restore at launch, or a quick click. Their loader
+ *   reached it — session restore at launch, or a quick click. The loader
  *   fills in `whiteBalance: null`, so the next save would store the old numbers
  *   as new ones and fix the wrong colour for good. So when the editor holds a
  *   photo whose saved edit is old, and its white balance numbers are still the

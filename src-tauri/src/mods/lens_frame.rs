@@ -2,10 +2,10 @@
 //!
 //! Lensfun measures a lens on one camera and gives its coefficients as
 //! functions of the radius on that camera's frame (the lens's `<cropfactor>`).
-//! Until now they were applied as if every photo had that frame, so a lens
-//! calibrated on a full-frame camera and used on a 1.6x body treated the APS-C
-//! corner as the full-frame corner, and corrected the distortion there about 2.6
-//! times too strongly.
+//! Applied as if every photo had that frame, a lens calibrated on a full-frame
+//! camera and used on a 1.6x body would treat the APS-C corner as the
+//! full-frame corner, and correct the distortion there about 2.6 times too
+//! strongly.
 //!
 //! Lensfun puts a calibration on an image of another crop factor by scaling the
 //! image's coordinates (`lfModifier`, given the image's crop factor; darktable's

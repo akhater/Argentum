@@ -1,11 +1,7 @@
-//! Regression tests for upstream's cache keys. Ours.
+//! Regression tests for the inherited cache keys. Ours.
 //!
-//! WHY THIS FILE EXISTS RATHER THAN A `#[cfg(test)]` BLOCK IN `cache_utils.rs`
-//!
-//! The functions under test are upstream's, in an upstream file, which has a
-//! budget of eight added lines. A test module there would spend most of it on
-//! something that is not a feature. The functions are `pub`, so the tests can
-//! live here instead and cost that budget nothing.
+//! The functions under test are in `cache_utils.rs` and are `pub`, so the tests
+//! live here, apart from that file.
 //!
 //! THE BUG THESE GUARD
 //!

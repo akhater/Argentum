@@ -79,8 +79,9 @@ pub struct AutoWhiteBalance {
     pub y: f32,
     /// Correlated colour temperature of that illuminant in kelvin, for the log.
     pub temperature_k: f32,
-    /// Kelvin and tint in RapidRAW 1.6.5's units, absolute, as their picker
-    /// returns them. The frontend writes it the way their picker does.
+    /// Kelvin and tint in RapidRAW 1.6.5's units, absolute, as the white
+    /// balance picker returns them. The frontend writes it the way the picker
+    /// does.
     pub white_balance: WhiteBalance,
 }
 
@@ -114,16 +115,11 @@ impl Chromaticity {
 /// This was measurably making results warmer than darktable's.
 ///
 /// The curve itself lives in `mods::preview_encode`, which owns it and its
-/// inverse. Two constants used to sit here as well, with a note to keep them in
-/// step with upstream's — they had not been read by anything since the encode
-/// gained a toe and the inverse moved, so the note was asking for maintenance
-/// on a copy nobody was using.
+/// inverse.
 #[inline]
 fn to_scene_linear(value: f32) -> f32 {
     // Single source of truth: mods::preview_encode owns the curve and its
-    // inverse. It used to be duplicated here as gamma-then-contrast, which was
-    // fine while the encode was a straight line and wrong the moment it gained
-    // a toe.
+    // inverse.
     crate::mods::preview_encode::decode(value)
 }
 

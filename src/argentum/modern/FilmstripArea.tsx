@@ -1,7 +1,7 @@
 /**
  * The Modern window's filmstrip, under the centre in both views. Ours.
  *
- * Its header carries what used to need a bar of its own: the folder, which
+ * Its header carries the folder, which
  * photo of how many, its name, how many are selected, and on the right the
  * status line (render time while a photo is open, thumbnail progress in the
  * grid). The strip is today's Filmstrip. A click opens the photo while one is

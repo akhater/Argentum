@@ -3,14 +3,12 @@
  *
  * WHY IT IS A TAB
  *
- * Lenses used to be a card three screens down inside General, next to theme,
- * language, tagging and sidecar deletion. Cameras had nowhere at all — RapidRAW
- * never needed a list of bodies, because lens corrections are looked up by name
- * at the moment they are applied and nothing else cared. Camera profiles do
- * care: a profile is a file, obtained once, per body.
+ * Lens corrections are looked up by name at the moment they are applied, so
+ * nothing else needs a list of bodies. Camera profiles do care: a profile is a
+ * file, obtained once, per body.
  *
- * So the two belong together, under their own heading, and General goes back to
- * being about the application rather than about equipment.
+ * So cameras and lenses belong together, under their own heading, and General
+ * stays about the application rather than about equipment.
  *
  * A fifth tab fits because their tab row was pinned to a fixed 450px whatever
  * it contained — one word, `w-112.5` to `w-auto`, and it sizes to its tabs.
