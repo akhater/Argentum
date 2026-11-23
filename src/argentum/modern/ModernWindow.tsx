@@ -20,6 +20,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
+  lazy,
   useEffect,
   useState,
 } from 'react';
@@ -42,10 +43,14 @@ import type { TransformHandle } from '../layout/Navigator';
 import FilmstripArea from './FilmstripArea';
 import { useModernFolders } from './folders';
 import LeftColumn from './LeftColumn';
-import ModernSettings, { type SettingsProps } from './ModernSettings';
+import type { SettingsProps } from './ModernSettings';
+import { LazyDialog } from '../../components/modals/LazyDialog';
 import { DockedNavigator, FloatingNavigator } from './NavigatorDock';
 import RightPanel from './RightPanel';
 import TopBar from './TopBar';
+
+// The Settings window loads on first open (see LazyDialog); most sessions never open it.
+const ModernSettings = lazy(() => import('./ModernSettings'));
 
 type Resize = (stateKey: string, startSize: number) => (e: ReactPointerEvent<HTMLDivElement>) => void;
 
@@ -178,11 +183,13 @@ export default function ModernWindow(props: ModernWindowProps) {
             <div className={clsx('flex-1 flex flex-col min-h-0', editing && 'hidden')}>
               <LibraryView {...props.libraryProps} />
             </div>
-            {isSettingsOpen && (
-              <div className="absolute inset-0 z-30 flex">
-                <ModernSettings {...props.settingsProps} />
-              </div>
-            )}
+            <LazyDialog isOpen={isSettingsOpen} onClose={() => useUIStore.getState().setUI({ isSettingsOpen: false })}>
+              {isSettingsOpen && (
+                <div className="absolute inset-0 z-30 flex">
+                  <ModernSettings {...props.settingsProps} />
+                </div>
+              )}
+            </LazyDialog>
           </div>
           {sides && uiVisibility.filmstrip && !isSettingsOpen && (
             <FilmstripArea

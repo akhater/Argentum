@@ -25,7 +25,7 @@
  * of theirs.
  */
 
-import { useEffect, useState } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import './historyOnRelease';
@@ -39,7 +39,7 @@ import RadialFeather from './RadialFeather';
 import RefreshMetadataButton from './RefreshMetadataButton';
 import WhiteBalanceMenu from './WhiteBalanceMenu';
 import WhiteBalanceUpgrade from './WhiteBalanceUpgrade';
-import AboutPanel from './AboutPanel';
+import { LazyDialog } from '../components/modals/LazyDialog';
 import ExportPrecision from './ExportPrecision';
 import Sharpening from './Sharpening';
 import LocalSharpening from './LocalSharpening';
@@ -56,6 +56,10 @@ import { useAutoWhiteBalanceFollows } from './autoWhiteBalance';
 import { useLensBuiltinOnOpen } from './lensBuiltin';
 import { useNewPhotoDefaults } from './newPhotoDefaults';
 import LazySuperResolutionModal from './LazySuperResolutionModal';
+
+// The About tab carries the release notes, credits and known issues (about 1,300 lines
+// of text): it loads when the tab is first shown, not at start-up.
+const AboutPanel = lazy(() => import('./AboutPanel'));
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -180,7 +184,13 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
     <>
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
       {whiteBalance && createPortal(<WhiteBalanceMenu />, whiteBalance)}
-      {about && createPortal(<AboutPanel />, about)}
+      {about &&
+        createPortal(
+          <LazyDialog isOpen onClose={() => undefined}>
+            <AboutPanel />
+          </LazyDialog>,
+          about,
+        )}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
       {sharpening && createPortal(<Sharpening />, sharpening)}
       {localSharpening && createPortal(<LocalSharpening />, localSharpening)}

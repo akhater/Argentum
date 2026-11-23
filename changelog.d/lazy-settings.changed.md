@@ -1,0 +1,1 @@
+- The Settings window, the About tab (release notes, credits, known issues, roadmap), the Community presets page and the Tethering panel now load the first time they are shown, so the app reads about 307 KB (20%) less script at start. They look and work as before.

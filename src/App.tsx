@@ -4,7 +4,7 @@ import { ModernWindow, refreshModernTrees, startModernLibrary } from './argentum
 import { useLightPalette } from './argentum/layout/editorLayout';
 import { usePhotoStep } from './argentum/photoStep';
 import { useSaveOnClose } from './argentum/saveOnClose';
-import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { type PointerEvent as ReactPointerEvent, lazy, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -29,7 +29,10 @@ import AppModals from './components/modals/AppModals';
 import MetadataPanel from './components/panel/right/MetadataPanel';
 import CropPanel from './components/panel/right/CropPanel';
 import AIPanel from './components/panel/right/AIPanel';
-import TetheringPanel from './components/panel/right/TetheringPanel';
+import { LazyDialog } from './components/modals/LazyDialog';
+
+// Shown only when the Tethering panel is picked (see LazyDialog).
+const TetheringPanel = lazy(() => import('./components/panel/right/TetheringPanel'));
 
 import { ContextMenuProvider } from './context/ContextMenuContext';
 import { useSettingsStore } from './store/useSettingsStore';
@@ -586,7 +589,11 @@ function App() {
         case Panel.Ai:
           return <AIPanel />;
         case Panel.Tethering:
-          return <TetheringPanel onLibraryRefresh={handleLibraryRefresh} onImageSelect={handleImageSelect} />;
+          return (
+            <LazyDialog isOpen onClose={() => undefined}>
+              <TetheringPanel onLibraryRefresh={handleLibraryRefresh} onImageSelect={handleImageSelect} />
+            </LazyDialog>
+          );
         default:
           return null;
       }

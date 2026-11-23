@@ -1,8 +1,12 @@
 import { useShallow } from 'zustand/react/shallow';
 
-import CommunityPage from '../panel/CommunityPage';
+import { lazy } from 'react';
+import { LazyDialog } from '../modals/LazyDialog';
 import MainLibrary from '../panel/MainLibrary';
 import { leaveCommunity } from '../../argentum/looks/community';
+
+// The Community presets page loads when first shown (see LazyDialog).
+const CommunityPage = lazy(() => import('../panel/CommunityPage'));
 
 import { useUIStore } from '../../store/useUIStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
@@ -76,12 +80,14 @@ export default function LibraryView({
     <div className="flex flex-row grow h-full min-h-0">
       <div className="flex-1 flex flex-col min-w-0 gap-2">
         {activeView === 'community' ? (
-          <CommunityPage
-            onBackToLibrary={leaveCommunity}
-            supportedTypes={supportedTypes}
-            imageList={sortedImageList}
-            currentFolderPath={currentFolderPath}
-          />
+          <LazyDialog isOpen onClose={leaveCommunity}>
+            <CommunityPage
+              onBackToLibrary={leaveCommunity}
+              supportedTypes={supportedTypes}
+              imageList={sortedImageList}
+              currentFolderPath={currentFolderPath}
+            />
+          </LazyDialog>
         ) : (
           <MainLibrary
             activePath={libraryActivePath}
