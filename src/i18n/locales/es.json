@@ -1413,6 +1413,7 @@
       "titleBatch": "Reducir ruido de imágenes",
       "titleSingle": "Reducir ruido de imagen"
     },
+    "dialogError": "Esta ventana tuvo un problema y se cerró. Inténtalo de nuevo.",
     "focusStack": {
       "cancel": "Cancelar",
       "close": "Cerrar",

@@ -1,4 +1,5 @@
 import { Component, Suspense, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
 
 /**
@@ -12,8 +13,9 @@ import { toast } from 'react-toastify';
  * (a local file, a few milliseconds) nothing is drawn; the hidden marker
  * lets the UI walk wait for the load.
  *
- * A failed import (dev server only; the packaged app reads local files) closes
- * the dialog and shows an error toast instead of blanking the app.
+ * A failed import (dev server only; the packaged app reads local files) or any
+ * render error inside the dialog closes the dialog and shows an error toast
+ * instead of blanking the app.
  */
 export function LazyDialog({
   isOpen,
@@ -24,6 +26,7 @@ export function LazyDialog({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const [armed, setArmed] = useState(isOpen);
   if (isOpen && !armed) setArmed(true);
   if (!armed) return null;
@@ -33,7 +36,7 @@ export function LazyDialog({
       onFail={() => {
         setArmed(false);
         onClose();
-        toast.error('Could not open this window. Please try again.');
+        toast.error(t('modals.dialogError'));
       }}
     >
       <Suspense fallback={<span data-dialog-loading hidden />}>{children}</Suspense>

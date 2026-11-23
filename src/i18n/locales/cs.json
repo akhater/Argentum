@@ -1387,6 +1387,7 @@
       "titleBatch": "Odšumovat snímky",
       "titleSingle": "Odšumovat snímek"
     },
+    "dialogError": "V tomto okně nastal problém a bylo zavřeno. Zkuste to prosím znovu.",
     "focusStack": {
       "cancel": "Zrušit",
       "close": "Zavřít",

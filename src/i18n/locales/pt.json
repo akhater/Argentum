@@ -1413,6 +1413,7 @@
       "titleBatch": "Reduzir Ruído de Imagens",
       "titleSingle": "Reduzir Ruído da Imagem"
     },
+    "dialogError": "Esta janela teve um problema e foi fechada. Tente novamente.",
     "focusStack": {
       "cancel": "Cancelar",
       "close": "Fechar",

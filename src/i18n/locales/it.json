@@ -1415,6 +1415,7 @@
       "titleBatch": "Riduci Rumore Immagini",
       "titleSingle": "Riduci Rumore Immagine"
     },
+    "dialogError": "Questa finestra ha avuto un problema ed è stata chiusa. Riprova.",
     "focusStack": {
       "cancel": "Annulla",
       "close": "Chiudi",

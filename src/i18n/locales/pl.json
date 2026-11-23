@@ -1444,6 +1444,7 @@
       "titleBatch": "Odszum obrazy",
       "titleSingle": "Odszum obraz"
     },
+    "dialogError": "W tym oknie wystąpił problem i zostało ono zamknięte. Spróbuj ponownie.",
     "focusStack": {
       "cancel": "Anuluj",
       "close": "Zamknij",

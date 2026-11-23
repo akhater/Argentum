@@ -1378,6 +1378,7 @@
       "titleBatch": "降噪图像",
       "titleSingle": "降噪图像"
     },
+    "dialogError": "此窗口出现问题，已关闭。请重试。",
     "focusStack": {
       "cancel": "取消",
       "close": "关闭",

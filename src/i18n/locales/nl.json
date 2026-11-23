@@ -1359,6 +1359,7 @@
       "titleBatch": "Ruis verwijderen uit foto's",
       "titleSingle": "Ruis verwijderen uit foto"
     },
+    "dialogError": "In dit venster is een probleem opgetreden en het is gesloten. Probeer het opnieuw.",
     "focusStack": {
       "cancel": "Annuleren",
       "close": "Sluiten",
