@@ -30,6 +30,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from '../store/useEditorStore';
 import { useRgbReadout } from './rgbReadoutStore';
 import { findPhotoBox } from './photoBox';
+import { readoutAdjustments } from './readoutRequest';
 
 interface Sample {
   r: number;
@@ -118,10 +119,11 @@ export default function RgbReadout() {
       const x = localX / rect.width;
       const y = localY / rect.height;
 
+      const { adjustments, patchesSentToBackend } = useEditorStore.getState();
       ag('sample_processed_pixel', {
         x,
         y,
-        jsAdjustments: useEditorStore.getState().adjustments,
+        jsAdjustments: readoutAdjustments(adjustments, patchesSentToBackend),
       })
         .then(([r, g, b]) => setSample({ r, g, b }))
         .catch(() => setSample(null))
