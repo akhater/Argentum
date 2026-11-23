@@ -187,7 +187,7 @@ pub fn generate_transformed_preview(
     loaded_image: &LoadedImage,
     adjustments: &serde_json::Value,
     preview_dim: u32,
-) -> Result<(DynamicImage, f32, (f32, f32)), String> {
+) -> Result<TransformedPreview, String> {
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
     calculate_transform_hash(adjustments).hash(&mut hasher);
@@ -202,7 +202,7 @@ pub fn generate_transformed_preview(
     if let Some((hash, img, scale, offset)) = cache_lock.as_ref()
         && *hash == cache_key
     {
-        return Ok(((**img).clone(), *scale, *offset));
+        return Ok((Arc::clone(img), *scale, *offset));
     }
 
     let (preview, scale_for_gpu, unscaled_crop_offset) =
@@ -214,7 +214,7 @@ pub fn generate_transformed_preview(
         unscaled_crop_offset,
     ));
 
-    Ok(((*preview).clone(), scale_for_gpu, unscaled_crop_offset))
+    Ok((preview, scale_for_gpu, unscaled_crop_offset))
 }
 
 fn get_or_compute_stage(
@@ -584,7 +584,7 @@ fn process_preview_job(
 
         let (base, scale, offset) =
             generate_transformed_preview(&state, &loaded_image, &adjustments_clone, preview_dim)?;
-        (Arc::new(base), scale, offset)
+        (base, scale, offset)
     };
 
     let small_preview_base = if small_valid {
