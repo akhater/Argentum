@@ -178,7 +178,9 @@ fn merge_into_tiff(
         metadata.set_tag(ExifTag::ExifImageHeight(vec![height]));
     }
 
-    metadata.set_tag(ExifTag::Software("Argentum".to_string()));
+    metadata.set_tag(ExifTag::Software(
+        crate::mods::app_stamp::APP_NAME.to_string(),
+    ));
 
     metadata
         .write_to_vec(image_bytes, FileExtension::TIFF)

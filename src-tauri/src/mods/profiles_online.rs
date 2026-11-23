@@ -39,9 +39,6 @@
 
 use super::{profiles, rt_profiles};
 
-/// GitHub refuses requests without one.
-const AGENT: &str = "Argentum";
-
 /// A profile that exists for this camera.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Found {
@@ -105,7 +102,7 @@ async fn get(url: &str, seconds: u64) -> Result<reqwest::Response, String> {
 
     fn client(http1_only: bool, seconds: u64) -> Result<reqwest::Client, String> {
         let builder = reqwest::Client::builder()
-            .user_agent(AGENT)
+            .user_agent(crate::mods::app_stamp::APP_NAME)
             .timeout(std::time::Duration::from_secs(seconds));
         let builder = if http1_only {
             builder.http1_only()
