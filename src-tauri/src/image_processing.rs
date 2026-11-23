@@ -108,6 +108,10 @@ pub struct ImageMetadata {
         skip_serializing_if = "Option::is_none"
     )]
     pub ag_highlights: Option<crate::mods::highlight_rule::Rule>,
+    /// Top-level keys this release does not know: a newer release wrote them,
+    /// and a save writes them back as they were (after the keys above).
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
 }
 
 impl Default for ImageMetadata {
@@ -122,6 +126,7 @@ impl Default for ImageMetadata {
             ag_snapshots: None,
             ag_history: None,
             ag_highlights: None,
+            extra: serde_json::Map::new(),
         }
     }
 }

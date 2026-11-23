@@ -595,6 +595,11 @@ pub struct AppSettings {
     pub adjustment_layout: AdjustmentLayout,
     #[serde(default)]
     pub workspace: WorkspaceState,
+    /// Top-level keys this release does not know: a newer release wrote them,
+    /// the interface carries them untouched, and a save writes them back as
+    /// they were (after the keys above).
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
 }
 
 impl Default for AppSettings {
@@ -678,6 +683,7 @@ impl Default for AppSettings {
             custom_aspect_ratios: Vec::new(),
             adjustment_layout: AdjustmentLayout::default(),
             workspace: WorkspaceState::default(),
+            extra: serde_json::Map::new(),
         }
     }
 }

@@ -379,6 +379,7 @@ fn is_default_sidecar(sidecar_path: &Path, source_path: &Path, metadata: &ImageM
         || metadata.flag.is_some()
         || metadata.tags.as_ref().is_some_and(|tags| !tags.is_empty())
         || metadata.ag_snapshots.as_ref().is_some_and(|snapshots| !snapshots.is_empty())
+        || !metadata.extra.is_empty()
         || !crate::image_processing::is_default_adjustments(&metadata.adjustments)
     {
         return false;
