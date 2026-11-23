@@ -1,6 +1,7 @@
 //! The interface's side of the `ag` commands, generated from the Rust types:
 //! `src/argentum/ag.generated.ts`, every argument and answer type, and
-//! `AgCommands`, which `src/argentum/ag.ts` types each call by. Ours.
+//! `AgCommands`, which `src/argentum/ag.ts` types each call by, and the event
+//! names of `mods/events.rs` as `AG_EVENTS`. Ours.
 //!
 //! The command list is `commands!` in `mods/dispatch.rs`, so the file names
 //! exactly the commands the app routes; the types are ts-rs's, as the
@@ -27,6 +28,8 @@ pub struct Commands {
     /// Each declared type's TypeScript, by its name.
     declared: BTreeMap<String, (TypeId, String)>,
     seen: HashSet<TypeId>,
+    /// The events whose payload is a type of ours: event name, its TypeScript.
+    event_payloads: Vec<(&'static str, String)>,
 }
 
 impl Commands {
@@ -40,6 +43,12 @@ impl Commands {
         self.commands
             .push((name, "Record<string, never>".to_string(), Answer::name()));
         self.reach::<Answer>();
+    }
+
+    /// An event, by its name in `mods/events.rs`, whose payload is `Payload`.
+    pub fn event<Payload: TS + 'static>(&mut self, name: &'static str) {
+        self.event_payloads.push((name, Payload::name()));
+        self.reach::<Payload>();
     }
 
     /// `T`, the types inside it, and theirs.
@@ -119,6 +128,8 @@ fn typescript() -> String {
     commands.reach::<crate::mods::provider_look::ProviderLook>();
     // An event's, which no command answers.
     commands.reach::<crate::mods::lut_provider::LookProgress>();
+    // The events whose payload is a type of ours.
+    commands.event::<crate::mods::model_download::Progress>(crate::mods::events::AG_MODEL_DOWNLOAD);
 
     let mut out = String::from(
         "// Generated from the `commands!` table in src-tauri/src/mods/dispatch.rs\n\
@@ -135,6 +146,19 @@ fn typescript() -> String {
     sorted.sort();
     for (name, args, answer) in sorted {
         out += &format!("  {name}: {{ args: {args}; answer: {answer} }};\n");
+    }
+    out += "}\n";
+    out += "\n/** Every event the app sends, by its name in `mods/events.rs`. */\n";
+    out += "export const AG_EVENTS = {\n";
+    for (id, name) in crate::mods::events::ALL {
+        out += &format!("  {id}: '{name}',\n");
+    }
+    out += "} as const;\n";
+    out += "\n/** The payload of the events that have a type of ours, by event name. */\n";
+    out += "export interface AgEventPayloads {\n";
+    commands.event_payloads.sort();
+    for (name, payload) in &commands.event_payloads {
+        out += &format!("  '{name}': {payload};\n");
     }
     out += "}\n";
     replace_word(&out, "bigint", "number")

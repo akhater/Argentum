@@ -6,6 +6,8 @@
 //   * every command the frontend invokes is registered in lib.rs, every `ag`
 //     name it calls has an arm in mods/dispatch.rs, and every `Invokes` value
 //     names a registered command;
+//   * every event the frontend listens for is one of the app's, named through
+//     AG_EVENTS (generated from src-tauri/src/mods/events.rs), not typed as a string;
 //   * every shortcut in Settings has a handler, and every handler a shortcut;
 //   * the commands and `ag` arms nothing calls, the packages in Cargo.lock and
 //     package-lock.json, and (with --dist) the bytes of the built frontend match
@@ -74,6 +76,29 @@ export function frontendCalls(files, invokes) {
   return { invoked, agCalled, literals };
 }
 
+/** `AG_EVENTS` in the generated contract: constant -> event name. */
+export function eventNames(generated) {
+  const body = /export const AG_EVENTS = \{([^}]*)\}/.exec(generated)?.[1] ?? '';
+  return new Map([...body.matchAll(/(\w+):\s*'([^']+)'/g)].map((m) => [m[1], m[2]]));
+}
+
+/**
+ * The events the frontend listens for: a name typed as a string (`listen('x'`,
+ * `once('x'`), and each `AG_EVENTS.KEY` it uses. Each maps to the files.
+ */
+export function frontendListens(files) {
+  const typed = new Map();
+  const keys = new Map();
+  const add = (map, name, path) => map.set(name, [...(map.get(name) ?? []), path]);
+  for (const { path, text } of files) {
+    for (const m of text.matchAll(/(?<![\w$.])(?:listen|once)(?:<[^()]*?>)?\(\s*['"]([^'"]+)['"]/g)) {
+      add(typed, m[1], path);
+    }
+    for (const m of text.matchAll(/\bAG_EVENTS\.(\w+)/g)) add(keys, m[1], path);
+  }
+  return { typed, keys };
+}
+
 /** Actions listed in KEYBIND_DEFINITIONS. */
 export function keybindActions(keyboardUtils) {
   return new Set([...keyboardUtils.matchAll(/\baction:\s*'([a-z0-9_]+)'/g)].map((m) => m[1]));
@@ -128,8 +153,19 @@ export function measure({ registered, arms, calls, cargoLock, packageLock, dist 
 }
 
 /** Wiring that is broken now, whatever the baseline says. */
-export function brokenWiring({ registered, arms, invokes, calls, actions, handlers }) {
+export function brokenWiring({ registered, arms, invokes, calls, actions, handlers, events, listens }) {
   const broken = [];
+  const eventList = new Set(events.values());
+  for (const [name, paths] of listens.typed) {
+    broken.push(
+      eventList.has(name)
+        ? `${paths[0]} listens for '${name}' as a string: use AG_EVENTS (src/argentum/ag.generated.ts)`
+        : `${paths[0]} listens for '${name}', which mods/events.rs does not list`,
+    );
+  }
+  for (const [key, paths] of listens.keys) {
+    if (!events.has(key)) broken.push(`${paths[0]} uses AG_EVENTS.${key}, which mods/events.rs does not list`);
+  }
   for (const [name, paths] of calls.invoked) {
     if (!registered.has(name)) broken.push(`${paths[0]} invokes ${name}, which lib.rs does not register`);
   }
@@ -204,6 +240,8 @@ function main() {
   const calls = frontendCalls(frontendFiles(root), invokes);
   const actions = keybindActions(read('src/utils/keyboardUtils.ts'));
   const handlers = shortcutHandlers(read('src/hooks/useKeyboardShortcuts.ts'));
+  const events = eventNames(read('src/argentum/ag.generated.ts'));
+  const listens = frontendListens(frontendFiles(root));
   const now = measure({
     registered,
     arms,
@@ -227,7 +265,7 @@ function main() {
     return;
   }
 
-  const broken = brokenWiring({ registered, arms, invokes, calls, actions, handlers });
+  const broken = brokenWiring({ registered, arms, invokes, calls, actions, handlers, events, listens });
   const { worse, better } = compareBaseline(before, now);
   if (broken.length > 0) {
     console.error(`Wiring check: ${broken.length} broken call(s):\n`);

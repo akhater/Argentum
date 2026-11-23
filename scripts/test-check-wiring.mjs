@@ -14,8 +14,10 @@ import {
   brokenWiring,
   compareBaseline,
   dispatchArms,
+  eventNames,
   distKey,
   frontendCalls,
+  frontendListens,
   invokesEnum,
   keybindActions,
   registeredCommands,
@@ -44,7 +46,10 @@ const arms = dispatchArms(read('src-tauri/src/mods/dispatch.rs'));
 const invokes = invokesEnum(read('src/components/ui/AppProperties.tsx'));
 const actions = keybindActions(read('src/utils/keyboardUtils.ts'));
 const handlers = shortcutHandlers(read('src/hooks/useKeyboardShortcuts.ts'));
+const events = eventNames(read('src/argentum/ag.generated.ts'));
 const wiring = (files, overrides = {}) => ({
+  events,
+  listens: frontendListens(files),
   registered,
   arms,
   invokes,
@@ -90,6 +95,24 @@ test('an ag name with no arm is reported, a translation function named ag is not
   ];
   assert.deepEqual(brokenWiring(wiring(files)), [
     "src/b.ts calls ag('gone_arm'), which mods/dispatch.rs does not route",
+  ]);
+});
+
+test('the event names are read from the generated file', () => {
+  assert.ok(events.size > 30 && events.get('WGPU_FRAME_READY') === 'wgpu-frame-ready');
+});
+
+test('a listener for an event the app does not name, or typed as a string, is reported', () => {
+  const files = [
+    { path: 'src/e.ts', text: "listen('gone-event', () => {});" },
+    { path: 'src/f.ts', text: "listen<number>('wgpu-frame-ready', () => {});" },
+    { path: 'src/g.ts', text: 'listen(AG_EVENTS.GONE_EVENT, () => {});' },
+    { path: 'src/h.ts', text: 'listen(AG_EVENTS.WGPU_FRAME_READY, () => {}); once(PROGRESS_EVENT, () => {});' },
+  ];
+  assert.deepEqual(brokenWiring(wiring(files)), [
+    "src/e.ts listens for 'gone-event', which mods/events.rs does not list",
+    "src/f.ts listens for 'wgpu-frame-ready' as a string: use AG_EVENTS (src/argentum/ag.generated.ts)",
+    'src/g.ts uses AG_EVENTS.GONE_EVENT, which mods/events.rs does not list',
   ]);
 });
 

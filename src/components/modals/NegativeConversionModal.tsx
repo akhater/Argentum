@@ -11,6 +11,7 @@ import throttle from 'lodash.throttle';
 import Text from '../ui/Text';
 import { createBlobUrlSlot } from '../../argentum/objectUrl';
 import { TextColors, TextVariants } from '../../types/typography';
+import { AG_EVENTS } from '../../argentum/ag.generated';
 
 interface NegativeParams {
   red_weight: number;
@@ -79,7 +80,7 @@ export default function NegativeConversionModal({
   const selectedImagePath = targetPaths.length > 0 ? targetPaths[0] : null;
 
   useEffect(() => {
-    const unlisten = listen('negative-batch-progress', (e: any) => {
+    const unlisten = listen(AG_EVENTS.NEGATIVE_BATCH_PROGRESS, (e: any) => {
       setProgress(e.payload);
     });
     return () => {

@@ -11,6 +11,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { Invokes } from '../ui/AppProperties';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { AG_EVENTS } from '../../argentum/ag.generated';
 
 export type DenoiseMethod = 'ai' | 'bm3d' | 'raw9';
 
@@ -385,7 +386,7 @@ export default function DenoiseModal({
   );
 
   useEffect(() => {
-    const unlisten = listen('denoise-batch-progress', (e: any) => {
+    const unlisten = listen(AG_EVENTS.DENOISE_BATCH_PROGRESS, (e: any) => {
       setBatchProgress(e.payload);
     });
     return () => {
