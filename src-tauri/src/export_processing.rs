@@ -1058,7 +1058,7 @@ fn save_image_with_metadata(
         export_settings.dpi,
     )?;
 
-    fs::write(output_path, image_bytes)
+    crate::mods::atomic_write::write_atomic_shared(output_path, image_bytes)
         .map_err(|e| format!("Failed to write file to '{}': {}", output_path.display(), e))?;
 
     Ok(())
@@ -1339,7 +1339,8 @@ fn export_masks_for_image(
 
             let alpha_bytes = encode_grayscale_to_png(&alpha_resized)?;
             ensure_export_not_cancelled(cancellation_token)?;
-            fs::write(&mask_alpha_path, alpha_bytes).map_err(|e| e.to_string())?;
+            crate::mods::atomic_write::write_atomic_shared(&mask_alpha_path, alpha_bytes)
+                .map_err(|e| e.to_string())?;
             ensure_export_not_cancelled(cancellation_token)?;
         }
     }
@@ -1660,7 +1661,8 @@ pub(crate) async fn export_images_impl(
                             &cancellation_token_clone,
                         )?;
                         ensure_export_not_cancelled(&cancellation_token_clone)?;
-                        fs::write(&output_path, cube_bytes).map_err(|e| e.to_string())?;
+                        crate::mods::atomic_write::write_atomic_shared(&output_path, cube_bytes)
+                            .map_err(|e| e.to_string())?;
                         ensure_export_not_cancelled(&cancellation_token_clone)?;
                         return Ok(());
                     }
@@ -2526,5 +2528,123 @@ mod headless_tests {
             json!({ "source": "IMG.CR3", "copy": null, "ok": false, "error": "Failed to load" })
         );
         assert!(!line.contains('\n'));
+    }
+}
+
+#[cfg(test)]
+mod export_write_tests {
+    use super::*;
+
+    fn settings() -> ExportSettings {
+        serde_json::from_value(serde_json::json!({
+            "jpegQuality": 90,
+            "resize": null,
+            "keepMetadata": false,
+            "stripGps": false,
+            "filenameTemplate": null,
+            "watermark": null,
+        }))
+        .unwrap()
+    }
+
+    fn tiny_image() -> DynamicImage {
+        let pixels = image::RgbImage::from_fn(8, 8, |x, y| {
+            image::Rgb([(x * 30) as u8, (y * 30) as u8, (x * y) as u8])
+        });
+        DynamicImage::ImageRgb8(pixels)
+    }
+
+    fn save(path: &Path) -> Result<(), String> {
+        let xmp = exif_processing::ExportXmp::from_metadata(
+            &crate::image_processing::ImageMetadata::default(),
+        );
+        save_image_with_metadata(&tiny_image(), path, "", &xmp, &settings())
+    }
+
+    fn names_in(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The bytes the export wrote before it went through a temporary file:
+    /// the same encoder and metadata calls, computed on this machine.
+    fn bytes_as_before(extension: &str) -> Vec<u8> {
+        let settings = settings();
+        let mut bytes = encode_image_to_bytes(&tiny_image(), extension, &settings).unwrap();
+        let xmp = exif_processing::ExportXmp::from_metadata(
+            &crate::image_processing::ImageMetadata::default(),
+        );
+        write_export_metadata(
+            &mut bytes,
+            "",
+            extension,
+            settings.keep_metadata,
+            settings.strip_gps,
+            &xmp,
+            settings.dpi,
+        )
+        .unwrap();
+        bytes
+    }
+
+    #[test]
+    fn a_finished_export_has_the_bytes_it_always_had() {
+        let dir = tempfile::tempdir().unwrap();
+        for extension in ["jpg", "png", "tiff"] {
+            let path = dir.path().join(format!("IMG.{extension}"));
+            save(&path).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), bytes_as_before(extension));
+        }
+        assert_eq!(names_in(dir.path()), ["IMG.jpg", "IMG.png", "IMG.tiff"]);
+    }
+
+    #[test]
+    fn a_failed_encode_leaves_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(save(&dir.path().join("IMG.xyz")).is_err());
+        assert!(names_in(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn a_failed_encode_keeps_the_earlier_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("IMG.xyz");
+        fs::write(&path, b"the earlier export").unwrap();
+        assert!(save(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"the earlier export");
+        assert_eq!(names_in(dir.path()), ["IMG.xyz"]);
+    }
+
+    #[test]
+    fn a_write_that_cannot_land_leaves_no_partial_file() {
+        let dir = tempfile::tempdir().unwrap();
+        // A folder under the export's name: the final rename must fail, after
+        // the whole image was written to the temporary file.
+        let path = dir.path().join("IMG.jpg");
+        fs::create_dir(&path).unwrap();
+        assert!(save(&path).is_err());
+        assert!(path.is_dir());
+        assert_eq!(names_in(dir.path()), ["IMG.jpg"]);
+    }
+
+    #[test]
+    fn a_new_export_is_readable_by_others_like_any_new_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("IMG.png");
+        save(&path).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let control = dir.path().join("control");
+            fs::write(&control, b"x").unwrap();
+            assert_eq!(
+                path.metadata().unwrap().permissions().mode() & 0o777,
+                control.metadata().unwrap().permissions().mode() & 0o777,
+            );
+        }
     }
 }
