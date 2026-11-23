@@ -1,0 +1,1 @@
+- The message shown when an enlargement needs more memory than is free now gives the size in the right unit.

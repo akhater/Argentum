@@ -336,7 +336,7 @@ fn edge_weight(index: u32, length: u32, at_start: bool, at_end: bool, overlap: u
 }
 
 fn format_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 4] = ["B", "MB", "GB", "TB"];
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
     let mut value = bytes as f64;
     let mut unit = 0;
     while value >= 1024.0 && unit < UNITS.len() - 1 {
@@ -1588,6 +1588,17 @@ mod tests {
         assert_eq!(name(None, 2), "IMG_1_Upscaled_x2");
         assert_eq!(name(None, 4), "IMG_1_Upscaled_x4");
         assert_eq!(name(Some(60.0), 4), "IMG_1_Restored_Upscaled_x4");
+    }
+
+    #[test]
+    fn sizes_step_by_1024_through_bytes_kb_mb_gb_tb() {
+        assert_eq!(format_bytes(0), "0 B");
+        assert_eq!(format_bytes(1023), "1023 B");
+        assert_eq!(format_bytes(1024), "1.0 KB");
+        assert_eq!(format_bytes(1536), "1.5 KB");
+        assert_eq!(format_bytes(1024 * 1024), "1.0 MB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024), "1.0 GB");
+        assert_eq!(format_bytes(1024_u64.pow(4)), "1.0 TB");
     }
 
     #[test]
