@@ -810,10 +810,10 @@ commands! {
         crate::mods::profiles::cameras(crate::mods::profiles::library_ready()?)
     }
     "forget_camera" => (a: ModelArgs) -> () {
-        crate::mods::profiles::forget_camera(crate::mods::profiles::library_ready()?, &a.model);
+        crate::mods::profiles::forget_camera(crate::mods::profiles::library_ready()?, &a.model)?;
     }
     "set_camera_default_profile" => (a: DefaultProfileArgs) -> () {
-        crate::mods::profiles::set_default_profile(crate::mods::profiles::library_ready()?, &a.model, a.file);
+        crate::mods::profiles::set_default_profile(crate::mods::profiles::library_ready()?, &a.model, a.file)?;
     }
     "camera_default_profile" => (a: ModelArgs) -> Option<String> {
         crate::mods::profiles::default_profile(crate::mods::profiles::library_ready()?, &a.model)

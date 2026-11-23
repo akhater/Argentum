@@ -355,18 +355,19 @@ pub fn remove(library: &Path, file: &str) -> Result<(), String> {
         .ok_or_else(|| "no such profile".to_string())?;
     std::fs::remove_file(library.join(name)).map_err(|e| e.to_string())?;
     // A camera whose new photos opened with it goes back to the built-in matrix.
-    let mut known = read_cameras(library);
+    // The profile is already gone; a list that cannot be saved is not a failed removal.
     let removed = |p: &Option<String>| {
         p.as_deref()
             .is_some_and(|p| Path::new(p).file_name() == Some(name))
     };
-    if known.iter().any(|c| removed(&c.default_profile)) {
-        known
-            .iter_mut()
-            .filter(|c| removed(&c.default_profile))
-            .for_each(|c| c.default_profile = None);
-        write_cameras(library, &known);
-    }
+    let _ = change_cameras(library, |known| {
+        let mut touched = false;
+        for camera in known.iter_mut().filter(|c| removed(&c.default_profile)) {
+            camera.default_profile = None;
+            touched = true;
+        }
+        touched
+    });
     Ok(())
 }
 
@@ -741,47 +742,87 @@ fn cameras_file(library: &Path) -> PathBuf {
     library.join("cameras.json")
 }
 
+/// The list on disk. A missing file is an empty list; a file that exists but
+/// cannot be read or parsed is an error, so no writer replaces it with one.
+fn try_read_cameras(library: &Path) -> Result<Vec<Camera>, String> {
+    let text = match std::fs::read_to_string(cameras_file(library)) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(format!("could not read the camera list: {e}")),
+    };
+    serde_json::from_str(&text).map_err(|e| format!("the camera list is damaged: {e}"))
+}
+
+/// For showing: a list that cannot be read shows as empty (and is left alone).
 fn read_cameras(library: &Path) -> Vec<Camera> {
-    std::fs::read_to_string(cameras_file(library))
-        .ok()
-        .and_then(|t| serde_json::from_str::<Vec<Camera>>(&t).ok())
-        .unwrap_or_default()
+    try_read_cameras(library).unwrap_or_default()
+}
+
+/// Serialises the read-modify-write in `change_cameras`, as `ag_settings` does:
+/// two changes a few milliseconds apart would both read the old list and the
+/// second write would drop the first.
+static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn write_cameras(library: &Path, cameras: &[Camera]) -> Result<(), String> {
+    std::fs::create_dir_all(library).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(cameras).map_err(|e| e.to_string())?;
+    super::atomic_write::write_atomic(&cameras_file(library), text)
+        .map_err(|e| format!("could not save the camera list: {e}"))
+}
+
+/// Read the list, let `change` edit it, and save it when `change` says it did
+/// (returns true). Nothing is written when the list could not be read.
+fn change_cameras(
+    library: &Path,
+    change: impl FnOnce(&mut Vec<Camera>) -> bool,
+) -> Result<(), String> {
+    let _serialised = WRITING
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut known = try_read_cameras(library)?;
+    if change(&mut known) {
+        write_cameras(library, &known)?;
+    }
+    Ok(())
 }
 
 /// Record a body, if it is not already known. Returns true when it was new.
 ///
 /// Best-effort: failing to remember a camera must never interfere with opening
-/// a photo, so a write error is dropped rather than surfaced.
+/// a photo, so a write error is logged (once) rather than surfaced, and a list
+/// that cannot be read is left as it is.
 pub fn remember_camera(library: &Path, make: &str, model: &str) -> bool {
+    static WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let (make, model) = (make.trim(), model.trim());
     if model.is_empty() {
         return false;
     }
 
-    let mut known = read_cameras(library);
-    if let Some(existing) = known.iter_mut().find(|c| same_model(&c.model, model)) {
-        // An older list has no maker; fill it in rather than leaving it blank.
-        if existing.make.is_empty() && !make.is_empty() {
-            existing.make = make.to_string();
-            if let Ok(text) = serde_json::to_string_pretty(&known) {
-                let _ = std::fs::write(cameras_file(library), text);
+    let mut is_new = false;
+    let saved = change_cameras(library, |known| {
+        if let Some(existing) = known.iter_mut().find(|c| same_model(&c.model, model)) {
+            // An older list has no maker; fill it in rather than leaving it blank.
+            if existing.make.is_empty() && !make.is_empty() {
+                existing.make = make.to_string();
+                return true;
             }
+            return false;
         }
-        return false;
-    }
-
-    known.push(Camera {
-        make: make.to_string(),
-        model: model.to_string(),
-        default_profile: None,
+        known.push(Camera {
+            make: make.to_string(),
+            model: model.to_string(),
+            default_profile: None,
+        });
+        known.sort_by(|a, b| a.model.cmp(&b.model));
+        is_new = true;
+        true
     });
-    known.sort_by(|a, b| a.model.cmp(&b.model));
-
-    if let Ok(text) = serde_json::to_string_pretty(&known) {
-        let _ = std::fs::create_dir_all(library);
-        let _ = std::fs::write(cameras_file(library), text);
+    if let Err(e) = saved
+        && !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed)
+    {
+        log::warn!("not remembering camera {model}: {e}");
     }
-    true
+    is_new
 }
 
 /// Every remembered camera, each with the profile it would use.
@@ -790,28 +831,28 @@ pub fn cameras(library: &Path) -> Vec<Camera> {
 }
 
 /// Forget a camera. The profile, if any, is left alone.
-pub fn forget_camera(library: &Path, model: &str) {
-    let kept: Vec<Camera> = read_cameras(library)
-        .into_iter()
-        .filter(|c| !same_model(&c.model, model))
-        .collect();
-    write_cameras(library, &kept);
-}
-
-fn write_cameras(library: &Path, cameras: &[Camera]) {
-    if let Ok(text) = serde_json::to_string_pretty(cameras) {
-        let _ = std::fs::write(cameras_file(library), text);
-    }
+pub fn forget_camera(library: &Path, model: &str) -> Result<(), String> {
+    change_cameras(library, |known| {
+        let before = known.len();
+        known.retain(|c| !same_model(&c.model, model));
+        known.len() != before
+    })
 }
 
 /// Set the profile new photos from the body `model` open with; `None`, the
 /// built-in matrix.
-pub fn set_default_profile(library: &Path, model: &str, file: Option<String>) {
-    let mut known = read_cameras(library);
-    if let Some(camera) = known.iter_mut().find(|c| same_model(&c.model, model)) {
+pub fn set_default_profile(
+    library: &Path,
+    model: &str,
+    file: Option<String>,
+) -> Result<(), String> {
+    change_cameras(library, |known| {
+        let Some(camera) = known.iter_mut().find(|c| same_model(&c.model, model)) else {
+            return false;
+        };
         camera.default_profile = file;
-        write_cameras(library, &known);
-    }
+        true
+    })
 }
 
 /// The profile a new photo from this camera opens with. `exif_model` is the
@@ -865,17 +906,17 @@ pub fn learn_make_from(library: &Path, model: &str, full_name: &str) {
         return;
     }
 
-    let mut known = read_cameras(library);
-    let mut touched = false;
-    for camera in known.iter_mut() {
-        if same_model(&camera.model, model) && camera.make.is_empty() {
-            camera.make = first.to_string();
-            touched = true;
+    // Best-effort, like `remember_camera`.
+    let _ = change_cameras(library, |known| {
+        let mut touched = false;
+        for camera in known.iter_mut() {
+            if same_model(&camera.model, model) && camera.make.is_empty() {
+                camera.make = first.to_string();
+                touched = true;
+            }
         }
-    }
-    if touched && let Ok(text) = serde_json::to_string_pretty(&known) {
-        let _ = std::fs::write(cameras_file(library), text);
-    }
+        touched
+    });
 }
 
 #[cfg(test)]
@@ -893,7 +934,7 @@ mod default_profile_tests {
 
         let file = "Canon EOS 5D Mark II.dcp";
         std::fs::write(dir.join(file), b"dcp").expect("write");
-        set_default_profile(dir, "EOS 5D Mark II", Some(file.to_string()));
+        set_default_profile(dir, "EOS 5D Mark II", Some(file.to_string())).expect("save");
         assert_eq!(
             default_profile(dir, "Canon EOS 5D Mark II").as_deref(),
             Some(file)
@@ -902,6 +943,65 @@ mod default_profile_tests {
 
         remove(dir, file).expect("remove");
         assert_eq!(default_profile(dir, "Canon EOS 5D Mark II"), None);
+    }
+
+    const CORRUPT: &str = r#"[{"make":"Canon","model":"EOS 5D Mark II","defaultProf"#;
+
+    /// A list that cannot be read is not an empty list: opening a photo must not
+    /// replace the saved defaults with one camera.
+    #[test]
+    fn a_corrupt_list_survives_opening_a_photo() {
+        let dir = tempfile::tempdir().expect("scratch");
+        let file = dir.path().join("cameras.json");
+        std::fs::write(&file, CORRUPT).expect("write");
+
+        remember_camera(dir.path(), "Nikon", "D850");
+
+        assert_eq!(std::fs::read_to_string(&file).expect("read"), CORRUPT);
+    }
+
+    #[test]
+    fn a_missing_list_is_empty_and_is_created() {
+        let dir = tempfile::tempdir().expect("scratch");
+        assert!(cameras(dir.path()).is_empty());
+
+        assert!(remember_camera(dir.path(), "Nikon", "D850"));
+
+        assert_eq!(cameras(dir.path())[0].model, "D850");
+    }
+
+    /// A change the user asked for says so when it cannot be kept, and never
+    /// overwrites a list it could not read.
+    #[test]
+    fn a_corrupt_list_fails_the_users_change_and_stays() {
+        let dir = tempfile::tempdir().expect("scratch");
+        let file = dir.path().join("cameras.json");
+        std::fs::write(&file, CORRUPT).expect("write");
+
+        assert!(set_default_profile(dir.path(), "EOS 5D Mark II", None).is_err());
+        assert!(forget_camera(dir.path(), "EOS 5D Mark II").is_err());
+        assert_eq!(std::fs::read_to_string(&file).expect("read"), CORRUPT);
+    }
+
+    /// The list reads fine but the new one cannot replace it (another program
+    /// holds the file): the caller hears about it, the old list stays.
+    #[cfg(windows)]
+    #[test]
+    fn a_failed_save_reaches_the_caller() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = tempfile::tempdir().expect("scratch");
+        remember_camera(dir.path(), "Canon", "EOS 5D Mark II");
+        // Readable by others, but not deletable or replaceable.
+        let _held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1 | 2)
+            .open(dir.path().join("cameras.json"))
+            .expect("hold");
+
+        let saved = set_default_profile(dir.path(), "EOS 5D Mark II", Some("a.dcp".into()));
+
+        assert!(saved.is_err());
+        assert_eq!(default_profile(dir.path(), "Canon EOS 5D Mark II"), None);
     }
 }
 
