@@ -39,11 +39,11 @@ the best of [RapidRAW](https://github.com/CyberTimon/RapidRAW),
 
 **Early preview**, used daily on Windows.
 
-| Platform | State |
-|---|---|
-| **Windows** | Tested on x64, the platform it is developed on. ARM64 is built, not yet tried |
-| **macOS** | Tested on Apple Silicon, after the two one-time steps below. Intel is built, not yet tried |
-| **Linux** | Builds in CI, never run by anyone. Reports welcome |
+| Platform    | State                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| **Windows** | Tested on x64, the platform it is developed on. ARM64 is built, not yet tried              |
+| **macOS**   | Tested on Apple Silicon, after the two one-time steps below. Intel is built, not yet tried |
+| **Linux**   | Builds in CI, never run by anyone. Reports welcome                                         |
 
 It is cross-platform because RapidRAW is, and nothing Argentum added breaks that.
 Windows and macOS have been run; on Linux "compiles" is not yet "works", and
@@ -55,21 +55,21 @@ nobody has checked.
 
 Grab an installer from [**Releases**](https://github.com/akhater/Argentum/releases):
 
-| | Files |
-|---|---|
-| **Windows** | `.exe` (installer) or `.msi`, for x64 or ARM64 |
-| **macOS** | `.dmg`, for Apple Silicon (`aarch64`) or Intel (`x64`) |
-| **Linux** | `.AppImage`, `.deb` or `.rpm`, for x64 or ARM64 |
+|             | Files                                                  |
+| ----------- | ------------------------------------------------------ |
+| **Windows** | `.exe` (installer) or `.msi`, for x64 or ARM64         |
+| **macOS**   | `.dmg`, for Apple Silicon (`aarch64`) or Intel (`x64`) |
+| **Linux**   | `.AppImage`, `.deb` or `.rpm`, for x64 or ARM64        |
 
 Nothing else to install. The AI models are not shipped in the installer, so it
 stays small: each one is downloaded the first time a feature needs it, or all at
-once from *Settings → AI and models*.
+once from _Settings → AI and models_.
 
 No download includes camera tethering; see
 [Tethering](#tethering-macos-and-linux).
 
-*(Building from source is further down, and only needed if you want to change
-the code.)*
+_(Building from source is further down, and only needed if you want to change
+the code.)_
 
 ### Windows: the first start
 
@@ -93,7 +93,7 @@ open "/Applications/Argentum.app"
 and external drives, and asks the first time you open one in Argentum. Argentum
 reads a protected folder only when you open it. It has no use for your Apple
 Music or Photos libraries and leaves them out of its folder list. To change an
-answer later, open *System Settings → Privacy & Security → Files and Folders*.
+answer later, open _System Settings → Privacy & Security → Files and Folders_.
 This opens the right page:
 
 ```bash
@@ -112,8 +112,8 @@ made it gives it. Folders created by an import script, or by one run with
 `.agdata` edit files.
 
 **Fix the folders already there.** In Finder, select the parent folder, choose
-*File → Get Info*, unlock with the padlock, give your account *Read & Write*
-under *Sharing & Permissions*, then choose *Apply to enclosed items* from the
+_File → Get Info_, unlock with the padlock, give your account _Read & Write_
+under _Sharing & Permissions_, then choose _Apply to enclosed items_ from the
 ⋯ (or gear) menu below the list. This is a one-time copy: folders made later do not get
 it.
 
@@ -152,7 +152,7 @@ left column. There is no tethering on Windows.
   Lightroom's default sharpening. Photos shot in a mode that holds highlights back
   (Fujifilm DR200/DR400, Canon Highlight Tone Priority, Nikon Active D-Lighting,
   Olympus gradation, Pentax D-Range) get those stops back. The earlier renderings
-  are still in *Edit → Profile → Rendering*.
+  are still in _Edit → Profile → Rendering_.
 - **Colour built the way the DNG specification builds it**, for new edits: the
   camera's matrices are mixed for the light the photo was taken in, so tungsten and
   stage light lose the magenta a daylight-only matrix gave them (from RapidRAW
@@ -164,7 +164,7 @@ left column. There is no tethering on Windows.
   **Auto** ported from darktable's illuminant detection.
 - **Camera profiles.** A profile describes how your particular camera sees colour.
   Argentum reads DCP profiles, fetches one for your body, and keeps the cameras
-  you shoot with under *Settings → My Gear*, where each can be given the profile
+  you shoot with under _Settings → My Gear_, where each can be given the profile
   its new photos open with.
 - **Highlight recovery.** When a bright area clips in one channel, the channel is
   pulled towards the two that survived, as Camera Raw does (RAWmakase's measured
@@ -191,10 +191,10 @@ left column. There is no tethering on Windows.
   R6 Mark III, and the corrections a DNG carries (the readers are RAWmakase's).
   Phone DNGs get their corner shading corrected.
 - **Automatic lens detection on every RAW format**, so lensfun's corrections apply
-  without picking the lens by hand. Under *Settings → My Gear → My Lenses*, a lens
+  without picking the lens by hand. Under _Settings → My Gear → My Lenses_, a lens
   can be set to correct every new photo taken with it.
-- **A faster RAW decoder to choose.** *Settings → Processing → RAW decoder*, or per
-  photo in *Edit → Profile*: FlashRaw reads Canon CR3 and CR2, Fujifilm compressed
+- **A faster RAW decoder to choose.** _Settings → Processing → RAW decoder_, or per
+  photo in _Edit → Profile_: FlashRaw reads Canon CR3 and CR2, Fujifilm compressed
   RAF, Olympus, Panasonic and Pentax files 1.5 to 3.4 times faster than rawler, with
   identical pixels. Every other file still opens with rawler, the default.
 - **Canon sRAW and mRAW fixed** (they came out green with crushed shadows), and
@@ -234,7 +234,7 @@ showed it — correct on an sRGB screen, over-saturated on a wide-gamut one.
 
 **Linux is untested.** As above: built, never run.
 
-The app also lists what is currently broken in *Settings → About → Known issues*,
+The app also lists what is currently broken in _Settings → About → Known issues_,
 which is kept current rather than being a changelog entry that goes stale.
 
 ---
@@ -244,11 +244,11 @@ which is kept current rather than being a changelog entry that goes stale.
 In the operating system's own application-data folder, under
 `co.argentum.editor`:
 
-| | Windows | macOS | Linux |
-|---|---|---|---|
-| Settings, AI models, presets, My Gear | `%APPDATA%\co.argentum.editor` | `~/Library/Application Support/co.argentum.editor` | `~/.local/share/co.argentum.editor` |
-| Thumbnail cache | `%LOCALAPPDATA%\co.argentum.editor` | `~/Library/Caches/co.argentum.editor` | `~/.cache/co.argentum.editor` |
-| Logs (`app.log`, and `crash.log` after a crash, for bug reports) | `%LOCALAPPDATA%\co.argentum.editor\logs` | `~/Library/Logs/co.argentum.editor` | `~/.local/share/co.argentum.editor/logs` |
+|                                                                  | Windows                                  | macOS                                              | Linux                                    |
+| ---------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------- | ---------------------------------------- |
+| Settings, AI models, presets, My Gear                            | `%APPDATA%\co.argentum.editor`           | `~/Library/Application Support/co.argentum.editor` | `~/.local/share/co.argentum.editor`      |
+| Thumbnail cache                                                  | `%LOCALAPPDATA%\co.argentum.editor`      | `~/Library/Caches/co.argentum.editor`              | `~/.cache/co.argentum.editor`            |
+| Logs (`app.log`, and `crash.log` after a crash, for bug reports) | `%LOCALAPPDATA%\co.argentum.editor\logs` | `~/Library/Logs/co.argentum.editor`                | `~/.local/share/co.argentum.editor/logs` |
 
 **This is not configurable yet.** A portable, one-folder installation is on the
 roadmap and is not built.
@@ -332,19 +332,19 @@ check:sources` says when a release is waiting to be read. The steps are in
 
 ## Docs
 
-| File | What's in it |
-|---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code layout, the engine, and how RapidRAW releases are harvested |
-| [src-tauri/engine/README.md](src-tauri/engine/README.md) | The engine: adding a tool is one file and one registry line |
-| [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) | The older recipe, for tools not yet moved into the engine |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | What is planned, in what order |
-| [docs/MENU.md](docs/MENU.md) | Everything available to harvest, from each source |
-| [docs/FEASIBILITY.md](docs/FEASIBILITY.md) | The original go/no-go research |
-| [docs/RELEASING.md](docs/RELEASING.md) | How a release is cut, and the speed check it must pass |
-| [bench/README.md](bench/README.md) | Comparing two builds: interface smoothness and export speed |
-| [src/shell/README.md](src/shell/README.md) | The engine's test bench, an interface for exercising its contract |
-| [CHANGELOG.md](CHANGELOG.md) | Every module, with its upstream source and commit |
-| [CREDITS.md](CREDITS.md) | Whose work this is built on |
+| File                                                     | What's in it                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)             | Code layout, the engine, and how RapidRAW releases are harvested  |
+| [src-tauri/engine/README.md](src-tauri/engine/README.md) | The engine: adding a tool is one file and one registry line       |
+| [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md)           | The older recipe, for tools not yet moved into the engine         |
+| [docs/ROADMAP.md](docs/ROADMAP.md)                       | What is planned, in what order                                    |
+| [docs/MENU.md](docs/MENU.md)                             | Everything available to harvest, from each source                 |
+| [docs/FEASIBILITY.md](docs/FEASIBILITY.md)               | The original go/no-go research                                    |
+| [docs/RELEASING.md](docs/RELEASING.md)                   | How a release is cut, and the speed check it must pass            |
+| [bench/README.md](bench/README.md)                       | Comparing two builds: interface smoothness and export speed       |
+| [src/shell/README.md](src/shell/README.md)               | The engine's test bench, an interface for exercising its contract |
+| [CHANGELOG.md](CHANGELOG.md)                             | Every module, with its upstream source and commit                 |
+| [CREDITS.md](CREDITS.md)                                 | Whose work this is built on                                       |
 
 ---
 
@@ -365,7 +365,7 @@ from because their work deserves the credit, not because they have any part in
 this one.
 
 Argentum is other people's work with additions on top. **[CREDITS.md](CREDITS.md)**
-names them, and the same list is in the app under *Settings → About → Credits*.
+names them, and the same list is in the app under _Settings → About → Credits_.
 
 Licensed **AGPL-3.0**, inherited from RapidRAW and unchanged. See
 [LICENSE](LICENSE).

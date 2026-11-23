@@ -67,12 +67,12 @@ Not a small upgrade — a different league. **Good first target.**
 
 Four files, same four every time:
 
-| File | What you add |
-|---|---|
-| `shader.wgsl` | the math |
+| File                  | What you add          |
+| --------------------- | --------------------- |
+| `shader.wgsl`         | the math              |
 | `image_processing.rs` | the settings it takes |
-| a `.tsx` file | the slider in the UI |
-| translation file | the label text |
+| a `.tsx` file         | the slider in the UI  |
+| translation file      | the label text        |
 
 **First one: several days** (learning the pattern).
 **After that: 1–2 days each.**
@@ -86,7 +86,7 @@ That's lower than my earlier guess of 1–2 weeks. Reading the code made it look
 Yes, with one caveat.
 
 You pull RapidRAW's updates with `git pull` and they mostly just land.
-The caveat: you *are* editing their main shader file, so occasionally an
+The caveat: you _are_ editing their main shader file, so occasionally an
 update touches the same file. But since your changes are functions added at
 the bottom plus one line in the list, those clashes are quick to sort out.
 Not the merge hell that kills forks.
@@ -99,7 +99,7 @@ Bring a tool over once and it's done.
 ## The recipe problem — solved for free
 
 Right now you can't start an edit in one app and finish in the other because
-each app's edit file is a list of *its own* tools. Neither can run the other's.
+each app's edit file is a list of _its own_ tools. Neither can run the other's.
 
 One app that has both sets of tools = one list that covers everything.
 Problem disappears. Not extra work — it's automatic once they're in the same app.
@@ -123,11 +123,11 @@ They don't flow in automatically. But measured against reality, that's a minor c
 darktable's **math** is near-frozen. Its **app code** churns constantly.
 Commits in the last 3 years:
 
-| File | Commits |
-|---|---|
-| `data/kernels/filmic.cl` — the math you'd copy | **10** |
-| `src/iop/filmicrgb.c` — GUI/plumbing around it | 139 |
-| `src/iop/channelmixerrgb.c` — white balance module | 176 |
+| File                                               | Commits |
+| -------------------------------------------------- | ------- |
+| `data/kernels/filmic.cl` — the math you'd copy     | **10**  |
+| `src/iop/filmicrgb.c` — GUI/plumbing around it     | 139     |
+| `src/iop/channelmixerrgb.c` — white balance module | 176     |
 
 Roughly 14x more churn in the app code than the math.
 
@@ -137,5 +137,5 @@ copyright headers, OpenCL helper macros, a performance flag, a rounding constant
 
 **So:** copy a tool over and it stays current for years. Re-check maybe once a year.
 
-**The one real cost:** if darktable ships a genuinely *new* tool you want,
+**The one real cost:** if darktable ships a genuinely _new_ tool you want,
 you go fetch it by hand — about a day, and only when you decide you want it.

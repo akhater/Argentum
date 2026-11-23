@@ -12,9 +12,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  TABLE, fetchCameras, parseCameras, recordedSource, regenerate, tableRows,
-} from './rawmakase-cameras.mjs';
+import { TABLE, fetchCameras, parseCameras, recordedSource, regenerate, tableRows } from './rawmakase-cameras.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const inCI = process.env.CI === 'true' || process.env.CI === '1';
@@ -52,8 +50,12 @@ lowest_iso = 100
 `;
 
 const exception = {
-  make: 'Sony', model: 'ILCE-7M3', field: 'baseline_exposure', value: '0.2',
-  reason: 'test', removedWhen: 'test',
+  make: 'Sony',
+  model: 'ILCE-7M3',
+  field: 'baseline_exposure',
+  value: '0.2',
+  reason: 'test',
+  removedWhen: 'test',
 };
 
 await test('a row is make, model|aliases, offset, lowest ISO and levels, numbers in shortest form', () => {

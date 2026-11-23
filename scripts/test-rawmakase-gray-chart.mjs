@@ -13,7 +13,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  CELLS, TABLE, TABLE_NAMES, chartRows, fetchChart, recordedSource, regenerate, sourceLine,
+  CELLS,
+  TABLE,
+  TABLE_NAMES,
+  chartRows,
+  fetchChart,
+  recordedSource,
+  regenerate,
+  sourceLine,
 } from './rawmakase-gray-chart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -41,7 +48,7 @@ function numbered() {
   return bytes;
 }
 
-await test('a row is a table, a hue and its 36 cells, in the file\'s order', () => {
+await test("a row is a table, a hue and its 36 cells, in the file's order", () => {
   const rows = chartRows(numbered());
   assert.equal(rows.length, TABLE_NAMES.length * 36);
   assert.equal(rows[0], ['zero', 0, ...Array.from({ length: 36 }, (_, k) => k - 15000)].join('\t'));
@@ -87,7 +94,9 @@ await test(`${TABLE} is what the script makes from the RAWmakase commit it names
     const [a, b] = [tsv.split('\n'), made.split('\n')];
     let i = 0;
     while (a[i] === b[i]) i += 1;
-    assert.fail(`line ${i + 1} differs - regenerate it, never edit it:\n  table:  ${a[i]?.slice(0, 80)}\n  script: ${b[i]?.slice(0, 80)}`);
+    assert.fail(
+      `line ${i + 1} differs - regenerate it, never edit it:\n  table:  ${a[i]?.slice(0, 80)}\n  script: ${b[i]?.slice(0, 80)}`,
+    );
   }
 });
 

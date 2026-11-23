@@ -2,7 +2,7 @@
 
 Argentum is other people's work with additions on top.
 
-The app shows the same list under *Settings → About → Credits*, from
+The app shows the same list under _Settings → About → Credits_, from
 `src/argentum/credits.ts`, in the same groups. This file is the whole picture in
 one place, because a reader on GitHub should not have to install the app to find
 out whose work this is.
@@ -32,13 +32,13 @@ Licensed AGPL-3.0, which Argentum inherits unchanged.
 The source of Argentum's automatic white balance, and the reference it is measured
 against. What has actually been taken:
 
-| What | darktable source | Shipping? |
-|---|---|---|
-| Automatic white balance | `src/iop/channelmixerrgb.c`, `_auto_detect_WB()` @ `98a9ade9` | Yes |
-| The unsharp mask in Sharpening | `src/iop/sharpen.c` @ `39df8424` (`mods/sharpen.rs`) | Yes |
-| Raw-level behaviour, such as highlight recovery before demosaic | method from darktable's highlight reconstruction, noted where it applies in `mods/highlights.rs` and the CHANGELOG | Yes |
+| What                                                            | darktable source                                                                                                   | Shipping? |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------- |
+| Automatic white balance                                         | `src/iop/channelmixerrgb.c`, `_auto_detect_WB()` @ `98a9ade9`                                                      | Yes       |
+| The unsharp mask in Sharpening                                  | `src/iop/sharpen.c` @ `39df8424` (`mods/sharpen.rs`)                                                               | Yes       |
+| Raw-level behaviour, such as highlight recovery before demosaic | method from darktable's highlight reconstruction, noted where it applies in `mods/highlights.rs` and the CHANGELOG | Yes       |
 
-Beyond those, darktable's *behaviour* is the yardstick — the comparison
+Beyond those, darktable's _behaviour_ is the yardstick — the comparison
 harness in `mods/colour_compare.rs` measures Argentum against darktable renders
 of the same files. Method that came from reading darktable, rather than copied
 code, is noted in [CHANGELOG.md](CHANGELOG.md) where it applies.
@@ -53,11 +53,11 @@ Work by RapidRAW's contributors that Argentum took from their pull requests.
 Each is marked in the source between `// upstream #NNNN` and
 `// end upstream #NNNN`.
 
-| Pull request | What it gave Argentum |
-|---|---|
+| Pull request                                                                                | What it gave Argentum                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [#1466](https://github.com/CyberTimon/RapidRAW/pull/1466), high-precision export, by dimafa | The idea behind the 16-bit TIFF export: build the export pipeline by rewriting the storage format in the shader source, and switch the 8-bit dither off with a pipeline constant. The code was written here; the 32-bit target and the tests are Argentum's |
-| [#1307](https://github.com/CyberTimon/RapidRAW/pull/1307), the AI patch cache key | Two AI patches of the same length no longer share a cache entry (`cache_utils.rs`) |
-| [#1633](https://github.com/CyberTimon/RapidRAW/pull/1633), the sRGB exponent | sRGB decoding uses the standard's exponent of 2.4 (`raw_processing.rs`) |
+| [#1307](https://github.com/CyberTimon/RapidRAW/pull/1307), the AI patch cache key           | Two AI patches of the same length no longer share a cache entry (`cache_utils.rs`)                                                                                                                                                                          |
+| [#1633](https://github.com/CyberTimon/RapidRAW/pull/1633), the sRGB exponent                | sRGB decoding uses the standard's exponent of 2.4 (`raw_processing.rs`)                                                                                                                                                                                     |
 
 ---
 
@@ -138,7 +138,7 @@ applies it. Three sources:
 ### [RAWmakase](https://github.com/pch/rawmakase)
 
 DNG Standard - the look every RAW now starts in - follows RAWmakase's default
-rendering, its *Standard* profile with Lightroom's default sharpening:
+rendering, its _Standard_ profile with Lightroom's default sharpening:
 
 - **The exposure offset for each camera body** is RAWmakase's camera table
   (`data/cameras.toml`), measured by its contributors against Camera Raw - 280
@@ -265,7 +265,7 @@ off with O stays off. Kept in `src/argentum/maskOverlay.ts`.
 
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
-take from it: its own decoder and demosaic, its *Color* look, its measured
+take from it: its own decoder and demosaic, its _Color_ look, its measured
 highlight and shadow tables, and its default colour noise reduction. MIT licence, in
 full in [docs/licenses/RAWmakase-MIT.txt](docs/licenses/RAWmakase-MIT.txt).
 
@@ -357,18 +357,18 @@ Argentum ships all of RapidRAW's functionality, so everything he depends on,
 Argentum depends on too. These are his credits, repeated here because they are
 just as true of this app.
 
-| Project | What it does here |
-|---|---|
-| [rawler](https://github.com/dnglab/dnglab) | RAW decoding. The foundation everything else stands on |
-| [lensfun](https://lensfun.github.io/) | The lens correction library and its camera/lens database |
-| [Segment Anything (SAM)](https://github.com/facebookresearch/segment-anything) | The model that cuts out what a box is drawn around, for Quick Erase and Inpainting |
-| [U²-Net](https://github.com/xuebinqin/U-2-Net) | The architecture behind Foreground detection |
-| [LaMa](https://github.com/advimman/lama) | Inpainting — content-aware fill and object removal |
-| Depth Anything | Depth estimation, which drives the Depth mask, Lens blur and Fog |
-| NIND | The models behind AI noise reduction |
-| [NegPy](https://github.com/marcinz606/NegPy) | The approach the film-negative conversion is based on |
-| Spektrafilm — Andrea Volpato | The spectrally-based film emulation LUTs. Licensed CC BY-SA 4.0 |
-| [libgphoto2](https://github.com/gphoto/libgphoto2) | Camera communication for tethering, only in builds from source for macOS and Linux (`--features tethering`) |
+| Project                                                                        | What it does here                                                                                           |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| [rawler](https://github.com/dnglab/dnglab)                                     | RAW decoding. The foundation everything else stands on                                                      |
+| [lensfun](https://lensfun.github.io/)                                          | The lens correction library and its camera/lens database                                                    |
+| [Segment Anything (SAM)](https://github.com/facebookresearch/segment-anything) | The model that cuts out what a box is drawn around, for Quick Erase and Inpainting                          |
+| [U²-Net](https://github.com/xuebinqin/U-2-Net)                                 | The architecture behind Foreground detection                                                                |
+| [LaMa](https://github.com/advimman/lama)                                       | Inpainting — content-aware fill and object removal                                                          |
+| Depth Anything                                                                 | Depth estimation, which drives the Depth mask, Lens blur and Fog                                            |
+| NIND                                                                           | The models behind AI noise reduction                                                                        |
+| [NegPy](https://github.com/marcinz606/NegPy)                                   | The approach the film-negative conversion is based on                                                       |
+| Spektrafilm — Andrea Volpato                                                   | The spectrally-based film emulation LUTs. Licensed CC BY-SA 4.0                                             |
+| [libgphoto2](https://github.com/gphoto/libgphoto2)                             | Camera communication for tethering, only in builds from source for macOS and Linux (`--features tethering`) |
 
 Two entries are deliberately named without a link: **Depth Anything** and
 **NIND** have several plausible upstreams and none is cited in the code, so

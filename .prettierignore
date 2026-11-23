@@ -6,3 +6,4 @@ src/shell/contract.generated.ts
 src/shell/contract.fixtures.json
 src-tauri/fixtures
 src/argentum/ag.generated.ts
+CHANGELOG.md

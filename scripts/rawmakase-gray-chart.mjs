@@ -49,7 +49,9 @@ export const TABLE_NAMES = ['zero', ...BANDS.flatMap((band) => POSITIONS.map((p)
 export function chartRows(bytes) {
   const expected = TABLE_NAMES.length * CELLS * 2;
   if (bytes.length !== expected) {
-    throw new Error(`the chart is ${bytes.length} bytes, not ${expected} (${TABLE_NAMES.length} tables of ${CELLS} i16 cells): read its format before regenerating`);
+    throw new Error(
+      `the chart is ${bytes.length} bytes, not ${expected} (${TABLE_NAMES.length} tables of ${CELLS} i16 cells): read its format before regenerating`,
+    );
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const rows = [];
@@ -67,8 +69,10 @@ export function chartRows(bytes) {
 
 /** The "# Source:" line: which RAWmakase commit, and its release. */
 export function sourceLine({ sha, tag }) {
-  return `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, `
-    + `${TABLE_NAMES.length} tables of ${CELLS} cells`;
+  return (
+    `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, ` +
+    `${TABLE_NAMES.length} tables of ${CELLS} cells`
+  );
 }
 
 /** The commit and release a table names, or null if it names none. */

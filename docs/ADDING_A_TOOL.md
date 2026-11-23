@@ -21,12 +21,12 @@ engine. It is also the map of where those pieces live.
 Every file is ours to change, but a tool in today's pipeline keeps its code in
 files of ours and touches an inherited file only to call it:
 
-| Piece | Where it goes |
-|---|---|
-| The math | `src-tauri/src/shaders/modules.wgsl` (ours), called from one of the existing stages: `ag_stage_scene_linear`, `ag_stage_color`, `ag_stage_tone`, `ag_stage_grade` or `ag_stage_display` |
-| A whole-image GPU pass on the input | inside `src-tauri/src/mods/input_stage.rs` |
-| A setting the render needs | a field in the adjustments struct (`image_processing.rs`) and the matching WGSL struct in `shader.wgsl`, kept in step; a tool that needs many new settings belongs in the engine |
-| The control | today's panels (`src/components/panel/`, `src/components/adjustments/`) are ours to change in place; a component of its own goes in `src/argentum/`. Strings go in `src/argentum/locales/` |
+| Piece                               | Where it goes                                                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The math                            | `src-tauri/src/shaders/modules.wgsl` (ours), called from one of the existing stages: `ag_stage_scene_linear`, `ag_stage_color`, `ag_stage_tone`, `ag_stage_grade` or `ag_stage_display`    |
+| A whole-image GPU pass on the input | inside `src-tauri/src/mods/input_stage.rs`                                                                                                                                                 |
+| A setting the render needs          | a field in the adjustments struct (`image_processing.rs`) and the matching WGSL struct in `shader.wgsl`, kept in step; a tool that needs many new settings belongs in the engine           |
+| The control                         | today's panels (`src/components/panel/`, `src/components/adjustments/`) are ours to change in place; a component of its own goes in `src/argentum/`. Strings go in `src/argentum/locales/` |
 
 If a tool cannot be built that way, that is the signal to build it in the
 engine.
@@ -56,13 +56,13 @@ beside the others — don't convert inline.
 
 OpenCL → WGSL is mostly mechanical:
 
-| OpenCL | WGSL |
-|---|---|
-| `float4` | `vec4<f32>` |
-| `(float3)(a,b,c)` | `vec3<f32>(a,b,c)` |
-| `native_powr` / `powr` | `pow` |
-| `fmax` / `fmin` | `max` / `min` |
-| `clamp`, `mix`, `dot` | same |
+| OpenCL                 | WGSL               |
+| ---------------------- | ------------------ |
+| `float4`               | `vec4<f32>`        |
+| `(float3)(a,b,c)`      | `vec3<f32>(a,b,c)` |
+| `native_powr` / `powr` | `pow`              |
+| `fmax` / `fmin`        | `max` / `min`      |
+| `clamp`, `mix`, `dot`  | same               |
 
 ## 2. Turn it on → inside a stage in `modules.wgsl` (ours)
 
@@ -150,8 +150,8 @@ shows what a change added or removed).
 
 ## Roughly how long
 
-| | |
-|---|---|
-| First tool | a few days — includes building the color conversion |
-| After that | 1–2 days each |
-| Tools needing multiple passes (blur, denoise) | ~a week |
+|                                               |                                                     |
+| --------------------------------------------- | --------------------------------------------------- |
+| First tool                                    | a few days — includes building the color conversion |
+| After that                                    | 1–2 days each                                       |
+| Tools needing multiple passes (blur, denoise) | ~a week                                             |

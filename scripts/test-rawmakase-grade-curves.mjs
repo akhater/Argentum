@@ -13,7 +13,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ROWS, TABLE, VALUES, curveRows, fetchCurves, recordedSource, regenerate, shortest, sourceLine,
+  ROWS,
+  TABLE,
+  VALUES,
+  curveRows,
+  fetchCurves,
+  recordedSource,
+  regenerate,
+  shortest,
+  sourceLine,
 } from './rawmakase-grade-curves.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -41,7 +49,7 @@ function numbered() {
   return bytes;
 }
 
-await test('a row is four labels and its values, in the file\'s order', () => {
+await test("a row is four labels and its values, in the file's order", () => {
   const rows = curveRows(numbered());
   assert.equal(rows.length, ROWS);
   const first = rows[0].split('\t');
@@ -100,7 +108,9 @@ await test(`${TABLE} is what the script makes from the RAWmakase commit it names
     const [a, b] = [tsv.split('\n'), made.split('\n')];
     let i = 0;
     while (a[i] === b[i]) i += 1;
-    assert.fail(`line ${i + 1} differs - regenerate it, never edit it:\n  table:  ${a[i]?.slice(0, 80)}\n  script: ${b[i]?.slice(0, 80)}`);
+    assert.fail(
+      `line ${i + 1} differs - regenerate it, never edit it:\n  table:  ${a[i]?.slice(0, 80)}\n  script: ${b[i]?.slice(0, 80)}`,
+    );
   }
 });
 

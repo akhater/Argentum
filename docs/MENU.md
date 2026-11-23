@@ -15,20 +15,20 @@ Difficulty: 🟢 = 1–2 days · 🟡 = ~a week · 🔴 = needs a real decision 
 
 ## Take from darktable
 
-| What | Why it's better | Effort |
-|---|---|---|
-| **White balance** | Real chromatic adaptation vs RapidRAW's 3 fudge numbers | 🟢 |
-| **Highlight recovery** | 4 real methods for blown skies. RapidRAW basically clips | 🟢 |
-| **Filmic / Sigmoid / AgX** | Proper highlight rolloff — the "why does darktable look nicer" thing | 🟢 |
-| **Color balance rgb** | Best color grading in any free RAW app | 🟢 |
-| **Color equalizer** | Per-hue control that doesn't fall apart on skin | 🟢 |
-| **Diffuse or sharpen** | Unique to darktable. Sharpening, lens blur recovery, denoise in one | 🟡 |
-| **Local laplacian** | Local contrast without halos | 🟡 |
-| **Profiled denoise** | Uses real measured noise profiles per camera model | 🟡 |
-| **Demosaic (RCD / Markesteijn)** | Matters a lot if you shoot Fuji X-Trans | ⚪ |
-| **Lens correction from embedded RAW data** | Rescues lenses lensfun doesn't know | ⚪ |
+| What                                       | Why it's better                                                      | Effort |
+| ------------------------------------------ | -------------------------------------------------------------------- | ------ |
+| **White balance**                          | Real chromatic adaptation vs RapidRAW's 3 fudge numbers              | 🟢     |
+| **Highlight recovery**                     | 4 real methods for blown skies. RapidRAW basically clips             | 🟢     |
+| **Filmic / Sigmoid / AgX**                 | Proper highlight rolloff — the "why does darktable look nicer" thing | 🟢     |
+| **Color balance rgb**                      | Best color grading in any free RAW app                               | 🟢     |
+| **Color equalizer**                        | Per-hue control that doesn't fall apart on skin                      | 🟢     |
+| **Diffuse or sharpen**                     | Unique to darktable. Sharpening, lens blur recovery, denoise in one  | 🟡     |
+| **Local laplacian**                        | Local contrast without halos                                         | 🟡     |
+| **Profiled denoise**                       | Uses real measured noise profiles per camera model                   | 🟡     |
+| **Demosaic (RCD / Markesteijn)**           | Matters a lot if you shoot Fuji X-Trans                              | ⚪     |
+| **Lens correction from embedded RAW data** | Rescues lenses lensfun doesn't know                                  | ⚪     |
 
-⚪ = parked. Real work, no benefit *here* — see
+⚪ = parked. Real work, no benefit _here_ — see
 [ROADMAP](ROADMAP.md#for-other-cameras-and-other-computers). Both would
 matter for a public release.
 
@@ -38,7 +38,7 @@ lenses" shortlist, distortion / CA / vignetting, and the full 5MB lensfun
 database bundled. Every lens in the current kit is in it, plus the 5D Mark II
 body. **It works on day one.**
 
-The only thing absent is reading correction data the *camera* embeds in the RAW.
+The only thing absent is reading correction data the _camera_ embeds in the RAW.
 That exists to rescue glass lensfun has never heard of — mostly recent
 mirrorless. Nothing in the current kit qualifies.
 

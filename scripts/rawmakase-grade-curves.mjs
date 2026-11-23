@@ -47,16 +47,29 @@ const TERMS = 3;
  * measured, the region and two settings, "-" where none) and its values.
  */
 const SECTIONS = [
-  ...REGIONS.slice(0, 3).flatMap((region) => BLENDINGS.flatMap((b) => BALANCES.map((a) => ({
-    labels: ['profile', region, `blending ${b}`, `balance ${a}`], values: SAMPLES * SHAPED_TERMS,
-  })))),
+  ...REGIONS.slice(0, 3).flatMap((region) =>
+    BLENDINGS.flatMap((b) =>
+      BALANCES.map((a) => ({
+        labels: ['profile', region, `blending ${b}`, `balance ${a}`],
+        values: SAMPLES * SHAPED_TERMS,
+      })),
+    ),
+  ),
   { labels: ['profile', 'global', '-', '-'], values: SAMPLES * TERMS },
-  ...REGIONS.flatMap((region) => HUES.flatMap((h) => SATURATIONS.map((s) => ({
-    labels: ['tint', region, `hue ${h}`, `saturation ${s}`], values: 3 * TERMS,
-  })))),
-  ...REGIONS.flatMap((region) => LUMINANCES.map((l) => ({
-    labels: ['luminance', region, `amount ${l}`, '-'], values: SAMPLES,
-  }))),
+  ...REGIONS.flatMap((region) =>
+    HUES.flatMap((h) =>
+      SATURATIONS.map((s) => ({
+        labels: ['tint', region, `hue ${h}`, `saturation ${s}`],
+        values: 3 * TERMS,
+      })),
+    ),
+  ),
+  ...REGIONS.flatMap((region) =>
+    LUMINANCES.map((l) => ({
+      labels: ['luminance', region, `amount ${l}`, '-'],
+      values: SAMPLES,
+    })),
+  ),
 ];
 export const ROWS = SECTIONS.length;
 export const VALUES = SECTIONS.reduce((n, s) => n + s.values, 0);
@@ -74,7 +87,9 @@ export function shortest(v) {
 /** The tables' rows, each the file's little-endian f32 values as written. */
 export function curveRows(bytes) {
   if (bytes.length !== VALUES * 4) {
-    throw new Error(`the curves are ${bytes.length} bytes, not ${VALUES * 4} (${VALUES} f32 values): read its format before regenerating`);
+    throw new Error(
+      `the curves are ${bytes.length} bytes, not ${VALUES * 4} (${VALUES} f32 values): read its format before regenerating`,
+    );
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let at = 0;
@@ -87,8 +102,7 @@ export function curveRows(bytes) {
 
 /** The "# Source:" line: which RAWmakase commit, and its release. */
 export function sourceLine({ sha, tag }) {
-  return `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, `
-    + `${ROWS} rows, ${VALUES} values`;
+  return `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, ` + `${ROWS} rows, ${VALUES} values`;
 }
 
 /** The commit and release a table names, or null if it names none. */
