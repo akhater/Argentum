@@ -239,17 +239,20 @@ pub fn peek_sidecar(sidecar_path: &Path) -> Option<ImageMetadata> {
     crate::mods::salvage::readable(&content, sidecar_base).map(|(meta, _)| meta)
 }
 
+/// A photo's sidecar for code that only shows it: an empty edit when there is
+/// none or it cannot be read. Anything that writes the sidecar back reads with
+/// `try_load_sidecar` (mods/sidecar_read.rs).
 pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
-    if !sidecar_path.exists() {
-        return ImageMetadata::default();
-    }
+    try_load_sidecar(sidecar_path)
+        .unwrap_or_else(|e| crate::mods::sidecar_read::shown_empty(sidecar_path, &e))
+}
 
-    let content = match fs::read_to_string(sidecar_path) {
-        Ok(content) => content,
-        Err(e) => {
-            crate::mods::salvage::keep_copy(sidecar_path, &e);
-            return ImageMetadata::default();
-        }
+/// A photo's sidecar: an empty edit when there is none, read as far as it goes
+/// when it is there, an error when it is there but cannot be read, so a pass
+/// that writes it back writes nothing.
+pub fn try_load_sidecar(sidecar_path: &Path) -> std::io::Result<ImageMetadata> {
+    let Some(content) = crate::mods::sidecar_read::read_text(sidecar_path)? else {
+        return Ok(ImageMetadata::default());
     };
 
     // A sidecar that does not read is kept aside and read key by key, so a
@@ -277,11 +280,15 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
         );
     }
 
-    meta
+    Ok(meta)
 }
 
-pub fn load_sidecar_with_exif(sidecar_path: &Path, source_path: &Path) -> ImageMetadata {
-    let mut meta = load_sidecar(sidecar_path);
+/// `try_load_sidecar`, with the photo's EXIF when the sidecar has none.
+pub fn try_load_sidecar_with_exif(
+    sidecar_path: &Path,
+    source_path: &Path,
+) -> std::io::Result<ImageMetadata> {
+    let mut meta = try_load_sidecar(sidecar_path)?;
 
     if meta.exif.is_none() {
         if let Some(cached_exif) = read_rrexif_sidecar(source_path) {
@@ -303,7 +310,7 @@ pub fn load_sidecar_with_exif(sidecar_path: &Path, source_path: &Path) -> ImageM
         }
     }
 
-    meta
+    Ok(meta)
 }
 
 pub static SIDECAR_LAYOUT_LOCK: Mutex<()> = Mutex::new(());
@@ -2032,9 +2039,9 @@ pub fn get_rrexif_path(image_path: &Path) -> PathBuf {
     image_path.with_file_name(filename)
 }
 
-fn load_primary_metadata(image_path: &Path) -> ImageMetadata {
+fn load_primary_metadata(image_path: &Path) -> std::io::Result<ImageMetadata> {
     let primary = crate::file_management::sidecar_for(image_path, None);
-    load_sidecar(&primary)
+    try_load_sidecar(&primary)
 }
 
 fn save_primary_metadata(image_path: &Path, metadata: &ImageMetadata) -> std::io::Result<()> {
@@ -2052,11 +2059,11 @@ fn save_primary_metadata(image_path: &Path, metadata: &ImageMetadata) -> std::io
 pub fn read_rrexif_sidecar(image_path: &Path) -> Option<HashMap<String, String>> {
     let primary = crate::file_management::sidecar_for(image_path, None);
 
-    if primary.exists() {
-        let metadata = load_primary_metadata(image_path);
-        if let Some(exif) = metadata.exif {
-            return Some(exif);
-        }
+    if primary.exists()
+        && let Ok(metadata) = load_primary_metadata(image_path)
+        && let Some(exif) = metadata.exif
+    {
+        return Some(exif);
     }
 
     if let Some(exif) = get_exif_from_rrcache(image_path) {
@@ -2123,9 +2130,11 @@ pub fn read_exif_data(path: &str, file_bytes: &[u8]) -> HashMap<String, String> 
     if !exif_map.is_empty() {
         let primary = crate::file_management::sidecar_for(source_path, None);
         if primary.exists() {
-            let mut metadata = load_primary_metadata(source_path);
-            metadata.exif = Some(exif_map.clone());
-            let _ = save_primary_metadata(source_path, &metadata);
+            // A sidecar that does not read is left as it is.
+            if let Ok(mut metadata) = load_primary_metadata(source_path) {
+                metadata.exif = Some(exif_map.clone());
+                let _ = save_primary_metadata(source_path, &metadata);
+            }
         } else {
             save_exif_to_rrcache(source_path, exif_map.clone());
         }
@@ -2147,8 +2156,10 @@ pub fn persist_exif_if_missing(source_path: &Path, source_path_str: &str, file_b
     let primary = crate::file_management::sidecar_for(source_path, None);
 
     if primary.exists() {
-        let mut metadata = load_primary_metadata(source_path);
-        if metadata.exif.is_none() {
+        // A sidecar that does not read is left as it is.
+        if let Ok(mut metadata) = load_primary_metadata(source_path)
+            && metadata.exif.is_none()
+        {
             metadata.exif = Some(exif_map);
             let _ = save_primary_metadata(source_path, &metadata);
         }
@@ -2172,7 +2183,8 @@ pub fn write_rrexif_sidecar(source_path_str: &str, target_image_path: &Path) -> 
         return Ok(());
     }
 
-    let mut metadata = load_primary_metadata(target_image_path);
+    let mut metadata = load_primary_metadata(target_image_path)
+        .map_err(|e| format!("Failed to read sidecar: {}", e))?;
     metadata.exif = Some(exif_data);
     save_primary_metadata(target_image_path, &metadata)
         .map_err(|e| format!("Failed to write sidecar: {}", e))

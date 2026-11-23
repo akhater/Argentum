@@ -144,7 +144,8 @@ pub fn write(source: &Path, sidecar: &Path, record: Option<HistoryRecord>) -> Re
         return Err("History: its end is past its last step".to_string());
     }
     let _sidecar = crate::mods::write_locks::lock_sidecar(sidecar);
-    let mut metadata = crate::exif_processing::load_sidecar(sidecar);
+    let mut metadata =
+        crate::exif_processing::try_load_sidecar(sidecar).map_err(|e| e.to_string())?;
     let edit = fingerprint(&metadata.adjustments);
     let record = record.map(|r| HistoryRecord { edit, ..r });
     if metadata.ag_history == record {

@@ -73,15 +73,15 @@ fn compute_thumbnail_cache_hash(path_str: &str, adjustments_bytes: &[u8]) -> Opt
     Some(hasher.finalize().to_hex().to_string())
 }
 
-struct ImageFileMetadata {
+pub(crate) struct ImageFileMetadata {
     edit: EditStatus,
     tags: Option<Vec<String>>,
-    rating: u8,
+    pub(crate) rating: u8,
     flag: Option<ImageFlag>,
     is_raw: bool,
 }
 
-fn resolve_image_metadata(
+pub(crate) fn resolve_image_metadata(
     image_path: &Path,
     sidecar_path: &Path,
     enable_xmp_sync: bool,
@@ -90,9 +90,16 @@ fn resolve_image_metadata(
     // Argentum: the XMP's values are written back into the sidecar (mods/write_locks.rs).
     let _sidecar = enable_xmp_sync.then(|| crate::mods::write_locks::lock_sidecar(sidecar_path));
     let sidecar_existed = sidecar_path.exists();
-    let mut metadata = crate::exif_processing::load_sidecar(sidecar_path);
+    // A sidecar that does not read shows as unedited and is never written back.
+    let read = crate::exif_processing::try_load_sidecar(sidecar_path);
+    let readable = read.is_ok();
+    let mut metadata =
+        read.unwrap_or_else(|e| crate::mods::sidecar_read::shown_empty(sidecar_path, &e));
 
-    if enable_xmp_sync && sync_metadata_from_xmp(image_path, sidecar_path, &mut metadata, !sidecar_existed) {
+    if readable
+        && enable_xmp_sync
+        && sync_metadata_from_xmp(image_path, sidecar_path, &mut metadata, !sidecar_existed)
+    {
         let _ = crate::exif_processing::write_sidecar(sidecar_path, image_path, &metadata);
     }
 
@@ -2586,6 +2593,28 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
     })
 }
 
+/// The editor's save: `adjustments` written into the photo's sidecar, the rest
+/// of the sidecar as it is. Returns what was written. A sidecar that is there
+/// but cannot be read is left alone and the save fails (mods/sidecar_read.rs).
+pub(crate) fn save_edit(
+    source_path: &Path,
+    sidecar_path: &Path,
+    adjustments: Value,
+    lens_db: Option<&crate::lens_correction::LensDatabase>,
+) -> Result<ImageMetadata, String> {
+    let _sidecar = crate::mods::write_locks::lock_sidecar(sidecar_path);
+    let mut metadata = crate::exif_processing::try_load_sidecar_with_exif(sidecar_path, source_path)
+        .map_err(|e| format!("Could not read the edit of {}: {}", source_path.display(), e))?;
+
+    let mut final_adjustments = adjustments;
+    resolve_lens_params_in_adjustments(&mut final_adjustments, &metadata.exif, lens_db);
+    metadata.adjustments = final_adjustments;
+
+    crate::exif_processing::write_sidecar(sidecar_path, source_path, &metadata)
+        .map_err(|e| e.to_string())?;
+    Ok(metadata)
+}
+
 #[tauri::command]
 pub fn save_metadata_and_update_thumbnail(
     path: String,
@@ -2595,24 +2624,8 @@ pub fn save_metadata_and_update_thumbnail(
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(&path);
 
-    let sidecar_lock = crate::mods::write_locks::lock_sidecar(&sidecar_path);
-    let mut metadata = crate::exif_processing::load_sidecar_with_exif(&sidecar_path, &source_path);
-
-    let mut final_adjustments = adjustments;
-    {
-        let lens_db_guard = state.lens_db.lock().unwrap();
-        resolve_lens_params_in_adjustments(
-            &mut final_adjustments,
-            &metadata.exif,
-            lens_db_guard.as_deref(),
-        );
-    }
-
-    metadata.adjustments = final_adjustments;
-
-    crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata)
-        .map_err(|e| e.to_string())?;
-    drop(sidecar_lock);
+    let lens_db = state.lens_db.lock().unwrap().clone();
+    let metadata = save_edit(&source_path, &sidecar_path, adjustments, lens_db.as_deref())?;
 
     if let Ok(settings) = load_settings(app_handle.clone())
         && settings.enable_xmp_sync.unwrap_or(false)
@@ -2703,7 +2716,7 @@ pub async fn apply_adjustments_to_paths(
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, move |source_path, sidecar_path| {
             let mut metadata =
-                crate::exif_processing::load_sidecar_with_exif(sidecar_path, source_path);
+                crate::exif_processing::try_load_sidecar_with_exif(sidecar_path, source_path)?;
 
             if metadata.adjustments.is_null() {
                 metadata.adjustments = default_adjustments();
@@ -2725,7 +2738,7 @@ pub async fn apply_adjustments_to_paths(
                 &metadata.exif,
                 lens_db.as_deref(),
             );
-            metadata
+            Ok(metadata)
         });
     })
     .await
@@ -2739,9 +2752,9 @@ pub async fn reset_adjustments_for_paths(
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, |_, sidecar_path| {
-            let mut metadata = crate::exif_processing::load_sidecar(sidecar_path);
+            let mut metadata = crate::exif_processing::try_load_sidecar(sidecar_path)?;
             metadata.adjustments = default_adjustments();
-            metadata
+            Ok(metadata)
         });
     });
 
@@ -2754,7 +2767,7 @@ pub async fn reset_adjustments_for_paths(
 fn update_sidecars_and_thumbnails(
     paths: Vec<String>,
     app_handle: AppHandle,
-    update: impl Fn(&Path, &Path) -> ImageMetadata + Sync,
+    update: impl Fn(&Path, &Path) -> std::io::Result<ImageMetadata> + Sync,
 ) {
     let state = app_handle.state::<AppState>();
     add_to_thumbnail_queue(&state, paths.len(), &app_handle);
@@ -2781,10 +2794,21 @@ fn update_sidecars_and_thumbnails(
             let (source_path, sidecar_path) = parse_virtual_path(path);
             let (metadata, saved) = {
                 let _sidecar = crate::mods::write_locks::lock_sidecar(&sidecar_path);
-                let metadata = update(&source_path, &sidecar_path);
-                let saved =
-                    crate::mods::write_locks::write_edit_or_log(&sidecar_path, &source_path, &metadata);
-                (metadata, saved)
+                match update(&source_path, &sidecar_path) {
+                    Ok(metadata) => {
+                        let saved = crate::mods::write_locks::write_edit_or_log(
+                            &sidecar_path,
+                            &source_path,
+                            &metadata,
+                        );
+                        (metadata, saved)
+                    }
+                    // A sidecar that does not read is left as it is (mods/sidecar_read.rs).
+                    Err(e) => {
+                        log::warn!("Could not read {}, left as it is: {}", sidecar_path.display(), e);
+                        (ImageMetadata::default(), false)
+                    }
+                }
             };
             if !saved {
                 // Not redrawn, so its share of the progress is counted here.
@@ -2877,7 +2901,7 @@ pub async fn apply_auto_lens_correction_to_paths(
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, move |source_path, sidecar_path| {
             let mut metadata =
-                crate::exif_processing::load_sidecar_with_exif(sidecar_path, source_path);
+                crate::exif_processing::try_load_sidecar_with_exif(sidecar_path, source_path)?;
 
             if metadata.adjustments.is_null() {
                 metadata.adjustments = default_adjustments();
@@ -2895,7 +2919,7 @@ pub async fn apply_auto_lens_correction_to_paths(
                 &metadata.exif,
                 lens_db.as_deref(),
             );
-            metadata
+            Ok(metadata)
         });
     })
     .await
@@ -3190,9 +3214,16 @@ pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadat
 
     let (source_path, sidecar_path) = parse_virtual_path(&path);
     let _sidecar = enable_xmp_sync.then(|| crate::mods::write_locks::lock_sidecar(&sidecar_path));
-    let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+    // A sidecar that does not read shows as unedited and is never written back.
+    let read = crate::exif_processing::try_load_sidecar(&sidecar_path);
+    let readable = read.is_ok();
+    let mut metadata =
+        read.unwrap_or_else(|e| crate::mods::sidecar_read::shown_empty(&sidecar_path, &e));
 
-    if enable_xmp_sync && sync_metadata_from_xmp(&source_path, &sidecar_path, &mut metadata, true) {
+    if readable
+        && enable_xmp_sync
+        && sync_metadata_from_xmp(&source_path, &sidecar_path, &mut metadata, true)
+    {
         let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
     }
 

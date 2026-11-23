@@ -221,7 +221,7 @@ pub fn save_in_turn(found: Vec<Found>, app: tauri::AppHandle) {
 fn upgrade_sidecar(path: &str) -> std::io::Result<Option<crate::image_processing::ImageMetadata>> {
     let (source, sidecar) = crate::file_management::parse_virtual_path(path);
     let _sidecar = super::write_locks::lock_sidecar(&sidecar);
-    let mut metadata = crate::exif_processing::load_sidecar(&sidecar);
+    let mut metadata = crate::exif_processing::try_load_sidecar(&sidecar)?;
     if !is_old(&metadata.adjustments) {
         return Ok(None);
     }
