@@ -19,6 +19,7 @@ import { ag } from '../argentum/ag';
 import { useModernFolders } from '../argentum/modern/folders';
 import { VIRTUAL_COPY, isVirtualCopyPath, physicalPathOf } from '../argentum/paths';
 import { askPermanentDelete, cannotRecycle } from '../argentum/permanentDelete';
+import { unlessRunning } from '../argentum/singleRun';
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -312,7 +313,7 @@ export function useFileOperations(
     }
   }, []);
 
-  const handlePasteFiles = useCallback(
+  const runPasteFiles = useCallback(
     async (mode = 'copy') => {
       const { copiedFilePaths, setProcess } = useProcessStore.getState();
       const { currentFolderPath, setLibrary } = useLibraryStore.getState();
@@ -334,6 +335,12 @@ export function useFileOperations(
       }
     },
     [refreshImageList, refreshAllFolderTrees],
+  );
+
+  // Argentum: a second paste while the first copies does nothing (argentum/singleRun.ts).
+  const handlePasteFiles = useCallback(
+    (mode = 'copy') => unlessRunning('paste-files', () => runPasteFiles(mode)),
+    [runPasteFiles],
   );
 
   return {

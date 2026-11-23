@@ -13,6 +13,7 @@
  */
 
 import { type FocusEvent, type KeyboardEvent, useEffect, useRef } from 'react';
+import { typingInto } from '../typingInto';
 
 /** How long the arrows rest on a folder before it is shown. */
 const SHOW_AFTER_MS = 250;
@@ -65,7 +66,7 @@ export function useTreeKeys(enabled: boolean) {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     const cur = target.closest<HTMLElement>('[data-nav]');
-    if (!cur || target.tagName === 'INPUT' || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!cur || typingInto(target) || e.altKey || e.ctrlKey || e.metaKey) return;
     const rows = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')];
     const i = rows.indexOf(cur);
     const depth = Number(cur.dataset.depth);
