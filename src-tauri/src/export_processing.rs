@@ -27,7 +27,9 @@ use crate::file_management::{
     split_virtual_path,
 };
 use crate::formats::is_raw_file;
-use crate::image_loader::{composite_patches_on_image, load_and_composite, load_base_image_from_bytes};
+use crate::image_loader::{
+    composite_patches_on_image, load_and_composite, load_base_image_from_bytes,
+};
 use crate::image_processing::{
     AllAdjustments, Crop, GpuContext, RenderOptions, RenderRequest, downscale_f32_image,
     get_all_adjustments_from_json, get_or_init_gpu_context, process_and_get_dynamic_image,
@@ -39,13 +41,13 @@ use crate::mask_generation::{MaskDefinition, build_warped_image_for_masks, gener
 use crate::as_shot::as_shot;
 use crate::cache_utils::{calculate_full_job_hash, calculate_transform_hash};
 use crate::mods::{
-    export_at_size, export_batch, jxl_export,
+    export_at_size, export_batch,
     export_metadata::write_export_metadata,
     export_precision::{
         Precision, TiffDepth, encode_tiff, overlay_preserving_precision, render_for_estimate,
-        render_for_export,
-        set_runtime_depth,
+        render_for_export, set_runtime_depth,
     },
+    jxl_export,
     provider_look::lut_of_edit,
 };
 use crate::{
@@ -1267,8 +1269,13 @@ fn export_masks_for_image(
 
     if !mask_bitmaps.is_empty() {
         let render = resolve_render_options_from_handle(app_handle, is_raw);
-        let all_adjustments =
-            get_all_adjustments_from_json(js_adjustments, is_raw, as_shot(source_path_str), render, Some(source_path_str));
+        let all_adjustments = get_all_adjustments_from_json(
+            js_adjustments,
+            is_raw,
+            as_shot(source_path_str),
+            render,
+            Some(source_path_str),
+        );
         let lut = lut_of_edit(state, js_adjustments, source_path_str);
         let unique_hash = calculate_full_job_hash(source_path_str, js_adjustments);
         let output_dir = output_path_obj.parent().unwrap_or(output_path_obj);
@@ -1362,8 +1369,13 @@ fn export_adjustments_as_lut(
     let render = RenderOptions {
         ..resolve_render_options_from_handle(app_handle, false)
     };
-    let mut all_adjustments =
-        get_all_adjustments_from_json(js_adjustments, false, as_shot(source_path_str), render, Some(source_path_str));
+    let mut all_adjustments = get_all_adjustments_from_json(
+        js_adjustments,
+        false,
+        as_shot(source_path_str),
+        render,
+        Some(source_path_str),
+    );
 
     all_adjustments.global.show_clipping = 0;
     all_adjustments.global.vignette_amount = 0.0;
@@ -1531,268 +1543,271 @@ pub(crate) async fn export_images_impl(
                 let asked_as = image_path_str.clone();
                 // The photo's whole export, as one result to send on (below).
                 let output = (move || {
-                ensure_export_not_cancelled(&cancellation_token_clone)?;
+                    ensure_export_not_cancelled(&cancellation_token_clone)?;
 
-                let state = app_handle_clone.state::<AppState>();
-                let (source_path, sidecar_path) = parse_virtual_path(&image_path_str);
-                let source_path_str = source_path.to_string_lossy().to_string();
+                    let state = app_handle_clone.state::<AppState>();
+                    let (source_path, sidecar_path) = parse_virtual_path(&image_path_str);
+                    let source_path_str = source_path.to_string_lossy().to_string();
 
-                let is_current_edit =
-                    export_batch::is_open_edit_in(&image_path_str, &adjustments_mode);
+                    let is_current_edit =
+                        export_batch::is_open_edit_in(&image_path_str, &adjustments_mode);
 
-                let sidecar = crate::exif_processing::load_sidecar(&sidecar_path);
-                let export_xmp = crate::exif_processing::ExportXmp::from_metadata(&sidecar);
+                    let sidecar = crate::exif_processing::load_sidecar(&sidecar_path);
+                    let export_xmp = crate::exif_processing::ExportXmp::from_metadata(&sidecar);
 
-                let mut js_adjustments = export_batch::adjustments_for(
-                    &image_path_str,
-                    &adjustments_mode,
-                    sidecar.adjustments,
-                );
+                    let mut js_adjustments = export_batch::adjustments_for(
+                        &image_path_str,
+                        &adjustments_mode,
+                        sidecar.adjustments,
+                    );
 
-                hydrate_adjustments(&state, &mut js_adjustments);
-                if !crate::mods::lut_provider::look_file_ready(
-                    &app_handle_clone,
-                    &js_adjustments,
-                    &image_path_str,
-                    &cancellation_token_clone,
-                ) {
-                    looks_missing_clone.fetch_add(1, Ordering::SeqCst);
-                }
-                let is_raw = is_raw_file(&source_path_str);
-                let original_path = std::path::Path::new(&source_path_str);
-                let file_date = exif_processing::get_creation_date_from_path(original_path);
+                    hydrate_adjustments(&state, &mut js_adjustments);
+                    if !crate::mods::lut_provider::look_file_ready(
+                        &app_handle_clone,
+                        &js_adjustments,
+                        &image_path_str,
+                        &cancellation_token_clone,
+                    ) {
+                        looks_missing_clone.fetch_add(1, Ordering::SeqCst);
+                    }
+                    let is_raw = is_raw_file(&source_path_str);
+                    let original_path = std::path::Path::new(&source_path_str);
+                    let file_date = exif_processing::get_creation_date_from_path(original_path);
 
-                let filename_template = export_settings
-                    .filename_template
-                    .as_deref()
-                    .unwrap_or("{original_filename}_edited");
+                    let filename_template = export_settings
+                        .filename_template
+                        .as_deref()
+                        .unwrap_or("{original_filename}_edited");
 
-                let new_stem = export_batch::with_copy_suffix(
-                    generate_filename_from_template(
-                        filename_template,
-                        original_path,
-                        global_index + 1,
-                        total_paths,
-                        &file_date,
-                    ),
-                    copy_number,
-                );
+                    let new_stem = export_batch::with_copy_suffix(
+                        generate_filename_from_template(
+                            filename_template,
+                            original_path,
+                            global_index + 1,
+                            total_paths,
+                            &file_date,
+                        ),
+                        copy_number,
+                    );
 
-                let new_filename = format!("{}.{}", new_stem, output_format);
+                    let new_filename = format!("{}.{}", new_stem, output_format);
 
-                let mut output_path =
-                    if export_settings.destination_type.as_deref() == Some("originalFolder") {
-                        let mut dir = source_path
-                            .parent()
-                            .unwrap_or(std::path::Path::new(""))
-                            .to_path_buf();
-                        if let Some(sub) = &export_settings.subfolder {
-                            let mut trimmed = sub.trim();
+                    let mut output_path =
+                        if export_settings.destination_type.as_deref() == Some("originalFolder") {
+                            let mut dir = source_path
+                                .parent()
+                                .unwrap_or(std::path::Path::new(""))
+                                .to_path_buf();
+                            if let Some(sub) = &export_settings.subfolder {
+                                let mut trimmed = sub.trim();
 
-                            while trimmed.starts_with('/') || trimmed.starts_with('\\') {
-                                trimmed = &trimmed[1..];
+                                while trimmed.starts_with('/') || trimmed.starts_with('\\') {
+                                    trimmed = &trimmed[1..];
+                                }
+
+                                if !trimmed.is_empty() {
+                                    dir = dir.join(trimmed);
+                                }
                             }
 
-                            if !trimmed.is_empty() {
-                                dir = dir.join(trimmed);
-                            }
-                        }
-
-                        if let Err(e) = std::fs::create_dir_all(&dir) {
-                            return Err(format!(
-                                "Failed to create export subdirectory '{}': {}",
-                                dir.display(),
-                                e
-                            ));
-                        }
-
-                        dir.join(&new_filename)
-                    } else if is_explicit_file_path && total_paths == 1 {
-                        output_folder_path.clone()
-                    } else if export_settings.preserve_folders {
-                        if let Some(rel_dir) = relative_export_dir_for_preserved_folders(
-                            source_path.as_path(),
-                            &base_origin_folders,
-                        ) {
-                            let full_dir = output_folder_path.join(rel_dir);
-                            if let Err(e) = std::fs::create_dir_all(&full_dir) {
+                            if let Err(e) = std::fs::create_dir_all(&dir) {
                                 return Err(format!(
                                     "Failed to create export subdirectory '{}': {}",
-                                    full_dir.display(),
+                                    dir.display(),
                                     e
                                 ));
                             }
-                            full_dir.join(&new_filename)
+
+                            dir.join(&new_filename)
+                        } else if is_explicit_file_path && total_paths == 1 {
+                            output_folder_path.clone()
+                        } else if export_settings.preserve_folders {
+                            if let Some(rel_dir) = relative_export_dir_for_preserved_folders(
+                                source_path.as_path(),
+                                &base_origin_folders,
+                            ) {
+                                let full_dir = output_folder_path.join(rel_dir);
+                                if let Err(e) = std::fs::create_dir_all(&full_dir) {
+                                    return Err(format!(
+                                        "Failed to create export subdirectory '{}': {}",
+                                        full_dir.display(),
+                                        e
+                                    ));
+                                }
+                                full_dir.join(&new_filename)
+                            } else {
+                                output_folder_path.join(&new_filename)
+                            }
                         } else {
                             output_folder_path.join(&new_filename)
+                        };
+
+                    let extension = output_format.to_lowercase();
+
+                    if !(is_explicit_file_path && total_paths == 1) {
+                        let mut used = used_paths_clone.lock().unwrap();
+                        let parent_dir = output_path
+                            .parent()
+                            .unwrap_or(std::path::Path::new(""))
+                            .to_path_buf();
+                        let mut counter = 1;
+
+                        while output_path.exists() || used.contains(&output_path) {
+                            let incremented_filename =
+                                format!("{}_{}.{}", new_stem, counter, extension);
+                            output_path = parent_dir.join(&incremented_filename);
+                            counter += 1;
                         }
-                    } else {
-                        output_folder_path.join(&new_filename)
-                    };
-
-                let extension = output_format.to_lowercase();
-
-                if !(is_explicit_file_path && total_paths == 1) {
-                    let mut used = used_paths_clone.lock().unwrap();
-                    let parent_dir = output_path
-                        .parent()
-                        .unwrap_or(std::path::Path::new(""))
-                        .to_path_buf();
-                    let mut counter = 1;
-
-                    while output_path.exists() || used.contains(&output_path) {
-                        let incremented_filename =
-                            format!("{}_{}.{}", new_stem, counter, extension);
-                        output_path = parent_dir.join(&incremented_filename);
-                        counter += 1;
+                        used.insert(output_path.clone());
                     }
-                    used.insert(output_path.clone());
-                }
-                export_batch::create_output_folders(&output_path)?;
+                    export_batch::create_output_folders(&output_path)?;
 
-                let result: Result<(), String> = (|| {
-                    if extension == "cube" {
-                        let cube_bytes = export_adjustments_as_lut(
-                            &js_adjustments,
-                            &source_path_str,
-                            &context_clone,
-                            &state,
-                            &app_handle_clone,
-                            &cancellation_token_clone,
-                        )?;
-                        ensure_export_not_cancelled(&cancellation_token_clone)?;
-                        crate::mods::atomic_write::write_atomic_shared(&output_path, cube_bytes)
-                            .map_err(|e| e.to_string())?;
-                        ensure_export_not_cancelled(&cancellation_token_clone)?;
-                        return Ok(());
-                    }
-
-                    let started = std::time::Instant::now();
-                    let loaded_image = if is_current_edit {
-                        state
-                            .original_image
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .clone()
-                            .filter(|loaded| {
-                                parse_virtual_path(&loaded.path).0
-                                    == parse_virtual_path(&source_path_str).0
-                            })
-                    } else {
-                        None
-                    };
-
-                    let base_image = if let Some(loaded_image) = loaded_image {
-                        composite_patches_on_image(&loaded_image.image, &js_adjustments)
-                            .map_err(|e| format!("Failed to composite AI patches: {}", e))?
-                    } else {
-                        match read_file_mapped(Path::new(&source_path_str)) {
-                            Ok(mmap) => load_and_composite(
-                                &mmap,
-                                &source_path_str,
+                    let result: Result<(), String> = (|| {
+                        if extension == "cube" {
+                            let cube_bytes = export_adjustments_as_lut(
                                 &js_adjustments,
-                                false,
-                                &settings,
-                                None,
+                                &source_path_str,
+                                &context_clone,
+                                &state,
+                                &app_handle_clone,
+                                &cancellation_token_clone,
+                            )?;
+                            ensure_export_not_cancelled(&cancellation_token_clone)?;
+                            crate::mods::atomic_write::write_atomic_shared(
+                                &output_path,
+                                cube_bytes,
                             )
-                            .map_err(|e| format!("Failed to load from mmap: {}", e))?,
-                            Err(_) => {
-                                let bytes =
-                                    fs::read(&source_path_str).map_err(|e| e.to_string())?;
-                                load_and_composite(
-                                    &bytes,
+                            .map_err(|e| e.to_string())?;
+                            ensure_export_not_cancelled(&cancellation_token_clone)?;
+                            return Ok(());
+                        }
+
+                        let started = std::time::Instant::now();
+                        let loaded_image = if is_current_edit {
+                            state
+                                .original_image
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .clone()
+                                .filter(|loaded| {
+                                    parse_virtual_path(&loaded.path).0
+                                        == parse_virtual_path(&source_path_str).0
+                                })
+                        } else {
+                            None
+                        };
+
+                        let base_image = if let Some(loaded_image) = loaded_image {
+                            composite_patches_on_image(&loaded_image.image, &js_adjustments)
+                                .map_err(|e| format!("Failed to composite AI patches: {}", e))?
+                        } else {
+                            match read_file_mapped(Path::new(&source_path_str)) {
+                                Ok(mmap) => load_and_composite(
+                                    &mmap,
                                     &source_path_str,
                                     &js_adjustments,
                                     false,
                                     &settings,
                                     None,
                                 )
-                                .map_err(|e| format!("Failed to load from bytes: {}", e))?
+                                .map_err(|e| format!("Failed to load from mmap: {}", e))?,
+                                Err(_) => {
+                                    let bytes =
+                                        fs::read(&source_path_str).map_err(|e| e.to_string())?;
+                                    load_and_composite(
+                                        &bytes,
+                                        &source_path_str,
+                                        &js_adjustments,
+                                        false,
+                                        &settings,
+                                        None,
+                                    )
+                                    .map_err(|e| format!("Failed to load from bytes: {}", e))?
+                                }
                             }
+                        };
+                        ensure_export_not_cancelled(&cancellation_token_clone)?;
+                        let decoded = started.elapsed();
+
+                        let mut main_export_adjustments = js_adjustments.clone();
+                        if export_settings.export_masks
+                            && let Some(obj) = main_export_adjustments.as_object_mut()
+                        {
+                            obj.insert("masks".to_string(), serde_json::json!([]));
                         }
-                    };
-                    ensure_export_not_cancelled(&cancellation_token_clone)?;
-                    let decoded = started.elapsed();
 
-                    let mut main_export_adjustments = js_adjustments.clone();
-                    if export_settings.export_masks
-                        && let Some(obj) = main_export_adjustments.as_object_mut()
-                    {
-                        obj.insert("masks".to_string(), serde_json::json!([]));
-                    }
-
-                    let final_image = process_image_for_export(
-                        &source_path_str,
-                        &base_image,
-                        &main_export_adjustments,
-                        &export_settings,
-                        &context_clone,
-                        &state,
-                        is_raw,
-                        &app_handle_clone,
-                        Precision::for_path(&output_path),
-                    )?;
-                    ensure_export_not_cancelled(&cancellation_token_clone)?;
-                    let developed = started.elapsed();
-                    save_image_with_metadata(
-                        &final_image,
-                        &output_path,
-                        &source_path_str,
-                        &export_xmp,
-                        &export_settings,
-                    )?;
-                    log::info!(
-                        "[export] {}: decode {} ms, develop {} ms, encode and write {} ms",
-                        output_path.display(),
-                        decoded.as_millis(),
-                        (developed - decoded).as_millis(),
-                        (started.elapsed() - developed).as_millis(),
-                    );
-                    ensure_export_not_cancelled(&cancellation_token_clone)?;
-
-                    if export_settings.preserve_timestamps {
-                        set_timestamps_from_exif(Path::new(&source_path_str), &output_path);
-                    }
-                    ensure_export_not_cancelled(&cancellation_token_clone)?;
-
-                    if export_settings.export_masks {
-                        export_masks_for_image(
-                            &base_image,
-                            &js_adjustments,
-                            &export_settings,
-                            &output_path,
+                        let final_image = process_image_for_export(
                             &source_path_str,
-                            &export_xmp,
+                            &base_image,
+                            &main_export_adjustments,
+                            &export_settings,
                             &context_clone,
                             &state,
                             is_raw,
                             &app_handle_clone,
-                            &cancellation_token_clone,
+                            Precision::for_path(&output_path),
                         )?;
+                        ensure_export_not_cancelled(&cancellation_token_clone)?;
+                        let developed = started.elapsed();
+                        save_image_with_metadata(
+                            &final_image,
+                            &output_path,
+                            &source_path_str,
+                            &export_xmp,
+                            &export_settings,
+                        )?;
+                        log::info!(
+                            "[export] {}: decode {} ms, develop {} ms, encode and write {} ms",
+                            output_path.display(),
+                            decoded.as_millis(),
+                            (developed - decoded).as_millis(),
+                            (started.elapsed() - developed).as_millis(),
+                        );
+                        ensure_export_not_cancelled(&cancellation_token_clone)?;
+
+                        if export_settings.preserve_timestamps {
+                            set_timestamps_from_exif(Path::new(&source_path_str), &output_path);
+                        }
+                        ensure_export_not_cancelled(&cancellation_token_clone)?;
+
+                        if export_settings.export_masks {
+                            export_masks_for_image(
+                                &base_image,
+                                &js_adjustments,
+                                &export_settings,
+                                &output_path,
+                                &source_path_str,
+                                &export_xmp,
+                                &context_clone,
+                                &state,
+                                is_raw,
+                                &app_handle_clone,
+                                &cancellation_token_clone,
+                            )?;
+                        }
+
+                        Ok(())
+                    })();
+
+                    if !cancellation_token_clone.load(Ordering::SeqCst) {
+                        let current_progress =
+                            progress_counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                        let _ = app_handle_clone.emit(
+                            "batch-export-progress",
+                            serde_json::json!({
+                                "current": current_progress,
+                                "total": total_paths,
+                                "path": &image_path_str
+                            }),
+                        );
                     }
 
-                    Ok(())
-                })();
-
-                if !cancellation_token_clone.load(Ordering::SeqCst) {
-                    let current_progress =
-                        progress_counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
-                    let _ = app_handle_clone.emit(
-                        "batch-export-progress",
-                        serde_json::json!({
-                            "current": current_progress,
-                            "total": total_paths,
-                            "path": &image_path_str
-                        }),
-                    );
-                }
-
-                drop(permit);
-                if cancellation_token_clone.load(Ordering::SeqCst) {
-                    Err("Export cancelled".to_string())
-                } else {
-                    result.map(|()| output_path)
-                }
+                    drop(permit);
+                    if cancellation_token_clone.load(Ordering::SeqCst) {
+                        Err("Export cancelled".to_string())
+                    } else {
+                        result.map(|()| output_path)
+                    }
                 })();
                 // Each photo told the moment it is written, not when the batch ends.
                 if let Some(tx) = &outcome_tx {
@@ -2247,8 +2262,13 @@ pub async fn estimate_export_sizes(
             .collect();
 
         let render = resolve_render_options_from_handle(&app_handle, is_raw);
-        let mut all_adjustments =
-            get_all_adjustments_from_json(&adjustments_clone, is_raw, loaded_image.as_shot, render, Some(source_path_str.as_str()));
+        let mut all_adjustments = get_all_adjustments_from_json(
+            &adjustments_clone,
+            is_raw,
+            loaded_image.as_shot,
+            render,
+            Some(source_path_str.as_str()),
+        );
         all_adjustments.global.show_clipping = 0;
 
         let lut = lut_of_edit(&state, &adjustments_clone, &source_path_str);

@@ -387,9 +387,11 @@ mod tests {
     fn a_virtual_copy_is_analysed_from_its_photo() {
         let dir = tempfile::tempdir().unwrap();
         let photo = dir.path().join("IMG.png");
-        image::RgbImage::from_fn(64, 48, |x, y| image::Rgb([(x * 4) as u8, (y * 5) as u8, 90]))
-            .save(&photo)
-            .unwrap();
+        image::RgbImage::from_fn(64, 48, |x, y| {
+            image::Rgb([(x * 4) as u8, (y * 5) as u8, 90])
+        })
+        .save(&photo)
+        .unwrap();
         let copy = format!("{}?vc=a1b2c3", photo.display());
         let hasher = HasherConfig::new().to_hasher();
 

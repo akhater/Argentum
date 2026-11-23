@@ -36,9 +36,9 @@ use crate::image_loader;
 use crate::image_processing::GpuContext;
 use crate::image_processing::{
     Crop, ImageFlag, ImageMetadata, apply_coarse_rotation, apply_cpu_default_raw_processing,
-    apply_crop, apply_flip, apply_geometry_warp, apply_rotation,
-    auto_results_to_json, default_adjustments,
-    get_all_adjustments_from_json, perform_auto_analysis, resolve_render_options,
+    apply_crop, apply_flip, apply_geometry_warp, apply_rotation, auto_results_to_json,
+    default_adjustments, get_all_adjustments_from_json, perform_auto_analysis,
+    resolve_render_options,
 };
 use crate::mask_generation::MaskDefinition;
 use crate::mods::clear_scope;
@@ -478,9 +478,13 @@ pub async fn update_exif_fields(
                 }
             }
 
-            let _ = crate::mods::write_locks::update_sidecar(&primary_path, original_path, |metadata| {
-                metadata.exif = Some(exif_data);
-            });
+            let _ = crate::mods::write_locks::update_sidecar(
+                &primary_path,
+                original_path,
+                |metadata| {
+                    metadata.exif = Some(exif_data);
+                },
+            );
         });
         Ok(())
     })
@@ -547,7 +551,10 @@ pub(crate) type EnqueueMetadata<'a> = &'a (dyn Fn(String, PathBuf, PathBuf) + Sy
 /// The photos in the folder `path`. On a worker thread: a folder on a drive
 /// that stopped answering waits there, not on the UI thread.
 #[tauri::command]
-pub async fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<ImageFile>, String> {
+pub async fn list_images_in_dir(
+    path: String,
+    app_handle: AppHandle,
+) -> Result<Vec<ImageFile>, String> {
     crate::mods::worker_thread::on_worker_thread(move || {
         let settings = load_settings(app_handle.clone()).unwrap_or_default();
         update_rotational_disk_flag(&path, &app_handle);
@@ -626,11 +633,7 @@ pub(crate) fn images_in_dir(
                 let metadata = if crate::file_management::is_cloud_placeholder(&sidecar_path)
                     || xmp_is_placeholder
                 {
-                    enqueue_metadata(
-                        virtual_path.clone(),
-                        path_buf.clone(),
-                        sidecar_path.clone(),
-                    );
+                    enqueue_metadata(virtual_path.clone(), path_buf.clone(), sidecar_path.clone());
                     ImageFileMetadata {
                         edit: EditStatus::default(),
                         tags: None,
@@ -756,11 +759,7 @@ pub(crate) fn images_recursive(
                 let metadata = if crate::file_management::is_cloud_placeholder(&sidecar_path)
                     || xmp_is_placeholder
                 {
-                    enqueue_metadata(
-                        virtual_path.clone(),
-                        path_buf.clone(),
-                        sidecar_path.clone(),
-                    );
+                    enqueue_metadata(virtual_path.clone(), path_buf.clone(), sidecar_path.clone());
                     ImageFileMetadata {
                         edit: EditStatus::default(),
                         tags: None,
@@ -1745,7 +1744,8 @@ pub fn generate_thumbnail_data(
             resolve_render_options(&settings, is_raw),
             Some(source_path_str.as_str()),
         );
-        let lut = crate::mods::provider_look::lut_of_edit(&state, &meta.adjustments, &source_path_str);
+        let lut =
+            crate::mods::provider_look::lut_of_edit(&state, &meta.adjustments, &source_path_str);
 
         let mut hasher = DefaultHasher::new();
         path_str.hash(&mut hasher);
@@ -2526,7 +2526,10 @@ fn move_one_file(source: &Path, dest: &Path, keep_source: bool) -> Result<(), St
     Ok(())
 }
 
-pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Result<MovePlan, String> {
+pub(crate) fn plan_move(
+    source_paths: &[String],
+    destination_folder: &str,
+) -> Result<MovePlan, String> {
     let dest_path = Path::new(destination_folder);
     if !dest_path.is_dir() {
         return Err(format!(
@@ -2603,8 +2606,16 @@ pub(crate) fn save_edit(
     lens_db: Option<&crate::lens_correction::LensDatabase>,
 ) -> Result<ImageMetadata, String> {
     let _sidecar = crate::mods::write_locks::lock_sidecar(sidecar_path);
-    let mut metadata = crate::exif_processing::try_load_sidecar_with_exif(sidecar_path, source_path)
-        .map_err(|e| format!("Could not read the edit of {}: {}", source_path.display(), e))?;
+    let mut metadata =
+        crate::exif_processing::try_load_sidecar_with_exif(sidecar_path, source_path).map_err(
+            |e| {
+                format!(
+                    "Could not read the edit of {}: {}",
+                    source_path.display(),
+                    e
+                )
+            },
+        )?;
 
     let mut final_adjustments = adjustments;
     resolve_lens_params_in_adjustments(&mut final_adjustments, &metadata.exif, lens_db);
@@ -2624,7 +2635,7 @@ pub fn save_metadata_and_update_thumbnail(
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(&path);
 
-    let lens_db = state.lens_db.lock().unwrap().clone();
+    let lens_db = Some(state.lens_db.get());
     let metadata = save_edit(&source_path, &sidecar_path, adjustments, lens_db.as_deref())?;
 
     if let Ok(settings) = load_settings(app_handle.clone())
@@ -2706,12 +2717,7 @@ pub async fn apply_adjustments_to_paths(
 ) -> Result<(), String> {
     // RapidRAW cabc73a4: src-tauri/src/file_management.rs. Returns once every
     // sidecar is written, so a caller that reads one back sees the paste.
-    let lens_db = app_handle
-        .state::<AppState>()
-        .lens_db
-        .lock()
-        .unwrap()
-        .clone();
+    let lens_db = Some(app_handle.state::<AppState>().lens_db.get());
 
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, move |source_path, sidecar_path| {
@@ -2805,7 +2811,11 @@ fn update_sidecars_and_thumbnails(
                     }
                     // A sidecar that does not read is left as it is (mods/sidecar_read.rs).
                     Err(e) => {
-                        log::warn!("Could not read {}, left as it is: {}", sidecar_path.display(), e);
+                        log::warn!(
+                            "Could not read {}, left as it is: {}",
+                            sidecar_path.display(),
+                            e
+                        );
                         (ImageMetadata::default(), false)
                     }
                 }
@@ -2816,7 +2826,12 @@ fn update_sidecars_and_thumbnails(
                 return;
             }
             if enable_xmp_sync {
-                sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
+                sync_metadata_to_xmp(
+                    &source_path,
+                    &sidecar_path,
+                    &metadata,
+                    create_xmp_if_missing,
+                );
             }
 
             let _ = updated_tx.send(path.clone());
@@ -2891,12 +2906,7 @@ pub async fn apply_auto_lens_correction_to_paths(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let lens_db = app_handle
-        .state::<AppState>()
-        .lens_db
-        .lock()
-        .unwrap()
-        .clone();
+    let lens_db = Some(app_handle.state::<AppState>().lens_db.get());
 
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, move |source_path, sidecar_path| {
@@ -2968,12 +2978,21 @@ fn fold_auto_edits(
 
     if let Some(map) = adjustments.as_object_mut() {
         map.insert("lensCorrectionMode".to_string(), serde_json::json!("auto"));
-        for key in ["lensDistortionEnabled", "lensTcaEnabled", "lensVignetteEnabled"] {
-            map.entry(key.to_string()).or_insert(serde_json::json!(true));
+        for key in [
+            "lensDistortionEnabled",
+            "lensTcaEnabled",
+            "lensVignetteEnabled",
+        ] {
+            map.entry(key.to_string())
+                .or_insert(serde_json::json!(true));
         }
     }
 
-    if adjustments.get("lensCorrectionMode").and_then(|v| v.as_str()) == Some("auto") {
+    if adjustments
+        .get("lensCorrectionMode")
+        .and_then(|v| v.as_str())
+        == Some("auto")
+    {
         let exif = crate::exif_processing::read_rrexif_sidecar(source_path);
         resolve_lens_params_in_adjustments(adjustments, &exif, lens_db);
     }
@@ -3037,14 +3056,21 @@ async fn update_sidecars_from_images(
                 // the edit as read; only what it changed is written back
                 // (mods/write_locks.rs).
                 update(&image, &source_path_str, &mut after);
-                let existing_metadata =
-                    crate::mods::write_locks::update_sidecar(&sidecar_path, &source_path, |metadata| {
+                let existing_metadata = crate::mods::write_locks::update_sidecar(
+                    &sidecar_path,
+                    &source_path,
+                    |metadata| {
                         if metadata.adjustments.is_null() {
                             metadata.adjustments = default_adjustments();
                         }
-                        crate::mods::write_locks::apply_changes(&mut metadata.adjustments, &before, &after);
-                    })
-                    .map_err(|e| e.to_string())?;
+                        crate::mods::write_locks::apply_changes(
+                            &mut metadata.adjustments,
+                            &before,
+                            &after,
+                        );
+                    },
+                )
+                .map_err(|e| e.to_string())?;
 
                 if enable_xmp_sync {
                     sync_metadata_to_xmp(
@@ -3103,14 +3129,19 @@ pub async fn apply_auto_adjustments_to_paths(
     paths: Vec<String>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let lens_db = app_handle.state::<AppState>().lens_db.lock().unwrap().clone();
+    let lens_db = Some(app_handle.state::<AppState>().lens_db.get());
     update_sidecars_from_images(
         paths,
         app_handle,
         "auto adjustments",
         true,
         move |image, source_path, adjustments| {
-            fold_auto_edits(adjustments, image, Path::new(source_path), lens_db.as_deref())
+            fold_auto_edits(
+                adjustments,
+                image,
+                Path::new(source_path),
+                lens_db.as_deref(),
+            )
         },
     )
     .await
@@ -3144,12 +3175,19 @@ fn update_metadata_for_paths(
     paths.par_iter().for_each(|path| {
         let (source_path, sidecar_path) = parse_virtual_path(path);
 
-        let Ok(metadata) = crate::mods::write_locks::update_sidecar(&sidecar_path, &source_path, &update) else {
+        let Ok(metadata) =
+            crate::mods::write_locks::update_sidecar(&sidecar_path, &source_path, &update)
+        else {
             return;
         };
 
         if enable_xmp_sync {
-            sync_metadata_to_xmp(&source_path, &sidecar_path, &metadata, create_xmp_if_missing);
+            sync_metadata_to_xmp(
+                &source_path,
+                &sidecar_path,
+                &metadata,
+                create_xmp_if_missing,
+            );
         }
     });
 }
@@ -3967,12 +4005,21 @@ pub(crate) fn rename_files_on_disk(
         for (target, carry) in file_ops::xmp_after_rename(&targets, still_used) {
             if file_ops::is_case_only_rename(xmp, &target) {
                 if let Err(e) = fs::rename(xmp, &target) {
-                    log::warn!("Failed to rename {} to {}: {}", xmp.display(), target.display(), e);
+                    log::warn!(
+                        "Failed to rename {} to {}: {}",
+                        xmp.display(),
+                        target.display(),
+                        e
+                    );
                 }
                 continue;
             }
             if target.exists() {
-                log::warn!("Not carrying {} to {}: a file is there", xmp.display(), target.display());
+                log::warn!(
+                    "Not carrying {} to {}: a file is there",
+                    xmp.display(),
+                    target.display()
+                );
                 continue;
             }
             let carried = match carry {
@@ -3980,7 +4027,12 @@ pub(crate) fn rename_files_on_disk(
                 file_ops::Carry::Move => fs::rename(xmp, &target),
             };
             if let Err(e) = carried {
-                log::warn!("Failed to carry {} to {}: {}", xmp.display(), target.display(), e);
+                log::warn!(
+                    "Failed to carry {} to {}: {}",
+                    xmp.display(),
+                    target.display(),
+                    e
+                );
             }
         }
     }

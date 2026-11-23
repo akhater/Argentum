@@ -4,7 +4,8 @@ use fuzzy_matcher::FuzzyMatcher;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use tauri::{Manager, State};
+use std::sync::Arc;
+use tauri::Manager;
 use walkdir::WalkDir;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -484,22 +485,29 @@ fn lenses_for_maker<'a>(db: &'a LensDatabase, maker: &str) -> Vec<&'a Lens> {
         .collect()
 }
 
-pub fn load_lensfun_db(app_handle: &tauri::AppHandle) -> LensDatabase {
-    let resource_path = app_handle
+pub fn lensfun_db_dir(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
+    app_handle
         .path()
         .resolve("lensfun_db", tauri::path::BaseDirectory::Resource)
-        .expect("failed to resolve lensfun_db directory");
+        .expect("failed to resolve lensfun_db directory")
+}
 
+pub fn empty_database() -> LensDatabase {
+    LensDatabase {
+        mounts: Vec::new(),
+        cameras: Vec::new(),
+        lenses: Vec::new(),
+    }
+}
+
+/// Parses the database in `resource_path`; an empty one when the folder is missing.
+pub fn load_lensfun_dir(resource_path: &std::path::Path) -> LensDatabase {
     if !resource_path.exists() {
         log::error!("Lensfun DB directory not found at: {:?}", resource_path);
-        return LensDatabase {
-            mounts: Vec::new(),
-            cameras: Vec::new(),
-            lenses: Vec::new(),
-        };
+        return empty_database();
     }
 
-    let combined_db = read_lensfun_dir(&resource_path);
+    let combined_db = read_lensfun_dir(resource_path);
 
     log::info!(
         "Loaded {} lenses and {} cameras from Lensfun database.",
@@ -541,44 +549,39 @@ pub fn read_lensfun_dir(dir: &std::path::Path) -> LensDatabase {
     combined_db
 }
 
-#[tauri::command]
-pub fn get_lensfun_makers(state: State<AppState>) -> Result<Vec<String>, String> {
-    let db_guard = state
-        .lens_db
-        .lock()
-        .map_err(|e| format!("Lock poisoned: {}", e))?;
-    if let Some(db) = &*db_guard {
-        let mut makers: Vec<String> = db.lenses.iter().map(|lens| lens.get_maker()).collect();
-        makers.sort_unstable();
-        makers.dedup();
-        Ok(makers)
-    } else {
-        Err("Lens database not loaded".to_string())
-    }
+/// The database, parsed on a blocking worker the first time. The lens commands
+/// below are async so that first parse never runs on the UI thread.
+async fn lens_database(app_handle: &tauri::AppHandle) -> Result<Arc<LensDatabase>, String> {
+    let app_handle = app_handle.clone();
+    tokio::task::spawn_blocking(move || app_handle.state::<AppState>().lens_db.get())
+        .await
+        .map_err(|e| format!("Lens database load failed: {}", e))
 }
 
 #[tauri::command]
-pub fn get_lensfun_lenses_for_maker(
-    maker: String,
-    state: State<AppState>,
-) -> Result<Vec<String>, String> {
-    let db_guard = state
-        .lens_db
-        .lock()
-        .map_err(|e| format!("Lock poisoned: {}", e))?;
-    if let Some(db) = &*db_guard {
-        let maker_lenses = lenses_for_maker(db, &maker);
+pub async fn get_lensfun_makers(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let db = lens_database(&app_handle).await?;
+    let mut makers: Vec<String> = db.lenses.iter().map(|lens| lens.get_maker()).collect();
+    makers.sort_unstable();
+    makers.dedup();
+    Ok(makers)
+}
 
-        let mut models: Vec<String> = maker_lenses
-            .iter()
-            .map(|lens| lens.get_display_name(&maker_lenses))
-            .collect();
-        models.sort_unstable();
-        models.dedup();
-        Ok(models)
-    } else {
-        Err("Lens database not loaded".to_string())
-    }
+#[tauri::command]
+pub async fn get_lensfun_lenses_for_maker(
+    maker: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Vec<String>, String> {
+    let db = lens_database(&app_handle).await?;
+    let maker_lenses = lenses_for_maker(&db, &maker);
+
+    let mut models: Vec<String> = maker_lenses
+        .iter()
+        .map(|lens| lens.get_display_name(&maker_lenses))
+        .collect();
+    models.sort_unstable();
+    models.dedup();
+    Ok(models)
 }
 
 pub fn find_lens_by_camera_mount<'a>(
@@ -654,15 +657,13 @@ pub fn find_best_lens_match(
 ) -> Option<(String, String)> {
     // Argentum: when the strict matcher finds exactly one lens, it decides;
     // otherwise the matcher below answers as it always has (mods/lens_match.rs).
-    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model, shot)
-    {
+    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model, shot) {
         return Some(lens_result(db, lens));
     }
     // Argentum: never a lens that cannot be on the camera (mods/lens_match.rs).
     loose_lens_match(db, maker, model, camera_model).filter(|(lens_maker, display)| {
-        lens_named(db, lens_maker, display).is_none_or(|lens| {
-            crate::mods::lens_match::can_be_on(db, maker, camera_model, lens)
-        })
+        lens_named(db, lens_maker, display)
+            .is_none_or(|lens| crate::mods::lens_match::can_be_on(db, maker, camera_model, lens))
     })
 }
 
@@ -676,7 +677,8 @@ pub fn loose_lens_match(
 ) -> Option<(String, String)> {
     let clean_model = model.trim().trim_matches('"');
 
-    if let Some(hit) = crate::mods::lens_crop::match_for_camera(db, maker, clean_model, camera_model)
+    if let Some(hit) =
+        crate::mods::lens_crop::match_for_camera(db, maker, clean_model, camera_model)
     {
         return Some(hit);
     }
@@ -773,47 +775,35 @@ fn find_lens_by_fuzzy_model(
 }
 
 #[tauri::command]
-pub fn autodetect_lens(
+pub async fn autodetect_lens(
     maker: String,
     model: String,
     camera_model: Option<String>,
     exif: Option<HashMap<String, String>>,
-    state: tauri::State<AppState>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Option<(String, String)>, String> {
-    let db_guard = state
-        .lens_db
-        .lock()
-        .map_err(|e| format!("Lock poisoned: {}", e))?;
-    if let Some(db) = &*db_guard {
-        Ok(find_best_lens_match(
-            db,
-            &maker,
-            &model,
-            camera_model.as_deref().unwrap_or(""),
-            &exif
-                .as_ref()
-                .map(crate::mods::lens_shot::MatchShot::from_exif)
-                .unwrap_or_default(),
-        ))
-    } else {
-        Ok(None)
-    }
+    let db = lens_database(&app_handle).await?;
+    Ok(find_best_lens_match(
+        &db,
+        &maker,
+        &model,
+        camera_model.as_deref().unwrap_or(""),
+        &exif
+            .as_ref()
+            .map(crate::mods::lens_shot::MatchShot::from_exif)
+            .unwrap_or_default(),
+    ))
 }
 
 #[tauri::command]
-pub fn get_lens_distortion_params(
+pub async fn get_lens_distortion_params(
     maker: String,
     model: String,
     exif: HashMap<String, String>,
-    state: State<AppState>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Option<LensDistortionParams>, String> {
-    let db_guard = state
-        .lens_db
-        .lock()
-        .map_err(|e| format!("Lock poisoned: {}", e))?;
-    Ok(db_guard
-        .as_ref()
-        .and_then(|db| resolve_lens_params(db, &maker, &model, &exif)))
+    let db = lens_database(&app_handle).await?;
+    Ok(resolve_lens_params(&db, &maker, &model, &exif))
 }
 
 pub fn resolve_lens_params(

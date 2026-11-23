@@ -186,8 +186,7 @@ fn load_library_manifest(luts_dir: &Path) -> anyhow::Result<LutLibraryManifest> 
             Err(primary_error) if declares_unsupported_manifest_version(&content) => {
                 Err(primary_error)
             }
-            Err(primary_error) => load_latest_manifest_backup(luts_dir)
-                .ok_or(primary_error),
+            Err(primary_error) => load_latest_manifest_backup(luts_dir).ok_or(primary_error),
         },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Ok(load_latest_manifest_backup(luts_dir).unwrap_or_else(default_library_manifest))
@@ -1075,8 +1074,11 @@ mod path_tests {
     fn a_lut_named_with_two_dots_loads_and_a_parent_folder_does_not() {
         let dir = tempfile::tempdir().unwrap();
         let lut = dir.path().join("Teal..Orange.cube");
-        std::fs::write(&lut, "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n")
-            .unwrap();
+        std::fs::write(
+            &lut,
+            "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n",
+        )
+        .unwrap();
         assert_eq!(parse_lut_file(&lut.to_string_lossy()).unwrap().size, 2);
 
         let up = dir.path().join("sub").join("..").join("Teal..Orange.cube");

@@ -7,8 +7,7 @@ use crate::file_management::{parse_virtual_path, read_file_mapped};
 use crate::formats::is_raw_file;
 use crate::image_processing::ImageMetadata;
 use crate::image_processing::{
-    apply_orientation, apply_srgb_to_linear,
-    remove_raw_artifacts_and_enhance,
+    apply_orientation, apply_srgb_to_linear, remove_raw_artifacts_and_enhance,
 };
 use crate::mask_generation::{MaskDefinition, SubMask, generate_mask_bitmap};
 use crate::mods::folder_walk::{System, THIS_SYSTEM};

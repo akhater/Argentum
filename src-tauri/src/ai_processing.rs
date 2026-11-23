@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use crate::mods::ai_session::session_builder; // Argentum: sessions without the CPU memory arena
+use crate::mods::{model_catalog, model_download}; // Argentum: one list, one downloader
 use anyhow::Result;
 use image::imageops::{self, FilterType};
 use image::{DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb32FImage, RgbaImage};
 use ndarray::{Array, Array4, IxDyn};
 use ort::session::Session;
-use crate::mods::ai_session::session_builder; // Argentum: sessions without the CPU memory arena
-use crate::mods::{model_catalog, model_download}; // Argentum: one list, one downloader
 use ort::value::Tensor;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -307,7 +307,6 @@ pub async fn get_or_init_ai_models(
     ensure_model(app_handle, model_catalog::SKY, "Sky Model").await?;
     ensure_model(app_handle, model_catalog::DEPTH, "Depth Model").await?;
 
-
     let encoder_path = models_dir.join(model_catalog::SAM_ENCODER.name);
     let decoder_path = models_dir.join(model_catalog::SAM_DECODER.name);
     let u2netp_path = models_dir.join(model_catalog::U2NET.name);
@@ -479,7 +478,8 @@ pub async fn get_or_init_lama_model(
         return Ok(lama_model);
     }
 
-    let models_dir = ensure_model(app_handle, model_catalog::INPAINTING, "Inpainting Model").await?;
+    let models_dir =
+        ensure_model(app_handle, model_catalog::INPAINTING, "Inpainting Model").await?;
 
     let model_path = models_dir.join(model_catalog::LAMA.name);
     let session = session_builder()?.commit_from_file(model_path)?;

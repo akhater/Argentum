@@ -165,8 +165,8 @@ pub fn lens_parse_breach(measured_ms: f32) -> Option<String> {
 }
 
 /// The lens database parse against its budget, the quickest of five. Run by
-/// hand on the laptop the budgets come from (docs/RELEASING.md). Start-up
-/// reads this database before the window is built.
+/// hand on the laptop the budgets come from (docs/RELEASING.md). The first use
+/// of a lens (mods/lens_db.rs) parses it, after the window is shown.
 #[test]
 #[ignore = "timing against the reference laptop's budgets; run by hand"]
 fn lens_parse_within_budget() {
