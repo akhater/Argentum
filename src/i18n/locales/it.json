@@ -409,17 +409,11 @@
         "backendLabel": "Backend AI:",
         "builtinDesc": "Utilizza la CPU locale di base. Seleziona Cloud o Connettore AI nelle impostazioni per la sostituzione generativa.",
         "builtinLabel": "AI Integrata:",
-        "cloudLabel": "AI Cloud:",
         "connectorConnectedDesc": "Connesso al backend generativo locale.",
         "connectorDisconnectedDesc": "Solo inpainting semplice disponibile. Avvia il tuo backend locale.",
         "connectorLabel": "Connettore AI:",
-        "loginRequiredDesc": "Accedi tramite Impostazioni per utilizzare l'AI Cloud.",
-        "monthlyUsage": "Utilizzo Mensile",
         "notDetected": "Non Rilevato",
-        "notLoggedIn": "Non Connesso",
-        "proRequiredDesc": "Abbonamento Pro richiesto. Esegui l'upgrade nelle Impostazioni.",
-        "ready": "Pronto",
-        "upgradeRequired": "Upgrade Richiesto"
+        "ready": "Pronto"
       },
       "createNewTitle": "Crea Nuova Modifica Generativa",
       "createNewTooltip": "Crea Nuova Modifica {{name}}",
@@ -1779,32 +1773,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Per coloro che desiderano una soluzione più semplice, un abbonamento opzionale fornisce gli stessi risultati di alta qualità del self-hosting senza alcun fastidio. Questa è l'opzione più comoda e il modo migliore per supportare il progetto.",
-          "feature1": "Massima comodità, nessuna configurazione",
-          "feature2": "Stessi risultati del self-hosting",
-          "feature3": "Nessun hardware potente richiesto",
-          "signedIn": {
-            "active": "Abbonamento Cloud Attivo",
-            "inactive": "Nessun Abbonamento Attivo",
-            "logout": "Disconnettiti",
-            "manage": "Gestisci",
-            "usage": "Utilizzo Mensile",
-            "usageStats": "{{requests}} / {{limit}} richieste"
-          },
-          "signedOut": {
-            "noAccount": "Non hai un account?",
-            "signup": "Iscriviti sul sito web",
-            "upgradeBtn": "Esegui l'upgrade sul Sito Web",
-            "upgradeDesc": "Per utilizzare le funzionalità dell'AI Cloud, è necessario un abbonamento Cloud."
-          },
-          "statuses": {
-            "connecting": "Connessione in corso…",
-            "retry": "Riprova connessione",
-            "unsupported": "L'accesso al cloud è attualmente disponibile solo su desktop."
-          },
-          "title": "Servizio Cloud"
-        },
         "connector": {
           "address": "Indirizzo Connettore AI",
           "addressDesc": "Inserisci l'indirizzo e la porta della tua istanza del Connettore AI in esecuzione. Richiesto per le funzionalità di AI generativa.",
@@ -1836,7 +1804,6 @@
         "providers": {
           "aiConnector": "Connettore AI",
           "aiFree": "Senza IA",
-          "cloud": "Cloud",
           "cpu": "CPU"
         },
         "title": "AI Generativa"

@@ -392,17 +392,11 @@
         "backendLabel": "Rerefons d'IA:",
         "builtinDesc": "Ús de CPU local bàsica. Seleccioneu Cloud o AI Connector a Configuració per a la substitució generativa.",
         "builtinLabel": "IA integrada:",
-        "cloudLabel": "IA al núvol:",
         "connectorConnectedDesc": "Connectat al rerefons generatiu local.",
         "connectorDisconnectedDesc": "Només està disponible l'inpainting simple. Inicieu el vostre rerefons local.",
         "connectorLabel": "AI Connector:",
-        "loginRequiredDesc": "Inicieu sessió des de Configuració per utilitzar l'IA al núvol.",
-        "monthlyUsage": "Ús mensual",
         "notDetected": "No detectat",
-        "notLoggedIn": "No heu iniciat sessió",
-        "proRequiredDesc": "Cal una subscripció Pro. Actualitzeu a Configuració.",
-        "ready": "A punt",
-        "upgradeRequired": "Cal actualitzar"
+        "ready": "A punt"
       },
       "createNewTitle": "Crear nova edició generativa",
       "createNewTooltip": "Crear nova edició {{name}}",
@@ -1743,32 +1737,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Per a aquells que desitgin una solució més senzilla, una subscripció opcional ofereix els mateixos resultats d'alta qualitat que l'autoallotjament sense cap molèstia. Aquesta és l'opció més convenient i la millor manera de donar suport al projecte.",
-          "feature1": "Comoditat màxima, sense configuració",
-          "feature2": "Mateixos resultats que l'autoallotjament",
-          "feature3": "No cal maquinari potent",
-          "signedIn": {
-            "active": "Subscripció al núvol Activa",
-            "inactive": "Sense subscripció activa",
-            "logout": "Tancar sessió",
-            "manage": "Gestionar",
-            "usage": "Ús mensual",
-            "usageStats": "{{requests}} / {{limit}} peticions"
-          },
-          "signedOut": {
-            "noAccount": "No teniu compte?",
-            "signup": "Registreu-vos al lloc web",
-            "upgradeBtn": "Actualitzar al lloc web",
-            "upgradeDesc": "Per utilitzar les funcions de la IA al núvol, us cal una subscripció al núvol."
-          },
-          "statuses": {
-            "connecting": "Connectant…",
-            "retry": "Tornar a intentar la connexió",
-            "unsupported": "L'inici de sessió al núvol actualment només està disponible a l'escriptori."
-          },
-          "title": "Servei al núvol"
-        },
         "connector": {
           "address": "Adreça de l'AI Connector",
           "addressDesc": "Introduïu l'adreça i el port de la vostra instància d'AI Connector en execució. Requerit per a les funcions d'IA generativa.",
@@ -1800,7 +1768,6 @@
         "providers": {
           "aiConnector": "AI Connector",
           "aiFree": "Sense IA",
-          "cloud": "Núvol",
           "cpu": "CPU"
         },
         "title": "IA Generativa"

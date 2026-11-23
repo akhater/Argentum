@@ -318,9 +318,6 @@
     "src/hooks/useTauriListeners.ts": {
       "@typescript-eslint/no-explicit-any": 30
     },
-    "src/store/useCloudStore.ts": {
-      "@typescript-eslint/no-explicit-any": 1
-    },
     "src/store/useEditorStore.ts": {
       "@typescript-eslint/no-explicit-any": 1,
       "@typescript-eslint/no-unused-vars": 1

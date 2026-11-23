@@ -408,17 +408,11 @@
         "backendLabel": "Backend de IA:",
         "builtinDesc": "Usando CPU local básica. Selecione Nuvem ou AI Connector nas configurações para substituição generativa.",
         "builtinLabel": "IA Integrada:",
-        "cloudLabel": "IA na Nuvem:",
         "connectorConnectedDesc": "Conectado ao backend generativo local.",
         "connectorDisconnectedDesc": "Apenas preenchimento simples disponível. Inicie seu backend local.",
         "connectorLabel": "AI Connector:",
-        "loginRequiredDesc": "Faça login em Configurações para usar IA na Nuvem.",
-        "monthlyUsage": "Uso Mensal",
         "notDetected": "Não Detectado",
-        "notLoggedIn": "Não Conectado",
-        "proRequiredDesc": "Assinatura Pro necessária. Atualize em Configurações.",
-        "ready": "Pronto",
-        "upgradeRequired": "Atualização Necessária"
+        "ready": "Pronto"
       },
       "createNewTitle": "Criar Nova Edição Generativa",
       "createNewTooltip": "Criar Nova Edição de {{name}}",
@@ -1777,32 +1771,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Para aqueles que desejam uma solução mais simples, uma assinatura opcional oferece os mesmos resultados de alta qualidade da hospedagem própria, sem nenhum trabalho. Esta é a opção mais conveniente e a melhor maneira de apoiar o projeto.",
-          "feature1": "Máxima conveniência, sem configuração",
-          "feature2": "Mesmos resultados da auto-hospedagem",
-          "feature3": "Não é necessário hardware potente",
-          "signedIn": {
-            "active": "Assinatura na Nuvem Ativa",
-            "inactive": "Nenhuma Assinatura Ativa",
-            "logout": "Sair",
-            "manage": "Gerenciar",
-            "usage": "Uso Mensal",
-            "usageStats": "{{requests}} / {{limit}} solicitações"
-          },
-          "signedOut": {
-            "noAccount": "Não tem uma conta?",
-            "signup": "Inscreva-se no site",
-            "upgradeBtn": "Fazer Upgrade no Site",
-            "upgradeDesc": "Para usar recursos de IA na Nuvem, você precisa de uma assinatura na Nuvem."
-          },
-          "statuses": {
-            "connecting": "Conectando…",
-            "retry": "Tentar conexão novamente",
-            "unsupported": "O login na nuvem está atualmente disponível apenas no desktop."
-          },
-          "title": "Serviço na Nuvem"
-        },
         "connector": {
           "address": "Endereço do AI Connector",
           "addressDesc": "Insira o endereço e a porta da sua instância do AI Connector em execução. Necessário para recursos de IA generativa.",
@@ -1834,7 +1802,6 @@
         "providers": {
           "aiConnector": "AI Connector",
           "aiFree": "Sem IA",
-          "cloud": "Nuvem",
           "cpu": "CPU"
         },
         "title": "IA Generativa"

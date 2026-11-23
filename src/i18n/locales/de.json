@@ -391,17 +391,11 @@
         "backendLabel": "KI-Backend:",
         "builtinDesc": "Nutzt lokale CPU. Für generatives Ersetzen wählen Sie Cloud oder AI Connector.",
         "builtinLabel": "Integrierte KI:",
-        "cloudLabel": "Cloud-KI:",
         "connectorConnectedDesc": "Verbunden mit lokalem generativen Backend.",
         "connectorDisconnectedDesc": "Nur einfaches Reparieren verfügbar. Starten Sie Ihr lokales Backend.",
         "connectorLabel": "AI Connector:",
-        "loginRequiredDesc": "In den Einstellungen anmelden, um Cloud-KI zu nutzen.",
-        "monthlyUsage": "Monatliche Nutzung",
         "notDetected": "Nicht erkannt",
-        "notLoggedIn": "Nicht angemeldet",
-        "proRequiredDesc": "Pro-Abo erforderlich. In den Einstellungen upgraden.",
-        "ready": "Bereit",
-        "upgradeRequired": "Upgrade erforderlich"
+        "ready": "Bereit"
       },
       "createNewTitle": "Neue generative Bearbeitung erstellen",
       "createNewTooltip": "Neue {{name}}-Bearbeitung erstellen",
@@ -1739,32 +1733,6 @@
     },
     "processing": {
       "ai": {
-        "cloud": {
-          "description": "Für diejenigen, die eine einfachere Lösung wünschen, bietet ein optionales Abonnement die gleichen hochwertigen Ergebnisse wie das Selbst-Hosting ohne den Aufwand. Dies ist die bequemste Option und der beste Weg, das Projekt zu unterstützen.",
-          "feature1": "Maximaler Komfort, keine Einrichtung",
-          "feature2": "Gleiche Ergebnisse wie beim Selbst-Hosting",
-          "feature3": "Keine leistungsstarke Hardware erforderlich",
-          "signedIn": {
-            "active": "Cloud-Abonnement Aktiv",
-            "inactive": "Kein aktives Abonnement",
-            "logout": "Abmelden",
-            "manage": "Verwalten",
-            "usage": "Monatliche Nutzung",
-            "usageStats": "{{requests}} / {{limit}} Anfragen"
-          },
-          "signedOut": {
-            "noAccount": "Haben Sie kein Konto?",
-            "signup": "Melden Sie sich auf der Website an",
-            "upgradeBtn": "Upgrade auf der Website",
-            "upgradeDesc": "Um Cloud-KI-Funktionen zu nutzen, benötigen Sie ein Cloud-Abonnement."
-          },
-          "statuses": {
-            "connecting": "Verbinden…",
-            "retry": "Verbindung erneut versuchen",
-            "unsupported": "Die Cloud-Anmeldung ist derzeit nur auf dem Desktop verfügbar."
-          },
-          "title": "Cloud-Dienst"
-        },
         "connector": {
           "address": "AI Connector Adresse",
           "addressDesc": "Geben Sie die Adresse und den Port Ihrer laufenden AI Connector Instanz ein. Erforderlich für generative KI-Funktionen.",
@@ -1796,7 +1764,6 @@
         "providers": {
           "aiConnector": "AI Connector",
           "aiFree": "KI-frei",
-          "cloud": "Cloud",
           "cpu": "CPU"
         },
         "title": "Generative KI"
