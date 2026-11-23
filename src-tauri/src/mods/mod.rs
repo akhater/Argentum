@@ -116,6 +116,8 @@ pub mod lut_provider;
 pub mod makernote_lens;
 pub mod mask_falloff;
 pub mod mask_feather;
+#[cfg(test)]
+pub mod mem_probe;
 pub mod memory;
 pub mod mirror;
 pub mod model_catalog;
