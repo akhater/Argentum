@@ -86,7 +86,7 @@ fn a_half_size_preview_is_the_full_develop_made_small() {
             // The develop alone: white balance at the photo's own, which
             // changes nothing, and no sharpening or DNG Standard after it.
             let mut p = Pipeline::standard().unwrap();
-            let defaults = p.registry().defaults_for(&source);
+            let defaults = p.registry().defaults_for(&source).unwrap();
             p.set_edit(&defaults).unwrap();
             p.set::<rt_capture_sharpen::RtCaptureSharpen>(rt_capture_sharpen::Settings {
                 capture: false,

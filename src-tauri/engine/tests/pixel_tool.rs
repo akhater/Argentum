@@ -80,7 +80,7 @@ fn a_frame_has_it_too() {
         let _ = tx.send(e);
     })
     .unwrap();
-    let id = engine.insert(common::source(256, 192)).photo_id;
+    let id = engine.insert(common::source(256, 192)).unwrap().photo_id;
     let frame = |json| {
         let ticket = engine.apply(id, &patch(json)).unwrap().ticket;
         loop {

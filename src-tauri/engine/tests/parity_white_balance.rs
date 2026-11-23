@@ -47,7 +47,7 @@ fn the_as_shot_light_is_the_apps() {
             "{name}"
         );
         // And it is where a photo starts.
-        let edit = argentum_engine::standard().defaults_for(&source);
+        let edit = argentum_engine::standard().defaults_for(&source).unwrap();
         let start = &edit.tools["rr_white_balance"].settings;
         assert_eq!(
             start["temperature_k"].as_f64(),

@@ -495,7 +495,7 @@ pub(crate) struct ToolInfo {
 
 pub(crate) trait AnySettings: Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
-    fn to_json(&self) -> Value;
+    fn to_json(&self) -> std::result::Result<Value, String>;
 }
 
 impl<S: Settings> AnySettings for S {
@@ -505,12 +505,33 @@ impl<S: Settings> AnySettings for S {
 
     /// Through text rather than `to_value`, which widens an f32 to the f64
     /// nearest it: 1.2 would read back as 1.2000000476837158.
-    fn to_json(&self) -> Value {
-        serde_json::to_string(self)
-            .ok()
-            .and_then(|text| serde_json::from_str(&text).ok())
-            .unwrap_or(Value::Null)
+    ///
+    /// Never a silent empty value: settings that do not serialise, or that
+    /// are not a set of fields, are an error. A NaN or an infinity is written
+    /// as `null` by serde_json, which no setting may be (each is a number, a
+    /// boolean or a choice), so a `null` field is refused too: it could not
+    /// be read back, and would hash like any other `null`.
+    fn to_json(&self) -> std::result::Result<Value, String> {
+        let text = serde_json::to_string(self).map_err(|e| e.to_string())?;
+        let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let Value::Object(fields) = &value else {
+            return Err("the settings are not a set of named fields".into());
+        };
+        if let Some(key) = fields.iter().find(|(_, v)| v.is_null()).map(|(k, _)| k) {
+            return Err(format!("{key} is not a finite number"));
+        }
+        Ok(value)
     }
+}
+
+/// `settings` of tool `id` as JSON, or `Error::BadValue` naming the tool and
+/// what could not be written. The one way settings become JSON: the edit
+/// document and the cache key both come through here.
+pub(crate) fn settings_json(id: &str, settings: &dyn AnySettings) -> Result<Value> {
+    settings.to_json().map_err(|message| Error::BadValue {
+        tool: id.to_string(),
+        message,
+    })
 }
 
 pub(crate) trait AnyTool: Send + Sync {
@@ -563,7 +584,9 @@ impl<T: Tool> AnyTool for Registered<T> {
                 <T::Settings as Settings>::VERSION,
                 order,
             )?,
-            &T::Settings::default().to_json(),
+            &T::Settings::default()
+                .to_json()
+                .map_err(|e| format!("{}: its defaults cannot be saved: {e}", T::ID))?,
             <T::Settings as Settings>::FIELDS,
         )
     }
@@ -727,7 +750,12 @@ mod tests {
             Demo::VERSION,
             7,
         );
-        let d = describe(tool.unwrap(), &Demo::default().to_json(), Demo::FIELDS).unwrap();
+        let d = describe(
+            tool.unwrap(),
+            &Demo::default().to_json().unwrap(),
+            Demo::FIELDS,
+        )
+        .unwrap();
         assert_eq!(d.label, "tools.ag_demo.label");
         assert_eq!(d.origin, Origin::Argentum);
         assert_eq!(d.order, 7);
@@ -778,8 +806,8 @@ mod tests {
         let arrays = serde_json::json!({ "gains": [1.0, 1.0] });
         assert!(describe(tool(), &arrays, &[]).is_err());
         let missing = [Field::new("nothing")];
-        assert!(describe(tool(), &Demo::default().to_json(), &missing).is_err());
-        let defaults = Demo::default().to_json();
+        assert!(describe(tool(), &Demo::default().to_json().unwrap(), &missing).is_err());
+        let defaults = Demo::default().to_json().unwrap();
         // Its choices declared, so `mode` is not what each case is refused for.
         let mode = Field::new("mode").choices(&["soft", "hard"]);
         assert!(describe(tool(), &defaults, &[mode]).is_ok());

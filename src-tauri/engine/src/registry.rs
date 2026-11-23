@@ -92,7 +92,7 @@ impl Registry {
             let i = self
                 .position(id)
                 .ok_or_else(|| Error::UnknownTool(id.clone()))?;
-            let mut merged = tool::as_map(settings[i].to_json());
+            let mut merged = tool::as_map(tool::settings_json(id, settings[i].as_ref())?);
             let reset = defaults.tools.get(id).map(|t| &t.settings);
             for (key, value) in changes {
                 if !merged.contains_key(key) {
@@ -113,18 +113,18 @@ impl Registry {
             let value = Value::Object(merged.into_iter().collect());
             settings[i] = self.tools[i].read(self.infos[i].version, value)?;
         }
-        Ok(self.edit_of(&settings))
+        self.edit_of(&settings)
     }
 
     /// Every tool at its defaults, as an edit: what the descriptors say.
-    pub fn default_edit(&self) -> EditDocument {
+    pub fn default_edit(&self) -> Result<EditDocument> {
         let defaults: Vec<_> = self.tools.iter().map(|t| t.defaults()).collect();
         self.edit_of(&defaults)
     }
 
     /// Every tool at the defaults it gives this photo (`Tool::defaults_for`),
     /// as an edit: what a photo opens with.
-    pub fn defaults_for(&self, source: &Source) -> EditDocument {
+    pub fn defaults_for(&self, source: &Source) -> Result<EditDocument> {
         let defaults: Vec<_> = self.tools.iter().map(|t| t.defaults_for(source)).collect();
         self.edit_of(&defaults)
     }
@@ -154,19 +154,20 @@ impl Registry {
             .collect()
     }
 
-    /// Settings in registry order, as an edit saves them.
-    pub(crate) fn edit_of(&self, settings: &[Box<dyn AnySettings>]) -> EditDocument {
+    /// Settings in registry order, as an edit saves them. Settings that
+    /// cannot be written as JSON are an error, never an empty entry.
+    pub(crate) fn edit_of(&self, settings: &[Box<dyn AnySettings>]) -> Result<EditDocument> {
         let mut doc = EditDocument::new();
         for (info, settings) in self.infos.iter().zip(settings) {
             doc.tools.insert(
                 info.id.to_string(),
                 ToolEdit {
                     v: info.version,
-                    settings: tool::as_map(settings.to_json()),
+                    settings: tool::as_map(tool::settings_json(info.id, settings.as_ref())?),
                 },
             );
         }
-        doc
+        Ok(doc)
     }
 
     /// Ids are unique, stages come in order, and every tool's settings can

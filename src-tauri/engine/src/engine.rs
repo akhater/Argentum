@@ -142,15 +142,15 @@ impl Engine {
 
     /// Decode a RAW file. Blocks while it decodes; renders nothing.
     pub fn open(&self, path: impl AsRef<Path>) -> Result<Opened> {
-        Ok(self.insert(Source::open(path)?))
+        self.insert(Source::open(path)?)
     }
 
     /// A photo decoded elsewhere, opened with every tool at the defaults it
     /// gives this photo.
-    pub fn insert(&self, source: Source) -> Opened {
+    pub fn insert(&self, source: Source) -> Result<Opened> {
         let (w_px, h_px) = source.size_px();
         let size_px = (w_px as u32, h_px as u32);
-        let defaults = self.registry.defaults_for(&source);
+        let defaults = self.registry.defaults_for(&source)?;
         let edit = defaults.clone();
         let mut state = self.state();
         let id = PhotoId(state.next_photo);
@@ -165,12 +165,12 @@ impl Engine {
                 view: fitted(size_px, FIRST_VIEW_PX, FIRST_VIEW_PX),
             },
         );
-        Opened {
+        Ok(Opened {
             photo_id: id,
             width: size_px.0,
             height: size_px.1,
             edit,
-        }
+        })
     }
 
     /// Change a photo's edit and render it again. Returns the edit as the
@@ -216,7 +216,7 @@ impl Engine {
     /// A photo decoded elsewhere, opened with `edit`. A tool the edit does
     /// not name starts where it would for this photo (`defaults_for`).
     pub fn insert_with(&self, source: Source, edit: &EditDocument) -> Result<Opened> {
-        let defaults = self.registry.defaults_for(&source);
+        let defaults = self.registry.defaults_for(&source)?;
         let mut whole = edit.clone();
         for (id, tool) in &defaults.tools {
             whole
@@ -227,7 +227,7 @@ impl Engine {
         let edit = self
             .registry
             .merge(&whole, &EditPatch::default(), &defaults)?;
-        let mut opened = self.insert(source);
+        let mut opened = self.insert(source)?;
         self.state().photo_mut(opened.photo_id)?.edit = edit.clone();
         opened.edit = edit;
         Ok(opened)
