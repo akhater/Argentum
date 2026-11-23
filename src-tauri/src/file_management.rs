@@ -30,7 +30,7 @@ use crate::PendingMetadata;
 use crate::app_settings::*;
 use crate::as_shot::as_shot;
 use crate::exif_processing;
-use crate::mods::move_files::MovePlan;
+use crate::mods::move_files::{MovePlan, PhotoMove};
 use crate::formats::{is_raw_file, is_supported_image_file};
 use crate::gpu_processing;
 use crate::image_loader;
@@ -2503,7 +2503,7 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
     let mut in_order: Vec<&PathBuf> = unique_source_images.iter().collect();
     in_order.sort();
 
-    let mut operations_to_perform = Vec::new();
+    let mut photos = Vec::new();
     let mut renames = HashMap::new();
     // Argentum: every destination is claimed once, so no file of this move
     // overwrites another or one already there (mods/file_ops.rs).
@@ -2519,6 +2519,7 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
         }
 
         let all_files_to_move = find_all_associated_files(source_image_path)?;
+        let mut files = Vec::new();
 
         for file_to_move in &all_files_to_move {
             if let Some(file_name) = file_to_move.file_name() {
@@ -2532,11 +2533,15 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
                     // when the other stays behind (mods/file_ops.rs).
                     let keep_source = file_ops::is_xmp(file_to_move)
                         && file_ops::xmp_still_used(file_to_move, &unique_source_images);
-                    operations_to_perform.push((file_to_move.clone(), dest_file_path, keep_source));
+                    files.push((file_to_move.clone(), dest_file_path, keep_source));
                 }
             }
         }
 
+        photos.push(PhotoMove {
+            photo: source_image_path.clone(),
+            files,
+        });
         let image_file_name = source_image_path
             .file_name()
             .ok_or("Could not get file name")?;
@@ -2548,7 +2553,7 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
     }
 
     Ok(MovePlan {
-        operations: operations_to_perform,
+        photos,
         renames,
     })
 }
