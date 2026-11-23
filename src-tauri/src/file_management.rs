@@ -30,6 +30,7 @@ use crate::PendingMetadata;
 use crate::app_settings::*;
 use crate::as_shot::as_shot;
 use crate::exif_processing;
+use crate::mods::move_files::{MovePlan, PhotoMove};
 use crate::formats::{is_raw_file, is_supported_image_file};
 use crate::gpu_processing;
 use crate::image_loader;
@@ -2485,55 +2486,6 @@ pub(crate) fn move_files_on_disk(
     result.map(|()| renames)
 }
 
-/// A move worked out before any file is touched: each file's destination,
-/// and each photo's new path.
-pub(crate) struct MovePlan {
-    /// A file, where it goes, and whether it stays where it is too (an XMP
-    /// another photo still uses).
-    operations: Vec<(PathBuf, PathBuf, bool)>,
-    renames: HashMap<String, String>,
-}
-
-impl MovePlan {
-    /// Moves the files in order, and stops at the first that fails. Returns
-    /// the photos that did move, old path to new, whether or not it stopped.
-    pub(crate) fn carry_out(self) -> (HashMap<String, String>, Result<(), String>) {
-        let mut moved = HashSet::new();
-        let mut result = Ok(());
-        for (source, dest, keep_source) in self.operations {
-            if let Err(e) = move_one_file(&source, &dest, keep_source) {
-                result = Err(e);
-                break;
-            }
-            moved.insert(source);
-        }
-        let mut renames = self.renames;
-        renames.retain(|photo, _| moved.contains(Path::new(photo)));
-        (renames, result)
-    }
-}
-
-fn move_one_file(source: &Path, dest: &Path, keep_source: bool) -> Result<(), String> {
-    if keep_source {
-        fs::copy(source, dest)
-            .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
-        return Ok(());
-    }
-    if fs::rename(source, dest).is_err() {
-        fs::copy(source, dest)
-            .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
-
-        if let Err(e) = fs::remove_file(source) {
-            log::warn!(
-                "Moved file successfully, but failed to delete original {}: {}",
-                source.display(),
-                e
-            );
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Result<MovePlan, String> {
     let dest_path = Path::new(destination_folder);
     if !dest_path.is_dir() {
@@ -2551,7 +2503,7 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
     let mut in_order: Vec<&PathBuf> = unique_source_images.iter().collect();
     in_order.sort();
 
-    let mut operations_to_perform = Vec::new();
+    let mut photos = Vec::new();
     let mut renames = HashMap::new();
     // Argentum: every destination is claimed once, so no file of this move
     // overwrites another or one already there (mods/file_ops.rs).
@@ -2567,6 +2519,7 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
         }
 
         let all_files_to_move = find_all_associated_files(source_image_path)?;
+        let mut files = Vec::new();
 
         for file_to_move in &all_files_to_move {
             if let Some(file_name) = file_to_move.file_name() {
@@ -2580,11 +2533,15 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
                     // when the other stays behind (mods/file_ops.rs).
                     let keep_source = file_ops::is_xmp(file_to_move)
                         && file_ops::xmp_still_used(file_to_move, &unique_source_images);
-                    operations_to_perform.push((file_to_move.clone(), dest_file_path, keep_source));
+                    files.push((file_to_move.clone(), dest_file_path, keep_source));
                 }
             }
         }
 
+        photos.push(PhotoMove {
+            photo: source_image_path.clone(),
+            files,
+        });
         let image_file_name = source_image_path
             .file_name()
             .ok_or("Could not get file name")?;
@@ -2596,7 +2553,7 @@ pub(crate) fn plan_move(source_paths: &[String], destination_folder: &str) -> Re
     }
 
     Ok(MovePlan {
-        operations: operations_to_perform,
+        photos,
         renames,
     })
 }

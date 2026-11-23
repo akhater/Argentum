@@ -128,6 +128,7 @@ pub mod model_catalog;
 pub mod model_download;
 pub mod model_manager;
 pub mod modern_start;
+pub mod move_files;
 pub mod photo_frame;
 pub mod presets_read;
 pub mod preview_encode;
