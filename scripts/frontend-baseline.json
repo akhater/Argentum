@@ -364,8 +364,6 @@
     "docs/MENU.md",
     "docs/RELEASING.md",
     "docs/ROADMAP.md",
-    "packaging/cargo-sources.json",
-    "packaging/node-sources.json",
     "scripts/check-identity.mjs",
     "scripts/rawmakase-cameras.mjs",
     "scripts/rawmakase-grade-curves.mjs",
