@@ -1187,7 +1187,7 @@ pub(crate) mod gpu {
 
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_shader_renders_dng_standard_as_the_reference_does() {
+    fn gpu_the_shader_renders_dng_standard_as_the_reference_does() {
         let ctx = device().expect("no wgpu adapter");
         let image = image_of(&patches());
         for ev in [-0.5, 0.0, 0.5] {
@@ -1216,7 +1216,7 @@ pub(crate) mod gpu {
     /// exactly as if both had been chosen by hand.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn an_unedited_raw_renders_as_dng_standard_with_its_sharpen() {
+    fn gpu_an_unedited_raw_renders_as_dng_standard_with_its_sharpen() {
         let ctx = device().expect("no wgpu adapter");
         let image = image_of(&patches());
         let wb = crate::white_balance::WhiteBalance::reference();
@@ -1253,7 +1253,7 @@ pub(crate) mod gpu {
     /// set, and Base Curve's per-channel curve.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_other_renderings_are_what_they_were() {
+    fn gpu_the_other_renderings_are_what_they_were() {
         let ctx = device().expect("no wgpu adapter");
         let image = image_of(&patches());
         let wb = crate::white_balance::WhiteBalance::reference();

@@ -218,7 +218,7 @@ mod gpu {
     /// 0%, or a film look put on before looks were fed their declared input.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn without_a_look_the_point_views_judge_the_screen() {
+    fn gpu_without_a_look_the_point_views_judge_the_screen() {
         let ctx = device().expect("no wgpu adapter");
         let patches = [
             [0.0, 0.0, 0.0],
@@ -277,7 +277,7 @@ mod gpu {
     /// photo crushes never reaches the screen as black, and the view shows it.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_look_shows_what_the_photo_crushes_before_it() {
+    fn gpu_a_look_shows_what_the_photo_crushes_before_it() {
         let ctx = device().expect("no wgpu adapter");
         let patches = [
             [0.0, 0.0, 0.0],
@@ -315,7 +315,7 @@ mod gpu {
     /// the picture after the Curves.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_curve_that_crushes_black_still_shows() {
+    fn gpu_a_curve_that_crushes_black_still_shows() {
         let ctx = device().expect("no wgpu adapter");
         let patches = [[0.1, 0.1, 0.1], [0.9, 0.9, 0.9]];
         let identity = json!([{ "x": 0, "y": 0 }, { "x": 255, "y": 255 }]);
@@ -353,7 +353,7 @@ mod gpu {
     /// cap is lost, and does.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn highlights_the_film_look_keeps_are_not_lit() {
+    fn gpu_highlights_the_film_look_keeps_are_not_lit() {
         let ctx = device().expect("no wgpu adapter");
         let ev = 0.5;
         let patches = [[0.18, 0.18, 0.18], [0.95, 0.95, 0.95], [1.2, 1.2, 1.2]];

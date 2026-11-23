@@ -1256,14 +1256,15 @@ mod tests {
 ///
 /// So this builds a real device, renders a ramp finer than eight bits can carry,
 /// and checks the values that come back are off the 8-bit lattice. It is
-/// `#[ignore]`d: CI has no adapter, and a test that fails for want of a GPU
-/// teaches nobody anything. Run it on a machine that has one:
+/// `#[ignore]`d, so `cargo test --lib` stays green on a machine with no
+/// adapter; CI runs it on a software GPU (see `mods/gpu_tests.rs`). Run it on
+/// any machine that has one:
 ///
 /// ```bash
-/// cargo test --lib -- --ignored gpu
+/// cargo test --lib -- --ignored ::gpu_
 /// ```
 #[cfg(test)]
-mod gpu_tests {
+mod real_render {
     use super::*;
     use crate::image_processing::get_all_adjustments_from_json;
 
@@ -1325,7 +1326,7 @@ mod gpu_tests {
 
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_real_render_comes_back_at_more_than_eight_bits() {
+    fn gpu_a_real_render_comes_back_at_more_than_eight_bits() {
         let Some(context) = device() else {
             panic!("no wgpu adapter - this test cannot tell you anything on this machine");
         };
@@ -1406,7 +1407,7 @@ mod gpu_tests {
     /// and comes back through the decoder.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn an_odd_size_across_a_tile_boundary_survives_a_tiff_round_trip() {
+    fn gpu_an_odd_size_across_a_tile_boundary_survives_a_tiff_round_trip() {
         let Some(context) = device() else {
             panic!("no wgpu adapter - this test cannot tell you anything on this machine");
         };
@@ -1512,7 +1513,7 @@ mod gpu_tests {
     /// whether the output beat 8 bits.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn precision_is_limited_by_the_upload_and_by_nothing_else() {
+    fn gpu_precision_is_limited_by_the_upload_and_by_nothing_else() {
         let Some(context) = device() else {
             panic!("no wgpu adapter - this test cannot tell you anything here");
         };
@@ -1580,7 +1581,7 @@ mod gpu_tests {
     /// the estimate runs on every adjustment change while the export panel is
     /// open.
     #[test]
-    #[ignore = "needs a GPU; run with --ignored"]
+    #[ignore = "measurement: prints a time, asserts nothing; needs a GPU, run by hand"]
     fn report_what_building_an_export_processor_costs() {
         let Some(context) = device() else {
             panic!("no wgpu adapter");
@@ -1609,7 +1610,7 @@ mod gpu_tests {
     /// the bit, for two images of different sizes in a row.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_kept_renderer_renders_what_a_fresh_one_does() {
+    fn gpu_a_kept_renderer_renders_what_a_fresh_one_does() {
         let Some(context) = device() else {
             panic!("no wgpu adapter - this test cannot tell you anything on this machine");
         };
@@ -1637,7 +1638,7 @@ mod gpu_tests {
     /// control above is measuring the ramp rather than the pipeline.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn the_preview_pipeline_is_still_eight_bit() {
+    fn gpu_the_preview_pipeline_is_still_eight_bit() {
         let Some(context) = device() else {
             panic!("no wgpu adapter - this test cannot tell you anything on this machine");
         };

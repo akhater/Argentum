@@ -684,7 +684,7 @@ mod tests {
     /// Through the real shader: `cargo test --lib provider_look -- --ignored`.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
-    fn a_marked_edit_renders_as_one_naming_the_same_file() {
+    fn gpu_a_marked_edit_renders_as_one_naming_the_same_file() {
         const PATCHES: [[f32; 3]; 4] = [
             [0.18, 0.18, 0.18],
             [0.9, 0.9, 0.9],
