@@ -121,6 +121,11 @@ mod stamp {
 
     /// Whether `file`'s whole content hashes to `sha256`. `hash` reads the file
     /// and is only called when the record does not vouch for it.
+    ///
+    /// Size and time are taken BEFORE the hash and again after it; the record
+    /// is written, and the file accepted, only if the two readings agree. A
+    /// file written while it was being read would otherwise be vouched for by
+    /// a record made from content that was never hashed.
     pub fn verified(
         file: &Path,
         sha256: &str,
@@ -134,20 +139,38 @@ mod stamp {
             return true;
         }
         if hash(file).is_ok_and(|found| found == sha256) {
-            remember(file, sha256);
-            return true;
+            if describe(file) == Some((size, nanos)) {
+                write_record(file, sha256, size, nanos);
+                return true;
+            }
+            let _ = fs::remove_file(record);
+            return false;
         }
         let _ = fs::remove_file(record);
         false
     }
 
-    /// Writes the record for `file`, whose content the caller has just verified
-    /// (read in full, or taken from a checked download). Best effort: without
-    /// it the next start hashes again.
+    /// Size and modification time of `file` now, to hand to `remember_as`.
+    pub fn snapshot(file: &Path) -> Option<(u64, u128)> {
+        describe(file)
+    }
+
+    /// Writes the record for `file` as it was when `stamp` was taken, for a
+    /// file whose content the caller has just verified (taken from a checked
+    /// download). Best effort: without it the next start hashes again.
+    pub fn remember_as(file: &Path, sha256: &str, stamp: Option<(u64, u128)>) {
+        if let Some((size, nanos)) = stamp {
+            write_record(file, sha256, size, nanos);
+        }
+    }
+
+    /// `remember_as` for a file read in full just now.
+    #[cfg(test)]
     pub fn remember(file: &Path, sha256: &str) {
-        let Some((size, nanos)) = describe(file) else {
-            return;
-        };
+        remember_as(file, sha256, describe(file));
+    }
+
+    fn write_record(file: &Path, sha256: &str, size: u64, nanos: u128) {
         let record = record_path(file);
         let temporary = record.with_extension("tmp");
         if fs::write(&temporary, line(sha256, size, nanos)).is_ok()
@@ -364,9 +387,11 @@ mod windows_runtime {
                 file.write_all(&dll)?;
                 file.sync_all()?;
             }
+            // Taken from the file we wrote and hashed, before it takes its name:
+            // a rename keeps both.
+            let written = super::stamp::snapshot(&temporary);
             fs::rename(&temporary, path)?;
-            // Its whole content was hashed above.
-            super::stamp::remember(path, build.sha256);
+            super::stamp::remember_as(path, build.sha256, written);
             Ok(())
         }
         .await;
@@ -642,6 +667,30 @@ mod stamp_tests {
         let again = Cell::new(0);
         assert!(!verified(&path, GOOD, judge(&again)));
         assert_eq!(again.get(), 1);
+    }
+
+    #[test]
+    fn a_file_written_while_it_is_hashed_is_not_accepted_or_remembered() {
+        let (_dir, path) = file_with(b"right");
+        let reads = Cell::new(0);
+        let changed = |p: &Path| {
+            reads.set(reads.get() + 1);
+            // Right content when read, then replaced before the hash returns.
+            let content = fs::read(p)?;
+            fs::write(p, b"wrong")?;
+            touch(p, 60);
+            Ok(if content == b"right" {
+                GOOD.into()
+            } else {
+                "other".into()
+            })
+        };
+        assert!(!verified(&path, GOOD, changed));
+        assert!(!path.with_extension("dll.verified").exists());
+        // Nothing vouches for it on the next start either.
+        let next = Cell::new(0);
+        assert!(!verified(&path, GOOD, judge(&next)));
+        assert_eq!(next.get(), 1);
     }
 
     #[test]
