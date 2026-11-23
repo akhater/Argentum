@@ -1,0 +1,1 @@
+- The export dialog no longer lets a typed size past 400 megapixels (an extra zero) reach the export, which used to run out of memory and crash: the size field is flagged and Export is disabled, and the export itself refuses such a size with a clear message naming it and the limit.

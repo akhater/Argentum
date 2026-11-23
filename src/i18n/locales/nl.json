@@ -887,6 +887,7 @@
         "shortEdge": "Kortste zijde",
         "width": "Breedte"
       },
+      "overLimit": "Dit formaat overschrijdt de limiet van {{limit}} megapixels. Voer een kleinere waarde in.",
       "pixels": "pixels",
       "resizeToFit": "Aanpassen aan kader"
     },

@@ -918,6 +918,7 @@
         "shortEdge": "Lato Corto",
         "width": "Larghezza"
       },
+      "overLimit": "Questa dimensione supera il limite di {{limit}} megapixel. Inserisci un valore più piccolo.",
       "pixels": "pixel",
       "resizeToFit": "Ridimensiona per Adattare"
     },

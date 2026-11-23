@@ -916,6 +916,7 @@
         "shortEdge": "Borda Curta",
         "width": "Largura"
       },
+      "overLimit": "Esse tamanho excede o limite de {{limit}} megapixels. Insira um valor menor.",
       "pixels": "pixels",
       "resizeToFit": "Redimensionar para Caber"
     },

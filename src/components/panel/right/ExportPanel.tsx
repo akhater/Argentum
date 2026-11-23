@@ -34,6 +34,8 @@ import { useLooks } from '../../../argentum/looks/looksStore';
 import { useAgTranslation } from '../../../argentum/locales';
 import { cropFrame } from '../../../argentum/linearEdges';
 import { fileNameOf } from '../../../argentum/paths';
+import { ag } from '../../../argentum/ag';
+import { checkResize, resizedSizePx } from '../../../argentum/exportResize';
 
 interface ExportPanelProps {
   exportState: ExportState;
@@ -81,35 +83,6 @@ const METADATA_FORMATS: ReadonlyArray<string> = [
 function parseDpi(value: string): number | null {
   const parsed = Number(value.trim());
   return Number.isInteger(parsed) && parsed > 0 && parsed <= MAX_EXPORT_DPI ? parsed : null;
-}
-
-/**
- * The exported photo's size after Resize, for the print size beside DPI.
- * Mirrors `calculate_resize_target` in src-tauri/src/export_processing.rs.
- */
-function resizedSizePx(
-  widthPx: number,
-  heightPx: number,
-  mode: string,
-  valuePx: number,
-  dontEnlarge: boolean,
-): { widthPx: number; heightPx: number } {
-  if (dontEnlarge) {
-    const edgePx =
-      mode === 'longEdge'
-        ? Math.max(widthPx, heightPx)
-        : mode === 'shortEdge'
-          ? Math.min(widthPx, heightPx)
-          : mode === 'width'
-            ? widthPx
-            : heightPx;
-    if (edgePx <= valuePx) return { widthPx, heightPx };
-  }
-  const fixWidth =
-    mode === 'longEdge' ? widthPx >= heightPx : mode === 'shortEdge' ? widthPx <= heightPx : mode === 'width';
-  return fixWidth
-    ? { widthPx: valuePx, heightPx: Math.round(valuePx * (heightPx / widthPx)) }
-    : { widthPx: Math.round(valuePx * (widthPx / heightPx)), heightPx: valuePx };
 }
 
 const CM_PER_INCH = 2.54;
@@ -544,11 +517,34 @@ export default function ExportPanel({
 
   const numImages = pathsToExport.length;
 
+  // The most pixels an export writes, asked of Rust so the field and the export agree.
+  const [exportPixelLimit, setExportPixelLimit] = useState<number | null>(null);
+  useEffect(() => {
+    ag('export_pixel_limit')
+      .then(setExportPixelLimit)
+      .catch(() => {});
+  }, []);
+
   // The open photo's cropped size, which cropFrame reads from the editor store;
   // these subscriptions re-read it when the crop or a quarter turn changes.
   const editorCrop = useEditorStore((state) => state.adjustments.crop);
   const editorOrientationSteps = useEditorStore((state) => state.adjustments.orientationSteps);
   const exportFrame = useMemo(() => cropFrame(), [selectedImage, editorCrop, editorOrientationSteps]);
+
+  const resizeSource =
+    !isLibraryContext && numImages === 1 && exportFrame && pathsToExport[0] === selectedImage?.path
+      ? { widthPx: Math.round(exportFrame.width), heightPx: Math.round(exportFrame.height) }
+      : null;
+  // With border or pad the canvas is worked out in Rust, which refuses an oversized one.
+  const resizeCheck = enableResize
+    ? checkResize(
+        enableBorder || enablePad ? null : resizeSource,
+        resizeMode,
+        resizeValue,
+        dontEnlarge,
+        exportPixelLimit,
+      )
+    : 'ok';
 
   // Shown only when the size is known: one photo, the one open in the editor.
   // Border and pad change the canvas in ways only Rust works out, so the print
@@ -861,7 +857,7 @@ export default function ExportPanel({
     }
   };
 
-  const canExport = numImages > 0 && isPadValid && isBorderValid;
+  const canExport = numImages > 0 && isPadValid && isBorderValid && resizeCheck === 'ok';
   const isLut = fileFormat === FileFormats.Cube;
   const itemLabel = isLut ? t('export.labels.lut') : t('export.labels.image');
   const itemLabelPlural = isLut ? t('export.labels.lut_plural') : t('export.labels.image_plural');
@@ -1107,6 +1103,11 @@ export default function ExportPanel({
                         />
                         <Text variant={TextVariants.label}>{t('export.resize.pixels')}</Text>
                       </div>
+                      {resizeCheck === 'overLimit' && exportPixelLimit !== null && (
+                        <Text variant={TextVariants.label} className="text-red-500">
+                          {t('export.resize.overLimit', { limit: exportPixelLimit / 1_000_000 })}
+                        </Text>
+                      )}
                       <Switch
                         checked={dontEnlarge}
                         disabled={isExporting}

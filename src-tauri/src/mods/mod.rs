@@ -65,6 +65,7 @@ pub mod esam3;
 pub mod events;
 pub mod export_at_size;
 pub mod export_batch;
+pub mod export_limits;
 pub mod export_metadata;
 pub mod export_precision;
 pub mod face_mask;

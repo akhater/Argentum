@@ -971,6 +971,7 @@ export interface AgCommands {
   download_selection_models: { args: Record<string, never>; answer: null };
   download_text_mask_models: { args: Record<string, never>; answer: null };
   editor_layout_panels: { args: Record<string, never>; answer: LayoutPanels | null };
+  export_pixel_limit: { args: Record<string, never>; answer: number };
   face_mask: { args: FaceMaskArgs; answer: Selection };
   face_mask_models_status: { args: Record<string, never>; answer: ModelsStatus };
   find_selections_again: { args: AgainArgs; answer: Array<Found> };

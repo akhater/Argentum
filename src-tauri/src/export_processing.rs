@@ -310,6 +310,13 @@ fn resize_target(width: u32, height: u32, resize_opts: Option<&ResizeOptions>) -
     }
 }
 
+/// Refuses, before anything is allocated, an export that would write an empty
+/// photo or one over the limit in `mods/export_limits.rs`.
+fn check_export_size(src_w: u32, src_h: u32, settings: &ExportSettings) -> Result<(), String> {
+    let (width, height) = compute_export_output_size(src_w, src_h, settings);
+    crate::mods::export_limits::check_export_size(width, height).map_err(String::from)
+}
+
 fn bordered_size(width: u32, height: u32, border_x: u32, border_y: u32) -> (u32, u32) {
     (
         width.saturating_add(border_x.saturating_mul(2)),
@@ -927,6 +934,7 @@ fn process_image_for_export_pipeline(
         apply_all_transformations(Cow::Borrowed(base_image), js_adjustments);
     // The size the photo is written at, as the full-size export's resize makes it.
     let (full_w, full_h) = transformed_image.dimensions();
+    check_export_size(full_w, full_h, export_settings)?;
     let written = export_at_size::fit_within(
         (full_w, full_h),
         export_photo_size(full_w, full_h, export_settings),
@@ -2646,5 +2654,71 @@ mod export_write_tests {
                 control.metadata().unwrap().permissions().mode() & 0o777,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod export_size_limit_tests {
+    use super::*;
+
+    fn settings(mode: &str, value: u32, dont_enlarge: bool) -> ExportSettings {
+        serde_json::from_value(serde_json::json!({
+            "jpegQuality": 90,
+            "resize": { "mode": mode, "value": value, "dontEnlarge": dont_enlarge },
+            "keepMetadata": false,
+            "stripGps": false,
+            "filenameTemplate": null,
+            "watermark": null,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_normal_resize_passes_in_every_mode() {
+        for mode in ["longEdge", "shortEdge", "width", "height"] {
+            assert!(check_export_size(6000, 4000, &settings(mode, 2048, false)).is_ok());
+            assert!(check_export_size(6000, 4000, &settings(mode, 8000, false)).is_ok());
+        }
+    }
+
+    #[test]
+    fn a_zero_target_is_refused_in_every_mode() {
+        for mode in ["longEdge", "shortEdge", "width", "height"] {
+            for dont_enlarge in [false, true] {
+                let result = check_export_size(6000, 4000, &settings(mode, 0, dont_enlarge));
+                // "Don't enlarge" with a zero target still resizes down to zero.
+                assert!(result.is_err(), "{mode} {dont_enlarge}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_square_target_is_refused_just_over_the_limit_and_accepted_just_under() {
+        // A 1:1 photo: the long edge is the side, so the limit is 20000 x 20000.
+        assert!(check_export_size(1000, 1000, &settings("longEdge", 20_000, false)).is_ok());
+        let error =
+            check_export_size(1000, 1000, &settings("longEdge", 20_001, false)).unwrap_err();
+        assert!(error.contains("20001x20001"), "{error}");
+        assert!(error.contains("400 megapixels"), "{error}");
+    }
+
+    #[test]
+    fn a_runaway_value_is_refused_in_every_mode() {
+        for mode in ["longEdge", "shortEdge", "width", "height"] {
+            assert!(check_export_size(6000, 4000, &settings(mode, 1_000_000, false)).is_err());
+            assert!(check_export_size(6000, 4000, &settings(mode, u32::MAX, false)).is_err());
+        }
+    }
+
+    #[test]
+    fn dont_enlarge_keeps_a_big_target_harmless() {
+        assert!(check_export_size(6000, 4000, &settings("longEdge", 1_000_000, true)).is_ok());
+    }
+
+    #[test]
+    fn no_resize_leaves_the_photo_as_it_is() {
+        let mut none = settings("longEdge", 1, false);
+        none.resize = None;
+        assert!(check_export_size(6000, 4000, &none).is_ok());
     }
 }

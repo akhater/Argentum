@@ -855,6 +855,10 @@ commands! {
             crate::mods::export_precision::TiffDepth::from_u8(a.depth),
         )?;
     }
+    "export_pixel_limit" => () -> u32 {
+        // 400 million: well inside u32, so the interface gets a plain number.
+        crate::mods::export_limits::MAX_EXPORT_PIXELS as u32
+    }
     "compact_slider_gap" => () -> u8 {
         crate::mods::editor_layout::compact_slider_gap(crate::mods::profiles::library_ready()?)
     }
