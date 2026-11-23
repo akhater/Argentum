@@ -666,6 +666,15 @@ pub fn is_tethering_supported() -> bool {
     cfg!(feature = "tethering")
 }
 
+/// A stored "cloud" provider goes back to the built-in one. Returns whether it changed.
+fn retire_cloud_provider(settings: &mut AppSettings) -> bool {
+    if settings.ai_provider.as_deref() == Some("cloud") {
+        settings.ai_provider = Some("cpu".to_string());
+        return true;
+    }
+    false
+}
+
 #[tauri::command]
 pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
     let path = get_settings_path(&app_handle)?;
@@ -691,8 +700,7 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
     // Argentum: there is no Cloud provider (src/argentum/noCloud.ts). Its tile
     // showed in Settings by mistake, so a "cloud" saved then goes back to the
     // built-in AI rather than routing edits to a service that never answers.
-    if settings.ai_provider.as_deref() == Some("cloud") {
-        settings.ai_provider = Some("cpu".to_string());
+    if retire_cloud_provider(&mut settings) {
         settings_modified = true;
     }
 
@@ -758,4 +766,31 @@ pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(),
         .unwrap()
         .set_capacity(cache_size);
     Ok(())
+}
+
+#[cfg(test)]
+mod cloud_provider_tests {
+    use super::*;
+
+    #[test]
+    fn stored_cloud_provider_resolves_to_the_built_in_one() {
+        let mut s = AppSettings {
+            ai_provider: Some("cloud".to_string()),
+            ..Default::default()
+        };
+        assert!(retire_cloud_provider(&mut s));
+        assert_eq!(s.ai_provider.as_deref(), Some("cpu"));
+    }
+
+    #[test]
+    fn other_providers_are_left_alone() {
+        for p in ["cpu", "ai-connector"] {
+            let mut s = AppSettings {
+                ai_provider: Some(p.to_string()),
+                ..Default::default()
+            };
+            assert!(!retire_cloud_provider(&mut s));
+            assert_eq!(s.ai_provider.as_deref(), Some(p));
+        }
+    }
 }
