@@ -19,6 +19,8 @@ const SETTINGS = {
   pinnedFolders: [],
   lastRootPath: null,
   lastFolderState: null,
+  // What load_settings returns on a fresh install (WorkspaceState::default, app_settings.rs).
+  workspace: { leftPanelWidth: 268, rightPanelWidth: 330 },
   thumbnailSize: 'medium',
   thumbnailAspectRatio: 'contain',
   libraryViewMode: 'flat',

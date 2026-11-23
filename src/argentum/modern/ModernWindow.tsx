@@ -36,7 +36,7 @@ import {
 import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
-import { DEFAULT_BOTTOM_PANEL_HEIGHT, DEFAULT_PANEL_WIDTH, useUIStore } from '../../store/useUIStore';
+import { DEFAULT_BOTTOM_PANEL_HEIGHT, useUIStore } from '../../store/useUIStore';
 import { useEditorLayout } from '../layout/editorLayout';
 import type { TransformHandle } from '../layout/Navigator';
 import FilmstripArea from './FilmstripArea';
@@ -50,14 +50,12 @@ import TopBar from './TopBar';
 type Resize = (stateKey: string, startSize: number) => (e: ReactPointerEvent<HTMLDivElement>) => void;
 
 /**
- * The columns' widths: the window's own (left 268, right 330) while the shared
- * width is still the app's untouched default, else the one dragged to, within
- * the window's limits.
+ * The columns' widths: the stored width, held within the window's limits. The
+ * starting widths (268 and 330) are the stored defaults themselves (useUIStore).
  */
-const LEFT = { start: 268, min: 224, max: 400 };
-const RIGHT = { start: 330, min: 300, max: 480 };
-const widthOf = (stored: number, c: typeof LEFT) =>
-  stored === DEFAULT_PANEL_WIDTH ? c.start : Math.min(c.max, Math.max(c.min, stored));
+const LEFT = { min: 224, max: 400 };
+const RIGHT = { min: 300, max: 480 };
+const widthOf = (stored: number, c: typeof LEFT) => Math.min(c.max, Math.max(c.min, stored));
 
 /** The grid's props, with the view tools the top bar sets. */
 type LibraryProps = ComponentProps<typeof LibraryView> & {

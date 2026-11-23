@@ -391,11 +391,18 @@ pub struct WorkspaceState {
     pub right_panel_width: u32,
 }
 
+/// Starting width of the left column (the Modern window's design): `DEFAULT_LEFT_PANEL_WIDTH` in
+/// src/store/useUIStore.ts, kept equal by a test below (the generated contract carries types,
+/// not constants).
+pub const DEFAULT_LEFT_PANEL_WIDTH_PX: u32 = 268;
+/// Starting width of the right panel, the same way as `DEFAULT_LEFT_PANEL_WIDTH_PX`.
+pub const DEFAULT_RIGHT_PANEL_WIDTH_PX: u32 = 330;
+
 impl Default for WorkspaceState {
     fn default() -> Self {
         Self {
-            left_panel_width: 320,
-            right_panel_width: 320,
+            left_panel_width: DEFAULT_LEFT_PANEL_WIDTH_PX,
+            right_panel_width: DEFAULT_RIGHT_PANEL_WIDTH_PX,
         }
     }
 }
@@ -792,5 +799,35 @@ mod cloud_provider_tests {
             assert!(!retire_cloud_provider(&mut s));
             assert_eq!(s.ai_provider.as_deref(), Some(p));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The number after `export const <name> =` in src/store/useUIStore.ts.
+    fn interface_constant(name: &str) -> u32 {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/store/useUIStore.ts");
+        let source = std::fs::read_to_string(path).unwrap();
+        let prefix = format!("export const {name} =");
+        let line = source.lines().find(|l| l.starts_with(&prefix)).unwrap();
+        line.split('=')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .trim_end_matches(';')
+            .trim()
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn default_panel_widths_equal_the_ones_in_the_interface() {
+        let workspace = WorkspaceState::default();
+        assert_eq!(interface_constant("DEFAULT_LEFT_PANEL_WIDTH_PX"), workspace.left_panel_width);
+        assert_eq!(interface_constant("DEFAULT_RIGHT_PANEL_WIDTH_PX"), workspace.right_panel_width);
+        assert_eq!(workspace.left_panel_width, DEFAULT_LEFT_PANEL_WIDTH_PX);
+        assert_eq!(workspace.right_panel_width, DEFAULT_RIGHT_PANEL_WIDTH_PX);
     }
 }

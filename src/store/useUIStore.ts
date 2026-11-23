@@ -78,14 +78,26 @@ interface CullingModalState {
   pathsToCull: Array<string>;
 }
 
-export const DEFAULT_PANEL_WIDTH = 350;
+// The same numbers as DEFAULT_LEFT_PANEL_WIDTH_PX and DEFAULT_RIGHT_PANEL_WIDTH_PX in
+// src-tauri/src/app_settings.rs (a test there keeps them equal).
+export const DEFAULT_LEFT_PANEL_WIDTH_PX = 268;
+export const DEFAULT_RIGHT_PANEL_WIDTH_PX = 330;
 export const DEFAULT_BOTTOM_PANEL_HEIGHT = 144;
+/** Widths earlier versions saved as their default; a saved one of these starts at the column's default. Add a value here if another is found. */
+export const LEGACY_PANEL_WIDTHS_PX: readonly number[] = [350];
+/** A hidden column reopens at its default when narrower than this (the rule before per-column defaults). */
+const REVEAL_BELOW_PX = 350;
+
+function keptWidth(saved: number | undefined, defaultPx: number): number {
+  if (!saved || LEGACY_PANEL_WIDTHS_PX.includes(saved)) return defaultPx;
+  return saved;
+}
 
 /** The column widths in a saved workspace; what the Classic layout also saved is left behind here. */
 export function readWorkspace(saved: Partial<WorkspaceState> | undefined): WorkspaceState {
   return {
-    leftPanelWidth: saved?.leftPanelWidth || DEFAULT_PANEL_WIDTH,
-    rightPanelWidth: saved?.rightPanelWidth || DEFAULT_PANEL_WIDTH,
+    leftPanelWidth: keptWidth(saved?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH_PX),
+    rightPanelWidth: keptWidth(saved?.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH_PX),
   };
 }
 
@@ -148,8 +160,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true },
   isSettingsOpen: false,
 
-  leftPanelWidth: DEFAULT_PANEL_WIDTH,
-  rightPanelWidth: DEFAULT_PANEL_WIDTH,
+  leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH_PX,
+  rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH_PX,
   bottomPanelHeight: DEFAULT_BOTTOM_PANEL_HEIGHT,
   isTetheringSupported: false,
 
@@ -219,7 +231,9 @@ export const useUIStore = create<UIState>((set, get) => ({
       const updates: Partial<UIState> = column === 'right' ? { activePanel: panel } : {};
       if (!state.uiVisibility[shown]) {
         updates.uiVisibility = { ...state.uiVisibility, [shown]: true };
-        if (state[width] < DEFAULT_PANEL_WIDTH) updates[width] = DEFAULT_PANEL_WIDTH;
+        if (state[width] < REVEAL_BELOW_PX) {
+          updates[width] = column === 'left' ? DEFAULT_LEFT_PANEL_WIDTH_PX : DEFAULT_RIGHT_PANEL_WIDTH_PX;
+        }
       }
       return updates;
     }),
