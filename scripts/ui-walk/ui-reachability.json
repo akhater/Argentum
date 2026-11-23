@@ -1,7 +1,7 @@
 {
   "startupMs": {
-    "libraryMs": 1386,
-    "editorMs": 1603
+    "libraryMs": 915,
+    "editorMs": 1355
   },
   "reachable": [
     "Editor > Filmstrip > 0 [button]",
@@ -302,7 +302,7 @@
     "Editor > Right panel > Export > Select a preset... [button]",
     "Editor > Right panel > Export > TIFF [button]",
     "Editor > Right panel > Export > WebP [button]",
-    "Editor > Right panel > Export > calls estimate_export_sizes",
+    "Editor > Right panel > Export > calls ag:export_pixel_limit, estimate_export_sizes",
     "Editor > Right panel > Export [tab]",
     "Editor > Right panel > Histogram [button]",
     "Editor > Right panel > Info > 2026:01:02 10:00:00 Copy [button]",
@@ -485,6 +485,7 @@
     "Library > Right panel > Crop [tab]",
     "Library > Right panel > Edit [tab]",
     "Library > Right panel > Export > Export Image [button]",
+    "Library > Right panel > Export > calls ag:export_pixel_limit",
     "Library > Right panel > Export [tab]",
     "Library > Right panel > Histogram [button]",
     "Library > Right panel > Info [button]",
@@ -845,7 +846,7 @@
     "Shortcuts > Editor > Ctrl+Z (undo) > no visible change",
     "Shortcuts > Editor > D (toggle_adjustments) > no visible change",
     "Shortcuts > Editor > Delete (delete_selected) > layer none -> dialog Confirm Delete",
-    "Shortcuts > Editor > E (toggle_export) > calls estimate_export_sizes",
+    "Shortcuts > Editor > E (toggle_export) > calls ag:export_pixel_limit, estimate_export_sizes",
     "Shortcuts > Editor > E (toggle_export) > tab Edit -> Export",
     "Shortcuts > Editor > Enter (open_image) > no visible change",
     "Shortcuts > Editor > F (toggle_fullscreen) > calls update_wgpu_transform",
@@ -945,7 +946,7 @@
     "Shortcuts > Library > Ctrl+Z (undo) > no visible change",
     "Shortcuts > Library > D (toggle_adjustments) > no visible change",
     "Shortcuts > Library > Delete (delete_selected) > layer none -> dialog Confirm Delete",
-    "Shortcuts > Library > E (toggle_export) > calls estimate_export_sizes",
+    "Shortcuts > Library > E (toggle_export) > calls ag:export_pixel_limit, estimate_export_sizes",
     "Shortcuts > Library > E (toggle_export) > tab Edit -> Export",
     "Shortcuts > Library > Enter (open_image) > calls ag:camera_profile_status, ag:dng_standard_held_back, ag:highlight_recovery, ag:raw_decoder, apply_adjustments, update_wgpu_transform",
     "Shortcuts > Library > Enter (open_image) > view library -> editor; photo Demo -> Demo-01.dng; badges lucide-ban lucide-flag lucide-layers lucide-sliders-horizontal lucide-star 1 colour -> none; zoom none -> Fit",
