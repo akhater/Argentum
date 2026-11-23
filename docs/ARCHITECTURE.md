@@ -33,9 +33,9 @@ merge gave about ninety compile errors, and taking it would have meant porting
 some five thousand lines with their pixel changes mixed into the speed work.
 Argentum stopped merging RapidRAW for good:
 
-| Where | Rule |
-|---|---|
-| `src-tauri/engine/` | New tools: one file in `tools/`, one line in `registry.rs` (see its README) |
+| Where                                                                                                             | Rule                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `src-tauri/engine/`                                                                                               | New tools: one file in `tools/`, one line in `registry.rs` (see its README)                                 |
 | Everything else: the files inherited at 1.6.6, `src-tauri/src/mods/`, the shaders, `src/argentum/`, the interface | Ours to change. New code still goes in a module of ours with one job, rather than growing an inherited file |
 
 Inherited code is replaced only when it is dead or measurably worse, and what
@@ -210,18 +210,18 @@ box.
 **Only for things outside those classes,** a naming and a locating model would
 join it, Grounded-SAM's own arrangement:
 
-| Step | Model | What it answers |
-|---|---|---|
-| Name | RAM++ | *what* is in this picture — a list of tags, no positions |
-| Locate | Grounding DINO (or YOLO-World) | *where* the thing called "dog" is — a box |
-| Cut | SAM 2.1 | the mask inside that box — **already shipped** |
+| Step   | Model                          | What it answers                                          |
+| ------ | ------------------------------ | -------------------------------------------------------- |
+| Name   | RAM++                          | _what_ is in this picture — a list of tags, no positions |
+| Locate | Grounding DINO (or YOLO-World) | _where_ the thing called "dog" is — a box                |
+| Cut    | SAM 2.1                        | the mask inside that box — **already shipped**           |
 
 RAM++ classifies and does not localise. That is the whole reason the middle row
 exists, and it is the thing most likely to be misremembered later as "RAM++ gives
 you objects". It does not.
 
 **Where the picker goes.** In the Masks tab, which is ours to change. It
-*creates* the mask rather than living inside the mask list, so the list keeps one
+_creates_ the mask rather than living inside the mask list, so the list keeps one
 job.
 
 **Open, and not to be guessed at.** Model licences and sizes (two more downloads
@@ -263,24 +263,24 @@ Three lessons from the merging years still hold:
 
 ## Where code comes from
 
-Nothing in this design is darktable-specific. `modules.wgsl` holds *harvested*
+Nothing in this design is darktable-specific. `modules.wgsl` holds _harvested_
 math — the source doesn't matter, only that it's a formula we can express as a
 shader function.
 
 Name functions by where they came from, so it stays obvious a year later:
 
-| Prefix | Source | Good for |
-|---|---|---|
-| `dt_` | darktable | color science, tone mapping, denoise, highlight recovery |
-| `rt_` | RawTherapee | demosaic, highlight recovery, capture sharpening — often the strongest here |
-| `rm_` | RAWmakase | Lightroom-matched looks, B&W, Color Grading, lens readers, selection masks |
-| `rr_` | RapidRAW | a tool taken from a RapidRAW release after 1.6.6 |
-| `ag_` | Argentum | our own, where no source had it |
-| `gimp_` | GIMP / GEGL | pixel-level effects, blend modes, distortions |
-| `gmic_` | G'MIC | huge filter library, film looks, stylisation |
-| `paper_` | a published paper | when nobody's implemented it yet |
+| Prefix   | Source            | Good for                                                                    |
+| -------- | ----------------- | --------------------------------------------------------------------------- |
+| `dt_`    | darktable         | color science, tone mapping, denoise, highlight recovery                    |
+| `rt_`    | RawTherapee       | demosaic, highlight recovery, capture sharpening — often the strongest here |
+| `rm_`    | RAWmakase         | Lightroom-matched looks, B&W, Color Grading, lens readers, selection masks  |
+| `rr_`    | RapidRAW          | a tool taken from a RapidRAW release after 1.6.6                            |
+| `ag_`    | Argentum          | our own, where no source had it                                             |
+| `gimp_`  | GIMP / GEGL       | pixel-level effects, blend modes, distortions                               |
+| `gmic_`  | G'MIC             | huge filter library, film looks, stylisation                                |
+| `paper_` | a published paper | when nobody's implemented it yet                                            |
 
-Honest note on GIMP: it's a *pixel editor*, not a RAW developer, so it has less
+Honest note on GIMP: it's a _pixel editor_, not a RAW developer, so it has less
 to offer at the RAW end than darktable does. Its useful parts are GEGL
 operations — self-contained image effects, which is exactly the shape we want.
 Worth raiding for creative effects, not for color science.

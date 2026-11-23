@@ -68,7 +68,10 @@ export function parseCameras(toml) {
     if (key === 'make' || key === 'model') camera[key] = string(text, where);
     else if (key === 'aliases') camera.aliases = list(text, where).map((s) => string(s, where));
     else if (key === 'baseline_exposure' || key === 'lowest_iso') camera[key] = number(text, where);
-    else if (key === 'levels') camera.levels = list(text, where).map((n) => number(n, where)).join(',');
+    else if (key === 'levels')
+      camera.levels = list(text, where)
+        .map((n) => number(n, where))
+        .join(',');
   });
   return cameras;
 }
@@ -91,7 +94,10 @@ function number(text, where) {
 function list(text, where) {
   const m = /^\[(.*)\]$/.exec(withoutComment(text));
   if (!m) throw new Error(`${where}: expected a one-line array: ${text}`);
-  return m[1].split(',').map((s) => s.trim()).filter((s) => s !== '');
+  return m[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
 }
 
 /** One line per body: make, model|aliases, offset, lowest ISO, levels. */
@@ -108,7 +114,9 @@ export function tableRows(cameras, exceptions = EXCEPTIONS) {
   for (const e of exceptions) {
     const row = rows.get(`${e.make} ${e.model}`);
     if (!FIELDS.includes(e.field) || !e.reason || !e.removedWhen) {
-      throw new Error(`exception for ${e.make} ${e.model} needs a field (${FIELDS.join(', ')}), a reason and removedWhen`);
+      throw new Error(
+        `exception for ${e.make} ${e.model} needs a field (${FIELDS.join(', ')}), a reason and removedWhen`,
+      );
     }
     if (!row) throw new Error(`exception for ${e.make} ${e.model}: no such body in cameras.toml any more - delete it`);
     if ((row[e.field] ?? '') === e.value) {
@@ -116,20 +124,18 @@ export function tableRows(cameras, exceptions = EXCEPTIONS) {
     }
     row[e.field] = e.value;
   }
-  return [...rows.values()].map((c) => [
-    c.make,
-    [c.model, ...c.aliases].join('|'),
-    c.baseline_exposure,
-    c.lowest_iso ?? '',
-    c.levels ?? '',
-  ].join('\t'));
+  return [...rows.values()].map((c) =>
+    [c.make, [c.model, ...c.aliases].join('|'), c.baseline_exposure, c.lowest_iso ?? '', c.levels ?? ''].join('\t'),
+  );
 }
 
 /** The "# Source:" line: which RAWmakase commit, and its release. */
 export function sourceLine({ sha, tag }, rows, exceptions = EXCEPTIONS) {
   const makes = new Set(rows.map((r) => r.split('\t')[0])).size;
-  return `# Source: RAWmakase data/cameras.toml @ ${sha}${tag ? ` (${tag})` : ''}, `
-    + `${rows.length} bodies across ${makes} makes, ${exceptions.length} exceptions`;
+  return (
+    `# Source: RAWmakase data/cameras.toml @ ${sha}${tag ? ` (${tag})` : ''}, ` +
+    `${rows.length} bodies across ${makes} makes, ${exceptions.length} exceptions`
+  );
 }
 
 /** The commit and release a table names, or null if it names none. */
@@ -141,7 +147,10 @@ export function recordedSource(tsv) {
 /** The table rewritten from cameras.toml: our comments kept, the Source line and rows replaced. */
 export function regenerate(tsv, toml, source, exceptions = EXCEPTIONS) {
   const lines = tsv.split('\n');
-  const header = lines.slice(0, lines.findIndex((l) => !l.startsWith('#')));
+  const header = lines.slice(
+    0,
+    lines.findIndex((l) => !l.startsWith('#')),
+  );
   const at = header.findIndex((l) => l.startsWith('# Source:'));
   if (at === -1) throw new Error(`${TABLE} has no "# Source:" line in its header`);
   const rows = tableRows(parseCameras(toml), exceptions);
@@ -204,7 +213,9 @@ async function main(ref) {
   const after = regenerate(before, await fetchCameras(source.sha), source);
   writeFileSync(path, after);
   console.log(`  ${TABLE}: ${source.tag ?? 'commit'} ${source.sha.slice(0, 8)}`);
-  console.log(before === after ? '  unchanged' : '  changed - git diff it, and show the changed bodies on photos before merging');
+  console.log(
+    before === after ? '  unchanged' : '  changed - git diff it, and show the changed bodies on photos before merging',
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

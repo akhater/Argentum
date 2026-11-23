@@ -22,7 +22,7 @@ try {
   identifier = JSON.parse(readFileSync(confPath, 'utf8')).identifier;
 } catch (err) {
   console.error(`\n  tauri.conf.json is not valid JSON: ${err.message}`);
-  console.error('  (a UTF-8 BOM will do this - PowerShell\'s -Encoding utf8 writes one)\n');
+  console.error("  (a UTF-8 BOM will do this - PowerShell's -Encoding utf8 writes one)\n");
   process.exit(1);
 }
 

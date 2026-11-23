@@ -72,26 +72,26 @@ the tests turn on: whatever links the engine does not build it.
 
 The calls, which the app makes into Tauri commands (`src/engine.rs`):
 
-| Call | Returns |
-|---|---|
-| `sections()` | every `SectionDescriptor`, in the order the panels are shown |
-| `tools()` | every `ToolDescriptor`, in pipeline order |
-| `open(path)` | `Opened { photoId, width, height, edit }`, without rendering |
-| `apply(photoId, EditPatch)` | `Applied { ticket, edit }` at once: the render's ticket, and the edit as the engine took it |
-| `view(photoId, View { zoom, centerX, centerY, width, height })` | a `RenderTicket`, at once |
-| `frame(ticket)` | the frame's sRGB RGBA pixels, while it is the latest; `block()` is the frame as it crosses to the interface |
+| Call                                                            | Returns                                                                                                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `sections()`                                                    | every `SectionDescriptor`, in the order the panels are shown                                                |
+| `tools()`                                                       | every `ToolDescriptor`, in pipeline order                                                                   |
+| `open(path)`                                                    | `Opened { photoId, width, height, edit }`, without rendering                                                |
+| `apply(photoId, EditPatch)`                                     | `Applied { ticket, edit }` at once: the render's ticket, and the edit as the engine took it                 |
+| `view(photoId, View { zoom, centerX, centerY, width, height })` | a `RenderTicket`, at once                                                                                   |
+| `frame(ticket)`                                                 | the frame's sRGB RGBA pixels, while it is the latest; `block()` is the frame as it crosses to the interface |
 
 And six the interface does not call: the app uses them to keep only a few
 photos' decoded data in memory, and to size the cache.
 
-| Call | Returns |
-|---|---|
-| `edit(photoId)` | the photo's edit, every accepted patch in it |
-| `close(photoId)` | its edit; a render already asked for still reports, then the photo's decoded data and its cached results are freed |
-| `decoded_bytes(photoId)` | the bytes its decoded sensor data holds |
-| `open_with(path, EditDocument)` | as `open`, with that edit read as a saved one is |
-| `set_cache_budget_bytes(bytes)` | nothing: the memory cached results may take, which the app sizes from the machine's |
-| `cache_bytes()` | the memory cached results take now |
+| Call                            | Returns                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `edit(photoId)`                 | the photo's edit, every accepted patch in it                                                                       |
+| `close(photoId)`                | its edit; a render already asked for still reports, then the photo's decoded data and its cached results are freed |
+| `decoded_bytes(photoId)`        | the bytes its decoded sensor data holds                                                                            |
+| `open_with(path, EditDocument)` | as `open`, with that edit read as a saved one is                                                                   |
+| `set_cache_budget_bytes(bytes)` | nothing: the memory cached results may take, which the app sizes from the machine's                                |
+| `cache_bytes()`                 | the memory cached results take now                                                                                 |
 
 Renders happen on a thread of their own and are latest-wins: a newer ticket
 replaces a render still waiting, and stops one already running at its next
@@ -300,15 +300,15 @@ commit.
 
 ## The tools
 
-| Id | Stage | Section | GPU | What | From |
-|---|---|---|---|---|---|
-| `dt_highlights` | Raw | tone | no | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction |
-| `rt_capture_sharpen` | SceneLinear | detail | yes | Richardson-Lucy deconvolution of the luminance, through a contrast mask, with the radius read from the RAW | RawTherapee `capturesharpening.cc` and `rt_algo.cc`, via `mods/sharpen.rs`, `mods/sharpen_gpu.rs`, `shaders/sharpen.wgsl` |
-| `ag_exposure` | SceneLinear | basic | pixel pass | Exposure, in stops | RapidRAW's `apply_linear_exposure` in `shader.wgsl` |
-| `rr_white_balance` | SceneLinear | basic | pixel pass | Temperature in kelvin and tint, starting at the camera's as-shot light: Bradford cone gains from that light to the one set | RapidRAW 1.6.5's Kelvin engine: `white_balance.rs`, `read_as_shot_white_balance` in `raw_processing.rs`, `apply_white_balance` in `shader.wgsl` |
-| `rr_basic_tone` | SceneLinear | basic | pixel pass | Contrast, highlights, shadows, whites, blacks; the last four move the light a pixel sits in and keep its detail, measured by a guided filter on log luminance | RapidRAW `apply_tonal_adjustments`, `apply_highlights_adjustment`, `sample_gf_tex` and `main`'s detail in `shader.wgsl`; the filter is the app's `guided.wgsl`, used in place, run as `build_guided_coeffs` runs it |
-| `rr_presence` | SceneLinear | basic | pixel pass | Vibrance and saturation | RapidRAW `apply_creative_color` in `shader.wgsl` |
-| `ag_dng_standard` | SceneLinear | tone | pixel pass | Argentum's default RAW look: the body's exposure offset and Adobe's ACR3 curve, applied hue-preserving (RGBTone) in linear ProPhoto | `mods/dng_standard.rs`, `mods/dng_baseline.tsv` (read in place), `rt_rgb_tone` and `ag_dng_standard` in `modules.wgsl`; RawTherapee, RAWmakase, the DNG SDK |
+| Id                   | Stage       | Section | GPU        | What                                                                                                                                                          | From                                                                                                                                                                                                                |
+| -------------------- | ----------- | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dt_highlights`      | Raw         | tone    | no         | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta                                                | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction                                                                                                                                    |
+| `rt_capture_sharpen` | SceneLinear | detail  | yes        | Richardson-Lucy deconvolution of the luminance, through a contrast mask, with the radius read from the RAW                                                    | RawTherapee `capturesharpening.cc` and `rt_algo.cc`, via `mods/sharpen.rs`, `mods/sharpen_gpu.rs`, `shaders/sharpen.wgsl`                                                                                           |
+| `ag_exposure`        | SceneLinear | basic   | pixel pass | Exposure, in stops                                                                                                                                            | RapidRAW's `apply_linear_exposure` in `shader.wgsl`                                                                                                                                                                 |
+| `rr_white_balance`   | SceneLinear | basic   | pixel pass | Temperature in kelvin and tint, starting at the camera's as-shot light: Bradford cone gains from that light to the one set                                    | RapidRAW 1.6.5's Kelvin engine: `white_balance.rs`, `read_as_shot_white_balance` in `raw_processing.rs`, `apply_white_balance` in `shader.wgsl`                                                                     |
+| `rr_basic_tone`      | SceneLinear | basic   | pixel pass | Contrast, highlights, shadows, whites, blacks; the last four move the light a pixel sits in and keep its detail, measured by a guided filter on log luminance | RapidRAW `apply_tonal_adjustments`, `apply_highlights_adjustment`, `sample_gf_tex` and `main`'s detail in `shader.wgsl`; the filter is the app's `guided.wgsl`, used in place, run as `build_guided_coeffs` runs it |
+| `rr_presence`        | SceneLinear | basic   | pixel pass | Vibrance and saturation                                                                                                                                       | RapidRAW `apply_creative_color` in `shader.wgsl`                                                                                                                                                                    |
+| `ag_dng_standard`    | SceneLinear | tone    | pixel pass | Argentum's default RAW look: the body's exposure offset and Adobe's ACR3 curve, applied hue-preserving (RGBTone) in linear ProPhoto                           | `mods/dng_standard.rs`, `mods/dng_baseline.tsv` (read in place), `rt_rgb_tone` and `ag_dng_standard` in `modules.wgsl`; RawTherapee, RAWmakase, the DNG SDK                                                         |
 
 The order is the app's: capture sharpening first, since it undoes the lens
 and the sensor, then exposure, white balance, the tone sliders, presence,
@@ -323,25 +323,25 @@ and the tests, `src/colour.rs`.
 
 ## The tests
 
-| Test | File | Needs |
-|---|---|---|
-| A fourth tool is one file and one registry line | `tests/fourth_tool.rs` | nothing |
-| Changing a tool re-runs it and what follows, counted; the cache stays within its budget | `tests/rerun.rs` | nothing; capture sharpening runs for real with a GPU |
-| The same, counted and timed on a real photo | `tests/rerun.rs` | `AG_RAW` |
-| `dt_highlights` bit-identical to `mods/highlights.rs` | `tests/parity_highlights.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
-| `rt_capture_sharpen`: automatic radius and contrast bit-identical, passes within one half-float step of `mods/sharpen_gpu.rs` | `tests/parity_sharpen.rs` | a GPU for the passes; real photos with `AG_RAW`/`AG_RAWS` |
-| `ag_exposure` within 4 f32 steps of the app's `apply_linear_exposure`; through the pipeline, a half-float step of exact | `tests/parity_exposure.rs` | a GPU |
-| `rr_white_balance`: as-shot light and cone gains identical to `white_balance.rs`; pixels within 2 x 10^-6 of `apply_white_balance` | `tests/parity_white_balance.rs` | a GPU for the pixels; real photos with `AG_RAW`/`AG_RAWS` |
-| `rr_basic_tone` end to end on a picture - the app's guided filter, its detail, its sliders - within 2 x 10^-5 | `tests/parity_basic_tone.rs` | a GPU |
-| `rr_presence` within 2 x 10^-5 of `apply_creative_color` | `tests/parity_presence.rs` | a GPU |
-| `ag_dng_standard`: offsets identical; the curve within a tenth of a level at the app's 16 points; the whole within the app's spline | `tests/parity_dng_standard.rs` | a GPU for the pixels; real photos with `AG_RAW`/`AG_RAWS` |
-| A per-pixel tool is one file and one line, and the pass takes it from the registry | `tests/pixel_tool.rs` | a GPU, but for the descriptor and the source check |
-| The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
-| Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
-| A slider tick at preview size, every tool on, stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW`, a GPU |
-| A half-size preview is the full develop made small - size, crop, colour (CIEDE2000), detail - and faster, by RAWmakase's gates for its own | `tests/preview.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
-| What the engine holds (its heap and its GPU memory, counted), fitted and at 100% with a slider dragged, stays within the cache's budget plus the mosaic, the GPU's input and the bands, and within one full-size picture plus the mosaic and the bands while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs` | a GPU, a software one included (a synthetic 61 MP photo); a real one with `AG_RAW` |
-| A closed photo is gone, its edit handed back; reopened with it, it renders the same | `tests/open_close.rs` | a GPU for the renders |
+| Test                                                                                                                                                                                                                                                                                                                         | File                            | Needs                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------- |
+| A fourth tool is one file and one registry line                                                                                                                                                                                                                                                                              | `tests/fourth_tool.rs`          | nothing                                                                            |
+| Changing a tool re-runs it and what follows, counted; the cache stays within its budget                                                                                                                                                                                                                                      | `tests/rerun.rs`                | nothing; capture sharpening runs for real with a GPU                               |
+| The same, counted and timed on a real photo                                                                                                                                                                                                                                                                                  | `tests/rerun.rs`                | `AG_RAW`                                                                           |
+| `dt_highlights` bit-identical to `mods/highlights.rs`                                                                                                                                                                                                                                                                        | `tests/parity_highlights.rs`    | nothing; real photos with `AG_RAW`/`AG_RAWS`                                       |
+| `rt_capture_sharpen`: automatic radius and contrast bit-identical, passes within one half-float step of `mods/sharpen_gpu.rs`                                                                                                                                                                                                | `tests/parity_sharpen.rs`       | a GPU for the passes; real photos with `AG_RAW`/`AG_RAWS`                          |
+| `ag_exposure` within 4 f32 steps of the app's `apply_linear_exposure`; through the pipeline, a half-float step of exact                                                                                                                                                                                                      | `tests/parity_exposure.rs`      | a GPU                                                                              |
+| `rr_white_balance`: as-shot light and cone gains identical to `white_balance.rs`; pixels within 2 x 10^-6 of `apply_white_balance`                                                                                                                                                                                           | `tests/parity_white_balance.rs` | a GPU for the pixels; real photos with `AG_RAW`/`AG_RAWS`                          |
+| `rr_basic_tone` end to end on a picture - the app's guided filter, its detail, its sliders - within 2 x 10^-5                                                                                                                                                                                                                | `tests/parity_basic_tone.rs`    | a GPU                                                                              |
+| `rr_presence` within 2 x 10^-5 of `apply_creative_color`                                                                                                                                                                                                                                                                     | `tests/parity_presence.rs`      | a GPU                                                                              |
+| `ag_dng_standard`: offsets identical; the curve within a tenth of a level at the app's 16 points; the whole within the app's spline                                                                                                                                                                                          | `tests/parity_dng_standard.rs`  | a GPU for the pixels; real photos with `AG_RAW`/`AG_RAWS`                          |
+| A per-pixel tool is one file and one line, and the pass takes it from the registry                                                                                                                                                                                                                                           | `tests/pixel_tool.rs`           | a GPU, but for the descriptor and the source check                                 |
+| The generated TypeScript and fixtures are current                                                                                                                                                                                                                                                                            | `tests/contract.rs`             | nothing                                                                            |
+| Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size                                                                                                                                                                                                                                | `tests/engine_api.rs`           | nothing; real photos with `AG_RAW`/`AG_RAWS`                                       |
+| A slider tick at preview size, every tool on, stays within its budget (25 ms)                                                                                                                                                                                                                                                | `tests/budgets.rs`              | `AG_RAW`, a GPU                                                                    |
+| A half-size preview is the full develop made small - size, crop, colour (CIEDE2000), detail - and faster, by RAWmakase's gates for its own                                                                                                                                                                                   | `tests/preview.rs`              | nothing; real photos with `AG_RAW`/`AG_RAWS`                                       |
+| What the engine holds (its heap and its GPU memory, counted), fitted and at 100% with a slider dragged, stays within the cache's budget plus the mosaic, the GPU's input and the bands, and within one full-size picture plus the mosaic and the bands while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs`               | a GPU, a software one included (a synthetic 61 MP photo); a real one with `AG_RAW` |
+| A closed photo is gone, its edit handed back; reopened with it, it renders the same                                                                                                                                                                                                                                          | `tests/open_close.rs`           | a GPU for the renders                                                              |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
 app's own tests take them. Unset, the real-photo tests say they skipped and
