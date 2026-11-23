@@ -505,117 +505,270 @@ pub fn remove_tag_for_paths(
     Ok(())
 }
 
-fn rrdata_source_path(rrdata: &Path) -> Option<PathBuf> {
-    let name = rrdata.file_name()?.to_str()?;
-    let (source_filename, _) = crate::file_management::parse_sidecar_name(name)?;
+/// Removes, from every sidecar under `folder`, the tags `keep` does not keep:
+/// a photo's own sidecar and each virtual copy's. Each change goes through the
+/// sidecar's lock and an atomic write (`mods/write_locks.rs`); a sidecar that
+/// cannot be read is left as it is and logged; a photo with no sidecar gets
+/// none. `sync_xmp` runs after each saved change, as the tag commands do.
+/// Gives the number of sidecars changed.
+fn clear_tags_under(
+    folder: &Path,
+    keep: impl Fn(&str) -> bool,
+    sync_xmp: impl Fn(&Path, &Path, &ImageMetadata),
+) -> usize {
+    let mut changed = 0;
+    for entry in WalkDir::new(folder).into_iter().filter_map(|e| e.ok()) {
+        let sidecar = entry.path();
+        if !sidecar.is_file() {
+            continue;
+        }
+        let Some(name) = sidecar.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let Some((source_name, copy_id)) = file_management::parse_sidecar_name(name) else {
+            continue;
+        };
+        let source = sidecar.with_file_name(source_name);
+        if file_management::sidecar_for(&source, copy_id) != sidecar {
+            continue;
+        }
 
-    Some(rrdata.with_file_name(source_filename))
+        // Peek first: a sidecar with nothing to clear is never rewritten, and
+        // peeking never writes (no .bak copies). One that cannot be read is
+        // skipped here and left as it is.
+        let has_tags_to_clear = crate::exif_processing::peek_sidecar(sidecar)
+            .and_then(|metadata| metadata.tags)
+            .is_some_and(|tags| tags.iter().any(|tag| !keep(tag.as_str())));
+        if !has_tags_to_clear {
+            continue;
+        }
+
+        let saved = crate::mods::write_locks::update_sidecar(sidecar, &source, |metadata| {
+            let kept: Vec<String> = metadata
+                .tags
+                .take()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|tag| keep(tag.as_str()))
+                .collect();
+            metadata.tags = (!kept.is_empty()).then_some(kept);
+        });
+        match saved {
+            Ok(metadata) => {
+                sync_xmp(&source, sidecar, &metadata);
+                changed += 1;
+            }
+            Err(e) => {
+                log::warn!("Could not clear the tags of {}: {e}", sidecar.display());
+            }
+        }
+    }
+    changed
 }
 
-fn sync_xmp_for_rrdata(
-    rrdata_path: &Path,
-    metadata: &ImageMetadata,
-    enable_xmp_sync: bool,
-    create_xmp_if_missing: bool,
-) {
-    if !enable_xmp_sync {
-        return;
+/// Clears the tags `keep` does not keep under the folder `root_path`, on a
+/// blocking thread: the walk reads every sidecar, and a cleared one that becomes
+/// empty is removed, which reads the photo's EXIF.
+async fn clear_tags_in_folder(
+    root_path: String,
+    app_handle: AppHandle,
+    keep: fn(&str) -> bool,
+) -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<usize, String> {
+        let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
+
+        let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
+        let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
+        let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
+
+        Ok(clear_tags_under(folder, keep, |source, sidecar, metadata| {
+            if enable_xmp_sync {
+                file_management::sync_metadata_to_xmp(
+                    source,
+                    sidecar,
+                    metadata,
+                    create_xmp_if_missing,
+                );
+            }
+        }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps color tags and user tags, removes the others (AI tags).
+#[tauri::command]
+pub async fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
+    clear_tags_in_folder(root_path, app_handle, |tag| {
+        tag.starts_with(COLOR_TAG_PREFIX) || tag.starts_with(USER_TAG_PREFIX)
+    })
+    .await
+}
+
+/// Keeps only color tags, removes AI and user tags.
+#[tauri::command]
+pub async fn clear_all_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
+    clear_tags_in_folder(root_path, app_handle, |tag| {
+        tag.starts_with(COLOR_TAG_PREFIX)
+    })
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::exif_processing::{load_sidecar, write_sidecar};
+    use crate::file_management::sidecar_for;
+    use crate::mods::write_locks::update_sidecar;
+    use serde_json::json;
+    use std::cell::Cell;
+
+    fn keep_color_and_user(tag: &str) -> bool {
+        tag.starts_with(COLOR_TAG_PREFIX) || tag.starts_with(USER_TAG_PREFIX)
     }
-    if let Some(source_path) = rrdata_source_path(rrdata_path) {
-        file_management::sync_metadata_to_xmp(
-            &source_path,
-            rrdata_path,
-            metadata,
-            create_xmp_if_missing,
+
+    fn no_xmp(_: &Path, _: &Path, _: &ImageMetadata) {}
+
+    fn edited_with_tags(tags: &[&str]) -> ImageMetadata {
+        ImageMetadata {
+            rating: 4,
+            adjustments: json!({ "exposure": 0.5, "contrast": 12 }),
+            tags: Some(tags.iter().map(|tag| tag.to_string()).collect()),
+            ..ImageMetadata::default()
+        }
+    }
+
+    fn photo(dir: &Path, name: &str) -> PathBuf {
+        let photo = dir.join(name);
+        std::fs::write(&photo, "raw").unwrap();
+        photo
+    }
+
+    #[test]
+    fn clearing_ai_tags_of_a_current_sidecar_keeps_the_edit_and_everything_else() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = photo(dir.path(), "IMG_0001.CR2");
+        let sidecar = sidecar_for(&photo, None);
+        write_sidecar(
+            &sidecar,
+            &photo,
+            &edited_with_tags(&["color:red", "user:cat", "ai:dog"]),
+        )
+        .unwrap();
+        let mut expected = serde_json::to_value(load_sidecar(&sidecar)).unwrap();
+
+        assert_eq!(clear_tags_under(dir.path(), keep_color_and_user, no_xmp), 1);
+
+        expected["tags"] = json!(["color:red", "user:cat"]);
+        let after = serde_json::to_value(load_sidecar(&sidecar)).unwrap();
+        assert_eq!(after, expected);
+    }
+
+    #[test]
+    fn clearing_tags_removes_a_virtual_copys_ai_tags_too() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = photo(dir.path(), "IMG_0002.CR2");
+        let copy = sidecar_for(&photo, Some("a1b2c3"));
+        write_sidecar(&copy, &photo, &edited_with_tags(&["ai:dog"])).unwrap();
+
+        assert_eq!(clear_tags_under(dir.path(), keep_color_and_user, no_xmp), 1);
+
+        let after = load_sidecar(&copy);
+        assert_eq!(after.tags, None);
+        assert_eq!(after.rating, 4);
+    }
+
+    #[test]
+    fn a_photo_with_no_sidecar_gets_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = photo(dir.path(), "IMG_0003.CR2");
+
+        assert_eq!(clear_tags_under(dir.path(), keep_color_and_user, no_xmp), 0);
+
+        assert!(!sidecar_for(&photo, None).exists());
+    }
+
+    #[test]
+    fn a_sidecar_that_cannot_be_read_is_left_as_it_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = photo(dir.path(), "IMG_0004.CR2");
+        let sidecar = sidecar_for(&photo, None);
+        write_sidecar(&sidecar, &photo, &edited_with_tags(&["ai:dog"])).unwrap();
+        let bytes = std::fs::read(&sidecar).unwrap();
+        let _failing = crate::mods::sidecar_read::injected::fail_reads_of(&sidecar);
+
+        assert_eq!(clear_tags_under(dir.path(), keep_color_and_user, no_xmp), 0);
+
+        assert_eq!(std::fs::read(&sidecar).unwrap(), bytes);
+    }
+
+    #[test]
+    fn the_xmp_is_synced_for_each_sidecar_whose_tags_were_cleared() {
+        let dir = tempfile::tempdir().unwrap();
+        let tagged = photo(dir.path(), "IMG_0005.CR2");
+        let plain = photo(dir.path(), "IMG_0006.CR2");
+        write_sidecar(
+            &sidecar_for(&tagged, None),
+            &tagged,
+            &edited_with_tags(&["ai:dog"]),
+        )
+        .unwrap();
+        write_sidecar(
+            &sidecar_for(&plain, None),
+            &plain,
+            &edited_with_tags(&["user:cat"]),
+        )
+        .unwrap();
+        let synced = Cell::new(0);
+
+        let cleared = clear_tags_under(dir.path(), keep_color_and_user, |source, sidecar, _| {
+            assert_eq!(source, tagged.as_path());
+            assert_eq!(sidecar, sidecar_for(&tagged, None).as_path());
+            synced.set(synced.get() + 1);
+        });
+
+        assert_eq!(cleared, 1);
+        assert_eq!(synced.get(), 1);
+    }
+
+    #[test]
+    fn clearing_tags_while_an_edit_is_saved_loses_neither_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = photo(dir.path(), "IMG_0007.CR2");
+        let sidecar = sidecar_for(&photo, None);
+        write_sidecar(&sidecar, &photo, &edited_with_tags(&[])).unwrap();
+        const LAST: u32 = 300;
+
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                for i in 0..=LAST {
+                    update_sidecar(&sidecar, &photo, |m| {
+                        m.adjustments = json!({ "exposure": i });
+                    })
+                    .unwrap();
+                }
+            });
+            scope.spawn(|| {
+                for _ in 0..=LAST {
+                    update_sidecar(&sidecar, &photo, |m| {
+                        m.tags
+                            .get_or_insert_with(Vec::new)
+                            .push("ai:dog".to_string());
+                    })
+                    .unwrap();
+                    clear_tags_under(dir.path(), keep_color_and_user, no_xmp);
+                }
+            });
+        });
+
+        let kept = load_sidecar(&sidecar);
+        assert_eq!(kept.adjustments["exposure"], json!(LAST));
+        assert_eq!(kept.rating, 4);
+        assert!(
+            kept.tags
+                .unwrap_or_default()
+                .iter()
+                .all(|tag| !tag.starts_with("ai:"))
         );
     }
-}
-
-fn write_rrdata(rrdata_path: &Path, metadata: &ImageMetadata) -> std::io::Result<()> {
-    match rrdata_source_path(rrdata_path) {
-        Some(source_path) => {
-            crate::exif_processing::write_sidecar(rrdata_path, &source_path, metadata)
-        }
-        None => {
-            let json_string =
-                serde_json::to_string_pretty(metadata).map_err(std::io::Error::other)?;
-            fs::write(rrdata_path, json_string)
-        }
-    }
-}
-
-#[tauri::command]
-pub fn clear_ai_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
-    let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
-
-    let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-
-    let mut updated_count = 0;
-    let walker = WalkDir::new(folder).into_iter();
-
-    for entry in walker.filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file()
-            && path.extension().and_then(|s| s.to_str()) == Some("rrdata")
-            && let Ok(content) = fs::read_to_string(path)
-            && let Ok(mut metadata) = serde_json::from_str::<ImageMetadata>(&content)
-            && let Some(tags) = &mut metadata.tags
-        {
-            let original_len = tags.len();
-            // Keep color tags and user tags, remove others (AI tags)
-            tags.retain(|tag| {
-                tag.starts_with(COLOR_TAG_PREFIX) || tag.starts_with(USER_TAG_PREFIX)
-            });
-
-            if tags.len() < original_len {
-                if tags.is_empty() {
-                    metadata.tags = None;
-                }
-                if write_rrdata(path, &metadata).is_ok() {
-                    updated_count += 1;
-                    sync_xmp_for_rrdata(path, &metadata, enable_xmp_sync, create_xmp_if_missing);
-                }
-            }
-        }
-    }
-    Ok(updated_count)
-}
-
-#[tauri::command]
-pub fn clear_all_tags(root_path: String, app_handle: AppHandle) -> Result<usize, String> {
-    let folder = crate::mods::clear_scope::folder_to_clear(&root_path)?;
-
-    let settings = crate::load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-
-    let mut updated_count = 0;
-    let walker = WalkDir::new(folder).into_iter();
-
-    for entry in walker.filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file()
-            && path.extension().and_then(|s| s.to_str()) == Some("rrdata")
-            && let Ok(content) = fs::read_to_string(path)
-            && let Ok(mut metadata) = serde_json::from_str::<ImageMetadata>(&content)
-            && let Some(tags) = &mut metadata.tags
-        {
-            let original_len = tags.len();
-            // Keep only color tags, remove AI and user tags
-            tags.retain(|tag| tag.starts_with(COLOR_TAG_PREFIX));
-
-            if tags.len() < original_len {
-                if tags.is_empty() {
-                    metadata.tags = None;
-                }
-                if write_rrdata(path, &metadata).is_ok() {
-                    updated_count += 1;
-                    sync_xmp_for_rrdata(path, &metadata, enable_xmp_sync, create_xmp_if_missing);
-                }
-            }
-        }
-    }
-    Ok(updated_count)
 }
