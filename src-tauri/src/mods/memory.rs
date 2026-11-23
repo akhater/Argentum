@@ -353,7 +353,7 @@ impl Held {
             add(&mut held, &img);
         }
         if let Some(g) = peek(&state.thumbnail_geometry_cache) {
-            for (_, img, _) in g.values() {
+            for img in g.images() {
                 add(&mut held, img);
             }
         }

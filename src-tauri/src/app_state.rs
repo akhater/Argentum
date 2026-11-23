@@ -243,7 +243,7 @@ pub struct AppState {
     pub mask_cache: Mutex<HashMap<u64, GrayImage>>,
     pub patch_cache: Mutex<HashMap<String, serde_json::Value>>,
     pub geometry_cache: Mutex<HashMap<u64, DynamicImage>>,
-    pub thumbnail_geometry_cache: Mutex<HashMap<String, ThumbnailGeometryEntry>>,
+    pub thumbnail_geometry_cache: Mutex<crate::mods::thumbnail_geometry_cache::ThumbnailGeometryCache>,
     pub lens_db: crate::mods::lens_db::LazyLensDb,
     pub load_image_generation: Arc<AtomicUsize>,
     pub full_warped_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
