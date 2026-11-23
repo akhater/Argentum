@@ -1,0 +1,1 @@
+- A DNG whose gain map list is larger than a camera writes is no longer applied, so such a file opens without a long delay.
