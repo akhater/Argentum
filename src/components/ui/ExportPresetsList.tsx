@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, Save, X, Check } from 'lucide-react';
 import { ExportPreset } from './ExportImportProperties';
@@ -40,7 +39,7 @@ export default function ExportPresetsList({
     if (!newPresetName.trim() || !appSettings) return;
 
     const newPreset: ExportPreset = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       name: newPresetName.trim(),
       ...currentSettings,
     };
