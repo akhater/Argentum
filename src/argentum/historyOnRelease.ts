@@ -29,8 +29,10 @@ const { pushHistory: recordStep, undo, redo, goToHistoryIndex } = useEditorStore
 /** Whether a change is waiting in the 500 ms to become a step. */
 let pending = false;
 
-const stepSoon = debounce((adjustments: Adjustments) => {
+// The step carries the photo it was asked on: after a switch it is dropped, not pushed onto the new photo.
+const stepSoon = debounce((adjustments: Adjustments, path: string | undefined) => {
   pending = false;
+  if (useEditorStore.getState().selectedImage?.path !== path) return;
   useEditorStore.getState().pushHistory(adjustments);
 }, 500);
 
@@ -39,7 +41,7 @@ const stepSoon = debounce((adjustments: Adjustments) => {
 export const debouncedSetHistory = Object.assign(
   (adjustments: Adjustments) => {
     pending = true;
-    stepSoon(adjustments);
+    stepSoon(adjustments, useEditorStore.getState().selectedImage?.path);
   },
   {
     flush: () => stepSoon.flush(),
