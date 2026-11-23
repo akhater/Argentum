@@ -19,7 +19,8 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+#[cfg(test)]
+use std::time::Instant;
 
 use image::{DynamicImage, GrayImage};
 use ndarray::Array;
@@ -27,6 +28,7 @@ use ort::session::Session;
 use ort::value::Tensor;
 use tokenizers::Tokenizer;
 
+use super::ai_session::IdleSlot;
 use super::esam3::{self, PROMPT_TOKENS, Prompt};
 use super::model_catalog::{TEXT_MASK_FILES, TEXT_MASKS};
 use super::model_download::{self, Progress, Status};
@@ -62,13 +64,11 @@ pub async fn download(dir: &Path, progress: impl Fn(&Progress)) -> Result<(), St
 
 /// What turns words into a prompt; the image encoder and decoder are `esam3`'s.
 struct Loaded {
-    dir: PathBuf,
     text_encoder: Session,
     tokenizer: Tokenizer,
-    used: Instant,
 }
 
-static LOADED: Mutex<Option<Loaded>> = Mutex::new(None);
+static LOADED: IdleSlot<Loaded> = IdleSlot::new("text and face mask models");
 
 /// RapidRAW's `esam3_text_prompt`: the words as CLIP's tokens, the end token
 /// kept when they run long, through the text encoder.
@@ -105,20 +105,19 @@ fn prompt(
 
 /// The words as a prompt, loading the text encoder and word list first if needed.
 fn words_prompt(dir: &Path, words: &str) -> Result<Prompt, String> {
-    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
-    if slot.as_ref().is_none_or(|l| l.dir != dir) {
-        *slot = None;
-        *slot = Some(Loaded {
-            dir: dir.to_path_buf(),
-            text_encoder: esam3::load(&dir.join(TEXT_ENCODER))
-                .map_err(|e| format!("{TEXT_ENCODER}: {e}"))?,
-            tokenizer: Tokenizer::from_file(dir.join(TOKENIZER)).map_err(|e| e.to_string())?,
-            used: Instant::now(),
-        });
-    }
-    let loaded = slot.as_mut().ok_or("the text encoder did not load")?;
-    loaded.used = Instant::now();
-    prompt(&loaded.tokenizer, &mut loaded.text_encoder, words).map_err(|e| e.to_string())
+    LOADED.with(
+        dir,
+        || {
+            Ok(Loaded {
+                text_encoder: esam3::load(&dir.join(TEXT_ENCODER))
+                    .map_err(|e| format!("{TEXT_ENCODER}: {e}"))?,
+                tokenizer: Tokenizer::from_file(dir.join(TOKENIZER)).map_err(|e| e.to_string())?,
+            })
+        },
+        |loaded| {
+            prompt(&loaded.tokenizer, &mut loaded.text_encoder, words).map_err(|e| e.to_string())
+        },
+    )
 }
 
 /// Find `words` in `picture` (the warped working image) with the models in
@@ -157,18 +156,6 @@ pub fn select(
         orientation_steps: frame.orientation_steps,
         found: mask.is_some(),
     })
-}
-
-/// Let the text encoder go once nothing has asked for a while (memory.rs's watcher).
-pub fn unload_if_idle(after: Duration) -> bool {
-    let Ok(mut slot) = LOADED.try_lock() else {
-        return false;
-    };
-    if slot.as_ref().is_some_and(|l| l.used.elapsed() > after) {
-        *slot = None;
-        return true;
-    }
-    false
 }
 
 #[cfg(test)]

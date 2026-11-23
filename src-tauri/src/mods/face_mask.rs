@@ -23,7 +23,8 @@
 use std::f32::consts::FRAC_PI_2;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+#[cfg(test)]
+use std::time::Instant;
 
 use anyhow::Result;
 use image::{DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, RgbImage, imageops};
@@ -32,6 +33,7 @@ use ort::session::Session;
 use ort::value::Tensor;
 use rayon::prelude::*;
 
+use super::ai_session::IdleSlot;
 use super::esam3::{self, Prompt, fast_color_guided_filter};
 use super::model_catalog::{FACE_MASK_FILES, FACE_MASKS};
 use super::model_download::{self, Progress, Status};
@@ -879,26 +881,22 @@ pub async fn download(dir: &Path, progress: impl Fn(&Progress)) -> Result<(), St
 /// MediaPipe's two models and the stored prompt; the image encoder and decoder
 /// are `esam3`'s.
 struct Loaded {
-    dir: PathBuf,
     landmarks: Session,
     segmenter: Session,
     prompt: Prompt,
     analysis: Option<(u64, FaceAnalysis)>,
-    used: Instant,
 }
 
-static LOADED: Mutex<Option<Loaded>> = Mutex::new(None);
+static LOADED: IdleSlot<Loaded> = IdleSlot::new("text and face mask models");
 
 fn load(dir: &Path) -> Result<Loaded, String> {
     let session = |name: &str| esam3::load(&dir.join(name)).map_err(|e| format!("{name}: {e}"));
     Ok(Loaded {
-        dir: dir.to_path_buf(),
         landmarks: session(LANDMARKS)?,
         segmenter: session(SEGMENTER)?,
         prompt: Prompt::from_file(&dir.join(FACE_PROMPT))
             .map_err(|e| format!("{FACE_PROMPT}: {e}"))?,
         analysis: None,
-        used: Instant::now(),
     })
 }
 
@@ -914,14 +912,23 @@ pub fn select(
 ) -> Result<Selection, String> {
     verify(dir)?;
     let parts: Vec<FacePart> = parts.iter().filter_map(|p| FacePart::from_id(p)).collect();
-    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
-    if slot.as_ref().is_none_or(|l| l.dir != dir) {
-        *slot = None;
-        *slot = Some(load(dir)?);
-    }
-    let loaded = slot.as_mut().ok_or("the face mask models did not load")?;
-    loaded.used = Instant::now();
+    LOADED.with(
+        dir,
+        || load(dir),
+        |loaded| find_and_draw(loaded, dir, picture, key, &parts, frame),
+    )
+}
 
+/// The faces of `picture` (found first unless `loaded` has them for `key`),
+/// drawn as `parts`.
+fn find_and_draw(
+    loaded: &mut Loaded,
+    dir: &Path,
+    picture: &Arc<DynamicImage>,
+    key: u64,
+    parts: &[FacePart],
+    frame: Frame,
+) -> Result<Selection, String> {
     if loaded.analysis.as_ref().map(|(k, _)| *k) != Some(key) {
         loaded.analysis = None;
         let prompt = &loaded.prompt;
@@ -944,7 +951,7 @@ pub fn select(
 
     let found = !analysis.faces.is_empty();
     let mask = if found && !parts.is_empty() {
-        compose_face_mask(picture, analysis, &parts)
+        compose_face_mask(picture, analysis, parts)
     } else {
         // An empty mask, as their AI masks store one (1 x 1).
         GrayImage::new(1, 1)
@@ -957,18 +964,6 @@ pub fn select(
         orientation_steps: frame.orientation_steps,
         found,
     })
-}
-
-/// Let the models go once nothing has asked for a while (memory.rs's watcher).
-pub fn unload_if_idle(after: Duration) -> bool {
-    let Ok(mut slot) = LOADED.try_lock() else {
-        return false;
-    };
-    if slot.as_ref().is_some_and(|l| l.used.elapsed() > after) {
-        *slot = None;
-        return true;
-    }
-    false
 }
 
 #[cfg(test)]
