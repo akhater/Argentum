@@ -1,0 +1,1 @@
+- Removed the unused cloud branch of generative replace (its request code and web address). It could not be selected, so no feature changes.

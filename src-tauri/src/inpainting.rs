@@ -313,7 +313,6 @@ pub async fn invoke_generative_replace_with_mask_def(
     patch_definition: AiPatchDefinition,
     current_adjustments: Value,
     use_fast_inpaint: bool,
-    token: Option<String>,
     task_id: Option<String>,
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
@@ -332,8 +331,6 @@ pub async fn invoke_generative_replace_with_mask_def(
     let (source_image, is_raw) =
         prepare_source_image(&patch_definition.id, &current_adjustments, &state)?;
     let (img_w, img_h) = source_image.dimensions();
-    let img_w_usize = img_w as usize;
-    let img_h_usize = img_h as usize;
 
     let orientation_steps = current_adjustments
         .get("orientationSteps")
@@ -395,130 +392,6 @@ pub async fn invoke_generative_replace_with_mask_def(
 
         ai_processing::run_lama_inpainting(&source_image, &mask_bitmap, &lama_model)
             .map_err(|e| e.to_string())?
-    } else if settings.ai_provider.as_deref() == Some("cloud")
-        && let Some(auth_token) = token
-    {
-        let tight_w = max_x - min_x + 1;
-        let tight_h = max_y - min_y + 1;
-
-        let pad_x = tight_w / 2;
-        let pad_y = tight_h / 2;
-
-        let padded_min_x = min_x.saturating_sub(pad_x);
-        let padded_min_y = min_y.saturating_sub(pad_y);
-        let padded_max_x = (max_x + pad_x).min(img_w_usize - 1);
-        let padded_max_y = (max_y + pad_y).min(img_h_usize - 1);
-
-        let crop_w = (padded_max_x - padded_min_x + 1) as u32;
-        let crop_h = (padded_max_y - padded_min_y + 1) as u32;
-
-        let src_crop = image::imageops::crop_imm(
-            &source_image,
-            padded_min_x as u32,
-            padded_min_y as u32,
-            crop_w,
-            crop_h,
-        )
-        .to_image();
-
-        let mask_crop = image::imageops::crop_imm(
-            &mask_bitmap,
-            padded_min_x as u32,
-            padded_min_y as u32,
-            crop_w,
-            crop_h,
-        )
-        .to_image();
-
-        let max_pixels = 1_500_000_f32;
-        let current_pixels = (crop_w * crop_h) as f32;
-
-        let mut ai_w = crop_w;
-        let mut ai_h = crop_h;
-        if current_pixels > max_pixels {
-            let scale = (max_pixels / current_pixels).sqrt();
-            ai_w = (crop_w as f32 * scale) as u32;
-            ai_h = (crop_h as f32 * scale) as u32;
-        }
-
-        ai_w = (ai_w / 16) * 16;
-        ai_h = (ai_h / 16) * 16;
-
-        let resize_needed = ai_w != crop_w || ai_h != crop_h;
-
-        let (final_src_crop, final_mask_crop) = if resize_needed {
-            (
-                image::imageops::resize(
-                    &src_crop,
-                    ai_w,
-                    ai_h,
-                    image::imageops::FilterType::Lanczos3,
-                ),
-                image::imageops::resize(
-                    &mask_crop,
-                    ai_w,
-                    ai_h,
-                    image::imageops::FilterType::Triangle,
-                ),
-            )
-        } else {
-            (src_crop, mask_crop)
-        };
-
-        let mut rgba_mask = RgbaImage::new(ai_w, ai_h);
-        for (src_val, dst_chunk) in final_mask_crop.as_raw().iter().zip(rgba_mask.chunks_mut(4)) {
-            let intensity = *src_val;
-            dst_chunk[0] = intensity;
-            dst_chunk[1] = intensity;
-            dst_chunk[2] = intensity;
-            dst_chunk[3] = 255;
-        }
-
-        let base_url = "https://www.getrapidraw.com/api";
-
-        let dyn_src_crop = DynamicImage::ImageRgba8(final_src_crop);
-        let dyn_rgba_mask = DynamicImage::ImageRgba8(rgba_mask);
-
-        let cloud_fut = ai_connector::process_cloud_inpainting(
-            base_url,
-            &dyn_src_crop,
-            &dyn_rgba_mask,
-            patch_definition.prompt,
-            &auth_token,
-        );
-
-        let generated_ai_patch = if let Some(token) = cancel_flag.as_ref() {
-            tokio::select! {
-                res = cloud_fut => res.map_err(|e| e.to_string())?,
-                _ = token.wait_for_cancel() => {
-                    return Err("Task cancelled".to_string());
-                }
-            }
-        } else {
-            cloud_fut.await.map_err(|e| e.to_string())?
-        };
-
-        let generated_ai_patch_rgba = generated_ai_patch.to_rgba8();
-        let restored_ai_patch = if resize_needed {
-            image::imageops::resize(
-                &generated_ai_patch_rgba,
-                crop_w,
-                crop_h,
-                image::imageops::FilterType::Lanczos3,
-            )
-        } else {
-            generated_ai_patch_rgba
-        };
-
-        let mut full_canvas = RgbaImage::new(img_w, img_h);
-        image::imageops::overlay(
-            &mut full_canvas,
-            &restored_ai_patch,
-            padded_min_x as i64,
-            padded_min_y as i64,
-        );
-
-        full_canvas
     } else if settings.ai_provider.as_deref() == Some("ai-connector")
         && let Some(address) = settings.ai_connector_address
     {
