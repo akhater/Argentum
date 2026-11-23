@@ -11,6 +11,7 @@ import { takeFromPaste } from '../argentum/looks/providerLooksStore';
 import { zoomRenderResolution } from '../argentum/zoomResolution';
 import { Invokes, Panel } from '../components/ui/AppProperties';
 import { debouncedSave } from './useEditorActions';
+import { EDIT_QUEUE_AFTER_MS } from '../argentum/editTimings';
 import { globalImageCache } from '../utils/ImageLRUCache';
 
 export function useImageProcessing(
@@ -470,7 +471,7 @@ export function useImageProcessing(
 
           prevAdjustmentsRef.current = { path: selectedImage.path, adjustments };
         }
-      }, 50);
+      }, EDIT_QUEUE_AFTER_MS);
     }
 
     return () => {

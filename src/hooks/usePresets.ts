@@ -6,6 +6,7 @@ import { Folder, Invokes, Preset } from '../components/ui/AppProperties';
 import { toast } from 'react-toastify';
 import { trackSave } from '../argentum/savesInFlight';
 import { agText } from '../argentum/locales';
+import { PRESETS_SAVE_AFTER_MS } from '../argentum/editTimings';
 
 export enum PresetListType {
   Folder = 'folder',
@@ -51,7 +52,7 @@ export const savePresetsSoon = debounce((presetsToSave: Array<UserPreset>) => {
       console.error('Failed to save presets:', err),
     ),
   );
-}, 500);
+}, PRESETS_SAVE_AFTER_MS);
 
 /** The saved presets; an empty list, with saving held off, when they could not be loaded. */
 export async function loadSavedPresets(): Promise<Array<UserPreset>> {
