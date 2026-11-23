@@ -1126,6 +1126,11 @@
       "tooltipShutterSpeed": "シャッタースピード",
       "tooltipVirtualCopy": "仮想コピー"
     },
+    "permanentDelete": {
+      "confirm": "完全に削除",
+      "message_other": "{{count}} 個のファイルはゴミ箱に移動できません。完全に削除しますか？この操作は元に戻せません。",
+      "title": "ゴミ箱を使用できません"
+    },
     "reject": {
       "deleteConfirm": "除外した画像を削除",
       "deleteMessage_one": "除外した画像 {{count}} 枚を削除してもよろしいですか？ゴミ箱に移動されます。",

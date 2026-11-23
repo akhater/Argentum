@@ -1155,6 +1155,13 @@
       "tooltipShutterSpeed": "Velocidade do Obturador",
       "tooltipVirtualCopy": "Cópia Virtual"
     },
+    "permanentDelete": {
+      "confirm": "Excluir permanentemente",
+      "message_many": "{{count}} de arquivos não podem ser movidos para a Lixeira. Excluí-los permanentemente? Esta ação não pode ser desfeita.",
+      "message_one": "{{count}} arquivo não pode ser movido para a Lixeira. Excluí-lo permanentemente? Esta ação não pode ser desfeita.",
+      "message_other": "{{count}} arquivos não podem ser movidos para a Lixeira. Excluí-los permanentemente? Esta ação não pode ser desfeita.",
+      "title": "Não é possível usar a Lixeira"
+    },
     "reject": {
       "deleteConfirm": "Excluir Rejeitadas",
       "deleteMessage_many": "Tem certeza de que deseja excluir {{count}} imagens rejeitadas? Elas serão movidas para a lixeira.",

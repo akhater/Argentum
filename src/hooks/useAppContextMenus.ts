@@ -75,6 +75,7 @@ import { globalImageCache } from '../utils/ImageLRUCache';
 import { VIRTUAL_COPY, isVirtualCopyPath } from '../argentum/paths';
 import { canUndo as canUndoNow } from '../argentum/historyOnRelease';
 import { isShownWithin } from '../argentum/fileOps';
+import { askPermanentDelete, cannotRecycle } from '../argentum/permanentDelete';
 
 export interface UseAppContextMenusProps {
   handleImageSelect: (path: string) => void;
@@ -1055,9 +1056,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               icon: Check,
               isDestructive: true,
               onClick: async () => {
-                try {
-                  await invoke(Invokes.DeleteFolder, { path: targetPath });
-
+                const failed = (err: unknown) => toast.error(t('contextMenus.toasts.failedDeleteFolder', { err }));
+                const afterDelete = async () => {
                   const isCurrentInTarget =
                     currentFolderPath === targetPath ||
                     currentFolderPath?.startsWith(targetPath + '/') ||
@@ -1082,8 +1082,16 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                   }
 
                   props.refreshAllFolderTrees();
+                };
+                try {
+                  const outcome = await invoke(Invokes.DeleteFolder, { path: targetPath });
+                  if (cannotRecycle(outcome)) {
+                    askPermanentDelete(t, outcome, [targetPath], afterDelete, failed);
+                    return;
+                  }
+                  await afterDelete();
                 } catch (err) {
-                  toast.error(t('contextMenus.toasts.failedDeleteFolder', { err }));
+                  failed(err);
                 }
               },
             },

@@ -45,6 +45,7 @@ use crate::mods::clear_scope;
 use crate::mods::edit_status::EditStatus;
 use crate::mods::file_ops::{self, Destinations};
 use crate::mods::folder_walk::{self, Look, System, THIS_SYSTEM};
+use crate::mods::recycle::{self, DeleteOutcome};
 use crate::preset_converter;
 use crate::tagging::COLOR_TAG_PREFIX;
 
@@ -2245,28 +2246,35 @@ pub fn rename_folder(path: String, new_name: String, app_handle: AppHandle) -> R
 }
 
 #[tauri::command]
-pub fn delete_folder(path: String, app_handle: AppHandle) -> Result<(), String> {
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    {
-        if let Err(trash_error) = trash::delete(&path) {
-            log::warn!(
-                "Failed to move folder to trash: {}. Falling back to permanent delete.",
-                trash_error
-            );
-            fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
-        }
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
+pub fn delete_folder(path: String, app_handle: AppHandle) -> Result<DeleteOutcome, String> {
+    // A folder the bin refuses is left alone: the interface asks, then calls
+    // `delete_permanently` (mods/recycle.rs).
+    let outcome = recycle::recycle_with_system_bin(&[PathBuf::from(&path)]);
+    if outcome != DeleteOutcome::Done {
+        return Ok(outcome);
     }
 
     let mut deletions = HashSet::new();
     deletions.insert(path);
     sync_album_path_changes(&app_handle, None, Some(&deletions), None);
 
-    Ok(())
+    Ok(DeleteOutcome::Done)
+}
+
+/// Deletes `files` for good, which the interface asks for only after the Recycle
+/// Bin refused them and the person said yes. `paths` are the photos or folder
+/// the delete was for, which leave their albums.
+#[tauri::command]
+pub fn delete_permanently(
+    files: Vec<String>,
+    paths: Vec<String>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    let files: Vec<PathBuf> = files.into_iter().map(PathBuf::from).collect();
+    let removed = recycle::remove_permanently(&files);
+    let deletions: HashSet<String> = paths.into_iter().collect();
+    sync_album_path_changes(&app_handle, None, Some(&deletions), None);
+    removed
 }
 
 #[tauri::command]
@@ -3609,42 +3617,31 @@ pub(crate) fn files_to_delete_from_disk(paths: &[String]) -> Vec<PathBuf> {
 }
 
 #[tauri::command]
-pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Result<(), String> {
+pub fn delete_files_from_disk(
+    paths: Vec<String>,
+    app_handle: AppHandle,
+) -> Result<DeleteOutcome, String> {
     let deletions: HashSet<String> = paths.iter().cloned().collect();
     let final_paths_to_delete = files_to_delete_from_disk(&paths);
 
     if final_paths_to_delete.is_empty() {
-        return Ok(());
+        return Ok(DeleteOutcome::Done);
     }
 
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    file_ops::trash_or_delete(&final_paths_to_delete);
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    for path in final_paths_to_delete {
-        if path.is_file() {
-            if let Err(e) = fs::remove_file(&path) {
-                log::warn!("Failed to delete file {}: {}", path.display(), e);
-            }
-        } else if path.is_dir() {
-            if let Err(e) = fs::remove_dir_all(&path) {
-                log::warn!("Failed to delete directory {}: {}", path.display(), e);
-            }
-        }
+    let outcome = recycle::recycle_with_system_bin(&final_paths_to_delete);
+    if outcome == DeleteOutcome::Done {
+        sync_album_path_changes(&app_handle, None, Some(&deletions), None);
     }
-
-    sync_album_path_changes(&app_handle, None, Some(&deletions), None);
-
-    Ok(())
+    Ok(outcome)
 }
 
 #[tauri::command]
 pub fn delete_files_with_associated(
     paths: Vec<String>,
     app_handle: AppHandle,
-) -> Result<(), String> {
+) -> Result<DeleteOutcome, String> {
     if paths.is_empty() {
-        return Ok(());
+        return Ok(DeleteOutcome::Done);
     }
 
     let deletions: HashSet<String> = paths.iter().cloned().collect();
@@ -3652,24 +3649,14 @@ pub fn delete_files_with_associated(
     let final_paths_to_delete = file_ops::files_to_delete_with_associated(&paths);
 
     if final_paths_to_delete.is_empty() {
-        return Ok(());
+        return Ok(DeleteOutcome::Done);
     }
 
-    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    file_ops::trash_or_delete(&final_paths_to_delete);
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    for path in final_paths_to_delete {
-        if path.is_file() {
-            if let Err(e) = fs::remove_file(&path) {
-                log::warn!("Failed to delete file {}: {}", path.display(), e);
-            }
-        }
+    let outcome = recycle::recycle_with_system_bin(&final_paths_to_delete);
+    if outcome == DeleteOutcome::Done {
+        sync_album_path_changes(&app_handle, None, Some(&deletions), None);
     }
-
-    sync_album_path_changes(&app_handle, None, Some(&deletions), None);
-
-    Ok(())
+    Ok(outcome)
 }
 
 /// The thumbnails' folder in the app's cache folder. `tauri.conf.json`'s

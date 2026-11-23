@@ -2125,7 +2125,9 @@ pub fn delete_looks(
 ) -> Result<LooksDeleted, String> {
     let queue = provider(app).map(|provider| provider.queue.as_ref());
     delete_looks_with(queue, args, |file| {
-        file_ops::trash_or_delete(&[file.to_path_buf()]);
+        // A file the bin refuses stays, and counts as failed: only the Delete
+        // dialogs ever delete for good, after a yes.
+        crate::mods::recycle::recycle_with_system_bin(&[file.to_path_buf()]);
     })
 }
 

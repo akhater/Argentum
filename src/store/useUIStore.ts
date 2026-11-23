@@ -13,6 +13,8 @@ import { columnOf } from '../argentum/modern/panels';
 interface ConfirmModalState {
   confirmText?: string;
   confirmVariant?: string;
+  /** Cancel holds the focus, so Enter cancels: for a delete that cannot be undone. */
+  focusCancel?: boolean;
   isOpen: boolean;
   message?: string;
   onConfirm?(): void;

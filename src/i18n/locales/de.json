@@ -1129,6 +1129,12 @@
       "tooltipShutterSpeed": "Verschlusszeit",
       "tooltipVirtualCopy": "Virtuelle Kopie"
     },
+    "permanentDelete": {
+      "confirm": "Endgültig löschen",
+      "message_one": "{{count}} Datei kann nicht in den Papierkorb verschoben werden. Endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+      "message_other": "{{count}} Dateien können nicht in den Papierkorb verschoben werden. Endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+      "title": "Papierkorb nicht verfügbar"
+    },
     "reject": {
       "deleteConfirm": "Abgelehnte löschen",
       "deleteMessage_one": "Möchten Sie {{count}} abgelehntes Bild wirklich löschen? Es wird in den Papierkorb verschoben.",

@@ -1130,6 +1130,12 @@
       "tooltipShutterSpeed": "Shutter Speed",
       "tooltipVirtualCopy": "Virtual Copy"
     },
+    "permanentDelete": {
+      "confirm": "Delete Permanently",
+      "message_one": "{{count}} file cannot be moved to the Recycle Bin. Delete it permanently? This cannot be undone.",
+      "message_other": "{{count}} files cannot be moved to the Recycle Bin. Delete them permanently? This cannot be undone.",
+      "title": "Cannot use the Recycle Bin"
+    },
     "reject": {
       "deleteConfirm": "Delete Rejected",
       "deleteMessage_one": "Are you sure you want to delete {{count}} rejected image? It will be moved to the trash.",

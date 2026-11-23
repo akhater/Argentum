@@ -23,7 +23,6 @@
 //! - [`xmp_text`] and [`xmp_text_read`]: tag and label text as XMP stores it.
 //! - [`shares_the_xmp`]: only a photo's own edits meet its XMP, never a
 //!   virtual copy's.
-//! - [`trash_or_delete`]: how a library delete removes a file.
 //! - [`is_case_only_rename`]: `img_1.jpg` to `IMG_1.jpg` is no clash.
 //! - [`write_unique_output`]: a generated file
 //!   (HDR, panorama, focus stack, collage, denoise, positive, restore or
@@ -661,29 +660,6 @@ pub fn write_unique_output(
         counter = counter
             .checked_add(1)
             .ok_or_else(|| io::Error::other("No available output file name"))?;
-    }
-}
-
-/// Moves `paths` to the system trash. Where the trash refuses (a drive or
-/// share without one), deletes them permanently instead and logs it, as the
-/// library always has; the delete dialog says the delete is permanent.
-#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-pub fn trash_or_delete(paths: &[PathBuf]) {
-    let Err(trash_error) = trash::delete_all(paths) else {
-        return;
-    };
-    log::warn!("Failed to move files to trash: {trash_error}. Falling back to permanent delete.");
-    for path in paths {
-        let deleted = if path.is_dir() {
-            fs::remove_dir_all(path)
-        } else if path.is_file() {
-            fs::remove_file(path)
-        } else {
-            continue;
-        };
-        if let Err(e) = deleted {
-            log::warn!("Failed to delete {}: {}", path.display(), e);
-        }
     }
 }
 

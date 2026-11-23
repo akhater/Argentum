@@ -18,6 +18,7 @@ import {
 import { ag } from '../argentum/ag';
 import { useModernFolders } from '../argentum/modern/folders';
 import { VIRTUAL_COPY, isVirtualCopyPath, physicalPathOf } from '../argentum/paths';
+import { askPermanentDelete, cannotRecycle } from '../argentum/permanentDelete';
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -53,9 +54,7 @@ export function useFileOperations(
           )
         : null;
 
-      try {
-        const command = options.includeAssociated ? 'delete_files_with_associated' : 'delete_files_from_disk';
-        await invoke(command, { paths: pathsToDelete });
+      const finish = async () => {
         await refreshImageList();
         await refreshAllFolderTrees();
 
@@ -84,12 +83,28 @@ export function useFileOperations(
             }
           }
         }
-      } catch (err) {
+      };
+      const failed = (err: unknown) => {
         console.error('Failed to delete files:', err);
         toast.error(`Failed to delete files: ${err}`);
+      };
+
+      try {
+        const command = options.includeAssociated ? 'delete_files_with_associated' : 'delete_files_from_disk';
+        const outcome = await invoke(command, { paths: pathsToDelete });
+        if (cannotRecycle(outcome)) {
+          // The bin took some or none: nothing else was deleted. The selection stays
+          // as it is until the person has answered.
+          if (outcome.recycled > 0) await refreshImageList();
+          askPermanentDelete(t, outcome, pathsToDelete, finish, failed);
+          return;
+        }
+        await finish();
+      } catch (err) {
+        failed(err);
       }
     },
-    [refreshImageList, refreshAllFolderTrees, handleBackToLibrary, sortedImageList, handleImageSelect],
+    [refreshImageList, refreshAllFolderTrees, handleBackToLibrary, sortedImageList, handleImageSelect, t],
   );
 
   const handleDeleteSelected = useCallback(() => {

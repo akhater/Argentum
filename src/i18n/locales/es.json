@@ -1155,6 +1155,13 @@
       "tooltipShutterSpeed": "Velocidad de obturación",
       "tooltipVirtualCopy": "Copia virtual"
     },
+    "permanentDelete": {
+      "confirm": "Eliminar permanentemente",
+      "message_many": "No se pueden mover {{count}} de archivos a la papelera. ¿Eliminarlos permanentemente? Esta acción no se puede deshacer.",
+      "message_one": "No se puede mover {{count}} archivo a la papelera. ¿Eliminarlo permanentemente? Esta acción no se puede deshacer.",
+      "message_other": "No se pueden mover {{count}} archivos a la papelera. ¿Eliminarlos permanentemente? Esta acción no se puede deshacer.",
+      "title": "No se puede usar la papelera"
+    },
     "reject": {
       "deleteConfirm": "Eliminar rechazadas",
       "deleteMessage_many": "¿Seguro que quieres eliminar {{count}} imágenes rechazadas? Se moverán a la papelera.",

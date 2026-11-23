@@ -1155,6 +1155,13 @@
       "tooltipShutterSpeed": "Vitesse d'obturation",
       "tooltipVirtualCopy": "Copie virtuelle"
     },
+    "permanentDelete": {
+      "confirm": "Supprimer définitivement",
+      "message_many": "{{count}} de fichiers ne peuvent pas être placés dans la corbeille. Les supprimer définitivement ? Cette action est irréversible.",
+      "message_one": "{{count}} fichier ne peut pas être placé dans la corbeille. Le supprimer définitivement ? Cette action est irréversible.",
+      "message_other": "{{count}} fichiers ne peuvent pas être placés dans la corbeille. Les supprimer définitivement ? Cette action est irréversible.",
+      "title": "Corbeille indisponible"
+    },
     "reject": {
       "deleteConfirm": "Supprimer les rejetées",
       "deleteMessage_many": "Voulez-vous vraiment supprimer {{count}} images rejetées ? Elles seront déplacées dans la corbeille.",
