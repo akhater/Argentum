@@ -19,7 +19,8 @@ use crate::app_state::ThumbnailGeometryEntry;
 /// What the cache may hold: 128 MiB. A 1280 px base is 13 MB at 3:2 and 20 MB
 /// at 1:1 (12 bytes a pixel), so this keeps about ten typical bases and at
 /// least six of the largest uncropped ones. Before this the cache held eight
-/// entries of any size.
+/// entries of any size. The newest entry is kept even when it alone is over
+/// this (a large photo with a tight crop); it goes when another arrives.
 pub const MAX_BYTES: usize = 128 * 1024 * 1024;
 
 pub struct ThumbnailGeometryCache {
@@ -64,8 +65,10 @@ impl ThumbnailGeometryCache {
     }
 
     /// Keep `entry` under `key`, then let the least recently used go until
-    /// what is kept fits the budget. An entry larger than the whole budget is
-    /// not kept: it is made again when asked for, as a missing one is.
+    /// what is kept fits the budget. The newest entry is always kept, even
+    /// when it alone is over the budget (a large photo with a tight crop): the
+    /// photo being worked on is not made again on every refresh. It goes as
+    /// soon as another entry arrives.
     pub fn insert(&mut self, key: String, entry: ThumbnailGeometryEntry) {
         self.clock += 1;
         let bytes = entry.1.as_bytes().len();
@@ -73,7 +76,7 @@ impl ThumbnailGeometryCache {
             self.used_bytes -= old.bytes;
         }
         self.entries.insert(
-            key,
+            key.clone(),
             Slot {
                 entry,
                 bytes,
@@ -85,6 +88,7 @@ impl ThumbnailGeometryCache {
             let Some(oldest) = self
                 .entries
                 .iter()
+                .filter(|(k, _)| **k != key)
                 .min_by_key(|(_, s)| s.used)
                 .map(|(k, _)| k.clone())
             else {
@@ -163,27 +167,44 @@ mod tests {
     }
 
     #[test]
-    fn an_entry_over_the_whole_budget_is_not_kept() {
+    fn the_newest_entry_is_kept_over_the_budget_until_another_arrives() {
         let mut cache = ThumbnailGeometryCache::with_budget(1000);
         cache.insert("a".into(), entry(100));
-        assert_eq!(cache.used_bytes(), 0);
+        // Served from the cache on the second request.
+        assert!(cache.get("a").is_some());
+        assert!(cache.get("a").is_some());
+        assert_eq!(cache.used_bytes(), 1200);
+        // Another entry evicts it.
+        cache.insert("b".into(), entry(10));
         assert!(cache.get("a").is_none());
+        assert_eq!(cache.used_bytes(), 120);
+    }
+
+    /// A base whose pixels are a function of the key, as a recomputed one is.
+    fn made_from(key: &str, px: u32) -> ThumbnailGeometryEntry {
+        let seed = key.bytes().map(f32::from).sum::<f32>();
+        let mut img = image::Rgb32FImage::new(px, 1);
+        for (i, p) in img.pixels_mut().enumerate() {
+            *p = image::Rgb([seed, i as f32, seed + i as f32]);
+        }
+        (7, Arc::new(DynamicImage::ImageRgb32F(img)), 0.5)
     }
 
     #[test]
     fn a_request_after_eviction_makes_the_same_value_again() {
-        let make = |px: u32| (7u64, Arc::new(base(px)), 0.5f32);
         let mut cache = ThumbnailGeometryCache::with_budget(2400);
-        cache.insert("a".into(), make(100));
+        cache.insert("a".into(), made_from("a", 100));
         let before = cache.get("a").unwrap().1.as_bytes().to_vec();
-        cache.insert("b".into(), make(100));
-        cache.insert("c".into(), make(100));
+        cache.insert("b".into(), made_from("b", 100));
+        cache.insert("c".into(), made_from("c", 100));
         assert!(cache.get("a").is_none());
-        // Missing: made again, exactly as before.
-        cache.insert("a".into(), make(100));
+        // Missing: made again from the key, and equal to the first time.
+        cache.insert("a".into(), made_from("a", 100));
         let (hash, img, scale) = cache.get("a").unwrap();
         assert_eq!((*hash, *scale), (7, 0.5));
         assert_eq!(img.as_bytes(), &before[..]);
+        let other = made_from("b", 100).1;
+        assert_ne!(img.as_bytes(), other.as_bytes());
     }
 
     #[test]
