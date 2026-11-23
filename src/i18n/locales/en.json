@@ -1384,6 +1384,7 @@
       "titleBatch": "Denoise Images",
       "titleSingle": "Denoise Image"
     },
+    "dialogError": "This window ran into a problem and was closed. Please try again.",
     "focusStack": {
       "cancel": "Cancel",
       "close": "Close",

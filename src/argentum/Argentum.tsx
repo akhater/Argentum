@@ -55,7 +55,7 @@ import { useThresholdPreview } from './useThresholdPreview';
 import { useAutoWhiteBalanceFollows } from './autoWhiteBalance';
 import { useLensBuiltinOnOpen } from './lensBuiltin';
 import { useNewPhotoDefaults } from './newPhotoDefaults';
-import SuperResolutionModal from './SuperResolutionModal';
+import LazySuperResolutionModal from './LazySuperResolutionModal';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -192,7 +192,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       <LinearMask />
       <RadialFeather />
       <WhiteBalanceUpgrade />
-      <SuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
+      <LazySuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
     </>
   );
 }

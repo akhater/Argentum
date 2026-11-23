@@ -433,7 +433,9 @@ export function installWalker(keys) {
             !a.effect?.target?.closest?.('.Toastify__progress-bar'),
         );
       if (fading) lastChange = performance.now();
-      const busy = (window.__uiWalk?.pending ?? 0) > 0 || putOff.size > 0;
+      // A dialog's code is still loading (components/modals/LazyDialog leaves this marker meanwhile).
+      const loading = document.querySelector('[data-dialog-loading]') !== null;
+      const busy = (window.__uiWalk?.pending ?? 0) > 0 || putOff.size > 0 || loading;
       if (!busy && performance.now() - lastChange >= quietMs) return true;
     }
     return false;

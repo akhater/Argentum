@@ -1387,6 +1387,7 @@
       "titleBatch": "Reduir soroll de les imatges",
       "titleSingle": "Reduir soroll de la imatge"
     },
+    "dialogError": "Aquesta finestra ha tingut un problema i s'ha tancat. Torneu-ho a provar.",
     "focusStack": {
       "cancel": "Cancel·la",
       "close": "Tanca",

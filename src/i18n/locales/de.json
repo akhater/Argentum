@@ -1382,6 +1382,7 @@
       "titleBatch": "Bilder entrauschen",
       "titleSingle": "Bild entrauschen"
     },
+    "dialogError": "In diesem Fenster ist ein Problem aufgetreten, und es wurde geschlossen. Bitte versuche es erneut.",
     "focusStack": {
       "cancel": "Abbrechen",
       "close": "Schließen",

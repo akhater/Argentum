@@ -1413,6 +1413,7 @@
       "titleBatch": "Débruiter les images",
       "titleSingle": "Débruiter l'image"
     },
+    "dialogError": "Cette fenêtre a rencontré un problème et a été fermée. Veuillez réessayer.",
     "focusStack": {
       "cancel": "Annuler",
       "close": "Fermer",

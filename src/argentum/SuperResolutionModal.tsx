@@ -16,6 +16,8 @@ interface ProgressPayload {
 interface SuperResolutionModalProps {
   onLibraryRefresh: () => Promise<void>;
   onImageSelect: (path: string) => void;
+  /** The request that loaded this window (its open event passed before it mounted). */
+  initialPaths?: string[];
 }
 
 /** Restore's Mask slider: 60 is the tight end, the default (restore.rs). */
@@ -26,10 +28,14 @@ const DEFAULT_MASK = 60;
  * own size, Enlarge makes it 2x or 4x bigger. Either, or both - Restore first.
  * Scale 1 is "no enlargement".
  */
-export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }: SuperResolutionModalProps) {
+export default function SuperResolutionModal({
+  onLibraryRefresh,
+  onImageSelect,
+  initialPaths,
+}: SuperResolutionModalProps) {
   const agT = useAgTranslation();
   const modelStatus = useProcessStore((state) => state.aiModelDownloadStatus);
-  const [paths, setPaths] = useState<string[]>([]);
+  const [paths, setPaths] = useState<string[]>(initialPaths ?? []);
   const [scale, setScale] = useState(2);
   const [restore, setRestore] = useState(false);
   const [mask, setMask] = useState(DEFAULT_MASK);
