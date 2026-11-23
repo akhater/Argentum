@@ -35,6 +35,13 @@ pub fn write_atomic(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<
     write_atomic_with(path, contents.as_ref(), File::sync_all)
 }
 
+/// `write_atomic` for a file other people open: a photo the user exports.
+/// The new file gets the permissions any newly created file gets (the
+/// umask's), not the owner-only ones of a temporary file.
+pub fn write_atomic_shared(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    write_through(path, contents.as_ref(), File::sync_all, true)
+}
+
 /// `write_atomic` with the full flush passed in, so a test can make the disk
 /// refuse it.
 fn write_atomic_with(
@@ -42,11 +49,29 @@ fn write_atomic_with(
     contents: &[u8],
     full_flush: impl FnOnce(&File) -> std::io::Result<()>,
 ) -> std::io::Result<()> {
+    write_through(path, contents, full_flush, false)
+}
+
+fn write_through(
+    path: &Path,
+    contents: &[u8],
+    full_flush: impl FnOnce(&File) -> std::io::Result<()>,
+    shared: bool,
+) -> std::io::Result<()> {
     let folder = match path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
     };
-    let mut temp = tempfile::NamedTempFile::new_in(folder)?;
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut builder = tempfile::Builder::new();
+    #[cfg(unix)]
+    if shared {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(std::fs::Permissions::from_mode(0o666));
+    }
+    #[cfg(not(unix))]
+    let _ = shared;
+    let mut temp = builder.tempfile_in(folder)?;
     temp.write_all(contents)?;
     flush(temp.as_file(), full_flush)?;
     replace(temp, path)
@@ -133,7 +158,7 @@ fn is_held(error: &std::io::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::write_atomic;
+    use super::{write_atomic, write_atomic_shared};
 
     fn names_in(dir: &std::path::Path) -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(dir)
@@ -278,6 +303,36 @@ mod tests {
         });
         assert!(failed.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "old");
+    }
+
+    #[test]
+    fn a_shared_write_replaces_whole_and_leaves_nothing_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("IMG.jpg");
+        std::fs::write(&path, "a much longer earlier export").unwrap();
+        write_atomic_shared(&path, "new").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+        assert_eq!(names_in(dir.path()), ["IMG.jpg"]);
+        // Blocked by a folder of that name: fails, leaves no temporary file.
+        let blocked = dir.path().join("blocked");
+        std::fs::create_dir(&blocked).unwrap();
+        assert!(write_atomic_shared(&blocked, "x").is_err());
+        assert_eq!(names_in(dir.path()), ["IMG.jpg", "blocked"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_shared_write_gets_the_permissions_of_a_new_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let control = dir.path().join("control");
+        std::fs::write(&control, "x").unwrap();
+        let path = dir.path().join("IMG.jpg");
+        write_atomic_shared(&path, "x").unwrap();
+        assert_eq!(
+            path.metadata().unwrap().permissions().mode() & 0o777,
+            control.metadata().unwrap().permissions().mode() & 0o777,
+        );
     }
 
     #[test]
