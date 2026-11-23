@@ -1132,6 +1132,14 @@
       "tooltipShutterSpeed": "Rychlost závěrky",
       "tooltipVirtualCopy": "Virtuální kopie"
     },
+    "permanentDelete": {
+      "confirm": "Smazat trvale",
+      "message_few": "{{count}} soubory nelze přesunout do koše. Smazat je trvale? Tuto akci nelze vrátit zpět.",
+      "message_many": "{{count}} souboru nelze přesunout do koše. Smazat je trvale? Tuto akci nelze vrátit zpět.",
+      "message_one": "{{count}} soubor nelze přesunout do koše. Smazat ho trvale? Tuto akci nelze vrátit zpět.",
+      "message_other": "{{count}} souborů nelze přesunout do koše. Smazat je trvale? Tuto akci nelze vrátit zpět.",
+      "title": "Koš nelze použít"
+    },
     "reject": {
       "deleteConfirm": "Smazat odmítnuté",
       "deleteMessage_one": "Opravdu chcete smazat {{count}} odmítnutý snímek? Bude přesunut do koše.",

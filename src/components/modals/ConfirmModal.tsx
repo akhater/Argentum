@@ -9,6 +9,7 @@ interface ConfirmModalProps {
   cancelText?: string;
   confirmText?: string;
   confirmVariant?: string;
+  focusCancel?: boolean;
   isOpen: boolean;
   message?: string;
   onClose(): void;
@@ -20,6 +21,7 @@ export default function ConfirmModal({
   cancelText,
   confirmText,
   confirmVariant = 'primary',
+  focusCancel = false,
   isOpen,
   message,
   onClose,
@@ -58,7 +60,11 @@ export default function ConfirmModal({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && focusCancel) {
+        // The focused button answers: Cancel unless the person moved to Delete.
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+      } else if (e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
@@ -70,7 +76,7 @@ export default function ConfirmModal({
         onClose();
       }
     },
-    [handleConfirm, onClose],
+    [handleConfirm, onClose, focusCancel],
   );
 
   if (!isMounted) {
@@ -109,13 +115,14 @@ export default function ConfirmModal({
             onClick={onClose}
             variant="ghost"
             tabIndex={0}
+            autoFocus={focusCancel}
           >
             {resolvedCancelText}
           </Button>
           <Button
             onClick={handleConfirm}
             variant={confirmVariant}
-            autoFocus={true}
+            autoFocus={!focusCancel}
             className="focus:outline-hidden focus:ring-0 focus:ring-offset-0"
           >
             {resolvedConfirmText}

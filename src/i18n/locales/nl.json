@@ -1115,6 +1115,12 @@
       "tooltipShutterSpeed": "Sluitertijd",
       "tooltipVirtualCopy": "Virtuele kopie"
     },
+    "permanentDelete": {
+      "confirm": "Definitief verwijderen",
+      "message_one": "{{count}} bestand kan niet naar de prullenbak worden verplaatst. Definitief verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "message_other": "{{count}} bestanden kunnen niet naar de prullenbak worden verplaatst. Definitief verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "title": "Prullenbak niet beschikbaar"
+    },
     "search": {
       "noResults": "Geen resultaten gevonden",
       "noResultsAiHint": " Voor een uitgebreidere zoekopdracht kunt u automatische tags inschakelen bij instellingen.",

@@ -1126,6 +1126,11 @@
       "tooltipShutterSpeed": "快门速度",
       "tooltipVirtualCopy": "虚拟副本"
     },
+    "permanentDelete": {
+      "confirm": "永久删除",
+      "message_other": "{{count}} 个文件无法移到回收站。要永久删除吗？此操作无法撤销。",
+      "title": "无法使用回收站"
+    },
     "reject": {
       "deleteConfirm": "删除已拒绝",
       "deleteMessage_one": "确定要删除 {{count}} 张已拒绝的图像吗？它们将被移至回收站。",

@@ -1181,6 +1181,14 @@
       "tooltipShutterSpeed": "Czas otwarcia migawki",
       "tooltipVirtualCopy": "Kopia wirtualna"
     },
+    "permanentDelete": {
+      "confirm": "Usuń na stałe",
+      "message_few": "Nie można przenieść {{count}} plików do kosza. Usunąć je na stałe? Tej operacji nie można cofnąć.",
+      "message_many": "Nie można przenieść {{count}} plików do kosza. Usunąć je na stałe? Tej operacji nie można cofnąć.",
+      "message_one": "Nie można przenieść {{count}} pliku do kosza. Usunąć go na stałe? Tej operacji nie można cofnąć.",
+      "message_other": "Nie można przenieść {{count}} pliku do kosza. Usunąć je na stałe? Tej operacji nie można cofnąć.",
+      "title": "Nie można użyć kosza"
+    },
     "reject": {
       "deleteConfirm": "Usuń odrzucone",
       "deleteMessage_few": "Czy na pewno usunąć {{count}} odrzucone obrazy? Zostaną przeniesione do kosza.",

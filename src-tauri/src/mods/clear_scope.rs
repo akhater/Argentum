@@ -7,7 +7,8 @@
 //! roots are whole disks, so the buttons now take the open folder, and this
 //! refuses a disk itself in case anything still sends one. A cleared sidecar
 //! goes to the Recycle Bin or Trash and nowhere else: unlike a library delete
-//! (`file_ops::trash_or_delete`), a file the bin refuses stays where it is.
+//! (`recycle`), which asks before deleting a file the bin refuses, a file the
+//! bin refuses here stays where it is.
 
 use std::fmt;
 use std::fs;

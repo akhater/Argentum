@@ -134,6 +134,7 @@ pub mod provider_look;
 pub mod raw_decoder;
 pub mod raw_tone;
 pub mod recent_folders;
+pub mod recycle;
 pub mod redecode;
 #[cfg(test)]
 mod render_check;

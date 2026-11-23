@@ -1131,6 +1131,13 @@
       "tooltipShutterSpeed": "Velocitat d'obturació",
       "tooltipVirtualCopy": "Còpia virtual"
     },
+    "permanentDelete": {
+      "confirm": "Elimina definitivament",
+      "message_many": "{{count}} fitxers no es poden moure a la paperera. Voleu eliminar-los definitivament? Aquesta acció no es pot desfer.",
+      "message_one": "{{count}} fitxer no es pot moure a la paperera. Voleu eliminar-lo definitivament? Aquesta acció no es pot desfer.",
+      "message_other": "{{count}} fitxers no es poden moure a la paperera. Voleu eliminar-los definitivament? Aquesta acció no es pot desfer.",
+      "title": "No es pot usar la paperera"
+    },
     "reject": {
       "deleteConfirm": "Eliminar les rebutjades",
       "deleteMessage_many": "Segur que voleu eliminar {{count}} imatges rebutjades? Es mouran a la paperera.",
