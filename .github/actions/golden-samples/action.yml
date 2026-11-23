@@ -15,7 +15,7 @@ runs:
   using: composite
   steps:
     - id: cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ~/look-samples
         key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
@@ -48,7 +48,7 @@ runs:
 
     # Kept only when every sample is there and checked.
     - if: steps.fetch.outputs.ok == 'true' && steps.cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ~/look-samples
         key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}

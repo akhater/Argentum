@@ -9,6 +9,10 @@ on:
     types: [created]
   workflow_dispatch:
 
+# Read-only by default; the jobs that write to the release say so.
+permissions:
+  contents: read
+
 jobs:
   release:
     strategy:
@@ -65,7 +69,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Download table
         run: node scripts/release-downloads.mjs "$TAG"
         env:
@@ -81,7 +85,7 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Installer size against the last release
         run: node scripts/installer-size.mjs "$TAG"
         env:
