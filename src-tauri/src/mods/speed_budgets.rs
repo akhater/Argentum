@@ -150,3 +150,37 @@ fn windows_keeps_a_timing_test_at_full_speed() {
     full_speed::hold();
     assert!(full_speed::held());
 }
+
+/// The Lensfun database parse (`lens_correction::read_lensfun_dir` on the
+/// bundled `lensfun_db`, 59 files, 5.2 MB of XML): the heaviest step of
+/// start-up that needs no app handle, the quickest of five. Measured on
+/// 2026-11-23 on the same laptop, seven runs on mains power: 40-59 ms, median
+/// 45; the budget by the rule above.
+pub const LENS_PARSE_MS: u32 = 71;
+
+/// The line for a lens database parse over its budget, or none.
+pub fn lens_parse_breach(measured_ms: f32) -> Option<String> {
+    (measured_ms > LENS_PARSE_MS as f32)
+        .then(|| format!("lens database parse: {measured_ms:.0} ms, budget {LENS_PARSE_MS} ms"))
+}
+
+/// The lens database parse against its budget, the quickest of five. Run by
+/// hand on the laptop the budgets come from (docs/RELEASING.md). Start-up
+/// reads this database before the window is built.
+#[test]
+#[ignore = "timing against the reference laptop's budgets; run by hand"]
+fn lens_parse_within_budget() {
+    full_speed::hold();
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("lensfun_db");
+    let quickest = (0..5)
+        .map(|_| {
+            let start = std::time::Instant::now();
+            let db = crate::lens_correction::read_lensfun_dir(&dir);
+            let ms = start.elapsed().as_secs_f32() * 1000.0;
+            assert!(!db.lenses.is_empty(), "no lenses read from {dir:?}");
+            ms
+        })
+        .fold(f32::MAX, f32::min);
+    println!("lens database parse: {quickest:.0} ms");
+    assert_none(&lens_parse_breach(quickest).into_iter().collect::<Vec<_>>());
+}

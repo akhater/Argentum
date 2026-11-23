@@ -31,6 +31,12 @@ A release is a merge commit on `main`, published in this order.
    cargo test --lib mods::demosaic_measure::demosaic_within_budget -- --ignored --nocapture
    ```
 
+   The Lensfun database parse start-up waits for, the same way:
+
+   ```bash
+   cargo test --profile measure --lib mods::speed_budgets::lens_parse_within_budget -- --ignored --nocapture
+   ```
+
    The engine's slider tick, on the same laptop, from `src-tauri/engine/`, on one
    of your RAWs:
 
