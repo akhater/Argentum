@@ -46,7 +46,7 @@ const VIEW: View = View {
 #[test]
 fn edit_is_the_photos_edit_with_every_accepted_patch() {
     let (engine, _rx) = engine();
-    let opened = engine.insert(common::source(256, 192));
+    let opened = engine.insert(common::source(256, 192)).unwrap();
     assert_eq!(engine.edit(opened.photo_id).unwrap(), opened.edit);
 
     engine
@@ -70,7 +70,7 @@ fn edit_is_the_photos_edit_with_every_accepted_patch() {
 #[test]
 fn a_closed_photo_is_gone_and_hands_back_its_edit() {
     let (engine, _rx) = engine();
-    let opened = engine.insert(common::source(256, 192));
+    let opened = engine.insert(common::source(256, 192)).unwrap();
     // A 16-bit mosaic: two bytes a photosite.
     assert_eq!(
         engine.decoded_bytes(opened.photo_id).unwrap(),
@@ -110,7 +110,7 @@ fn reopened_with_its_edit_it_renders_the_same() {
         return;
     }
     let (engine, rx) = engine();
-    let first = engine.insert(common::source(256, 192));
+    let first = engine.insert(common::source(256, 192)).unwrap();
     let changes = patch(serde_json::json!({
         "ag_exposure": { "exposure_ev": 0.7 },
         "rr_white_balance": { "temperature_k": 4800, "tint": 12 },
@@ -130,7 +130,7 @@ fn reopened_with_its_edit_it_renders_the_same() {
 #[test]
 fn an_edit_that_cannot_be_read_opens_nothing() {
     let (engine, _rx) = engine();
-    let mut edit = Pipeline::standard().unwrap().edit();
+    let mut edit = Pipeline::standard().unwrap().edit().unwrap();
     edit.tools.get_mut("ag_exposure").unwrap().v = 99;
     assert!(matches!(
         engine.insert_with(common::source(64, 48), &edit),
@@ -146,5 +146,5 @@ fn an_edit_that_cannot_be_read_opens_nothing() {
             .is_err()
     );
     // Nothing was opened: the next photo is the first.
-    assert_eq!(engine.insert(common::source(64, 48)).photo_id.0, 1);
+    assert_eq!(engine.insert(common::source(64, 48)).unwrap().photo_id.0, 1);
 }

@@ -274,7 +274,7 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
         .map(|json| {
             let patch = patch(json);
             let edit = registry
-                .merge(edit, &patch, &registry.default_edit())
+                .merge(edit, &patch, &registry.default_edit().unwrap())
                 .expect("taken");
             Patched { patch, edit }
         })
@@ -284,7 +284,7 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
         .map(|json| {
             let patch = patch(json);
             let error = registry
-                .merge(edit, &patch, &registry.default_edit())
+                .merge(edit, &patch, &registry.default_edit().unwrap())
                 .expect_err("refused");
             Refused {
                 patch,
@@ -296,7 +296,7 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
 }
 
 fn fixtures() -> Fixtures {
-    let edit = standard().default_edit();
+    let edit = standard().default_edit().unwrap();
     let patch = patch(serde_json::json!({
         "ag_exposure": { "exposure_ev": 0.5 },
         "rr_white_balance": { "temperature_k": 5000, "tint": 10 },
@@ -393,7 +393,7 @@ fn the_generated_files_are_current() {
 
 #[test]
 fn what_the_engine_takes_and_refuses() {
-    let (patched, refused) = patched_and_refused(&standard().default_edit());
+    let (patched, refused) = patched_and_refused(&standard().default_edit().unwrap());
     let kinds: Vec<_> = refused.iter().map(|r| r.error.kind).collect();
     assert_eq!(
         kinds,

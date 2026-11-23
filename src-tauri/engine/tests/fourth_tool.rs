@@ -88,7 +88,7 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
 
     // And saved in the edit at its own version.
     assert_eq!(
-        p.edit().tools["ag_dummy"],
+        p.edit().unwrap().tools["ag_dummy"],
         ToolEdit {
             v: 2,
             settings: [("amount".to_string(), serde_json::json!(0.25))].into(),
