@@ -7,8 +7,8 @@
 //! that stops with no compile error; the tests below and `npm run
 //! check:wiring` fail on it instead. Ours.
 //!
-//! Left out on purpose: the look provider's own event (`mods/lut_provider.rs`)
-//! and the engine's (`ENGINE_EVENT`, from its contract).
+//! Left out on purpose: two events that keep their names in their own
+//! modules (one of them the engine's, from its contract).
 //!
 //! Older files of the app still pass their names as literals
 //! (`app.emit("culling-start", ..)`). They are in the list too: the tests
@@ -75,6 +75,9 @@ mod tests {
     use std::collections::BTreeSet;
     use std::path::{Path, PathBuf};
 
+    /// Constants that name an event in their own module, outside this list.
+    const OWN_NAMES: &[&str] = &["EVENT", "ENGINE_EVENT"];
+
     fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
@@ -87,8 +90,8 @@ mod tests {
     }
 
     /// The event each `.emit(` in the app names: a literal as it stands, a
-    /// constant of this list by its name. The look provider's and the
-    /// engine's constants are theirs and not read.
+    /// constant of this list by its name. A constant from anywhere else must be
+    /// in `OWN_NAMES`; any other name the check cannot resolve fails it.
     fn emitted() -> BTreeSet<String> {
         let mut files = Vec::new();
         sources(
@@ -97,9 +100,7 @@ mod tests {
         );
         let mut found = BTreeSet::new();
         for file in files {
-            let name = file.file_name().unwrap().to_string_lossy().into_owned();
-            if name == "events.rs" || name.starts_with("lut_provider") || name == "engine_bridge.rs"
-            {
+            if file.file_name().is_some_and(|n| n == "events.rs") {
                 continue;
             }
             let text = std::fs::read_to_string(&file).unwrap();
@@ -115,7 +116,8 @@ mod tests {
                     let id = path.rsplit("::").next().unwrap();
                     match ALL.iter().find(|(known, _)| *known == id) {
                         Some((_, name)) => name.to_string(),
-                        None => continue, // not an event call (a `.emit(` of something else)
+                        None if OWN_NAMES.contains(&id) => continue,
+                        None => panic!("{}: `.emit({path}` is not a listed event", file.display()),
                     }
                 };
                 found.insert(event);

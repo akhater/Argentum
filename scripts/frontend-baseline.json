@@ -370,6 +370,7 @@
     "scripts/test-rawmakase-gray-chart.mjs",
     "src-tauri/engine/README.md",
     "src/argentum/AboutPanel.tsx",
+    "src/argentum/RenderStatus.tsx",
     "src/argentum/knownIssues.ts",
     "src/argentum/roadmap.ts",
     "src/argentum/useThresholdPreview.ts",

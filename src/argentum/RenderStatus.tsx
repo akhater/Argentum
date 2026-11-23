@@ -66,7 +66,10 @@ export default function RenderStatus() {
   }
 
   return (
-    <div className="flex items-center px-1.5 text-text-secondary select-none" data-tooltip="Preview still rendering">
+    <div
+      className="flex items-center px-1.5 text-text-secondary select-none"
+      data-tooltip="Preview still rendering"
+    >
       <Loader2 size={14} className="animate-spin" />
     </div>
   );
