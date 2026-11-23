@@ -1,0 +1,1 @@
+- A damaged camera list (`cameras.json`) is no longer replaced by an empty one when a photo is opened, so each camera's default profile is kept; saving a camera's default profile or forgetting a camera now says when it could not be saved, and the list is written whole or not at all.
