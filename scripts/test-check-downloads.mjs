@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 
-import { answers, check, readList } from './check-downloads.mjs';
+import { answers, check, exitCodeFor, readList } from './check-downloads.mjs';
 
 let ran = 0;
 let failed = 0;
@@ -51,6 +51,12 @@ await test('a file is lost only when none of its addresses answers', async () =>
     ['HTTP 404', null, 'HTTP 404', 'HTTP 404'],
   );
   assert.deepEqual(lost, ['lost.onnx']);
+});
+
+await test('the run fails only when a file has no address left', () => {
+  assert.equal(exitCodeFor([]), 0);
+  assert.equal(exitCodeFor(['lost.onnx']), 1);
+  assert.equal(exitCodeFor(['lost.onnx', 'also-lost.onnx']), 1);
 });
 
 await test('the committed list gives each file a second address', () => {
