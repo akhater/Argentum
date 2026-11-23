@@ -1,0 +1,353 @@
+{
+  "activeWaveformChannel": "rgb",
+  "adjustmentLayout": {
+    "collapsedTools": [
+      "grain"
+    ],
+    "hiddenSections": [
+      "effects"
+    ],
+    "hiddenTools": [
+      "colorCalibration"
+    ],
+    "openSections": {
+      "basic": true,
+      "color": false
+    },
+    "sectionOrder": [
+      "color",
+      "basic",
+      "curves",
+      "details",
+      "effects"
+    ],
+    "toolOrder": {
+      "color": [
+        "hue",
+        "whiteBalance"
+      ]
+    }
+  },
+  "aiConnectorAddress": "http://127.0.0.1:8188",
+  "aiProvider": "cloud",
+  "aiTagCount": 6,
+  "alwaysDecodeRawThumbnails": true,
+  "applyPreprocessingToNonRaws": true,
+  "canvasInputMode": "trackpad",
+  "copyPasteSettings": {
+    "autoSync": true,
+    "includedAdjustments": [
+      "agBlackWhite",
+      "agLutDeclaredInput",
+      "agProviderLook",
+      "agSharpen",
+      "blacks",
+      "brightness",
+      "cameraProfile",
+      "centré",
+      "centréX",
+      "centréY",
+      "chromaticAberrationBlueYellow",
+      "chromaticAberrationRedCyan",
+      "clarity",
+      "colorCalibration",
+      "colorGrading",
+      "colorNoiseReduction",
+      "contrast",
+      "crop",
+      "curveMode",
+      "curves",
+      "dehaze",
+      "exposure",
+      "flareAmount",
+      "glowAmount",
+      "grainAmount",
+      "grainRoughness",
+      "grainSize",
+      "halationAmount",
+      "highlights",
+      "hsl",
+      "hue",
+      "lumaNoiseReduction",
+      "lutIntensity",
+      "lutIsSceneReferred",
+      "lutSize",
+      "masks",
+      "parametricCurve",
+      "pointCurves",
+      "rawToneRendering",
+      "saturation",
+      "shadows",
+      "sharpness",
+      "sharpnessThreshold",
+      "structure",
+      "temperature",
+      "tint",
+      "vibrance",
+      "vignetteAmount",
+      "vignetteCenterX",
+      "vignetteCenterY",
+      "vignetteFeather",
+      "vignetteMidpoint",
+      "vignetteRoundness",
+      "whiteBalance",
+      "whiteBalanceAuto",
+      "whites"
+    ],
+    "knownAdjustments": [
+      "agBlackWhite",
+      "agProviderLook",
+      "agSharpen",
+      "aspectRatio",
+      "blacks",
+      "brightness",
+      "cameraProfile",
+      "centré",
+      "centréX",
+      "centréY",
+      "chromaticAberrationBlueYellow",
+      "chromaticAberrationRedCyan",
+      "clarity",
+      "colorCalibration",
+      "colorGrading",
+      "colorNoiseReduction",
+      "contrast",
+      "crop",
+      "curveMode",
+      "curves",
+      "dehaze",
+      "exposure",
+      "flareAmount",
+      "flipHorizontal",
+      "flipVertical",
+      "glowAmount",
+      "grainAmount",
+      "grainRoughness",
+      "grainSize",
+      "guidedPerspective",
+      "halationAmount",
+      "highlights",
+      "hsl",
+      "hue",
+      "lensCorrectionMode",
+      "lensDistortionAmount",
+      "lensDistortionEnabled",
+      "lensMaker",
+      "lensModel",
+      "lensTcaAmount",
+      "lensTcaEnabled",
+      "lensVignetteAmount",
+      "lensVignetteEnabled",
+      "lumaNoiseReduction",
+      "lutData",
+      "lutIntensity",
+      "lutIsSceneReferred",
+      "lutName",
+      "lutPath",
+      "lutSize",
+      "masks",
+      "orientationSteps",
+      "parametricCurve",
+      "pointCurves",
+      "rawToneRendering",
+      "rotation",
+      "saturation",
+      "shadows",
+      "sharpness",
+      "sharpnessThreshold",
+      "structure",
+      "temperature",
+      "tint",
+      "toneMapper",
+      "transformAspect",
+      "transformDistortion",
+      "transformHorizontal",
+      "transformRotate",
+      "transformScale",
+      "transformVertical",
+      "transformXOffset",
+      "transformYOffset",
+      "vibrance",
+      "vignetteAmount",
+      "vignetteCenterX",
+      "vignetteCenterY",
+      "vignetteFeather",
+      "vignetteMidpoint",
+      "vignetteRoundness",
+      "whiteBalance",
+      "whiteBalanceAuto",
+      "whites"
+    ],
+    "mode": "replace"
+  },
+  "createXmpIfMissing": true,
+  "customAiTags": [
+    "corpus",
+    "fixture"
+  ],
+  "customAspectRatios": [
+    {
+      "height": 7.0,
+      "width": 5.0
+    }
+  ],
+  "decorations": true,
+  "defaultNonRawTonemapper": "agx",
+  "defaultRawTonemapper": "basic",
+  "displayEditIcon": false,
+  "editorNeutralGreyBg": true,
+  "editorPreviewResolution": 2560,
+  "enableAiTagging": true,
+  "enableFocusMode": true,
+  "enableFolderImageCounts": true,
+  "enableLivePreviews": false,
+  "enableToolFocusMode": true,
+  "enableXmpSync": false,
+  "enableZoomHifi": false,
+  "exifOverlay": "hover",
+  "exportPresets": [
+    {
+      "borderBasis": "shortEdge",
+      "borderColor": "#f0f0f0",
+      "borderHorizontalPercent": 3.0,
+      "borderVerticalPercent": 4.5,
+      "destinationType": "originalFolder",
+      "dontEnlarge": false,
+      "enableBorder": true,
+      "enablePad": true,
+      "enableResize": true,
+      "enableWatermark": true,
+      "exportMasks": true,
+      "fileFormat": "tiff",
+      "filenameTemplate": "{original_filename}_corpus",
+      "id": "corpus-tiff",
+      "jpegQuality": 88,
+      "keepMetadata": true,
+      "lastExportPath": "/exports",
+      "name": "Corpus TIFF",
+      "padColor": "#101010",
+      "padRatioHeight": 5.0,
+      "padRatioWidth": 4.0,
+      "preserveFolders": true,
+      "preserveTimestamps": true,
+      "resizeMode": "longEdge",
+      "resizeValue": 3000,
+      "stripGps": true,
+      "subfolder": "corpus",
+      "tiffBitDepth": 8,
+      "watermarkAnchor": "topLeft",
+      "watermarkOpacity": 60,
+      "watermarkPath": "/photos/watermark.png",
+      "watermarkScale": 12,
+      "watermarkSpacing": 4
+    }
+  ],
+  "filterCriteria": {
+    "colors": [
+      "red",
+      "blue"
+    ],
+    "editedStatus": "editedOnly",
+    "flagStatus": "picked",
+    "rating": 3,
+    "ratingOperator": "eq",
+    "rawStatus": "rawOnly"
+  },
+  "folderIcons": {
+    "/photos/2026": "camera"
+  },
+  "folderTreeSort": {
+    "key": "modified",
+    "order": "desc"
+  },
+  "fontFamily": "system",
+  "grouping": "raw",
+  "highResZoomMultiplier": 1.5,
+  "imageCacheSize": 8,
+  "isWaveformVisible": true,
+  "keybinds": {
+    "copy_files": [
+      "ctrl",
+      "alt",
+      "KeyC"
+    ],
+    "open_image": [
+      "ctrl",
+      "Enter"
+    ]
+  },
+  "language": "fr",
+  "lastFolderState": {
+    "activeAlbumId": "album-1",
+    "currentFolderPath": "/photos/2026/october",
+    "expandedAlbumGroups": [
+      "group-1"
+    ],
+    "expandedFolders": [
+      "/photos/2026"
+    ]
+  },
+  "lastRootPath": "/photos/2026",
+  "libraryDisplayMode": "list",
+  "libraryViewMode": "recursive",
+  "linearRawMode": "gamma",
+  "linuxGpuOptimization": true,
+  "linuxGpuOptimizationMigratedV1": false,
+  "livePreviewQuality": "medium",
+  "mediumThumbnailResolution": 1600,
+  "myLenses": [
+    {
+      "correctNew": true,
+      "maker": "Corpus",
+      "model": "Corpus 35mm f/2"
+    }
+  ],
+  "openTreeSections": [
+    "current",
+    "pinned"
+  ],
+  "panelWidthsMigratedV1": null,
+  "pinnedFolders": [
+    "/photos/2026/october"
+  ],
+  "processingBackend": "gl",
+  "rawHighlightCompression": 1.5,
+  "rawPreprocessingColorNr": 0.25,
+  "rawPreprocessingSharpening": 0.5,
+  "rootFolders": [
+    "/photos/2026",
+    "/photos/archive"
+  ],
+  "smallThumbnailResolution": 360,
+  "sortCriteria": {
+    "key": "rating",
+    "order": "desc"
+  },
+  "taggingShortcuts": [
+    "portrait",
+    "street",
+    "corpus"
+  ],
+  "taggingThreadCount": 2,
+  "theme": "grey",
+  "thumbnailAspectRatio": "cover",
+  "thumbnailSize": "large",
+  "thumbnailWorkerThreads": 6,
+  "tonemapperOverrideEnabled": true,
+  "uiVisibility": {
+    "filmstrip": false,
+    "leftPanel": true,
+    "rightPanel": false
+  },
+  "useAppleRaw9": true,
+  "useFullDpiRendering": true,
+  "useWgpuRenderer": false,
+  "waveformHeight": 300,
+  "whiteBalanceMode": "kelvin",
+  "workspace": {
+    "leftPanelWidth": 280,
+    "rightPanelWidth": 360
+  },
+  "zoomPhotoToPixelClick": true,
+  "zoomSpeedMultiplier": 1.25
+}
