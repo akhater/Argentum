@@ -53,6 +53,20 @@ pub fn update_sidecar(
     Ok(metadata)
 }
 
+/// Writes a user's edit to `sidecar` and says whether it was saved. A failure is
+/// logged with the path, so a batch can leave that photo out of its follow-up
+/// work (the XMP, the redrawn thumbnail) instead of going on as if it saved.
+/// The caller holds the sidecar's lock. Ours.
+pub fn write_edit_or_log(sidecar: &Path, source: &Path, metadata: &ImageMetadata) -> bool {
+    match crate::exif_processing::write_sidecar(sidecar, source, metadata) {
+        Ok(()) => true,
+        Err(e) => {
+            log::warn!("Could not save the edit to {}: {}", sidecar.display(), e);
+            false
+        }
+    }
+}
+
 /// Writes into `current` the settings that `after` changed from `before`: work too
 /// long to hold a sidecar's lock (an analysis of the photo) runs on the edit as
 /// read, and only what it changed lands on the edit as it is now. Ours.
@@ -98,6 +112,47 @@ pub fn lock_albums() -> MutexGuard<'static, ()> {
 mod tests {
     use super::*;
     use crate::file_management::{sidecar_for, sync_metadata_to_xmp};
+
+    fn edited() -> ImageMetadata {
+        ImageMetadata {
+            rating: 3,
+            ..ImageMetadata::default()
+        }
+    }
+
+    #[test]
+    fn a_sidecar_that_cannot_be_written_is_reported_and_leaves_no_xmp() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR2");
+        std::fs::write(&photo, "raw").unwrap();
+        // The sidecar's parent is a file, so it can never be written.
+        let blocker = dir.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap();
+        let sidecar = blocker.join("IMG.CR2.agdata");
+
+        let metadata = edited();
+        let saved = write_edit_or_log(&sidecar, &photo, &metadata);
+        if saved {
+            sync_metadata_to_xmp(&photo, &sidecar, &metadata, true);
+        }
+
+        assert!(!saved);
+        assert!(!dir.path().join("IMG.xmp").exists());
+    }
+
+    #[test]
+    fn a_sidecar_that_is_written_is_reported_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR2");
+        std::fs::write(&photo, "raw").unwrap();
+        let sidecar = sidecar_for(&photo, None);
+
+        let metadata = edited();
+        assert!(write_edit_or_log(&sidecar, &photo, &metadata));
+        assert_eq!(crate::exif_processing::load_sidecar(&sidecar).rating, 3);
+        sync_metadata_to_xmp(&photo, &sidecar, &metadata, true);
+        assert!(dir.path().join("IMG.xmp").exists());
+    }
 
     #[test]
     fn work_done_on_a_snapshot_keeps_a_change_made_meanwhile() {
