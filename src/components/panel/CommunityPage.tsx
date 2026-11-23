@@ -12,6 +12,7 @@ import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 import Dropdown from '../ui/Dropdown';
 import { useUIStore } from '../../store/useUIStore';
 import { noteCommunitySave } from '../../argentum/looks/community';
+import { revokeBlobUrls } from '../../argentum/objectUrl';
 
 // Argentum: the GitHub mark from simple-icons 16.28.0 (siGithub, CC0-1.0), the one icon used from that package.
 const GITHUB_NAME = 'GitHub';
@@ -112,16 +113,13 @@ const CommunityPage = ({ onBackToLibrary, imageList, currentFolderPath }: Commun
     fetchPresets();
 
     return () => {
-      Object.values(previewsRef.current).forEach((url) => {
-        if (url && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
-      });
+      revokeBlobUrls(Object.values(previewsRef.current));
     };
   }, []);
 
   useEffect(() => {
     const setupPreviewImages = async () => {
+      revokeBlobUrls(Object.values(previewsRef.current));
       setPreviews({});
       // RapidRAW 9e518220: src/components/panel/CommunityPage.tsx. A cloud-only
       // file (a OneDrive placeholder) would be downloaded to draw a preview.
@@ -171,18 +169,24 @@ const CommunityPage = ({ onBackToLibrary, imageList, currentFolderPath }: Commun
           newPreviews[presetName] = URL.createObjectURL(blob);
         }
 
-        setPreviews((prev) => {
-          Object.values(prev).forEach((url) => url?.startsWith('blob:') && URL.revokeObjectURL(url));
-          return newPreviews;
-        });
+        if (cancelled) {
+          revokeBlobUrls(Object.values(newPreviews));
+          return;
+        }
+        revokeBlobUrls(Object.values(previewsRef.current));
+        setPreviews(newPreviews);
       } catch (error) {
         console.error(`Failed to generate previews:`, error);
       } finally {
-        setAllPreviewsLoaded(true);
+        if (!cancelled) setAllPreviewsLoaded(true);
       }
     };
 
+    let cancelled = false;
     generateAllPreviews();
+    return () => {
+      cancelled = true;
+    };
   }, [presets, previewImagePaths]);
 
   const handleDownloadPreset = async (preset: CommunityPreset) => {

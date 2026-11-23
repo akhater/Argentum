@@ -13,6 +13,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes, LibraryViewMode, ImageFile } from '../components/ui/AppProperties';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 import { globalImageCache } from '../utils/ImageLRUCache';
+import { revokeBlobUrlLater } from '../argentum/objectUrl';
 import { debouncedSetHistory } from './useEditorActions';
 import { flushPendingSave } from '../argentum/pendingSave';
 import { clearLibrarySelection } from './useLibraryActions';
@@ -407,6 +408,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         if (!preserveEditor && selectedImage) {
           flushPendingSave(prevAdjustmentsRef);
           debouncedSetHistory.cancel();
+          revokeBlobUrlLater(useEditorStore.getState().finalPreviewUrl, (url) => globalImageCache.isProtected(url));
           setEditor({ selectedImage: null, finalPreviewUrl: null, uncroppedAdjustedPreviewUrl: null, histogram: null });
           setEditor({ adjustments: INITIAL_ADJUSTMENTS });
           resetHistory(INITIAL_ADJUSTMENTS);
