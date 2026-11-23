@@ -554,13 +554,8 @@ mod tests {
     #[test]
     fn a_match_that_cannot_be_inverted_is_an_error() {
         let images = [image(0), image(1)];
-        let matches = HashMap::from([(
-            (0, 1),
-            MatchInfo {
-                homography: Matrix3::zeros(),
-                inliers: 40,
-            },
-        )]);
+        let matches =
+            HashMap::from([((0, 1), MatchInfo { homography: Matrix3::zeros(), inliers: 40 })]);
         assert!(build_stitching_order(&images, &matches).is_err());
     }
 }

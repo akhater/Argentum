@@ -130,7 +130,8 @@ pub(crate) fn develop_decoded(
     };
 
     // Argentum: the single decode anchor, see mods/decode.rs
-    let decoded = crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path, rule);
+    let decoded =
+        crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path, rule);
 
     let is_linear_format = is_linear_raw_format(&raw_image);
 

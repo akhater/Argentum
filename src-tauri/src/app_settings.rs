@@ -77,11 +77,7 @@ pub struct MyLens {
     pub maker: String,
     pub model: String,
     /// Argentum: new photos from this lens open corrected (argentum/newPhotoDefaults.ts).
-    #[serde(
-        default,
-        rename = "correctNew",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, rename = "correctNew", skip_serializing_if = "Option::is_none")]
     pub correct_new: Option<bool>,
 }
 
@@ -179,10 +175,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "cameraProfile", // Argentum: our keys that Copy settings carries, mods/copy_keys.rs
         "rawToneRendering",
         "agSharpen",
-        "whiteBalanceAuto",
-        "agBlackWhite",
-        "agLutDeclaredInput",
-        "agProviderLook",
+        "whiteBalanceAuto", "agBlackWhite", "agLutDeclaredInput", "agProviderLook",
     ]
     .iter()
     .map(|s| s.to_string())

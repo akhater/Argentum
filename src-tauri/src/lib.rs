@@ -243,12 +243,7 @@ fn compute_transformed_preview(
     // Argentum: keyed as the preview's render keys its lookup (new_transform_hash).
     let transform_hash = calculate_transform_hash(adjustments);
     crate::mods::input_stage::keep_full_picture(&loaded_image.path, transform_hash, || {
-        match crate::adjustment_utils::apply_spatial_transformations(
-            Cow::Borrowed(warped.as_ref()),
-            adjustments,
-        )
-        .0
-        {
+        match crate::adjustment_utils::apply_spatial_transformations(Cow::Borrowed(warped.as_ref()), adjustments).0 {
             Cow::Borrowed(_) => Arc::clone(&warped),
             Cow::Owned(img) => Arc::new(img),
         }
@@ -683,8 +678,7 @@ fn process_preview_job(
         render,
         Some(loaded_image.path.as_str()),
     );
-    let lut =
-        crate::mods::provider_look::lut_of_edit(&state, &adjustments_clone, &loaded_image.path);
+    let lut = crate::mods::provider_look::lut_of_edit(&state, &adjustments_clone, &loaded_image.path);
 
     let wants_analytics = !(is_interactive && pixel_roi.is_some()) && request_analytics;
     let channel_filter = if is_interactive {
@@ -1221,8 +1215,7 @@ async fn generate_all_community_previews(
 
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
-    let mut base_thumbnails: Vec<(DynamicImage, bool, crate::as_shot::AsShot, f32, String)> =
-        Vec::new(); // Argentum: and which photo each came from
+    let mut base_thumbnails: Vec<(DynamicImage, bool, crate::as_shot::AsShot, f32, String)> = Vec::new(); // Argentum: and which photo each came from
     for image_path in image_paths.iter() {
         let (source_path, _) = parse_virtual_path(image_path);
         let source_path_str = source_path.to_string_lossy().to_string();
@@ -1617,8 +1610,7 @@ async fn generate_preview_for_path(
             Some(source_path_str.as_str()),
         );
         all_adjustments.global.show_clipping = 0;
-        let lut =
-            crate::mods::provider_look::lut_of_edit(&state, &js_adjustments, &source_path_str);
+        let lut = crate::mods::provider_look::lut_of_edit(&state, &js_adjustments, &source_path_str);
         let unique_hash = calculate_full_job_hash(&source_path_str, &js_adjustments);
 
         let final_image = process_and_get_dynamic_image(

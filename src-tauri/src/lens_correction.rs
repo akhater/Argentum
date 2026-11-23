@@ -657,13 +657,15 @@ pub fn find_best_lens_match(
 ) -> Option<(String, String)> {
     // Argentum: when the strict matcher finds exactly one lens, it decides;
     // otherwise the matcher below answers as it always has (mods/lens_match.rs).
-    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model, shot) {
+    if let Some(lens) = crate::mods::lens_match::confident(db, maker, model, camera_model, shot)
+    {
         return Some(lens_result(db, lens));
     }
     // Argentum: never a lens that cannot be on the camera (mods/lens_match.rs).
     loose_lens_match(db, maker, model, camera_model).filter(|(lens_maker, display)| {
-        lens_named(db, lens_maker, display)
-            .is_none_or(|lens| crate::mods::lens_match::can_be_on(db, maker, camera_model, lens))
+        lens_named(db, lens_maker, display).is_none_or(|lens| {
+            crate::mods::lens_match::can_be_on(db, maker, camera_model, lens)
+        })
     })
 }
 
@@ -677,8 +679,7 @@ pub fn loose_lens_match(
 ) -> Option<(String, String)> {
     let clean_model = model.trim().trim_matches('"');
 
-    if let Some(hit) =
-        crate::mods::lens_crop::match_for_camera(db, maker, clean_model, camera_model)
+    if let Some(hit) = crate::mods::lens_crop::match_for_camera(db, maker, clean_model, camera_model)
     {
         return Some(hit);
     }

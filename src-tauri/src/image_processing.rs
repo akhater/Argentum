@@ -20,8 +20,8 @@ pub use crate::gpu_processing::{
     RenderRequest, get_or_init_gpu_context, process_and_get_dynamic_image,
     process_and_get_dynamic_image_with_analytics,
 };
-use crate::mods::{raw_tone, sharpen};
 use crate::{AppState, mask_generation::MaskDefinition};
+use crate::mods::{raw_tone, sharpen};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 pub trait IntoCowImage<'a> {
@@ -1040,20 +1040,8 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                             let r = ((src_x - cx).hypot(src_y - cy) as f64 / hd) as f32;
                             let amount = params.lens_tca_amount;
                             (
-                                crate::mods::lens_units::tca_scale(
-                                    vr,
-                                    params.tca_cr,
-                                    params.tca_br,
-                                    r,
-                                    amount,
-                                ),
-                                crate::mods::lens_units::tca_scale(
-                                    vb,
-                                    params.tca_cb,
-                                    params.tca_bb,
-                                    r,
-                                    amount,
-                                ),
+                                crate::mods::lens_units::tca_scale(vr, params.tca_cr, params.tca_br, r, amount),
+                                crate::mods::lens_units::tca_scale(vb, params.tca_cb, params.tca_bb, r, amount),
                             )
                         } else {
                             (vr, vb)
@@ -2424,9 +2412,7 @@ pub fn is_image_edited(
     }
 
     let reference = AsShot::reference();
-    let render = RenderOptions {
-        tonemapper_override,
-    };
+    let render = RenderOptions { tonemapper_override };
     let current_adj = get_all_adjustments_from_json(adj, is_raw, reference, render, None);
     let default_adj =
         get_all_adjustments_from_json(&serde_json::json!({}), is_raw, reference, render, None);
@@ -2469,11 +2455,7 @@ pub fn is_lens_correction_shown(adjustments: &serde_json::Value) -> bool {
 /// per section, so the tool is answered by its section's eye: noise reduction
 /// by Details', the rest (lens blur, relight, fog) by Effects'.
 pub fn is_effect_enabled(adjustments: &serde_json::Value, tool: &str, enabled_key: &str) -> bool {
-    let section = if tool == "noiseReduction" {
-        "details"
-    } else {
-        "effects"
-    };
+    let section = if tool == "noiseReduction" { "details" } else { "effects" };
     adjustments[enabled_key].as_bool().unwrap_or(false) && is_section_visible(adjustments, section)
 }
 
@@ -2609,8 +2591,7 @@ fn get_global_adjustments_from_json(
 
     let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
 
-    let (raw_tone_mode, raw_tone_points, ag_camera_look) =
-        raw_tone::resolve(js_adjustments, is_raw, photo); // Argentum
+    let (raw_tone_mode, raw_tone_points, ag_camera_look) = raw_tone::resolve(js_adjustments, is_raw, photo); // Argentum
 
     let mut global = GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),
@@ -2787,11 +2768,7 @@ fn get_global_adjustments_from_json(
             raw_tone_points.len().min(16) as u32
         },
         ag_film_lut_input: crate::mods::film_lut::declared_input(js_adjustments),
-        ag_film_lut_ev: crate::mods::film_lut::exposure_ev(
-            js_adjustments,
-            raw_tone_mode,
-            &raw_tone_points,
-        ),
+        ag_film_lut_ev: crate::mods::film_lut::exposure_ev(js_adjustments, raw_tone_mode, &raw_tone_points),
         raw_tone_curve: convert_points_to_aligned(raw_tone_points),
 
         ag_sharpen: sharpen::from_json(js_adjustments, is_raw, photo),
@@ -4091,18 +4068,8 @@ mod tests {
     /// two differ only where the old one read past the buffer.
     #[test]
     fn the_per_channel_sampler_matches_the_earlier_one_where_that_could_read() {
-        for (w, h) in [
-            (64usize, 48usize),
-            (2, 2),
-            (2, 9),
-            (9, 2),
-            (1, 8),
-            (8, 1),
-            (1, 1),
-        ] {
-            let raw: Vec<f32> = (0..w * h * 3)
-                .map(|i| ((i * 7) % 29) as f32 / 28.0)
-                .collect();
+        for (w, h) in [(64usize, 48usize), (2, 2), (2, 9), (9, 2), (1, 8), (8, 1), (1, 1)] {
+            let raw: Vec<f32> = (0..w * h * 3).map(|i| ((i * 7) % 29) as f32 / 28.0).collect();
             let ctx = TcaContext {
                 src_raw: &raw,
                 src_width: w,
@@ -4156,19 +4123,11 @@ mod tests {
     #[test]
     fn a_straight_curve_goes_to_the_shader_with_no_points() {
         let pts = |p: &[(f64, f64)]| -> Vec<serde_json::Value> {
-            p.iter()
-                .map(|&(x, y)| serde_json::json!({ "x": x, "y": y }))
-                .collect()
+            p.iter().map(|&(x, y)| serde_json::json!({ "x": x, "y": y })).collect()
         };
         assert_eq!(shader_curve(pts(&[(0.0, 0.0), (255.0, 255.0)])).1, 0);
-        assert_eq!(
-            shader_curve(pts(&[(0.0, 0.0), (128.0, 128.4), (255.0, 255.0)])).1,
-            0
-        );
-        assert_eq!(
-            shader_curve(pts(&[(0.0, 0.0), (128.0, 129.0), (255.0, 255.0)])).1,
-            3
-        );
+        assert_eq!(shader_curve(pts(&[(0.0, 0.0), (128.0, 128.4), (255.0, 255.0)])).1, 0);
+        assert_eq!(shader_curve(pts(&[(0.0, 0.0), (128.0, 129.0), (255.0, 255.0)])).1, 3);
         assert_eq!(shader_curve(pts(&[(0.0, 12.0), (255.0, 255.0)])).1, 2);
         assert_eq!(shader_curve(pts(&[(0.0, 0.0), (255.0, 250.0)])).1, 2);
         assert_eq!(shader_curve(pts(&[(128.0, 128.0)])).1, 1);

@@ -255,12 +255,7 @@ fn window_surface(
     let window = app_handle.get_webview_window("main")?;
     instance
         .create_surface(window)
-        .map_err(|e| {
-            log::warn!(
-                "Failed to create surface, falling back to compute-only: {}",
-                e
-            )
-        })
+        .map_err(|e| log::warn!("Failed to create surface, falling back to compute-only: {}", e))
         .ok()
 }
 
@@ -363,10 +358,7 @@ pub fn get_or_init_gpu_context(
     if first.is_err()
         && let Ok(chosen) = std::env::var("WGPU_BACKEND")
     {
-        log::warn!(
-            "The backend WGPU_BACKEND chose ({}) failed to start.",
-            chosen
-        );
+        log::warn!("The backend WGPU_BACKEND chose ({}) failed to start.", chosen);
     }
     // Linux runs compute-only, so the adapter and surface go unused there.
     #[cfg_attr(target_os = "linux", allow(unused_variables))]
@@ -376,19 +368,23 @@ pub fn get_or_init_gpu_context(
         queue,
         limits,
         surface: surface_opt,
-    } = gpu_backend_fallback::open_with_fallback(first, gpu_backend_fallback::ORDER, |backends| {
-        let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
-        desc.backends = backends;
-        let instance = wgpu::Instance::new(desc);
-        #[cfg(not(target_os = "linux"))]
-        let surface = wants_surface
-            .then(|| window_surface(app_handle, &instance))
-            .flatten();
-        #[cfg(target_os = "linux")]
-        let surface = None;
-        let adapter = request_adapter(&instance, backends, surface.as_ref())?;
-        request_device(adapter, surface)
-    })
+    } = gpu_backend_fallback::open_with_fallback(
+        first,
+        gpu_backend_fallback::ORDER,
+        |backends| {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+            desc.backends = backends;
+            let instance = wgpu::Instance::new(desc);
+            #[cfg(not(target_os = "linux"))]
+            let surface = wants_surface
+                .then(|| window_surface(app_handle, &instance))
+                .flatten();
+            #[cfg(target_os = "linux")]
+            let surface = None;
+            let adapter = request_adapter(&instance, backends, surface.as_ref())?;
+            request_device(adapter, surface)
+        },
+    )
     .inspect_err(|_| state.gpu_setup_mark.clear())?;
 
     device.on_uncaptured_error(Arc::new(|err: wgpu::Error| {
@@ -455,13 +451,7 @@ pub fn get_or_init_gpu_context(
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Display Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                concat!(
-                    include_str!("shaders/ag_display.wgsl"),
-                    include_str!("shaders/display.wgsl")
-                )
-                .into(),
-            ), // Argentum: ours in front of theirs
+            source: wgpu::ShaderSource::Wgsl(concat!(include_str!("shaders/ag_display.wgsl"), include_str!("shaders/display.wgsl")).into()), // Argentum: ours in front of theirs
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -563,11 +553,7 @@ pub fn get_or_init_gpu_context(
                 _pad: 0.0,
                 bg_primary: [24.0 / 255.0, 24.0 / 255.0, 24.0 / 255.0, 1.0],
                 bg_secondary: [35.0 / 255.0, 35.0 / 255.0, 35.0 / 255.0, 1.0],
-                ag_display_matrix: [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                ], // Argentum: no conversion until a screen is known
+                ag_display_matrix: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], // Argentum: no conversion until a screen is known
             },
             sampler,
             current_bind_group: None,
@@ -1480,14 +1466,7 @@ impl GpuProcessor {
                 params,
                 fine,
             );
-            pass(
-                &self.pipelines.gf_blur_v_pipeline,
-                &tmp,
-                &tmp,
-                &blurred,
-                params,
-                fine,
-            );
+            pass(&self.pipelines.gf_blur_v_pipeline, &tmp, &tmp, &blurred, params, fine);
             pass(
                 &self.pipelines.gf_coeffs_pipeline,
                 &blurred,
@@ -1496,22 +1475,8 @@ impl GpuProcessor {
                 params,
                 fine,
             );
-            pass(
-                &self.pipelines.gf_blur_h_pipeline,
-                &ab,
-                &ab,
-                &tmp,
-                params,
-                fine,
-            );
-            pass(
-                &self.pipelines.gf_blur_v_pipeline,
-                &tmp,
-                &tmp,
-                out,
-                params,
-                fine,
-            );
+            pass(&self.pipelines.gf_blur_h_pipeline, &ab, &ab, &tmp, params, fine);
+            pass(&self.pipelines.gf_blur_v_pipeline, &tmp, &tmp, out, params, fine);
         }
 
         pass(
@@ -1571,11 +1536,7 @@ impl GpuProcessor {
         }
         // Argentum: Lightroom's grading for the blocks marked so, theirs for the rest.
         if let Some(curves) = crate::mods::color_grade::move_to_curves(&mut adjustments) {
-            queue.write_buffer(
-                &self.ag_grade_curves_buffer,
-                0,
-                bytemuck::cast_slice(&curves),
-            );
+            queue.write_buffer(&self.ag_grade_curves_buffer, 0, bytemuck::cast_slice(&curves));
         }
         let black_white = adjustments.global.ag_black_white; // Argentum: B&W's grid for this render
         if black_white.is_on() {
@@ -1585,23 +1546,16 @@ impl GpuProcessor {
         // Argentum: the Camera Look this render uses, unless the buffer holds it already.
         let look = adjustments.global.ag_camera_look.look;
         if look != 0
-            && self
-                .ag_camera_look_held
-                .load(std::sync::atomic::Ordering::Relaxed)
-                != look
+            && self.ag_camera_look_held.load(std::sync::atomic::Ordering::Relaxed) != look
             && let Some(data) = crate::mods::camera_look::gpu_data(look)
         {
             queue.write_buffer(&self.ag_camera_look_buffer, 0, bytemuck::cast_slice(&data));
-            self.ag_camera_look_held
-                .store(look, std::sync::atomic::Ordering::Relaxed);
+            self.ag_camera_look_held.store(look, std::sync::atomic::Ordering::Relaxed);
         }
         // Argentum: a provider look's grain, fitted to this frame (mods/look_grain.rs).
-        let grain_map =
-            crate::mods::look_grain::fit(&mut adjustments.global.ag_look_grain, width, height);
+        let grain_map = crate::mods::look_grain::fit(&mut adjustments.global.ag_look_grain, width, height);
         let grain = adjustments.global.ag_look_grain;
-        let grain_bound = self
-            .ag_look_grain
-            .bind(device, queue, &grain, grain_map.as_deref());
+        let grain_bound = self.ag_look_grain.bind(device, queue, &grain, grain_map.as_deref());
         if adjustments.global.flare_amount > 0.0 {
             let mut encoder = device.create_command_encoder(&Default::default());
 
@@ -2285,20 +2239,7 @@ fn process_and_get_dynamic_image_inner(
     }
 
     let cache = cache_lock.as_ref().unwrap();
-    let crate::mods::input_stage::Staged {
-        view: staged,
-        request,
-    } = crate::mods::input_stage::run(
-        context,
-        state,
-        base_image,
-        transform_hash,
-        caller_id,
-        &cache.texture_view,
-        cache.width,
-        cache.height,
-        request,
-    ); // Argentum: the input stage, see mods/input_stage.rs; render with the request it hands back
+    let crate::mods::input_stage::Staged { view: staged, request } = crate::mods::input_stage::run(context, state, base_image, transform_hash, caller_id, &cache.texture_view, cache.width, cache.height, request); // Argentum: the input stage, see mods/input_stage.rs; render with the request it hands back
 
     let (processed_pixels, out_w, out_h, out_x, out_y) = processor.run(
         staged.as_ref().unwrap_or(&cache.texture_view),

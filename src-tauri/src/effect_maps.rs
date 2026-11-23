@@ -368,10 +368,7 @@ mod tests {
         });
         let url = encode_source_space_map(&DynamicImage::ImageRgba8(ramp)).unwrap();
         let normals = resolve_rgba_map(&url, &adjustments).unwrap();
-        for (x, y, p) in normals
-            .enumerate_pixels()
-            .filter(|(x, y, _)| inside(*x, *y))
-        {
+        for (x, y, p) in normals.enumerate_pixels().filter(|(x, y, _)| inside(*x, *y)) {
             assert!(p[0].abs_diff(p[2]) <= 1, "at {x},{y}: {p:?}");
         }
     }

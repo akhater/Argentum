@@ -378,10 +378,7 @@ fn is_default_sidecar(sidecar_path: &Path, source_path: &Path, metadata: &ImageM
     if metadata.rating != 0
         || metadata.flag.is_some()
         || metadata.tags.as_ref().is_some_and(|tags| !tags.is_empty())
-        || metadata
-            .ag_snapshots
-            .as_ref()
-            .is_some_and(|snapshots| !snapshots.is_empty())
+        || metadata.ag_snapshots.as_ref().is_some_and(|snapshots| !snapshots.is_empty())
         || !crate::image_processing::is_default_adjustments(&metadata.adjustments)
     {
         return false;
@@ -2123,8 +2120,7 @@ pub fn read_exif_data(path: &str, file_bytes: &[u8]) -> HashMap<String, String> 
         return cached_exif;
     }
 
-    let mut exif_map =
-        crate::mods::lens_name::with_lens(read_exif_data_from_bytes(path, file_bytes), file_bytes);
+    let mut exif_map = crate::mods::lens_name::with_lens(read_exif_data_from_bytes(path, file_bytes), file_bytes);
     // Argentum: a Canon crop mode, which only the maker note records (mods/canon_crop_mode.rs).
     crate::mods::canon_crop_mode::fill(&mut exif_map, file_bytes);
     // Argentum: a raw's frame, for choosing its lens (mods/photo_frame.rs).
