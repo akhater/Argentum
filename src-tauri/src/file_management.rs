@@ -2632,7 +2632,7 @@ pub fn save_metadata_and_update_thumbnail(
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(&path);
 
-    let lens_db = state.lens_db.lock().unwrap().clone();
+    let lens_db = Some(state.lens_db.get());
     let metadata = save_edit(&source_path, &sidecar_path, adjustments, lens_db.as_deref())?;
 
     if let Ok(settings) = load_settings(app_handle.clone())
@@ -2714,12 +2714,7 @@ pub async fn apply_adjustments_to_paths(
 ) -> Result<(), String> {
     // RapidRAW cabc73a4: src-tauri/src/file_management.rs. Returns once every
     // sidecar is written, so a caller that reads one back sees the paste.
-    let lens_db = app_handle
-        .state::<AppState>()
-        .lens_db
-        .lock()
-        .unwrap()
-        .clone();
+    let lens_db = Some(app_handle.state::<AppState>().lens_db.get());
 
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, move |source_path, sidecar_path| {
@@ -2899,12 +2894,7 @@ pub async fn apply_auto_lens_correction_to_paths(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let lens_db = app_handle
-        .state::<AppState>()
-        .lens_db
-        .lock()
-        .unwrap()
-        .clone();
+    let lens_db = Some(app_handle.state::<AppState>().lens_db.get());
 
     tauri::async_runtime::spawn_blocking(move || {
         update_sidecars_and_thumbnails(paths, app_handle, move |source_path, sidecar_path| {
@@ -3111,7 +3101,7 @@ pub async fn apply_auto_adjustments_to_paths(
     paths: Vec<String>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let lens_db = app_handle.state::<AppState>().lens_db.lock().unwrap().clone();
+    let lens_db = Some(app_handle.state::<AppState>().lens_db.get());
     update_sidecars_from_images(
         paths,
         app_handle,

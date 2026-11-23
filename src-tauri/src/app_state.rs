@@ -19,7 +19,6 @@ use crate::camera_tethering::CameraSession;
 use crate::gpu_processing::GpuProcessor;
 use crate::image_processing::GpuContext;
 use crate::launch_request::ExternalEditSession;
-use crate::lens_correction::LensDatabase;
 use crate::mods::gpu_setup_mark::GpuSetupMark;
 use crate::mods::lut_cache::LutCache;
 
@@ -245,7 +244,7 @@ pub struct AppState {
     pub patch_cache: Mutex<HashMap<String, serde_json::Value>>,
     pub geometry_cache: Mutex<HashMap<u64, DynamicImage>>,
     pub thumbnail_geometry_cache: Mutex<HashMap<String, ThumbnailGeometryEntry>>,
-    pub lens_db: Mutex<Option<Arc<LensDatabase>>>,
+    pub lens_db: crate::mods::lens_db::LazyLensDb,
     pub load_image_generation: Arc<AtomicUsize>,
     pub full_warped_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
     pub patched_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,

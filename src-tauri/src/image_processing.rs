@@ -3973,7 +3973,7 @@ pub fn calculate_auto_adjustments(
 
     let (source_path, _) = crate::file_management::parse_virtual_path(&image_path);
     let exif = crate::exif_processing::read_rrexif_sidecar(&source_path);
-    let lens_db = state.lens_db.lock().unwrap().clone();
+    let lens_db = Some(state.lens_db.get());
     crate::file_management::resolve_lens_params_in_adjustments(
         &mut adjustments,
         &exif,

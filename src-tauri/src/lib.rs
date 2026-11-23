@@ -1851,6 +1851,13 @@ fn frontend_ready(
         if let Err(e) = window.show() {
             log::error!("Failed to show window: {}", e);
         }
+        // The window is up: parse the lens database now so the first photo rarely waits for it.
+        if is_first_run {
+            let app_handle = app_handle.clone();
+            tokio::task::spawn_blocking(move || {
+                app_handle.state::<AppState>().lens_db.get();
+            });
+        }
         if let Err(e) = window.set_focus() {
             log::error!("Failed to focus window: {}", e);
         }
@@ -2023,12 +2030,10 @@ fn run_app() {
             }
             let gpu_backend = app.state::<AppState>().gpu_setup_mark.running_backend().to_string();
 
-            let lens_db = lens_correction::load_lensfun_db(&app_handle);
-            mods::startup_marks::mark("lens database");
-            {
-                let state = app.state::<AppState>();
-                *state.lens_db.lock().unwrap() = Some(Arc::new(lens_db));
-            }
+            // Only where the files are; they are parsed on first use (mods/lens_db.rs).
+            app.state::<AppState>()
+                .lens_db
+                .set_dir(lens_correction::lensfun_db_dir(&app_handle));
 
             unsafe {
                 if is_headless {
@@ -2350,7 +2355,7 @@ fn run_app() {
             patch_cache: Mutex::new(HashMap::new()),
             geometry_cache: Mutex::new(HashMap::new()),
             thumbnail_geometry_cache: Mutex::new(HashMap::new()),
-            lens_db: Mutex::new(None),
+            lens_db: Default::default(),
             load_image_generation: Arc::new(AtomicUsize::new(0)),
             full_warped_cache: Mutex::new(None),
             patched_cache: Mutex::new(None),

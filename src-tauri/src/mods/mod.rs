@@ -95,6 +95,7 @@ pub mod jpeg_exif_fit;
 pub mod jxl_export;
 pub mod lens_builtin;
 pub mod lens_crop;
+pub mod lens_db;
 pub mod lens_flange;
 pub mod lens_focal_span;
 pub mod lens_frame;
