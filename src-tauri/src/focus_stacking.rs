@@ -2095,7 +2095,7 @@ fn decode_frame(
     if is_raw_file(path) {
         apply_cpu_default_raw_processing(&mut dyn_img);
     }
-    Ok(PlanarRgb::from_rgb32f(&dyn_img.to_rgb32f()))
+    Ok(PlanarRgb::from_rgb32f(&dyn_img.into_rgb32f()))
 }
 
 fn make_preview(img: &image::Rgb32FImage, max_dim: u32) -> Result<String, String> {

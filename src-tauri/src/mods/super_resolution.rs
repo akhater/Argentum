@@ -744,7 +744,7 @@ fn capture_before_enlarging(
 fn framed_for(path: &str, app_handle: &tauri::AppHandle) -> Result<Arc<super::restore::Framed>> {
     super::restore::framed(path, || {
         let (source, source_size) = load_source(path, app_handle)?;
-        Ok((source.to_rgb32f(), source_size))
+        Ok((source.into_rgb32f(), source_size))
     })
 }
 
@@ -1664,7 +1664,7 @@ mod tests {
         );
         let mut framed = decoded.crop_imm(region[0], region[1], region[2], region[3]);
         encode_for_reopening(&mut framed);
-        let source = framed.to_rgb32f();
+        let source = framed.into_rgb32f();
 
         let (session, device) = gpu_runtime::session(&model_path, device).expect("session");
         let model = LoadedModel {
