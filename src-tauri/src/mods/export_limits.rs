@@ -22,6 +22,10 @@ pub const MAX_EXPORT_PIXELS: u64 = MAX_DECODE_PIXELS;
 pub enum ExportSizeError {
     /// A side came out as zero (a target of 0).
     Empty { width: u32, height: u32 },
+    /// The resize target itself is 0.
+    ZeroTarget,
+    /// The resize target alone is longer than any photo within the limit.
+    TargetTooLong { value: u32, limit: u64 },
     /// The photo would be over the limit.
     TooLarge { width: u32, height: u32, limit: u64 },
 }
@@ -32,6 +36,12 @@ impl fmt::Display for ExportSizeError {
             Self::Empty { width, height } => write!(
                 f,
                 "The export size {width}x{height} is empty: the target size must be at least 1 pixel."
+            ),
+            Self::ZeroTarget => write!(f, "The resize target is 0: it must be at least 1 pixel."),
+            Self::TargetTooLong { value, limit } => write!(
+                f,
+                "The resize target of {value} pixels is over the limit: a photo of {} megapixels or less cannot have a side that long.",
+                limit / 1_000_000
             ),
             Self::TooLarge {
                 width,
@@ -51,6 +61,23 @@ impl From<ExportSizeError> for String {
     fn from(error: ExportSizeError) -> Self {
         error.to_string()
     }
+}
+
+/// `Ok` when a resize target is something some photo could be written at:
+/// not 0 (in every mode, with or without a border or pad), and not so long that
+/// its side alone passes the limit. It does not depend on the photo, so a batch
+/// asks it once, before any photo is decoded.
+pub fn check_resize_target(value: u32) -> Result<(), ExportSizeError> {
+    if value == 0 {
+        return Err(ExportSizeError::ZeroTarget);
+    }
+    if u64::from(value) > MAX_EXPORT_PIXELS {
+        return Err(ExportSizeError::TargetTooLong {
+            value,
+            limit: MAX_EXPORT_PIXELS,
+        });
+    }
+    Ok(())
 }
 
 /// `Ok` when a `width` x `height` export is non-empty and within the limit.
@@ -114,5 +141,22 @@ mod tests {
             check_export_size(100, 0),
             Err(ExportSizeError::Empty { .. })
         ));
+    }
+
+    #[test]
+    fn a_zero_target_is_refused_and_named() {
+        let error = check_resize_target(0).unwrap_err();
+        assert_eq!(error, ExportSizeError::ZeroTarget);
+        assert!(error.to_string().contains("at least 1 pixel"));
+    }
+
+    #[test]
+    fn a_target_longer_than_the_limit_is_refused_but_a_long_one_is_not() {
+        assert!(check_resize_target(1).is_ok());
+        assert!(check_resize_target(20_000).is_ok());
+        assert!(check_resize_target(400_000_000).is_ok());
+        let error = check_resize_target(400_000_001).unwrap_err();
+        assert!(error.to_string().contains("400000001"), "{error}");
+        assert!(check_resize_target(u32::MAX).is_err());
     }
 }

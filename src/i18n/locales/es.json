@@ -916,6 +916,7 @@
         "shortEdge": "Borde corto",
         "width": "Anchura"
       },
+      "invalid": "Introduce un número entero de 1 píxel o más.",
       "overLimit": "Ese tamaño supera el límite de {{limit}} megapíxeles. Introduce un valor menor.",
       "pixels": "píxeles",
       "resizeToFit": "Redimensionar para encajar"

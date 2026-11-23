@@ -1103,6 +1103,11 @@ export default function ExportPanel({
                         />
                         <Text variant={TextVariants.label}>{t('export.resize.pixels')}</Text>
                       </div>
+                      {resizeCheck === 'invalid' && (
+                        <Text variant={TextVariants.label} className="text-red-500">
+                          {t('export.resize.invalid')}
+                        </Text>
+                      )}
                       {resizeCheck === 'overLimit' && exportPixelLimit !== null && (
                         <Text variant={TextVariants.label} className="text-red-500">
                           {t('export.resize.overLimit', { limit: exportPixelLimit / 1_000_000 })}

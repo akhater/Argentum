@@ -894,6 +894,7 @@
         "shortEdge": "Short Edge",
         "width": "Width"
       },
+      "invalid": "Enter a whole number of 1 pixel or more.",
       "overLimit": "That size is over the {{limit}} megapixel limit. Enter a smaller value.",
       "pixels": "pixels",
       "resizeToFit": "Resize to Fit"

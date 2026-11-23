@@ -313,8 +313,33 @@ fn resize_target(width: u32, height: u32, resize_opts: Option<&ResizeOptions>) -
 /// Refuses, before anything is allocated, an export that would write an empty
 /// photo or one over the limit in `mods/export_limits.rs`.
 fn check_export_size(src_w: u32, src_h: u32, settings: &ExportSettings) -> Result<(), String> {
+    // Before the geometry: a border or pad clamps a canvas to 1 pixel, which
+    // would let a target of 0 through as a 1-pixel photo.
+    check_resize_request(settings)?;
     let (width, height) = compute_export_output_size(src_w, src_h, settings);
     crate::mods::export_limits::check_export_size(width, height).map_err(String::from)
+}
+
+/// Refuses a resize target no photo could be written at (0, or a side alone over
+/// the limit). It does not depend on the photo, so a batch asks it once, before
+/// any photo is decoded, and answers with the reason as a single export does.
+fn check_resize_request(settings: &ExportSettings) -> Result<(), String> {
+    match &settings.resize {
+        Some(resize) => crate::mods::export_limits::check_resize_target(resize.value)
+            .map_err(String::from),
+        None => Ok(()),
+    }
+}
+
+/// "N of M exports failed", with the reason when every photo failed for the
+/// same one (a size typo refuses each photo alike).
+fn failed_exports_message(failed: usize, total: usize, errors: &[String]) -> String {
+    match errors.first() {
+        Some(first) if failed > 1 && errors.iter().all(|error| error == first) => {
+            format!("{failed} of {total} exports failed: {first}")
+        }
+        _ => format!("{failed} of {total} exports failed"),
+    }
 }
 
 fn bordered_size(width: u32, height: u32, border_x: u32, border_y: u32) -> (u32, u32) {
@@ -1433,6 +1458,7 @@ pub(crate) async fn export_images_impl(
     // Each photo's outcome as soon as it is written; closed when the export ends.
     outcome_tx: Option<tokio::sync::mpsc::UnboundedSender<ExportOutcome>>,
 ) -> Result<(), String> {
+    check_resize_request(&export_settings)?;
     let cancellation_token = register_export_task(&state.export_task_token)?;
     let task_guard = ExportTaskGuard::with_app_handle(
         Arc::clone(&state.export_task_token),
@@ -1865,7 +1891,7 @@ pub(crate) async fn export_images_impl(
                 if error_count > 0 && total_paths > 1 {
                     let _ = app_handle.emit(
                         "export-error",
-                        format!("{error_count} of {total_paths} exports failed"),
+                        failed_exports_message(error_count, total_paths, &errors),
                     );
                 } else if error_count == 0 {
                     let _ = app_handle.emit(
@@ -2713,6 +2739,56 @@ mod export_size_limit_tests {
     #[test]
     fn dont_enlarge_keeps_a_big_target_harmless() {
         assert!(check_export_size(6000, 4000, &settings("longEdge", 1_000_000, true)).is_ok());
+    }
+
+    fn with_border_and_pad(mut settings: ExportSettings) -> ExportSettings {
+        settings.border = Some(
+            serde_json::from_value(serde_json::json!({
+                "horizontalPercent": 5.0, "verticalPercent": 5.0, "color": "#ffffff"
+            }))
+            .unwrap(),
+        );
+        settings.pad = Some(
+            serde_json::from_value(serde_json::json!({
+                "ratioWidth": 1.0, "ratioHeight": 1.0, "color": "#000000"
+            }))
+            .unwrap(),
+        );
+        settings
+    }
+
+    #[test]
+    fn a_zero_target_is_refused_with_a_border_or_pad_too() {
+        for mode in ["longEdge", "shortEdge", "width", "height"] {
+            let error = check_export_size(6000, 4000, &with_border_and_pad(settings(mode, 0, false)))
+                .unwrap_err();
+            assert!(error.contains("at least 1 pixel"), "{mode}: {error}");
+        }
+        // The same settings with a real target pass.
+        assert!(check_export_size(6000, 4000, &with_border_and_pad(settings("longEdge", 2048, false))).is_ok());
+    }
+
+    #[test]
+    fn a_batch_asks_for_the_request_once_before_any_photo() {
+        assert!(check_resize_request(&settings("width", 2048, false)).is_ok());
+        assert!(check_resize_request(&settings("width", 0, false)).is_err());
+        assert!(check_resize_request(&settings("height", u32::MAX, false)).is_err());
+        let mut none = settings("longEdge", 0, false);
+        none.resize = None;
+        assert!(check_resize_request(&none).is_ok());
+    }
+
+    #[test]
+    fn the_batch_summary_names_a_reason_all_photos_share() {
+        let same = vec!["too big".to_string(), "too big".to_string()];
+        assert_eq!(
+            failed_exports_message(2, 5, &same),
+            "2 of 5 exports failed: too big"
+        );
+        let mixed = vec!["too big".to_string(), "disk full".to_string()];
+        assert_eq!(failed_exports_message(2, 5, &mixed), "2 of 5 exports failed");
+        let one = vec!["too big".to_string()];
+        assert_eq!(failed_exports_message(1, 5, &one), "1 of 5 exports failed");
     }
 
     #[test]

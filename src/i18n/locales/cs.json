@@ -894,6 +894,7 @@
         "shortEdge": "Krátký okraj",
         "width": "Šířka"
       },
+      "invalid": "Zadejte celé číslo od 1 pixelu výše.",
       "overLimit": "Tato velikost překračuje limit {{limit}} megapixelů. Zadejte menší hodnotu.",
       "pixels": "pixelů",
       "resizeToFit": "Přizpůsobit velikost"

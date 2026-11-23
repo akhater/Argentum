@@ -916,6 +916,7 @@
         "shortEdge": "Borda Curta",
         "width": "Largura"
       },
+      "invalid": "Digite um número inteiro de 1 pixel ou mais.",
       "overLimit": "Esse tamanho excede o limite de {{limit}} megapixels. Insira um valor menor.",
       "pixels": "pixels",
       "resizeToFit": "Redimensionar para Caber"

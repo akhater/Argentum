@@ -1,7 +1,7 @@
 {
   "startupMs": {
-    "libraryMs": 915,
-    "editorMs": 1355
+    "libraryMs": 1386,
+    "editorMs": 1603
   },
   "reachable": [
     "Editor > Filmstrip > 0 [button]",
@@ -303,6 +303,7 @@
     "Editor > Right panel > Export > TIFF [button]",
     "Editor > Right panel > Export > WebP [button]",
     "Editor > Right panel > Export > calls ag:export_pixel_limit, estimate_export_sizes",
+    "Library > Right panel > Export > calls ag:export_pixel_limit",
     "Editor > Right panel > Export [tab]",
     "Editor > Right panel > Histogram [button]",
     "Editor > Right panel > Info > 2026:01:02 10:00:00 Copy [button]",
@@ -485,7 +486,6 @@
     "Library > Right panel > Crop [tab]",
     "Library > Right panel > Edit [tab]",
     "Library > Right panel > Export > Export Image [button]",
-    "Library > Right panel > Export > calls ag:export_pixel_limit",
     "Library > Right panel > Export [tab]",
     "Library > Right panel > Histogram [button]",
     "Library > Right panel > Info [button]",

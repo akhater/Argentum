@@ -891,6 +891,7 @@
         "shortEdge": "짧은 변",
         "width": "너비"
       },
+      "invalid": "1픽셀 이상의 정수를 입력하세요.",
       "overLimit": "이 크기는 {{limit}}메가픽셀 한도를 초과합니다. 더 작은 값을 입력하세요.",
       "pixels": "픽셀",
       "resizeToFit": "맞춤 크기 조정"
