@@ -80,7 +80,8 @@ fn exif_with_makernote(cursor: &mut Cursor<&[u8]>, tiff_offset: u32) -> Option<I
 }
 
 fn makernote_start(exif: &IFD) -> Option<u32> {
-    Some(exif.base + exif.get_entry(ExifTag::MakerNotes)?.offset()? as u32)
+    exif.base
+        .checked_add(exif.get_entry(ExifTag::MakerNotes)?.offset()? as u32)
 }
 
 fn tiff_makernote(file_bytes: &[u8]) -> Option<IFD> {
@@ -98,7 +99,7 @@ fn fuji_makernote(file_bytes: &[u8]) -> Option<IFD> {
             .ok()?,
     );
     let mut cursor = Cursor::new(file_bytes);
-    let exif = exif_with_makernote(&mut cursor, jpeg_offset + RAF_JPEG_TIFF_HEADER)?;
+    let exif = exif_with_makernote(&mut cursor, jpeg_offset.checked_add(RAF_JPEG_TIFF_HEADER)?)?;
     if !matches!(
         exif.get_entry(ExifTag::MakerNotes).map(|entry| &entry.value),
         Some(Value::Undefined(data)) if data.starts_with(FUJI_MAKERNOTE_HEADER)
@@ -240,5 +241,34 @@ mod tests {
     #[test]
     fn highlight_tone_priority_holds_back_a_stop() {
         assert_eq!(canon(&canon_makernote(ALO_OFF, HTP_ON)), 1.0);
+    }
+
+    /// A Fujifilm JPEG offset of u32::MAX: the TIFF header added to it
+    /// overflows. The file has no such data, so nothing is added.
+    #[test]
+    fn a_raf_jpeg_offset_at_the_top_of_u32_adds_nothing() {
+        let mut bytes = vec![0u8; 96];
+        bytes[RAF_JPEG_OFFSET_POSITION..RAF_JPEG_OFFSET_POSITION + 4]
+            .copy_from_slice(&u32::MAX.to_be_bytes());
+        assert_eq!(highlight_preservation(FormatHint::RAF, &bytes), 0.0);
+    }
+
+    /// A maker note whose start (the TIFF base plus its offset) overflows u32.
+    #[test]
+    fn a_maker_note_start_past_the_top_of_u32_is_not_there() {
+        const MAKER_NOTES: u16 = 0x927C;
+        let mut exif = IFD {
+            base: u32::MAX - 4,
+            ..Default::default()
+        };
+        exif.entries.insert(
+            MAKER_NOTES,
+            Entry {
+                tag: MAKER_NOTES,
+                value: Value::Undefined(vec![0; 4]),
+                embedded: Some(16),
+            },
+        );
+        assert_eq!(makernote_start(&exif), None);
     }
 }
