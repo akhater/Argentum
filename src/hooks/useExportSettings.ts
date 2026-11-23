@@ -62,7 +62,7 @@ export function useExportSettings() {
     setPreserveFolders(preset.preserveFolders ?? false);
     setFilenameTemplate(preset.filenameTemplate);
     setEnableWatermark(preset.enableWatermark);
-    setWatermarkPath(preset.watermarkPath);
+    setWatermarkPath(preset.watermarkPath ?? null);
     setWatermarkAnchor(preset.watermarkAnchor as WatermarkAnchor);
     setWatermarkScale(preset.watermarkScale);
     setWatermarkSpacing(preset.watermarkSpacing);

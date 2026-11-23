@@ -128,6 +128,8 @@ fn typescript() -> String {
     commands.reach::<crate::mods::provider_look::ProviderLook>();
     // An event's, which no command answers.
     commands.reach::<crate::mods::lut_provider::LookProgress>();
+    // Stored in the settings file and filled in by the export panel.
+    commands.reach::<crate::app_settings::ExportPreset>();
     // The events whose payload is a type of ours.
     commands.event::<crate::mods::model_download::Progress>(crate::mods::events::AG_MODEL_DOWNLOAD);
 
@@ -258,6 +260,21 @@ fn an_answer_has_the_keys_its_type_names() {
     assert_eq!(
         keys_sent(&camera),
         declared_keys::<crate::mods::profiles::Camera>()
+    );
+}
+
+/// The export preset the panel fills in is this Rust type, not a second
+/// hand-written one: every key it stores is a key the TypeScript names.
+#[test]
+fn an_export_preset_has_the_keys_its_type_names() {
+    let presets = crate::app_settings::default_export_presets();
+    let mut sent = serde_json::to_value(&presets[0]).unwrap();
+    // serde sends a `None` as null, so the keys a preset may have are all there.
+    assert!(sent.as_object().unwrap().contains_key("dpi"));
+    sent["dpi"] = serde_json::json!(300);
+    assert_eq!(
+        keys_sent(&sent),
+        declared_keys::<crate::app_settings::ExportPreset>()
     );
 }
 

@@ -206,6 +206,16 @@ freeBytes: number,
 totalBytes: number, };
 
 /**
+ * What the export panel fills in and the settings file stores: the TypeScript
+ * `ExportPreset` is generated from this (`mods/ag_contract.rs`).
+ */
+export type ExportPreset = { id: string, name: string, fileFormat: string, jpegQuality: number, 
+/**
+ * Missing in a preset saved before this existed: the panel reads that as 300.
+ */
+dpi?: number | null, enableResize: boolean, resizeMode: string, resizeValue: number, dontEnlarge: boolean, keepMetadata: boolean, stripGps: boolean, filenameTemplate: string, enableWatermark: boolean, watermarkPath?: string | null, watermarkAnchor?: string | null, watermarkScale: number, watermarkSpacing: number, watermarkOpacity: number, exportMasks?: boolean | null, preserveFolders?: boolean | null, enablePad?: boolean | null, padRatioWidth?: number | null, padRatioHeight?: number | null, padColor?: string | null, enableBorder?: boolean | null, borderBasis?: string | null, borderHorizontalPercent?: number | null, borderVerticalPercent?: number | null, borderColor?: string | null, lastExportPath?: string | null, destinationType?: string | null, subfolder?: string | null, tiffBitDepth?: number | null, preserveTimestamps?: boolean | null, };
+
+/**
  * A Face mask: the parts to draw, the edit's geometry, and the frame.
  */
 export type FaceMaskArgs = { 

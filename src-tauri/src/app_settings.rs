@@ -243,13 +243,20 @@ impl Default for CopyPasteSettings {
     }
 }
 
+/// What the export panel fills in and the settings file stores: the TypeScript
+/// `ExportPreset` is generated from this (`mods/ag_contract.rs`).
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ExportPreset {
     pub id: String,
     pub name: String,
     pub file_format: String,
     pub jpeg_quality: u8,
+    /// Missing in a preset saved before this existed: the panel reads that as 300.
+    #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
+    pub dpi: Option<u16>,
     pub enable_resize: bool,
     pub resize_mode: String,
     pub resize_value: u32,
@@ -258,42 +265,60 @@ pub struct ExportPreset {
     pub strip_gps: bool,
     pub filename_template: String,
     pub enable_watermark: bool,
+    #[cfg_attr(test, ts(optional = nullable))]
     pub watermark_path: Option<String>,
+    #[cfg_attr(test, ts(optional = nullable))]
     pub watermark_anchor: Option<String>,
     pub watermark_scale: u32,
     pub watermark_spacing: u32,
     pub watermark_opacity: u32,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub export_masks: Option<bool>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub preserve_folders: Option<bool>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub enable_pad: Option<bool>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub pad_ratio_width: Option<f32>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub pad_ratio_height: Option<f32>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub pad_color: Option<String>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub enable_border: Option<bool>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub border_basis: Option<String>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub border_horizontal_percent: Option<f32>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub border_vertical_percent: Option<f32>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub border_color: Option<String>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub last_export_path: Option<String>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub destination_type: Option<String>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub subfolder: Option<String>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub tiff_bit_depth: Option<u8>,
     #[serde(default)]
+    #[cfg_attr(test, ts(optional = nullable))]
     pub preserve_timestamps: Option<bool>,
 }
 
@@ -304,6 +329,7 @@ pub fn default_export_presets() -> Vec<ExportPreset> {
             name: "High Quality".to_string(),
             file_format: "jpeg".to_string(),
             jpeg_quality: 95,
+            dpi: None,
             enable_resize: false,
             resize_mode: "longEdge".to_string(),
             resize_value: 2048,
@@ -339,6 +365,7 @@ pub fn default_export_presets() -> Vec<ExportPreset> {
             name: "Fast (Web)".to_string(),
             file_format: "jpeg".to_string(),
             jpeg_quality: 80,
+            dpi: None,
             enable_resize: true,
             resize_mode: "width".to_string(),
             resize_value: 2048,
@@ -847,6 +874,55 @@ mod cloud_provider_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A settings file with one export preset, as the panel writes it, with `extra` keys inside it.
+    fn settings_text_with_preset(extra: &str) -> String {
+        format!(
+            r#"{{ "exportPresets": [{{
+                "id": "p1", "name": "Print", "fileFormat": "tiff", "jpegQuality": 90,
+                "enableResize": false, "resizeMode": "longEdge", "resizeValue": 2048,
+                "dontEnlarge": true, "keepMetadata": true, "stripGps": false,
+                "filenameTemplate": "{{original_filename}}", "enableWatermark": false,
+                "watermarkPath": null, "watermarkAnchor": "bottomRight",
+                "watermarkScale": 10, "watermarkSpacing": 5, "watermarkOpacity": 75
+                {extra} }}] }}"#
+        )
+    }
+
+    /// As `load_settings` reads the file and `save_settings` writes it.
+    fn through_the_settings_file(text: &str) -> AppSettings {
+        let loaded: AppSettings = serde_json::from_str(text).unwrap();
+        let written = serde_json::to_string_pretty(&loaded).unwrap();
+        serde_json::from_str(&written).unwrap()
+    }
+
+    #[test]
+    fn an_export_preset_keeps_its_dpi_through_save_and_load() {
+        for dpi in [72, 300, 600, 65535] {
+            let text = settings_text_with_preset(&format!(r#", "dpi": {dpi}"#));
+            let settings = through_the_settings_file(&text);
+            assert_eq!(settings.export_presets[0].dpi, Some(dpi));
+        }
+    }
+
+    #[test]
+    fn an_export_preset_keeps_each_tiff_bit_depth_through_save_and_load() {
+        for depth in [8, 16] {
+            let text = settings_text_with_preset(&format!(r#", "tiffBitDepth": {depth}"#));
+            let settings = through_the_settings_file(&text);
+            assert_eq!(settings.export_presets[0].tiff_bit_depth, Some(depth));
+        }
+    }
+
+    #[test]
+    fn an_export_preset_saved_before_dpi_existed_loads_without_one() {
+        // The panel reads a missing dpi as DEFAULT_EXPORT_DPI (300), so None keeps it.
+        let settings = through_the_settings_file(&settings_text_with_preset(""));
+        let preset = &settings.export_presets[0];
+        assert_eq!(preset.dpi, None);
+        assert_eq!(preset.tiff_bit_depth, None);
+        assert_eq!(preset.preserve_timestamps, None);
+    }
 
     /// The number after `export const <name> =` in src/store/useUIStore.ts.
     fn interface_constant(name: &str) -> u32 {
