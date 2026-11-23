@@ -68,7 +68,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -118,6 +117,11 @@ fn converted() -> &'static Mutex<HashMap<String, Found>> {
     CONVERTED.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// The map, even if a thread died holding it: it only caches.
+fn lock_converted() -> std::sync::MutexGuard<'static, HashMap<String, Found>> {
+    converted().lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The photos among `paths` whose edit is old or was converted earlier this
 /// session, each converted, and separately the ones converted by this call,
 /// which still need saving. Writes nothing; `save_in_turn` does that.
@@ -125,7 +129,7 @@ pub fn find_old(paths: &[String]) -> (Vec<Found>, Vec<Found>) {
     let mut all = Vec::new();
     let mut new = Vec::new();
     for path in paths {
-        if let Some(found) = converted().lock().unwrap().get(path) {
+        if let Some(found) = lock_converted().get(path) {
             all.push(found.clone());
             continue;
         }
@@ -139,25 +143,24 @@ pub fn find_old(paths: &[String]) -> (Vec<Found>, Vec<Found>) {
             was: white_balance_numbers(&saved),
             adjustments: upgraded(path, saved),
         };
-        converted()
-            .lock()
-            .unwrap()
-            .insert(path.clone(), found.clone());
+        lock_converted().insert(path.clone(), found.clone());
         new.push(found.clone());
         all.push(found);
     }
     (all, new)
 }
 
-/// Save converted edits one at a time, through their own save command, which
-/// keeps the rest of the sidecar and redraws the thumbnail.
+/// Convert and save the old edits one at a time, then redraw each thumbnail.
 ///
-/// One at a time is the point. Their command returns at once and redraws the
-/// thumbnail on a thread of its own, with nothing limiting how many run, and
-/// each one decodes the whole RAW. The first version of this sweep saved every
-/// old edit in a folder at once; on a real first start that was dozens of 24 MP
-/// decodes together, and the preview worker died. So each save waits for its
-/// thumbnail before the next starts.
+/// What is saved is the sidecar as it is when this reaches the photo, converted
+/// (see `upgrade_sidecar`), not what `find_old` saw: a folder takes minutes, and
+/// whatever the user changed meanwhile must stay.
+///
+/// One at a time is the point. A redraw decodes the whole RAW, and the first
+/// version of this sweep started every old edit in a folder at once; on a real
+/// first start that was dozens of 24 MP decodes together, and the preview
+/// worker died. The redraw runs on this thread and returns when the thumbnail
+/// is made, so the next photo starts only after it.
 ///
 /// Skipped: the photo open in the editor, which the editor saves itself once
 /// it holds the converted values, and any file that is no longer old on disk,
@@ -167,51 +170,95 @@ pub fn save_in_turn(found: Vec<Found>, app: tauri::AppHandle) {
         return;
     }
     std::thread::spawn(move || {
-        use tauri::{Listener, Manager};
-        let (done_tx, done_rx) = std::sync::mpsc::channel::<String>();
-        let listener = app.listen("thumbnail-generated", move |event| {
-            if let Ok(payload) = serde_json::from_str::<Value>(event.payload())
-                && let Some(path) = payload.get("path").and_then(Value::as_str)
-            {
-                let _ = done_tx.send(path.to_string());
-            }
-        });
+        use tauri::Manager;
         let state = app.state::<crate::app_state::AppState>();
+        let settings = crate::app_settings::load_settings(app.clone()).unwrap_or_default();
         for item in found {
             let open = state
                 .original_image
                 .lock()
-                .unwrap()
+                .unwrap_or_else(|e| e.into_inner())
                 .as_ref()
                 .map(|loaded| loaded.path.clone());
             if open.as_deref() == Some(item.path.as_str()) {
                 continue;
             }
-            let (_, sidecar) = crate::file_management::parse_virtual_path(&item.path);
-            if !is_old(&crate::exif_processing::load_sidecar(&sidecar).adjustments) {
-                continue;
-            }
-            if let Err(e) = crate::file_management::save_metadata_and_update_thumbnail(
-                item.path.clone(),
-                item.adjustments,
-                app.clone(),
-                state.clone(),
-            ) {
-                log::warn!("[wb_legacy] could not save {}: {e}", item.path);
-                continue;
-            }
-            // Wait for its thumbnail, or give up: a failed redraw sends nothing.
-            let deadline = Instant::now() + Duration::from_secs(30);
-            while let Some(left) = deadline.checked_duration_since(Instant::now()) {
-                match done_rx.recv_timeout(left) {
-                    Ok(path) if path == item.path => break,
-                    Ok(_) => continue,
-                    Err(_) => break,
+            // The sidecar lock is released before the redraw, which reads it.
+            let written = match upgrade_sidecar(&item.path) {
+                Ok(written) => written,
+                Err(e) => {
+                    log::warn!("[wb_legacy] could not save {}: {e}", item.path);
+                    continue;
                 }
+            };
+            if let Some(metadata) = &written {
+                if settings.enable_xmp_sync.unwrap_or(false) {
+                    let (source, sidecar) = crate::file_management::parse_virtual_path(&item.path);
+                    crate::file_management::sync_metadata_to_xmp(
+                        &source,
+                        &sidecar,
+                        metadata,
+                        settings.create_xmp_if_missing.unwrap_or(false),
+                    );
+                }
+                crate::file_management::add_to_thumbnail_queue(&state, 1, &app);
+                crate::file_management::regenerate_thumbnails(
+                    std::iter::once(item.path.clone()),
+                    &app,
+                    &settings,
+                    false,
+                );
             }
+            shrink_converted(&item.path);
         }
-        app.unlisten(listener);
     });
+}
+
+/// Convert one photo's edit as the sidecar holds it now, under the sidecar's
+/// lock, so a change made since `find_old` looked is kept. Returns what was
+/// written, or `None` when the edit is no longer old and nothing was touched.
+/// Not `update_sidecar`: that rewrites the file whether or not anything changed.
+fn upgrade_sidecar(path: &str) -> std::io::Result<Option<crate::image_processing::ImageMetadata>> {
+    let (source, sidecar) = crate::file_management::parse_virtual_path(path);
+    let _sidecar = super::write_locks::lock_sidecar(&sidecar);
+    let mut metadata = crate::exif_processing::load_sidecar(&sidecar);
+    if !is_old(&metadata.adjustments) {
+        return Ok(None);
+    }
+    metadata.adjustments = upgraded(path, std::mem::take(&mut metadata.adjustments));
+    crate::exif_processing::write_sidecar(&sidecar, &source, &metadata)?;
+    Ok(Some(metadata))
+}
+
+/// What the editor asking by path needs of a converted edit that is saved: the
+/// white balance numbers, globally and per mask, and nothing else.
+fn white_balance_only(adjustments: &Value) -> Value {
+    let copy = |from: &Value| -> Map<String, Value> {
+        ["temperature", "tint", "whiteBalance"]
+            .into_iter()
+            .filter_map(|key| Some((key.to_string(), from.get(key)?.clone())))
+            .collect()
+    };
+    let mut slim = copy(adjustments);
+    if let Some(masks) = adjustments.get("masks").and_then(Value::as_array) {
+        let masks = masks.iter().map(|mask| {
+            let mut kept = Map::new();
+            if let Some(own) = mask.get("adjustments") {
+                kept.insert("adjustments".into(), Value::Object(copy(own)));
+            }
+            Value::Object(kept)
+        });
+        slim.insert("masks".into(), Value::Array(masks.collect()));
+    }
+    Value::Object(slim)
+}
+
+/// Once a photo's edit is saved (or no longer needs saving), the session keeps
+/// only the white balance of it: the whole edit was held for the whole session.
+fn shrink_converted(path: &str) {
+    if let Some(found) = lock_converted().get_mut(path) {
+        found.adjustments = white_balance_only(&found.adjustments);
+    }
 }
 
 /// Convert presets saved before 1.6.5. They describe a correction, not a photo,
@@ -662,6 +709,108 @@ mod tests {
         let (again, fresh) = find_old(std::slice::from_ref(&old));
         assert_eq!(again[0].adjustments, found[0].adjustments);
         assert!(fresh.is_empty());
+    }
+
+    /// A photo with a saved edit; returns its path.
+    fn photo_with_edit(dir: &Path, name: &str, adjustments: Value) -> String {
+        let path = dir.join(name);
+        std::fs::write(&path, b"not really a jpeg").unwrap();
+        let sidecar = crate::file_management::parse_virtual_path(&path.to_string_lossy()).1;
+        let metadata = json!({ "version": 1, "rating": 3, "adjustments": adjustments });
+        std::fs::write(sidecar, metadata.to_string()).unwrap();
+        path.to_string_lossy().to_string()
+    }
+
+    /// What `save_in_turn` does for one photo, minus the redraw.
+    fn save_converted(path: &str) -> std::io::Result<bool> {
+        let written = upgrade_sidecar(path)?;
+        shrink_converted(path);
+        Ok(written.is_some())
+    }
+
+    fn saved_edit(path: &str) -> Value {
+        let sidecar = crate::file_management::parse_virtual_path(path).1;
+        crate::exif_processing::load_sidecar(&sidecar).adjustments
+    }
+
+    #[test]
+    fn the_save_converts_the_edit_as_it_is_then_and_keeps_a_change_made_meanwhile() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = photo_with_edit(
+            dir.path(),
+            "meanwhile.jpg",
+            json!({ "temperature": -30.0, "tint": 0.0, "exposure": 0.0 }),
+        );
+        let (_, fresh) = find_old(std::slice::from_ref(&path));
+        assert_eq!(fresh.len(), 1);
+
+        // The user changes the exposure after the folder was listed.
+        let sidecar = crate::file_management::parse_virtual_path(&path).1;
+        let mut metadata = crate::exif_processing::load_sidecar(&sidecar);
+        metadata.adjustments["exposure"] = json!(1.5);
+        std::fs::write(&sidecar, serde_json::to_string(&metadata).unwrap()).unwrap();
+
+        assert!(save_converted(&path).unwrap());
+        let saved = saved_edit(&path);
+        assert_eq!(saved["exposure"], 1.5, "the later change survives");
+        assert!(saved.as_object().unwrap().contains_key("whiteBalance"));
+        assert_ne!(
+            saved["temperature"], -30.0,
+            "and the white balance is converted"
+        );
+    }
+
+    #[test]
+    fn an_edit_that_is_no_longer_old_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = photo_with_edit(
+            dir.path(),
+            "since.jpg",
+            json!({ "temperature": -30.0, "tint": 0.0 }),
+        );
+        find_old(std::slice::from_ref(&path));
+
+        // The editor saved it in the new form before the sweep got here.
+        let sidecar = crate::file_management::parse_virtual_path(&path).1;
+        let current = json!({ "version": 1, "rating": 3, "adjustments": {
+            "temperature": -30.0, "tint": 0.0, "whiteBalance": null, "exposure": 2.0 } });
+        std::fs::write(&sidecar, current.to_string()).unwrap();
+        let before = std::fs::read(&sidecar).unwrap();
+
+        assert!(!save_converted(&path).unwrap());
+        assert_eq!(std::fs::read(&sidecar).unwrap(), before, "not rewritten");
+    }
+
+    #[test]
+    fn once_saved_the_session_keeps_only_the_white_balance_of_an_edit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = photo_with_edit(
+            dir.path(),
+            "slim.jpg",
+            json!({
+                "temperature": -30.0, "tint": 5.0, "exposure": 0.4, "curves": { "luma": [1, 2, 3] },
+                "masks": [{ "id": "m", "subMasks": [1, 2], "adjustments": { "temperature": 10.0, "exposure": 1.0 } }],
+            }),
+        );
+        let (found, _) = find_old(std::slice::from_ref(&path));
+        let before = found[0].clone();
+        assert!(save_converted(&path).unwrap());
+
+        let (kept, fresh) = find_old(std::slice::from_ref(&path));
+        assert!(fresh.is_empty());
+        assert_eq!(kept.len(), 1, "the editor can still ask by path");
+        assert_eq!(kept[0].was, before.was);
+        for key in ["temperature", "tint", "whiteBalance"] {
+            assert_eq!(kept[0].adjustments[key], before.adjustments[key], "{key}");
+        }
+        assert_eq!(
+            kept[0].adjustments["masks"][0]["adjustments"]["temperature"],
+            before.adjustments["masks"][0]["adjustments"]["temperature"]
+        );
+        let slim = kept[0].adjustments.to_string();
+        for gone in ["exposure", "curves", "subMasks"] {
+            assert!(!slim.contains(gone), "{gone} is still held");
+        }
     }
 
     #[test]
