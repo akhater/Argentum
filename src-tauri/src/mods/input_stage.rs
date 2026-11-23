@@ -524,9 +524,9 @@ pub(crate) mod tests {
     pub(crate) fn a_masks_own_noise_reduction_still_runs(ctx: &GpuContext) {
         let (w, h) = (128u32, 64u32);
         let (_, image) = noisy(w, h);
-        let mask = sharpen_gpu::MaskBitmap::from_fn(w, h, |x, _| {
+        let mask = Arc::new(sharpen_gpu::MaskBitmap::from_fn(w, h, |x, _| {
             image::Luma([if x < w / 2 { 255 } else { 0 }])
-        });
+        }));
         let js = serde_json::json!({
             "agSharpen": { "capture": false, "amount": 0 },
             "lumaNoiseReduction": 20,

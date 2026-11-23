@@ -133,12 +133,12 @@ pub(super) fn film_lut(name: &str) -> Arc<Lut> {
 }
 
 /// A soft round mask centred at (cx, cy), fractions of the frame.
-fn round_mask(w: u32, h: u32, cx: f32, cy: f32) -> MaskBitmap {
+fn round_mask(w: u32, h: u32, cx: f32, cy: f32) -> Arc<MaskBitmap> {
     let r = w.min(h) as f32 * 0.35;
-    MaskBitmap::from_fn(w, h, |x, y| {
+    Arc::new(MaskBitmap::from_fn(w, h, |x, y| {
         let d = ((x as f32 - cx * w as f32).hypot(y as f32 - cy * h as f32) / r).min(1.0);
         Luma([((1.0 - d * d) * 255.0) as u8])
-    })
+    }))
 }
 
 /// Glow, Halation, RapidRAW's sharpness, a LUT and one mask with an exposure
@@ -237,7 +237,7 @@ impl<'a> Bench<'a> {
     pub(super) fn request<'m>(
         &self,
         js: &Value,
-        masks: &'m [MaskBitmap],
+        masks: &'m [Arc<MaskBitmap>],
         lut: &Arc<Lut>,
         roi: Option<Roi>,
     ) -> RenderRequest<'m> {

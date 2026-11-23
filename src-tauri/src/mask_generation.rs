@@ -1499,7 +1499,7 @@ pub fn get_cached_or_generate_mask(
     scale: f32,
     crop_offset: (f32, f32),
     adjustments: &serde_json::Value,
-) -> Option<GrayImage> {
+) -> Option<Arc<GrayImage>> {
     let mut hasher = DefaultHasher::new();
 
     let mut def_for_hash = def.clone();
@@ -1521,9 +1521,9 @@ pub fn get_cached_or_generate_mask(
     let key = hasher.finish();
 
     {
-        let cache = state.mask_cache.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(img) = cache.get(&key) {
-            return Some(img.clone());
+        let mut cache = state.mask_cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(img) = cache.get(key) {
+            return Some(img);
         }
     }
 
@@ -1542,13 +1542,7 @@ pub fn get_cached_or_generate_mask(
         warped_image.as_deref(),
     );
 
-    if let Some(img) = &generated {
-        let mut cache = state.mask_cache.lock().unwrap_or_else(|e| e.into_inner());
-        if cache.len() > 50 {
-            cache.clear();
-        }
-        cache.insert(key, img.clone());
-    }
-
-    generated
+    let bitmap = generated?;
+    let mut cache = state.mask_cache.lock().unwrap_or_else(|e| e.into_inner());
+    Some(cache.insert(key, bitmap))
 }

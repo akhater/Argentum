@@ -118,6 +118,7 @@ pub mod lr_legacy;
 pub mod lut_cache;
 pub mod lut_provider;
 pub mod makernote_lens;
+pub mod mask_cache;
 pub mod mask_falloff;
 pub mod mask_feather;
 #[cfg(test)]
