@@ -25,6 +25,9 @@
 //! - It runs on the CPU, tiles in parallel (rayon), not on the GPU: the same
 //!   picture on every machine, with or without a graphics adapter, and in the
 //!   tests. The tile is smaller (`TILE_INNER`).
+//! - A tile writes its pixels straight into its own rows of the picture
+//!   (theirs returns a tile's buffer, which the caller copies): the result
+//!   is never held twice, and no pixel is written twice.
 //! - For speed, each stage runs only where the stages after it read, along
 //!   each axis, so nothing is clamped at a tile's edge and a tile's pixels
 //!   are the untiled picture's. The Bayer margin is then 25, what the stages
@@ -244,7 +247,6 @@ impl<'a> Mosaic<'a> {
     pub fn develop(&self) -> Vec<[f32; 3]> {
         let (width, height) = (self.domain.d.w, self.domain.d.h);
         let mut out = vec![[0.0f32; 3]; width * height];
-        let columns: Vec<usize> = (0..width).step_by(TILE_INNER).collect();
         // One scratch per worker thread, made on its first tile and dropped
         // with this call.
         let scratches: Vec<Mutex<Option<Scratch>>> = (0..rayon::current_num_threads())
@@ -254,37 +256,32 @@ impl<'a> Mosaic<'a> {
             .enumerate()
             .for_each(|(band, rows_out)| {
                 let y0 = band * TILE_INNER;
-                let rows = rows_out.len() / width;
-                let blocks: Vec<(usize, Vec<[f32; 3]>)> = columns
-                    .par_iter()
-                    .map(|&x0| {
-                        let worker = rayon::current_thread_index().unwrap_or(0) % scratches.len();
-                        let mut held = scratches[worker].lock().unwrap_or_else(|e| e.into_inner());
-                        let scratch = held.get_or_insert_with(|| Scratch::new(self.pattern));
-                        let cols = TILE_INNER.min(width - x0);
-                        (x0, self.tile(scratch, x0, y0, cols, rows))
-                    })
-                    .collect();
-                for (x0, block) in blocks {
-                    let cols = block.len() / rows;
-                    for (row, line) in block.chunks_exact(cols).enumerate() {
-                        rows_out[row * width + x0..row * width + x0 + cols].copy_from_slice(line);
+                // The band's rows cut into tiles' columns: each tile gets its
+                // own slice of every row, and writes its pixels there.
+                let mut tiles: Vec<Vec<&mut [[f32; 3]]>> = Vec::new();
+                for line in rows_out.chunks_exact_mut(width) {
+                    for (k, part) in line.chunks_mut(TILE_INNER).enumerate() {
+                        if tiles.len() <= k {
+                            tiles.push(Vec::new());
+                        }
+                        tiles[k].push(part);
                     }
                 }
+                tiles.into_par_iter().enumerate().for_each(|(k, mut dest)| {
+                    let worker = rayon::current_thread_index().unwrap_or(0) % scratches.len();
+                    let mut held = scratches[worker].lock().unwrap_or_else(|e| e.into_inner());
+                    let scratch = held.get_or_insert_with(|| Scratch::new(self.pattern));
+                    self.tile(scratch, k * TILE_INNER, y0, &mut dest);
+                });
             });
         out
     }
 
-    /// One tile: `cols` x `rows` output pixels at (`x0`, `y0`) in the
-    /// domain, computed with the pattern's margin around them.
-    fn tile(
-        &self,
-        scratch: &mut Scratch,
-        x0: usize,
-        y0: usize,
-        cols: usize,
-        rows: usize,
-    ) -> Vec<[f32; 3]> {
+    /// One tile, written into `dest` (a slice of the picture for each of its
+    /// rows): the output pixels at (`x0`, `y0`) in the domain, computed with
+    /// the pattern's margin around them.
+    fn tile(&self, scratch: &mut Scratch, x0: usize, y0: usize, dest: &mut [&mut [[f32; 3]]]) {
+        let (rows, cols) = (dest.len(), dest[0].len());
         let margin = self.pattern.margin();
         let tile = Tile {
             m: self,
@@ -298,12 +295,11 @@ impl<'a> Mosaic<'a> {
         };
         scratch.fit(self.pattern, tile.texels());
         unpack(&tile, scratch);
-        let mut out = match self.pattern {
-            Pattern::Bayer => bayer(&tile, scratch),
-            Pattern::XTrans => markesteijn(&tile, scratch),
-        };
-        add_below_black(&tile, scratch, &mut out);
-        out
+        match self.pattern {
+            Pattern::Bayer => bayer(&tile, scratch, dest),
+            Pattern::XTrans => markesteijn(&tile, scratch, dest),
+        }
+        add_below_black(&tile, scratch, dest);
     }
 }
 
@@ -505,13 +501,17 @@ fn unpack(t: &Tile, s: &mut Scratch) {
 /// and a photosite below black gets its own value back; the app's rule for
 /// pixels below black (rawler's `clip_at_black`) then judges them. Nothing
 /// changes where no photosite is below black.
-fn add_below_black(t: &Tile, s: &Scratch, out: &mut [[f32; 3]]) {
+fn add_below_black(t: &Tile, s: &Scratch, out: &mut [&mut [[f32; 3]]]) {
     if !s.any_below {
         return;
     }
-    let (w, m, cols) = (t.w as usize, t.margin as usize, t.cols as usize);
-    for (k, px) in out.iter_mut().enumerate() {
-        let i = (m + k / cols) * w + m + k % cols;
+    let (w, m) = (t.w as usize, t.margin as usize);
+    for (iy, ix, px) in out.iter_mut().enumerate().flat_map(|(iy, line)| {
+        line.iter_mut()
+            .enumerate()
+            .map(move |(ix, px)| (iy, ix, px))
+    }) {
+        let i = (m + iy) * w + m + ix;
         let mut sum = [0.0f32; 3];
         let mut count = [0u32; 3];
         for row in [i - w, i, i + w] {
@@ -649,7 +649,7 @@ const SMOOTH_AT: (usize, usize) = (25, 20);
 /// The output: `rb_out` reads five rows of `SMOOTH` each way.
 const BAYER_MARGIN: usize = 25;
 
-fn bayer(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
+fn bayer(t: &Tile, s: &mut Scratch, out: &mut [&mut [[f32; 3]]]) {
     let Scratch {
         cfa,
         b0,
@@ -918,10 +918,9 @@ fn bayer(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
     });
 
     // rb_out
-    let mut out = vec![[0.0f32; 3]; (t.cols * t.rows) as usize];
     let m = t.margin as usize;
-    for iy in 0..t.rows as usize {
-        for ix in 0..t.cols as usize {
+    for (iy, line) in out.iter_mut().enumerate() {
+        for (ix, px) in line.iter_mut().enumerate() {
             let i = (m + iy) * w + m + ix;
             let mut acc = V4::ZERO;
             for (k, g) in kernel.iter().enumerate() {
@@ -939,10 +938,9 @@ fn bayer(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
             if col == 2 {
                 b = cfa[i];
             }
-            out[iy * t.cols as usize + ix] = [r, b2[i], b].map(|v| v.max(0.0));
+            *px = [r, b2[i], b].map(|v| v.max(0.0));
         }
     }
-    out
 }
 
 fn abs4(v: V4) -> V4 {
@@ -1003,7 +1001,7 @@ const XTRANS_MARGIN: usize = 32;
 /// side by side in `b1` and `b2`.
 const DIRECTIONS: usize = 8;
 
-fn markesteijn(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
+fn markesteijn(t: &Tile, s: &mut Scratch, out: &mut [&mut [[f32; 3]]]) {
     let Scratch {
         cfa,
         b0,
@@ -1269,7 +1267,6 @@ fn markesteijn(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
     // xt_out. The 5 x 5 counts in two passes, along the rows then down:
     // every direction's count is a byte (at most 25 x 9), so the sums are
     // the shader's, exactly.
-    let mut out = vec![[0.0f32; 3]; (t.cols * t.rows) as usize];
     let m = t.margin as usize;
     let (cols, rows) = (t.cols as usize, t.rows as usize);
     let mut across = vec![(0u32, 0u32); (rows + 4) * cols];
@@ -1318,10 +1315,9 @@ fn markesteijn(t: &Tile, s: &mut Scratch) -> Vec<[f32; 3]> {
                 }
             }
             let n = n.max(1.0);
-            out[iy * t.cols as usize + ix] = sum.map(|v| (v / n).max(0.0));
+            out[iy][ix] = sum.map(|v| (v / n).max(0.0));
         }
     }
-    out
 }
 
 #[cfg(test)]
@@ -1361,6 +1357,82 @@ mod tests {
             black: [0.0; 4],
             scale: 1.0,
             wb: [1.0; 3],
+        }
+    }
+
+    /// The way `develop` worked before tiles wrote into the picture: each
+    /// band's tiles collected, then copied in.
+    fn develop_collecting(m: &Mosaic) -> Vec<[f32; 3]> {
+        let (width, height) = (m.domain.d.w, m.domain.d.h);
+        let mut out = vec![[0.0f32; 3]; width * height];
+        let mut scratch = Scratch::new(m.pattern);
+        for y0 in (0..height).step_by(TILE_INNER) {
+            let rows = TILE_INNER.min(height - y0);
+            for x0 in (0..width).step_by(TILE_INNER) {
+                let cols = TILE_INNER.min(width - x0);
+                let mut block = vec![[0.0f32; 3]; cols * rows];
+                m.tile(
+                    &mut scratch,
+                    x0,
+                    y0,
+                    &mut block.chunks_exact_mut(cols).collect::<Vec<_>>(),
+                );
+                for (row, line) in block.chunks_exact(cols).enumerate() {
+                    let at = (y0 + row) * width + x0;
+                    out[at..at + cols].copy_from_slice(line);
+                }
+            }
+        }
+        out
+    }
+
+    /// A deterministic pseudo-random mosaic, with some photosites below black.
+    fn noise(w: usize, h: usize) -> Vec<f32> {
+        let mut state = 0x2545_f491u32;
+        (0..w * h)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 17;
+                state ^= state << 5;
+                (state >> 8) as f32 / (1u32 << 24) as f32 * 1.1 - 0.05
+            })
+            .collect()
+    }
+
+    #[test]
+    fn writing_into_the_picture_gives_the_collected_picture() {
+        let bayer = |dy: usize, dx: usize| -> [[u8; 6]; 6] {
+            std::array::from_fn(|y| std::array::from_fn(|x| RGGB[(y + dy) % 2][(x + dx) % 2]))
+        };
+        let layouts = [
+            (Pattern::Bayer, bayer(0, 0)),
+            (Pattern::Bayer, bayer(0, 1)),
+            (Pattern::Bayer, bayer(1, 0)),
+            (Pattern::Bayer, bayer(1, 1)),
+            (Pattern::XTrans, XTRANS),
+        ];
+        let sizes = [
+            (64, 64),
+            (100, 70),
+            (TILE_INNER, TILE_INNER),
+            (TILE_INNER + 1, TILE_INNER - 1),
+            (2 * TILE_INNER, 64),
+            (2 * TILE_INNER + 37, TILE_INNER + 65),
+        ];
+        for (pattern, colors) in layouts {
+            for (w, h) in sizes {
+                let data = noise(w, h);
+                let mosaic = mosaic_of(&data, w, h, colors, pattern);
+                let (new, old) = (mosaic.develop(), develop_collecting(&mosaic));
+                assert!(
+                    new.len() == old.len()
+                        && new
+                            .iter()
+                            .zip(&old)
+                            .all(|(a, b)| a.map(f32::to_bits) == b.map(f32::to_bits)),
+                    "{pattern:?} {colors:?} at {w} x {h}"
+                );
+            }
         }
     }
 
@@ -1446,7 +1518,13 @@ mod tests {
         let tiled = mosaic_of(&data, w, h, colors, Pattern::Bayer).develop();
         let m = mosaic_of(&data, w, h, colors, Pattern::Bayer);
         let mut scratch = Scratch::new(Pattern::Bayer);
-        let whole = m.tile(&mut scratch, 0, 0, w, h);
+        let mut whole = vec![[0.0f32; 3]; w * h];
+        m.tile(
+            &mut scratch,
+            0,
+            0,
+            &mut whole.chunks_exact_mut(w).collect::<Vec<_>>(),
+        );
         for (i, (a, b)) in tiled.iter().zip(&whole).enumerate() {
             for c in 0..3 {
                 assert!((a[c] - b[c]).abs() < 1e-5, "pixel {i}: {a:?} against {b:?}");
