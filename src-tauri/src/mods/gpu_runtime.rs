@@ -80,6 +80,84 @@ fn point_at(path: &Path) {
     let _ = ort::init_from(path.to_string_lossy());
 }
 
+/// Remembers that a file was fully verified, so the next start need not read it.
+///
+/// What the full SHA-256 protects against: a download that stopped half way, a
+/// file left by another version, a file replaced by something else. None of
+/// those keep the verified file's size AND modification time. So beside the
+/// runtime sits a one-line record of the pinned hash, the size and the
+/// modification time it had when its whole content last matched that hash. A
+/// start that finds the file as the record describes it trusts it; any other
+/// state (no record, an unreadable one, a different size or time, a different
+/// pinned hash) reads and hashes the whole file again and rewrites the record
+/// only if it matches. A file that does not match is never accepted.
+///
+/// What it does not stop: someone who can write to this folder can also write
+/// the record, or keep the file's time, or replace the app. The hash at every
+/// start did not stop them either (it is checked, then loaded later), and it
+/// never claimed to. Nor is damage that keeps both size and time (bit rot)
+/// noticed any more; the runtime would fail to load and the CPU build is used.
+#[cfg_attr(not(windows), allow(dead_code))]
+mod stamp {
+    use std::fs;
+    use std::io;
+    use std::path::{Path, PathBuf};
+    use std::time::UNIX_EPOCH;
+
+    fn record_path(file: &Path) -> PathBuf {
+        file.with_extension("dll.verified")
+    }
+
+    /// Size and modification time (nanoseconds since 1970) of `file` now.
+    fn describe(file: &Path) -> Option<(u64, u128)> {
+        let meta = fs::metadata(file).ok()?;
+        let time = meta.modified().ok()?.duration_since(UNIX_EPOCH).ok()?;
+        Some((meta.len(), time.as_nanos()))
+    }
+
+    fn line(sha256: &str, size: u64, nanos: u128) -> String {
+        format!("{sha256} {size} {nanos}\n")
+    }
+
+    /// Whether `file`'s whole content hashes to `sha256`. `hash` reads the file
+    /// and is only called when the record does not vouch for it.
+    pub fn verified(
+        file: &Path,
+        sha256: &str,
+        hash: impl FnOnce(&Path) -> io::Result<String>,
+    ) -> bool {
+        let Some((size, nanos)) = describe(file) else {
+            return false;
+        };
+        let record = record_path(file);
+        if fs::read_to_string(&record).is_ok_and(|text| text == line(sha256, size, nanos)) {
+            return true;
+        }
+        if hash(file).is_ok_and(|found| found == sha256) {
+            remember(file, sha256);
+            return true;
+        }
+        let _ = fs::remove_file(record);
+        false
+    }
+
+    /// Writes the record for `file`, whose content the caller has just verified
+    /// (read in full, or taken from a checked download). Best effort: without
+    /// it the next start hashes again.
+    pub fn remember(file: &Path, sha256: &str) {
+        let Some((size, nanos)) = describe(file) else {
+            return;
+        };
+        let record = record_path(file);
+        let temporary = record.with_extension("tmp");
+        if fs::write(&temporary, line(sha256, size, nanos)).is_ok()
+            && fs::rename(&temporary, &record).is_err()
+        {
+            let _ = fs::remove_file(&temporary);
+        }
+    }
+}
+
 /// Where a session runs. Only Windows ever has a GPU here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Device {
@@ -199,8 +277,24 @@ mod windows_runtime {
         hex::encode(Sha256::digest(bytes))
     }
 
+    /// SHA-256 of a whole file, read in chunks.
+    fn sha256_file(path: &Path) -> std::io::Result<String> {
+        let mut file = fs::File::open(path)?;
+        let mut hasher = Sha256::new();
+        let mut buffer = vec![0u8; 1 << 20];
+        loop {
+            let read = file.read(&mut buffer)?;
+            if read == 0 {
+                return Ok(hex::encode(hasher.finalize()));
+            }
+            hasher.update(&buffer[..read]);
+        }
+    }
+
+    /// The runtime on disk is the pinned build: by its record when the file is
+    /// as last verified, otherwise by reading all of it (see `stamp`).
     fn installed(path: &Path, build: &Build) -> bool {
-        fs::read(path).is_ok_and(|bytes| sha256_hex(&bytes) == build.sha256)
+        super::stamp::verified(path, build.sha256, sha256_file)
     }
 
     fn api_matches() -> bool {
@@ -271,6 +365,8 @@ mod windows_runtime {
                 file.sync_all()?;
             }
             fs::rename(&temporary, path)?;
+            // Its whole content was hashed above.
+            super::stamp::remember(path, build.sha256);
             Ok(())
         }
         .await;
@@ -439,5 +535,148 @@ mod tests {
     #[test]
     fn the_pinned_runtime_matches_the_ort_crate() {
         assert_eq!(ort::sys::ORT_API_VERSION, 22);
+    }
+}
+
+#[cfg(test)]
+mod stamp_tests {
+    use std::cell::Cell;
+    use std::fs;
+    use std::io;
+    use std::path::Path;
+    use std::time::{Duration, SystemTime};
+
+    use super::stamp::{remember, verified};
+
+    const GOOD: &str = "good-hash";
+
+    /// A hasher that says `GOOD` for content "right" and counts its reads.
+    fn judge<'a>(reads: &'a Cell<u32>) -> impl FnOnce(&Path) -> io::Result<String> + 'a {
+        move |path| {
+            reads.set(reads.get() + 1);
+            Ok(if fs::read(path)? == b"right" {
+                GOOD.into()
+            } else {
+                "other".into()
+            })
+        }
+    }
+
+    fn file_with(content: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("onnxruntime.dll");
+        fs::write(&path, content).unwrap();
+        (dir, path)
+    }
+
+    fn touch(path: &Path, seconds: u64) {
+        let file = fs::OpenOptions::new().write(true).open(path).unwrap();
+        file.set_modified(SystemTime::now() + Duration::from_secs(seconds))
+            .unwrap();
+    }
+
+    #[test]
+    fn a_file_with_the_right_content_is_accepted_after_one_full_read() {
+        let (_dir, path) = file_with(b"right");
+        let reads = Cell::new(0);
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 1);
+    }
+
+    #[test]
+    fn a_file_with_the_wrong_content_is_refused_every_time() {
+        let (_dir, path) = file_with(b"wrong");
+        let reads = Cell::new(0);
+        assert!(!verified(&path, GOOD, judge(&reads)));
+        assert!(!verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 2, "a refusal is never remembered");
+    }
+
+    #[test]
+    fn a_missing_file_is_refused_without_reading() {
+        let dir = tempfile::tempdir().unwrap();
+        let reads = Cell::new(0);
+        assert!(!verified(&dir.path().join("none.dll"), GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 0);
+    }
+
+    #[test]
+    fn a_verified_file_is_not_read_again() {
+        let (_dir, path) = file_with(b"right");
+        let reads = Cell::new(0);
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 1, "only the first start reads the file");
+    }
+
+    #[test]
+    fn a_remembered_download_is_not_read_at_the_next_start() {
+        let (_dir, path) = file_with(b"right");
+        remember(&path, GOOD);
+        let reads = Cell::new(0);
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 0);
+    }
+
+    #[test]
+    fn a_file_of_another_size_is_verified_again_and_refused() {
+        let (_dir, path) = file_with(b"right");
+        remember(&path, GOOD);
+        fs::write(&path, b"wrong!").unwrap();
+        let reads = Cell::new(0);
+        assert!(!verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 1);
+    }
+
+    #[test]
+    fn a_file_of_the_same_size_and_a_new_time_is_verified_again_and_refused() {
+        let (_dir, path) = file_with(b"right");
+        remember(&path, GOOD);
+        fs::write(&path, b"wrong").unwrap();
+        touch(&path, 60);
+        let reads = Cell::new(0);
+        assert!(!verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 1);
+        // And the refusal took the record with it: it never vouches again.
+        let again = Cell::new(0);
+        assert!(!verified(&path, GOOD, judge(&again)));
+        assert_eq!(again.get(), 1);
+    }
+
+    #[test]
+    fn a_new_time_on_the_right_content_is_verified_again_and_accepted() {
+        let (_dir, path) = file_with(b"right");
+        remember(&path, GOOD);
+        touch(&path, 60);
+        let reads = Cell::new(0);
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 1);
+        assert!(verified(&path, GOOD, judge(&reads)), "and remembered anew");
+        assert_eq!(reads.get(), 1);
+    }
+
+    #[test]
+    fn a_missing_stale_or_unreadable_record_forces_a_full_check() {
+        let (_dir, path) = file_with(b"right");
+        let record = path.with_extension("dll.verified");
+        for text in [None, Some("garbage"), Some(""), Some("good-hash 5\n")] {
+            let _ = fs::remove_file(&record);
+            if let Some(text) = text {
+                fs::write(&record, text).unwrap();
+            }
+            let reads = Cell::new(0);
+            assert!(verified(&path, GOOD, judge(&reads)));
+            assert_eq!(reads.get(), 1, "record {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_record_for_another_pinned_hash_does_not_vouch() {
+        let (_dir, path) = file_with(b"right");
+        remember(&path, "an-older-pin");
+        let reads = Cell::new(0);
+        assert!(verified(&path, GOOD, judge(&reads)));
+        assert_eq!(reads.get(), 1);
     }
 }
