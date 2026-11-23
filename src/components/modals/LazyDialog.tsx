@@ -28,13 +28,20 @@ export function LazyDialog({
 }) {
   const { t } = useTranslation();
   const [armed, setArmed] = useState(isOpen);
-  if (isOpen && !armed) setArmed(true);
+  // A load that failed while the dialog is still asked for is not retried until it has been
+  // closed and asked for again (a retry would fail the same way, in a loop); meanwhile the
+  // error text stands where the dialog would be.
+  const [failed, setFailed] = useState(false);
+  if (!isOpen && failed) setFailed(false);
+  if (isOpen && !armed && !failed) setArmed(true);
+  if (failed) return <p className="p-4 text-text-secondary">{t('modals.dialogError')}</p>;
   if (!armed) return null;
 
   return (
     <LoadFailure
       onFail={() => {
         setArmed(false);
+        setFailed(true);
         onClose();
         toast.error(t('modals.dialogError'));
       }}

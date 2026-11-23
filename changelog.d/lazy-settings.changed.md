@@ -1,0 +1,1 @@
+- The Settings window, the About tab (release notes, credits, known issues, roadmap), the Community presets page and the Tethering panel now load the first time they are shown. The script read at start drops from 1,985,209 to 1,867,618 bytes (about 118 KB, 6%). They look and work as before.
