@@ -375,9 +375,9 @@ pub fn offset_of(points: &[ToneCurvePoint], linear: bool) -> Option<f32> {
 }
 
 fn sixteen_points(curve: impl Fn(f32) -> f32) -> Vec<ToneCurvePoint> {
-    (0..16)
+    (0..crate::mods::curve_limit::MAX_CURVE_POINTS)
         .map(|i| {
-            let x = (i as f32 / 15.0).powf(1.3);
+            let x = (i as f32 / (crate::mods::curve_limit::MAX_CURVE_POINTS - 1) as f32).powf(1.3);
             ToneCurvePoint {
                 x: x * 255.0,
                 y: srgb_encode(curve(srgb_decode(x))) * 255.0,
