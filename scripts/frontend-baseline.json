@@ -316,7 +316,7 @@
       "no-useless-assignment": 1
     },
     "src/hooks/useTauriListeners.ts": {
-      "@typescript-eslint/no-explicit-any": 30
+      "@typescript-eslint/no-explicit-any": 26
     },
     "src/store/useEditorStore.ts": {
       "@typescript-eslint/no-explicit-any": 1,
@@ -370,7 +370,6 @@
     "scripts/test-rawmakase-gray-chart.mjs",
     "src-tauri/engine/README.md",
     "src/argentum/AboutPanel.tsx",
-    "src/argentum/RenderStatus.tsx",
     "src/argentum/knownIssues.ts",
     "src/argentum/roadmap.ts",
     "src/argentum/useThresholdPreview.ts",

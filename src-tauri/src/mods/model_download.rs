@@ -41,9 +41,6 @@ use sha2::{Digest, Sha256};
 
 use super::model_catalog::{self, File, Stored};
 
-/// The event a download reports its progress on.
-pub const EVENT: &str = "ag-model-download";
-
 /// The error a stopped download ends with.
 pub const STOPPED: &str = "Download stopped.";
 
@@ -231,13 +228,13 @@ pub async fn ensure_in_app(
     let announced = AtomicBool::new(false);
     let fetched = ensure(&dir, id, &model.stored.files(), |progress| {
         if progress.total > 0 && !announced.swap(true, Ordering::Relaxed) {
-            let _ = app.emit("ai-model-download-start", notice);
+            let _ = app.emit(crate::mods::events::AI_MODEL_DOWNLOAD_START, notice);
         }
-        let _ = app.emit(EVENT, progress);
+        let _ = app.emit(crate::mods::events::AG_MODEL_DOWNLOAD, progress);
     })
     .await;
     if announced.load(Ordering::Relaxed) {
-        let _ = app.emit("ai-model-download-finish", notice);
+        let _ = app.emit(crate::mods::events::AI_MODEL_DOWNLOAD_FINISH, notice);
     }
     fetched.map(|_| dir)
 }

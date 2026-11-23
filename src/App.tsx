@@ -1,3 +1,4 @@
+import { AG_EVENTS } from './argentum/ag.generated';
 import Argentum from './argentum/Argentum';
 import { ModernWindow, refreshModernTrees, startModernLibrary } from './argentum/modern';
 import { useLightPalette } from './argentum/layout/editorLayout';
@@ -388,7 +389,7 @@ function App() {
   }, [activePanel, activeView, setEditor]);
 
   useEffect(() => {
-    const unlisten = listen('ai-connector-status-update', (event: any) => {
+    const unlisten = listen(AG_EVENTS.AI_CONNECTOR_STATUS_UPDATE, (event: any) => {
       setEditor({ isAIConnectorConnected: event.payload.connected });
     });
     invoke(Invokes.CheckAIConnectorStatus);

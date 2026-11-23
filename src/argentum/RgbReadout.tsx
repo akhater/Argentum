@@ -31,6 +31,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useRgbReadout } from './rgbReadoutStore';
 import { findPhotoBox } from './photoBox';
 import { readoutAdjustments } from './readoutRequest';
+import { AG_EVENTS } from './ag.generated';
 
 interface Sample {
   r: number;
@@ -169,7 +170,7 @@ export default function RgbReadout() {
       }
     });
 
-    const unlisten = listen('wgpu-frame-ready', () => {
+    const unlisten = listen(AG_EVENTS.WGPU_FRAME_READY, () => {
       sampleAt(lastX, lastY, true);
     });
 

@@ -542,7 +542,7 @@ fn run_with_fallback(
     scale: u32,
 ) -> Result<Rgb32FImage> {
     let progress = |payload: ProgressPayload| {
-        let _ = app_handle.emit("super-resolution-progress", payload);
+        let _ = app_handle.emit(crate::mods::events::SUPER_RESOLUTION_PROGRESS, payload);
     };
     match run_model(image, model, &progress, scale) {
         Err(error) if model.device == Device::Gpu => {
@@ -1559,7 +1559,7 @@ pub async fn batch(
         let mut saved = Vec::new();
         for (index, path) in paths.iter().enumerate() {
             let _ = app_handle.emit(
-                "super-resolution-progress",
+                crate::mods::events::SUPER_RESOLUTION_PROGRESS,
                 ProgressPayload {
                     completed: index,
                     total: paths.len(),

@@ -5,7 +5,7 @@ import { ag } from './ag';
 import { SUPER_RESOLUTION_OPEN_EVENT } from './superResolution';
 import { useAgTranslation } from './locales';
 import { useProcessStore } from '../store/useProcessStore';
-import type { PreviewPayload } from './ag.generated';
+import { AG_EVENTS, type PreviewPayload } from './ag.generated';
 
 interface ProgressPayload {
   completed: number;
@@ -123,7 +123,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
   useEffect(() => {
     if (paths.length === 0) return;
     let active = true;
-    const unlisten = listen<ProgressPayload | string>('super-resolution-progress', (event) => {
+    const unlisten = listen<ProgressPayload | string>(AG_EVENTS.SUPER_RESOLUTION_PROGRESS, (event) => {
       if (!active) return;
       if (typeof event.payload === 'string') {
         setProgress(event.payload);

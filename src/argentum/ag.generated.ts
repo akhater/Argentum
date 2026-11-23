@@ -1045,3 +1045,53 @@ export interface AgCommands {
   tiff_bit_depth: { args: Record<string, never>; answer: number };
   upgrade_white_balance: { args: PathsArgs; answer: Array<OldWhiteBalanceEdit> };
 }
+
+/** Every event the app sends, by its name in `mods/events.rs`. */
+export const AG_EVENTS = {
+  AG_MODEL_DOWNLOAD: 'ag-model-download',
+  AI_CONNECTOR_STATUS_UPDATE: 'ai-connector-status-update',
+  AI_MODEL_DOWNLOAD_FINISH: 'ai-model-download-finish',
+  AI_MODEL_DOWNLOAD_START: 'ai-model-download-start',
+  ANALYTICS_UPDATE: 'analytics-update',
+  BATCH_EXPORT_PROGRESS: 'batch-export-progress',
+  CULLING_COMPLETE: 'culling-complete',
+  CULLING_PROGRESS: 'culling-progress',
+  CULLING_START: 'culling-start',
+  DENOISE_BATCH_PROGRESS: 'denoise-batch-progress',
+  DENOISE_COMPLETE: 'denoise-complete',
+  DENOISE_ERROR: 'denoise-error',
+  DENOISE_PROGRESS: 'denoise-progress',
+  EXPORT_CANCELLED: 'export-cancelled',
+  EXPORT_CANCELLING: 'export-cancelling',
+  EXPORT_COMPLETE: 'export-complete',
+  EXPORT_ERROR: 'export-error',
+  EXTERNAL_EDIT_SESSION: 'external-edit-session',
+  FOCUS_STACK_COMPLETE: 'focus-stack-complete',
+  FOCUS_STACK_PROGRESS: 'focus-stack-progress',
+  FOCUS_STACK_REPORT: 'focus-stack-report',
+  HDR_COMPLETE: 'hdr-complete',
+  HDR_PROGRESS: 'hdr-progress',
+  IMAGE_METADATA_LOADED: 'image-metadata-loaded',
+  INDEXING_ERROR: 'indexing-error',
+  INDEXING_FINISHED: 'indexing-finished',
+  INDEXING_PROGRESS: 'indexing-progress',
+  INDEXING_STARTED: 'indexing-started',
+  NEGATIVE_BATCH_PROGRESS: 'negative-batch-progress',
+  OPEN_WITH_FILE: 'open-with-file',
+  PANORAMA_COMPLETE: 'panorama-complete',
+  PANORAMA_ERROR: 'panorama-error',
+  PANORAMA_PROGRESS: 'panorama-progress',
+  PANORAMA_WARNING: 'panorama-warning',
+  PROVIDER_LOOK_EXPORT_MISSING: 'provider-look-export-missing',
+  SUPER_RESOLUTION_PROGRESS: 'super-resolution-progress',
+  THUMBNAIL_GENERATED: 'thumbnail-generated',
+  THUMBNAIL_GENERATION_COMPLETE: 'thumbnail-generation-complete',
+  THUMBNAIL_GENERATION_ERROR: 'thumbnail-generation-error',
+  THUMBNAIL_PROGRESS: 'thumbnail-progress',
+  WGPU_FRAME_READY: 'wgpu-frame-ready',
+} as const;
+
+/** The payload of the events that have a type of ours, by event name. */
+export interface AgEventPayloads {
+  'ag-model-download': Progress;
+}

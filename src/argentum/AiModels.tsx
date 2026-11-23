@@ -33,7 +33,14 @@ import { useAgTranslation } from './locales';
 import Text from '../components/ui/Text';
 import { TextColors, TextVariants } from '../types/typography';
 import { formatSize } from './formatSize';
-import type { Leftover, Listing, ModelStatus, Progress } from './ag.generated';
+import {
+  AG_EVENTS,
+  type AgEventPayloads,
+  type Leftover,
+  type Listing,
+  type ModelStatus,
+  type Progress,
+} from './ag.generated';
 
 /** What mods/model_download.rs ends a stopped download with. */
 const STOPPED = 'Download stopped.';
@@ -72,15 +79,18 @@ export default function AiModels() {
 
   useEffect(() => {
     refresh();
-    const unlisten = listen<Progress>('ag-model-download', (event) => {
-      const p = event.payload;
-      if (p.done >= p.total) {
-        setProgress(null);
-        refresh();
-      } else {
-        setProgress(p);
-      }
-    });
+    const unlisten = listen<AgEventPayloads[typeof AG_EVENTS.AG_MODEL_DOWNLOAD]>(
+      AG_EVENTS.AG_MODEL_DOWNLOAD,
+      (event) => {
+        const p = event.payload;
+        if (p.done >= p.total) {
+          setProgress(null);
+          refresh();
+        } else {
+          setProgress(p);
+        }
+      },
+    );
     return () => {
       unlisten.then((stop) => stop());
     };

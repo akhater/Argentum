@@ -249,7 +249,7 @@ mod windows_runtime {
 
     async fn install(app: &tauri::AppHandle, path: &Path, build: &Build) -> Result<()> {
         const LABEL: &str = "GPU runtime (ONNX Runtime DirectML)";
-        let _ = app.emit("ai-model-download-start", LABEL);
+        let _ = app.emit(crate::mods::events::AI_MODEL_DOWNLOAD_START, LABEL);
         let result = async {
             let dir = path.parent().context("GPU runtime path has no parent")?;
             // Our copy, then NuGet; size and SHA-256 checked before it is kept.
@@ -274,7 +274,7 @@ mod windows_runtime {
             Ok(())
         }
         .await;
-        let _ = app.emit("ai-model-download-finish", LABEL);
+        let _ = app.emit(crate::mods::events::AI_MODEL_DOWNLOAD_FINISH, LABEL);
         result
     }
 
