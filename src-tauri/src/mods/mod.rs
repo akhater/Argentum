@@ -46,6 +46,7 @@ pub mod copy_keys;
 pub mod crash_log;
 pub mod dcp;
 pub mod decode;
+pub mod decode_limits;
 #[cfg(test)]
 mod demosaic_measure;
 pub mod denoise_gpu;

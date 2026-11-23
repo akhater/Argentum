@@ -400,12 +400,17 @@ pub fn load_image_with_orientation(
         .with_guessed_format()
         .context("Failed to guess image format")?;
 
-    reader.no_limits();
+    // Argentum: sensible limits instead of RapidRAW's `no_limits()`
+    // (mods/decode_limits.rs): the header's size is checked before any buffer
+    // is allocated from it.
+    reader.limits(crate::mods::decode_limits::limits());
 
     check_cancel()?;
 
     // RapidRAW 47e6274b: src-tauri/src/image_loader.rs
     let mut decoder = reader.into_decoder().context("Failed to decode image")?;
+    let (width, height) = decoder.dimensions();
+    crate::mods::decode_limits::check_pixels(width, height).map_err(|e| anyhow!(e))?;
     let icc_profile = decoder.icc_profile().ok().flatten();
     let image = DynamicImage::from_decoder(decoder).context("Failed to decode image")?;
     check_cancel()?;
@@ -1104,5 +1109,48 @@ mod tests {
 
         assert_eq!(open_refusal(System::Windows, &photo), None);
         assert!(open_refusal(System::Mac, &photo).is_some());
+    }
+}
+
+#[cfg(test)]
+mod decode_limit_tests {
+    use super::*;
+    use crate::mods::highlight_rule::Rule;
+
+    /// A PNG signature and header declaring `width` x `height`, with no pixel data.
+    fn png_header_only(width: u32, height: u32) -> Vec<u8> {
+        let mut chunk = b"IHDR".to_vec();
+        chunk.extend_from_slice(&width.to_be_bytes());
+        chunk.extend_from_slice(&height.to_be_bytes());
+        chunk.extend_from_slice(&[8, 2, 0, 0, 0]); // 8-bit RGB
+        let mut png = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        png.extend_from_slice(&13u32.to_be_bytes());
+        png.extend_from_slice(&chunk);
+        png.extend_from_slice(&crc32fast::hash(&chunk).to_be_bytes());
+        png
+    }
+
+    #[test]
+    fn a_header_declaring_a_huge_image_is_refused_quickly() {
+        let bytes = png_header_only(60_000, 60_000);
+        let started = std::time::Instant::now();
+        let result = load_image_with_orientation(&bytes, None, Rule::Rebuild);
+        assert!(result.is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn a_small_image_still_decodes_to_the_same_pixels() {
+        let source = image::RgbImage::from_fn(5, 3, |x, y| {
+            image::Rgb([(x * 50) as u8, (y * 80) as u8, 200])
+        });
+        let mut png = Vec::new();
+        DynamicImage::ImageRgb8(source.clone())
+            .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let loaded = load_image_with_orientation(&png, None, Rule::Rebuild)
+            .unwrap()
+            .to_rgb8();
+        assert_eq!(loaded, source);
     }
 }
