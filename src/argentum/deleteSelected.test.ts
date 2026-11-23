@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditorStore } from '../store/useEditorStore';
+import { HISTORY_STEP_AFTER_MS } from './editTimings';
 import { debouncedSetHistory } from './historyOnRelease';
 import { deleteSelectedContainer } from './deleteSelected';
 import { INITIAL_ADJUSTMENTS, type Adjustments, type AiPatch, type MaskContainer } from '../utils/adjustments';
@@ -35,7 +36,7 @@ describe('Delete on a selected mask or AI patch', () => {
     const state = useEditorStore.getState();
     expect(state.adjustments.masks.map((m) => m.id)).toEqual(['m2']);
     expect([state.activeMaskContainerId, state.activeMaskId]).toEqual([null, null]);
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(HISTORY_STEP_AFTER_MS);
     expect(useEditorStore.getState().history.length).toBe(2);
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().adjustments.masks.map((m) => m.id)).toEqual(['m1', 'm2']);

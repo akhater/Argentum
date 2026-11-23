@@ -23,6 +23,7 @@ import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cr
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { debouncedSetHistory } from '../argentum/historyOnRelease';
+import { EDIT_SAVE_AFTER_MS } from '../argentum/editTimings';
 import { trackSave } from '../argentum/savesInFlight';
 import { builtinKeys } from '../argentum/lensBuiltin';
 import { lookOnto, providerLookOff } from '../argentum/looks/providerLook';
@@ -33,7 +34,7 @@ import { fileNameOf } from '../argentum/paths';
 import { stillOpen } from '../argentum/stillOpen';
 import { screenDpr, transformScaleForZoom } from '../argentum/zoomScale';
 
-// Argentum: the 500 ms step lives with the History rules, where undo flushes it.
+// Argentum: the history step lives with the History rules, where undo flushes it.
 export { debouncedSetHistory };
 
 export const debouncedSave = debounce((path: string, adjustmentsToSave: Adjustments) => {
@@ -43,7 +44,7 @@ export const debouncedSave = debounce((path: string, adjustmentsToSave: Adjustme
       toast.error(`Failed to save changes: ${err}`);
     }),
   );
-}, 300);
+}, EDIT_SAVE_AFTER_MS);
 
 const waitForImageReady = (path: string) =>
   new Promise<boolean>((resolve) => {

@@ -1,7 +1,7 @@
 /**
  * When a change becomes a History step. Ours.
  *
- * Their editor records a step 500 ms after the last change (debouncedSetHistory,
+ * Their editor records a step HISTORY_STEP_AFTER_MS after the last change (debouncedSetHistory,
  * which lived in src/hooks/useEditorActions.ts), whether or not the mouse is
  * still down. So a drag that paused now and then left a step at every pause:
  * eight "LUT Intensity" steps for one drag.
@@ -10,10 +10,10 @@
  * letting go records the latest one at once. Their sliders, curves, colour
  * wheels and the crop's pan and wheel-zoom all set that flag, so each of them
  * becomes one step. A change made without a drag (a click, a typed value, a
- * double-click reset) keeps their 500 ms.
+ * double-click reset) keeps their HISTORY_STEP_AFTER_MS.
  *
- * Undo, redo and a jump in the History record a change still waiting in those
- * 500 ms first, so Undo right after a click or a typed value undoes it rather
+ * Undo, redo and a jump in the History record a change still waiting in that
+ * delay first, so Undo right after a click or a typed value undoes it rather
  * than the step before, and the first change of a photo can be undone at once.
  *
  * Installed at import by replacing the store's pushHistory, undo, redo and
@@ -23,10 +23,11 @@
 import debounce from 'lodash.debounce';
 import { useEditorStore } from '../store/useEditorStore';
 import type { Adjustments } from '../utils/adjustments';
+import { HISTORY_STEP_AFTER_MS } from './editTimings';
 
 const { pushHistory: recordStep, undo, redo, goToHistoryIndex } = useEditorStore.getState();
 
-/** Whether a change is waiting in the 500 ms to become a step. */
+/** Whether a change is waiting in the HISTORY_STEP_AFTER_MS delay to become a step. */
 let pending = false;
 
 // The step carries the photo it was asked on: after a switch it is dropped, not pushed onto the new photo.
@@ -34,9 +35,9 @@ const stepSoon = debounce((adjustments: Adjustments, path: string | undefined) =
   pending = false;
   if (useEditorStore.getState().selectedImage?.path !== path) return;
   useEditorStore.getState().pushHistory(adjustments);
-}, 500);
+}, HISTORY_STEP_AFTER_MS);
 
-/** Their 500 ms step after a change, moved here from useEditorActions.ts so this module knows one is waiting. */
+/** Their step after a change (HISTORY_STEP_AFTER_MS), moved here from useEditorActions.ts so this module knows one is waiting. */
 // RapidRAW 5720d633: src/store/useEditorStore.ts (the debounce moved where undo can flush it)
 export const debouncedSetHistory = Object.assign(
   (adjustments: Adjustments) => {
@@ -84,7 +85,7 @@ useEditorStore.setState({
 
 useEditorStore.subscribe((state, prev) => {
   if (!prev.isSliderDragging || state.isSliderDragging) return;
-  // A change in the drag's last 500 ms is still waiting in their debounce:
+  // A change in the drag's last HISTORY_STEP_AFTER_MS is still waiting in their debounce:
   // recorded now, through the pushHistory above, and newer than anything held.
   debouncedSetHistory.flush();
   // A photo opened mid-drag started a new history; the held step was the old photo's.

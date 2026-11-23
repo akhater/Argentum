@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import Text from './Text';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 
-const TOOLTIP_DELAY = 500;
+const TOOLTIP_DELAY_MS = 500;
 const OFFSET = 8;
 const TOOLTIP_VIEWPORT_MARGIN = 12;
 
@@ -112,7 +112,7 @@ export default function GlobalTooltip() {
         setLeftOverride(null);
         setTooltip(data);
         watchTarget();
-      }, TOOLTIP_DELAY);
+      }, TOOLTIP_DELAY_MS);
     };
 
     const handleMouseOut = (e: MouseEvent) => {

@@ -20,7 +20,9 @@ vi.mock('../ag', () => ({
   }),
 }));
 
-const { WRITE_AFTER_MS } = await import('./historyKeeper');
+import { HISTORY_WRITE_AFTER_MS } from '../editTimings';
+// Loads the keeper, which watches the editor from its import.
+await import('./historyKeeper');
 
 const editor = () => useEditorStore.getState();
 const settle = () => vi.advanceTimersByTimeAsync(0);
@@ -80,9 +82,9 @@ describe('each photo keeps its History', () => {
   it('is written once the editor has saved the edit and made its step, not on every change', async () => {
     await open('a.raf', INITIAL_ADJUSTMENTS);
     change({ exposure: 0.5 });
-    await vi.advanceTimersByTimeAsync(WRITE_AFTER_MS - 100);
+    await vi.advanceTimersByTimeAsync(HISTORY_WRITE_AFTER_MS - 100);
     change({ exposure: 0.6 });
-    await vi.advanceTimersByTimeAsync(WRITE_AFTER_MS - 100);
+    await vi.advanceTimersByTimeAsync(HISTORY_WRITE_AFTER_MS - 100);
     expect(writes).toEqual([]);
     await vi.advanceTimersByTimeAsync(100);
     expect(writes).toEqual(['a.raf']);
@@ -116,9 +118,9 @@ describe('each photo keeps its History', () => {
 
   it('writes nothing for a photo opened and left unedited', async () => {
     await open('a.raf', INITIAL_ADJUSTMENTS);
-    await vi.advanceTimersByTimeAsync(WRITE_AFTER_MS * 2);
+    await vi.advanceTimersByTimeAsync(HISTORY_WRITE_AFTER_MS * 2);
     await open('b.raf', INITIAL_ADJUSTMENTS);
-    await vi.advanceTimersByTimeAsync(WRITE_AFTER_MS * 2);
+    await vi.advanceTimersByTimeAsync(HISTORY_WRITE_AFTER_MS * 2);
     expect(writes).toEqual([]);
   });
 

@@ -11,12 +11,12 @@
  *   written for that edit and replaying it lands there (historyRecord.ts).
  *   Otherwise theirs stays. Their reset and paste start one too, and the edit
  *   they leave is not the one the sidecar's History was written for.
- * - After a step, an undo or a redo, the History is written 600 ms after the
- *   last change: after their save of the edit (300 ms) and their step (500 ms),
- *   so the two never write the sidecar at once, and every change puts both off
- *   again. Leaving the photo writes it at once, after their own save, which
- *   leaving sends first.
- * - A change their 500 ms had not made a step yet when the photo is left is
+ * - After a step, an undo or a redo, the History is written HISTORY_WRITE_AFTER_MS
+ *   after the last change: after their save of the edit (EDIT_SAVE_AFTER_MS) and
+ *   their step (HISTORY_STEP_AFTER_MS), so the two never write the sidecar at
+ *   once, and every change puts both off again. Leaving the photo writes it at
+ *   once, after their own save, which leaving sends first.
+ * - A change their step delay had not made a step yet when the photo is left is
  *   written as the step it would have been, as RAWmakase saves a drag still
  *   going (src/edit_session/history.rs @ bf5346d, `saved`).
  */
@@ -28,9 +28,7 @@ import { ag } from '../ag';
 import { trackSave } from '../savesInFlight';
 import { historyNames, keepNames } from '../layout/historyNames';
 import { compact, expand } from './historyRecord';
-
-/** After their save of the edit (300 ms) and their step (500 ms). */
-export const WRITE_AFTER_MS = 600;
+import { HISTORY_WRITE_AFTER_MS } from '../editTimings';
 
 /** The open photo's History as last changed. */
 interface Shown {
@@ -61,9 +59,9 @@ const toKeep = ({ history, index, adjustments }: Shown) => {
 const writeSoon = debounce((shown: Shown) => {
   const record = toKeep(shown);
   inOrder(() => ag('set_history', { path: shown.path, record }));
-}, WRITE_AFTER_MS);
+}, HISTORY_WRITE_AFTER_MS);
 
-/** Writes the History now instead of 600 ms after the last change (closing the window). */
+/** Writes the History now instead of HISTORY_WRITE_AFTER_MS after the last change (closing the window). */
 export const flushHistoryWrite = () => writeSoon.flush();
 
 /** Put the photo's kept History in place of `fresh`, the one their code just started, if it still fits. */
