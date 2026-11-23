@@ -8,6 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [tailwindcss(), react()],
 
+  // Vitest's default exclude is only node_modules and .git; agents' worktrees live under .claude/.
+  test: {
+    exclude: ['**/node_modules/**', '**/.git/**', '**/.claude/**'],
+  },
+
   clearScreen: false,
   server: {
     port: 1420,
