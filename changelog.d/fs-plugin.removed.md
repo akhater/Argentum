@@ -1,0 +1,1 @@
+- Removed the unused file-system plugin registration and its direct dependency. Nothing in the interface called it, so no feature changes.
