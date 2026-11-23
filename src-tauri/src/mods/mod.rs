@@ -34,6 +34,7 @@ pub mod clipping;
 pub mod clone_heal;
 pub mod close_failsafe;
 pub mod color_grade;
+pub mod curve_limit;
 #[cfg(test)]
 mod colour_compare;
 pub mod commands;

@@ -88,7 +88,8 @@ fn extract_tone_curve_points(xmp_str: &str, curve_name: &str) -> Option<Vec<Valu
     if points.is_empty() {
         None
     } else {
-        Some(points)
+        // Argentum: no more points than the shader holds (mods/curve_limit.rs).
+        Some(crate::mods::curve_limit::fit_values(points))
     }
 }
 
@@ -491,5 +492,18 @@ mod tests {
         ];
         assert_eq!(points("luma"), medium_contrast);
         assert_eq!(points("red"), [(0, 0), (128, 150), (255, 255)]);
+    }
+
+    /// Argentum: a curve with more points than the shader holds is thinned on import.
+    #[test]
+    fn a_long_imported_curve_is_within_the_limit() {
+        let items: String = (0..30)
+            .map(|i| format!("<rdf:li>{}, {}</rdf:li>", i * 8, i * 8))
+            .collect();
+        let xmp = format!("<crs:ToneCurvePV2012Red><rdf:Seq>{items}</rdf:Seq></crs:ToneCurvePV2012Red>");
+        let points = extract_tone_curve_points(&xmp, "ToneCurvePV2012Red").unwrap();
+        assert_eq!(points.len(), crate::mods::curve_limit::MAX_CURVE_POINTS);
+        assert_eq!(points[0]["x"], 0);
+        assert_eq!(points[points.len() - 1]["x"], 232);
     }
 }

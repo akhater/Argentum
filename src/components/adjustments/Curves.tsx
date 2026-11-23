@@ -13,6 +13,7 @@ import {
 } from '../../utils/adjustments';
 import { OPTION_SEPARATOR } from '../ui/AppProperties';
 import { useLightPalette } from '../../argentum/layout/editorLayout';
+import { canAddCurvePoint } from '../../argentum/curveLimit';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import Text from '../ui/Text';
 import Slider from '../ui/Slider';
@@ -552,6 +553,7 @@ export default function CurveGraph({ adjustments, setAdjustments, histogram, onD
     const y = Math.max(0, Math.min(255, 255 - ((clientY - rect.top) / rect.height) * 255));
 
     if (activePoints.some((p: Coord) => Math.abs(p.x - x) < MIN_POINT_GAP_X)) return;
+    if (!canAddCurvePoint(activePoints.length)) return;
 
     onDragStateChange?.(true);
 

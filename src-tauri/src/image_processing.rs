@@ -2,6 +2,7 @@ use crate::as_shot::AsShot;
 use crate::gpu_processing::WgpuDisplay;
 use crate::guided_perspective::{GuideLine, compute_guided_homography, count_valid_lines};
 use crate::white_balance::{self, WhiteBalance};
+use crate::mods::curve_limit::{MAX_CURVE_POINTS, fit_values};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat3, Vec2, Vec3};
 use image::{DynamicImage, GenericImageView, Rgb32FImage, Rgba};
@@ -1788,10 +1789,10 @@ pub struct GlobalAdjustments {
     pub color_calibration: ColorCalibrationSettings,
 
     pub hsl: [HslColor; 8],
-    pub luma_curve: [Point; 16],
-    pub red_curve: [Point; 16],
-    pub green_curve: [Point; 16],
-    pub blue_curve: [Point; 16],
+    pub luma_curve: [Point; MAX_CURVE_POINTS],
+    pub red_curve: [Point; MAX_CURVE_POINTS],
+    pub green_curve: [Point; MAX_CURVE_POINTS],
+    pub blue_curve: [Point; MAX_CURVE_POINTS],
     pub luma_curve_count: u32,
     pub red_curve_count: u32,
     pub green_curve_count: u32,
@@ -1819,7 +1820,7 @@ pub struct GlobalAdjustments {
     // it declares, and the exposure it takes the picture at, in EV.
     pub ag_film_lut_input: u32,
     pub ag_film_lut_ev: f32,
-    pub raw_tone_curve: [Point; 16],
+    pub raw_tone_curve: [Point; MAX_CURVE_POINTS],
 
     // Argentum: sharpening, read by the input stage before the shader runs.
     pub ag_sharpen: sharpen::Params,
@@ -1877,10 +1878,10 @@ pub struct MaskAdjustments {
     _pad6: f32,
 
     pub hsl: [HslColor; 8],
-    pub luma_curve: [Point; 16],
-    pub red_curve: [Point; 16],
-    pub green_curve: [Point; 16],
-    pub blue_curve: [Point; 16],
+    pub luma_curve: [Point; MAX_CURVE_POINTS],
+    pub red_curve: [Point; MAX_CURVE_POINTS],
+    pub green_curve: [Point; MAX_CURVE_POINTS],
+    pub blue_curve: [Point; MAX_CURVE_POINTS],
     pub luma_curve_count: u32,
     pub red_curve_count: u32,
     pub green_curve_count: u32,
@@ -2063,9 +2064,9 @@ pub(crate) fn lightroom_grading(
     }
 }
 
-fn convert_points_to_aligned(frontend_points: Vec<serde_json::Value>) -> [Point; 16] {
-    let mut aligned_points = [Point::default(); 16];
-    for (i, point) in frontend_points.iter().enumerate().take(16) {
+fn convert_points_to_aligned(frontend_points: Vec<serde_json::Value>) -> [Point; MAX_CURVE_POINTS] {
+    let mut aligned_points = [Point::default(); MAX_CURVE_POINTS];
+    for (i, point) in frontend_points.iter().enumerate().take(MAX_CURVE_POINTS) {
         if let (Some(x), Some(y)) = (point["x"].as_f64(), point["y"].as_f64()) {
             aligned_points[i] = Point {
                 x: x as f32,
@@ -2083,10 +2084,12 @@ fn convert_points_to_aligned(frontend_points: Vec<serde_json::Value>) -> [Point;
 /// every pixel: each point within half a level of x = y, from 0,0 to 255,255) is
 /// sent with no points, which `apply_curve` leaves as it is. See
 /// `apply_all_curves` in shader.wgsl for why the test moved here.
-fn shader_curve(frontend_points: Vec<serde_json::Value>) -> ([Point; 16], u32) {
+fn shader_curve(frontend_points: Vec<serde_json::Value>) -> ([Point; MAX_CURVE_POINTS], u32) {
+    // Argentum: more points than the shader holds are thinned to its limit (mods/curve_limit.rs).
+    let frontend_points = fit_values(frontend_points);
     let len = frontend_points.len();
     let points = convert_points_to_aligned(frontend_points);
-    let at = |i: usize| points[i.min(15)];
+    let at = |i: usize| points[i.min(MAX_CURVE_POINTS - 1)];
     let straight = len >= 2
         && (0..len).all(|i| (at(i).x - at(i).y).abs() <= 0.5)
         && at(0).x.abs() < 0.1
@@ -2597,6 +2600,7 @@ fn get_global_adjustments_from_json(
     let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
 
     let (raw_tone_mode, raw_tone_points, ag_camera_look) = raw_tone::resolve(js_adjustments, is_raw, photo); // Argentum
+    let raw_tone_points = fit_values(raw_tone_points);
 
     let mut global = GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),
@@ -2770,7 +2774,7 @@ fn get_global_adjustments_from_json(
         raw_tone_curve_count: if raw_tone_mode == 0 {
             0
         } else {
-            raw_tone_points.len().min(16) as u32
+            raw_tone_points.len() as u32
         },
         ag_film_lut_input: crate::mods::film_lut::declared_input(js_adjustments),
         ag_film_lut_ev: crate::mods::film_lut::exposure_ev(js_adjustments, raw_tone_mode, &raw_tone_points),
@@ -4140,6 +4144,28 @@ mod tests {
         let (points, count) = shader_curve(pts(&[(0.0, 12.0), (64.0, 58.0), (255.0, 250.0)]));
         assert_eq!(count, 3);
         assert_eq!((points[1].x, points[1].y), (64.0, 58.0));
+    }
+
+    /// Argentum: a curve within the shader's limit reaches it as it is; a longer one is thinned.
+    #[test]
+    fn curves_reach_the_shader_within_its_limit() {
+        let pts = |n: usize| -> Vec<serde_json::Value> {
+            (0..n)
+                .map(|i| {
+                    let x = 255.0 * i as f64 / (n - 1) as f64;
+                    serde_json::json!({ "x": x, "y": (x + 20.0 * (x / 20.0).sin()).clamp(0.0, 255.0) })
+                })
+                .collect()
+        };
+        let (points, count) = shader_curve(pts(MAX_CURVE_POINTS));
+        assert_eq!(count as usize, MAX_CURVE_POINTS);
+        for (i, p) in pts(MAX_CURVE_POINTS).iter().enumerate() {
+            assert_eq!((points[i].x, points[i].y), (p["x"].as_f64().unwrap() as f32, p["y"].as_f64().unwrap() as f32));
+        }
+        let (points, count) = shader_curve(pts(24));
+        assert_eq!(count as usize, MAX_CURVE_POINTS);
+        assert_eq!((points[0].x, points[0].y), (0.0, 0.0));
+        assert_eq!(points[MAX_CURVE_POINTS - 1].x, 255.0);
     }
     use image::{ImageBuffer, Rgb};
 
