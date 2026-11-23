@@ -302,7 +302,7 @@
       "react-hooks/exhaustive-deps": 2
     },
     "src/hooks/useKeyboardShortcuts.ts": {
-      "@typescript-eslint/no-explicit-any": 116
+      "@typescript-eslint/no-explicit-any": 114
     },
     "src/hooks/useLibraryActions.ts": {
       "@typescript-eslint/no-explicit-any": 4,

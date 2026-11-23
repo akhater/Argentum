@@ -36,7 +36,7 @@ import {
 import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
-import { DEFAULT_BOTTOM_PANEL_HEIGHT, useUIStore } from '../../store/useUIStore';
+import { DEFAULT_BOTTOM_PANEL_HEIGHT, PANEL_LIMITS_PX, useUIStore } from '../../store/useUIStore';
 import { useEditorLayout } from '../layout/editorLayout';
 import type { TransformHandle } from '../layout/Navigator';
 import FilmstripArea from './FilmstripArea';
@@ -53,9 +53,8 @@ type Resize = (stateKey: string, startSize: number) => (e: ReactPointerEvent<HTM
  * The columns' widths: the stored width, held within the window's limits. The
  * starting widths (268 and 330) are the stored defaults themselves (useUIStore).
  */
-const LEFT = { min: 224, max: 400 };
-const RIGHT = { min: 300, max: 480 };
-const widthOf = (stored: number, c: typeof LEFT) => Math.min(c.max, Math.max(c.min, stored));
+const { left: LEFT, right: RIGHT } = PANEL_LIMITS_PX;
+const widthOf = (stored: number, c: { min: number; max: number }) => Math.min(c.max, Math.max(c.min, stored));
 
 /** The grid's props, with the view tools the top bar sets. */
 type LibraryProps = ComponentProps<typeof LibraryView> & {

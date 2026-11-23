@@ -85,8 +85,18 @@ export const DEFAULT_RIGHT_PANEL_WIDTH_PX = 330;
 export const DEFAULT_BOTTOM_PANEL_HEIGHT = 144;
 /** Widths earlier versions saved as their default; a saved one of these starts at the column's default. Add a value here if another is found. */
 export const LEGACY_PANEL_WIDTHS_PX: readonly number[] = [350];
-/** A hidden column reopens at its default when narrower than this (the rule before per-column defaults). */
-const REVEAL_BELOW_PX = 350;
+/** What each side column may be dragged to, and what it starts at; the Modern window holds a stored width within these. */
+export const PANEL_LIMITS_PX = {
+  left: { min: 224, max: 400, default: DEFAULT_LEFT_PANEL_WIDTH_PX },
+  right: { min: 300, max: 480, default: DEFAULT_RIGHT_PANEL_WIDTH_PX },
+} as const;
+type Column = keyof typeof PANEL_LIMITS_PX;
+
+/** The width a hidden column comes back at: the stored one, unless it is below the column's minimum or invalid. */
+function revealedWidth(column: Column, stored: number): number {
+  const { min, default: start } = PANEL_LIMITS_PX[column];
+  return Number.isFinite(stored) && stored >= min ? stored : start;
+}
 
 function keptWidth(saved: number | undefined, defaultPx: number): number {
   if (!saved || LEGACY_PANEL_WIDTHS_PX.includes(saved)) return defaultPx;
@@ -142,6 +152,7 @@ export interface UIState {
 
   setUI: (updater: Partial<UIState> | ((state: UIState) => Partial<UIState>)) => void;
   setPanel: (panel: Panel | null) => void;
+  toggleColumn: (column: Column) => void;
   customEscapeHandler: (() => void) | null;
   setCustomEscapeHandler: (handler: (() => void) | null) => void;
   imageSelectHandler: ((path: string, openInEditor?: boolean) => void) | null;
@@ -231,11 +242,20 @@ export const useUIStore = create<UIState>((set, get) => ({
       const updates: Partial<UIState> = column === 'right' ? { activePanel: panel } : {};
       if (!state.uiVisibility[shown]) {
         updates.uiVisibility = { ...state.uiVisibility, [shown]: true };
-        if (state[width] < REVEAL_BELOW_PX) {
-          updates[width] = column === 'left' ? DEFAULT_LEFT_PANEL_WIDTH_PX : DEFAULT_RIGHT_PANEL_WIDTH_PX;
-        }
+        updates[width] = revealedWidth(column, state[width]);
       }
       return updates;
+    }),
+
+  toggleColumn: (column) =>
+    set((state) => {
+      const shown = column === 'left' ? 'leftPanel' : 'rightPanel';
+      const width = column === 'left' ? 'leftPanelWidth' : 'rightPanelWidth';
+      const opening = !state.uiVisibility[shown];
+      return {
+        uiVisibility: { ...state.uiVisibility, [shown]: opening },
+        ...(opening ? { [width]: revealedWidth(column, state[width]) } : {}),
+      };
     }),
 
   toggleFullScreen: () => {

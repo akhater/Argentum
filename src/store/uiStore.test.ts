@@ -80,12 +80,64 @@ describe('readWorkspace', () => {
 });
 
 describe('reopening a hidden column', () => {
-  it('opens a narrow column at its own default', () => {
+  it('opens a column narrower than its minimum at its own default', () => {
     useUIStore.setState({
       uiVisibility: { filmstrip: true, leftPanel: false, rightPanel: false },
-      leftPanelWidth: 300,
+      leftPanelWidth: 200,
     });
     useUIStore.getState().setPanel(Panel.FolderTree);
     expect(useUIStore.getState().leftPanelWidth).toBe(268);
+  });
+});
+
+// Showing a hidden column keeps the width the user chose; only one below the column's minimum starts again at its default.
+describe('showing a hidden column', () => {
+  const hiddenBoth = { filmstrip: true, leftPanel: false, rightPanel: false };
+  const shown = () => useUIStore.getState();
+
+  it('keeps a left width of 300 and a right width of 340 through hide and show', () => {
+    useUIStore.setState({
+      uiVisibility: { ...hiddenBoth, leftPanel: true, rightPanel: true },
+      leftPanelWidth: 300,
+      rightPanelWidth: 340,
+    });
+    for (const column of ['left', 'right'] as const) {
+      shown().toggleColumn(column);
+      expect(shown().uiVisibility[column === 'left' ? 'leftPanel' : 'rightPanel']).toBe(false);
+      expect([shown().leftPanelWidth, shown().rightPanelWidth]).toEqual([300, 340]);
+      shown().toggleColumn(column);
+    }
+    expect([shown().leftPanelWidth, shown().rightPanelWidth]).toEqual([300, 340]);
+  });
+
+  it('starts a column narrower than its minimum, or invalid, at its default', () => {
+    for (const [left, right] of [
+      [223, 299],
+      [0, NaN],
+      [-5, 120],
+    ]) {
+      useUIStore.setState({ uiVisibility: hiddenBoth, leftPanelWidth: left, rightPanelWidth: right });
+      shown().toggleColumn('left');
+      shown().toggleColumn('right');
+      expect([shown().leftPanelWidth, shown().rightPanelWidth]).toEqual([268, 330]);
+    }
+  });
+
+  it('keeps the limits themselves (224 and 300)', () => {
+    useUIStore.setState({ uiVisibility: hiddenBoth, leftPanelWidth: 224, rightPanelWidth: 300 });
+    shown().toggleColumn('left');
+    shown().toggleColumn('right');
+    expect([shown().leftPanelWidth, shown().rightPanelWidth]).toEqual([224, 300]);
+  });
+
+  it('gives the same width when a panel button shows the column as when the key does', () => {
+    useUIStore.setState({ uiVisibility: hiddenBoth, leftPanelWidth: 300, rightPanelWidth: 340 });
+    shown().setPanel(Panel.FolderTree);
+    shown().setPanel(Panel.Adjustments);
+    expect([shown().leftPanelWidth, shown().rightPanelWidth]).toEqual([300, 340]);
+    useUIStore.setState({ uiVisibility: hiddenBoth, leftPanelWidth: 100, rightPanelWidth: 100 });
+    shown().setPanel(Panel.FolderTree);
+    shown().setPanel(Panel.Adjustments);
+    expect([shown().leftPanelWidth, shown().rightPanelWidth]).toEqual([268, 330]);
   });
 });
