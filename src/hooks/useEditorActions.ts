@@ -439,16 +439,18 @@ export function useEditorActions() {
         .then(() => {
           void findMasksAgain(pathsToUpdate, asks, setAdjustments);
           if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
-            invoke('load_metadata', { path: selectedImage.path }).then((meta: any) => {
-              if (meta.adjustments && stillOpen(selectedImage.path)) {
-                setAdjustments((prev: any) => ({
-                  ...prev,
-                  lensMaker: meta.adjustments.lensMaker,
-                  lensModel: meta.adjustments.lensModel,
-                  lensDistortionParams: meta.adjustments.lensDistortionParams,
-                }));
-              }
-            });
+            invoke('load_metadata', { path: selectedImage.path })
+              .then((meta: any) => {
+                if (meta.adjustments && stillOpen(selectedImage.path)) {
+                  setAdjustments((prev: any) => ({
+                    ...prev,
+                    lensMaker: meta.adjustments.lensMaker,
+                    lensModel: meta.adjustments.lensModel,
+                    lensDistortionParams: meta.adjustments.lensDistortionParams,
+                  }));
+                }
+              })
+              .catch((err) => console.error('Failed to reload the pasted lens fields:', err));
           }
         })
         .catch((err) => toast.error(`Failed to paste adjustments: ${err}`));

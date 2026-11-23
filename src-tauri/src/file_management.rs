@@ -3213,18 +3213,27 @@ pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadat
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
 
     let (source_path, sidecar_path) = parse_virtual_path(&path);
-    let _sidecar = enable_xmp_sync.then(|| crate::mods::write_locks::lock_sidecar(&sidecar_path));
-    // A sidecar that does not read shows as unedited and is never written back.
-    let read = crate::exif_processing::try_load_sidecar(&sidecar_path);
-    let readable = read.is_ok();
-    let mut metadata =
-        read.unwrap_or_else(|e| crate::mods::sidecar_read::shown_empty(&sidecar_path, &e));
+    read_edit(&source_path, &sidecar_path, enable_xmp_sync)
+}
 
-    if readable
-        && enable_xmp_sync
-        && sync_metadata_from_xmp(&source_path, &sidecar_path, &mut metadata, true)
-    {
-        let _ = crate::exif_processing::write_sidecar(&sidecar_path, &source_path, &metadata);
+/// A photo's edit for the editor. A sidecar that is there but cannot be read is
+/// an error, not an empty edit: the editor must not open a blank edit that a
+/// later save would write over the real one (mods/sidecar_read.rs).
+pub(crate) fn read_edit(
+    source_path: &Path,
+    sidecar_path: &Path,
+    enable_xmp_sync: bool,
+) -> Result<ImageMetadata, String> {
+    let _sidecar = enable_xmp_sync.then(|| crate::mods::write_locks::lock_sidecar(sidecar_path));
+    let mut metadata = crate::exif_processing::try_load_sidecar(sidecar_path).map_err(|e| {
+        format!(
+            "The edit of {} could not be read ({e}). Try again in a moment.",
+            source_path.display()
+        )
+    })?;
+
+    if enable_xmp_sync && sync_metadata_from_xmp(source_path, sidecar_path, &mut metadata, true) {
+        let _ = crate::exif_processing::write_sidecar(sidecar_path, source_path, &metadata);
     }
 
     Ok(metadata)

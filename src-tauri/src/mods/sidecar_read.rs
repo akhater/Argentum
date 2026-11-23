@@ -186,6 +186,43 @@ mod tests {
     }
 
     #[test]
+    fn opening_a_photo_whose_edit_does_not_read_is_an_error_naming_the_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let (photo, sidecar) = photo_with(dir.path(), EDIT.as_bytes());
+        let _failing = fail_reads_of(&sidecar);
+
+        let error = crate::file_management::read_edit(&photo, &sidecar, false).unwrap_err();
+
+        assert!(error.contains("IMG_0001.jpg"), "{error}");
+        assert!(error.contains("Try again"), "{error}");
+        assert_eq!(std::fs::read(&sidecar).unwrap(), EDIT.as_bytes());
+    }
+
+    #[test]
+    fn opening_a_photo_with_no_edit_gives_an_empty_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG_0003.jpg");
+        std::fs::write(&photo, "jpeg").unwrap();
+        let sidecar = sidecar_for(&photo, None);
+
+        let edit = crate::file_management::read_edit(&photo, &sidecar, false).unwrap();
+
+        assert_eq!(edit.rating, 0);
+        assert!(!sidecar.exists());
+    }
+
+    #[test]
+    fn opening_a_photo_with_a_readable_edit_gives_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (photo, sidecar) = photo_with(dir.path(), EDIT.as_bytes());
+
+        let edit = crate::file_management::read_edit(&photo, &sidecar, false).unwrap();
+
+        assert_eq!(edit.rating, 3);
+        assert_eq!(edit.adjustments["exposure"], 1.5);
+    }
+
+    #[test]
     fn a_sidecar_with_bytes_that_are_not_utf8_is_read_and_kept_aside() {
         let dir = tempfile::tempdir().unwrap();
         let mut text = br#"{ "version": 1, "rating": 4, "tags": ["user:caf"#.to_vec();

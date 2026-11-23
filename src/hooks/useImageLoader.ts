@@ -7,6 +7,39 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes } from '../components/ui/AppProperties';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 
+/**
+ * The photo's saved edit into the editor as it opens. False when it could not be read: the photo
+ * is closed with the same error as an image that fails to load, so no blank edit is left to be saved
+ * over the real one (the edit file exists but is unreadable; src-tauri mods/sidecar_read.rs).
+ */
+export async function loadEditOnOpen(path: string, isActive: () => boolean): Promise<boolean> {
+  const { setEditor, resetHistory } = useEditorStore.getState();
+  try {
+    useEditorStore.getState().patchesSentToBackend.clear();
+    await invoke('clear_session_caches').catch((e) => console.warn('Cache clear failed:', e));
+
+    const metadata: any = await invoke(Invokes.LoadMetadata, { path });
+    if (!isActive()) return false;
+
+    const initialAdjusts =
+      metadata.adjustments && !metadata.adjustments.is_null
+        ? normalizeLoadedAdjustments(metadata.adjustments)
+        : { ...INITIAL_ADJUSTMENTS };
+
+    setEditor({ adjustments: initialAdjusts });
+    resetHistory(initialAdjusts);
+    return true;
+  } catch (err) {
+    if (isActive()) {
+      console.error('Failed to load metadata:', err);
+      toast.error(String(err));
+      setEditor({ selectedImage: null });
+      useLibraryStore.getState().setLibrary({ isViewLoading: false });
+    }
+    return false;
+  }
+}
+
 export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
@@ -28,28 +61,6 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
   useEffect(() => {
     if (selectedImage && !selectedImage.isReady && selectedImage.path) {
       let isEffectActive = true;
-
-      const loadMetadataEarly = async () => {
-        try {
-          useEditorStore.getState().patchesSentToBackend.clear();
-          await invoke('clear_session_caches').catch((e) => console.warn('Cache clear failed:', e));
-
-          const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
-          if (!isEffectActive) return;
-
-          let initialAdjusts;
-          if (metadata.adjustments && !metadata.adjustments.is_null) {
-            initialAdjusts = normalizeLoadedAdjustments(metadata.adjustments);
-          } else {
-            initialAdjusts = { ...INITIAL_ADJUSTMENTS };
-          }
-
-          setEditor({ adjustments: initialAdjusts });
-          resetHistory(initialAdjusts);
-        } catch (err) {
-          console.error('Failed to load metadata early:', err);
-        }
-      };
 
       const loadFullImageData = async () => {
         try {
@@ -107,8 +118,7 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
       };
 
       const loadAll = async () => {
-        await loadMetadataEarly();
-        if (isEffectActive) {
+        if (await loadEditOnOpen(selectedImage.path, () => isEffectActive)) {
           await loadFullImageData();
         }
       };
