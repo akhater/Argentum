@@ -52,6 +52,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn network_style_prefixes_compare_by_component() {
         let root = Path::new(r"\\?\UNC\server\share\luts");
         for inside in [
