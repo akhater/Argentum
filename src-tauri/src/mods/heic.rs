@@ -34,6 +34,7 @@ use moxcms::{
     TransferCharacteristics, TransformOptions,
 };
 use rawler::Orientation;
+use rayon::prelude::*;
 use std::fmt;
 
 #[cfg(target_os = "macos")]
@@ -111,10 +112,20 @@ fn brands(bytes: &[u8]) -> Vec<&[u8; 4]> {
 }
 
 /// The primary image of a HEIC, upright and in sRGB, as sRGB-encoded floats,
-/// its colours converted as `rule` says.
-pub fn decode(bytes: &[u8], rule: Rule) -> Result<DynamicImage, HeicError> {
+/// its colours converted as `rule` says, for `purpose`.
+pub fn decode(bytes: &[u8], rule: Rule, purpose: Purpose) -> Result<DynamicImage, HeicError> {
+    decode_with(bytes, rule, purpose, pixels)
+}
+
+/// [`decode`] with the system decoder given, so a test can stand one in.
+fn decode_with(
+    bytes: &[u8],
+    rule: Rule,
+    purpose: Purpose,
+    decoder: impl FnOnce(&Header, &[u8]) -> Result<Pixels, HeicError>,
+) -> Result<DynamicImage, HeicError> {
     let header = Header::read(bytes)?;
-    let decoded = pixels(&header, bytes)?;
+    let decoded = alone_if_large(purpose, &header, || decoder(&header, bytes))?;
     let rgb = header.to_srgb(cropped(&header, decoded)?, rule)?;
     let image = Rgb32FImage::from_raw(header.crop.width, header.crop.height, rgb)
         .ok_or(HeicError::Corrupt("the picture is not the size it says"))?;
@@ -126,6 +137,33 @@ pub fn decode(bytes: &[u8], rule: Rule) -> Result<DynamicImage, HeicError> {
 
 /// The most pixels a HEIC image may have, as RAWmakase holds it to.
 const MAX_PIXELS: u64 = 150_000_000;
+
+/// The pixels above which a HEIC shown small is decoded alone: the decoder
+/// makes the whole picture, three bytes a pixel and then twelve as floats, and
+/// a folder's thumbnails are decoded side by side.
+const LARGE_THUMBNAIL_PIXELS: u64 = 64_000_000;
+
+/// What a HEIC is decoded for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Purpose {
+    /// Opened for editing or export.
+    Open,
+    /// Shown small, in a thumbnail or a preview.
+    Thumbnail,
+}
+
+/// Held while a large HEIC is decoded for a thumbnail, so that only one is at
+/// a time, whatever the number of thumbnail workers.
+static LARGE_DECODE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Runs `decode`, alone among large thumbnail decodes when `purpose` is a
+/// thumbnail of more than [`LARGE_THUMBNAIL_PIXELS`]: waits, never refuses.
+fn alone_if_large<T>(purpose: Purpose, header: &Header, decode: impl FnOnce() -> T) -> T {
+    let large = u64::from(header.width) * u64::from(header.height) > LARGE_THUMBNAIL_PIXELS;
+    let _alone = (purpose == Purpose::Thumbnail && large)
+        .then(|| LARGE_DECODE.lock().unwrap_or_else(|e| e.into_inner()));
+    decode()
+}
 
 /// Decoded pixels: `width` × `height` of interleaved RGB, 8-bit samples or
 /// 16-bit ones (native endian), as [`Header::deep`] says, in the colour space
@@ -234,8 +272,8 @@ impl Header {
         };
         let profile = ColorProfile::new_from_slice(icc)
             .map_err(|_| HeicError::Corrupt("its colour profile is damaged"))?;
+        let mut samples = samples;
         if rule.reads_colour_profiles() {
-            let mut samples = samples;
             return match crate::mods::icc_input::convert_to_srgb(&mut samples, &profile) {
                 Ok(()) => Ok(samples),
                 Err(CmsError::UnsupportedProfileConnection) => {
@@ -252,12 +290,21 @@ impl Header {
                 TransformOptions::default(),
             )
             .map_err(|_| HeicError::Corrupt("its colour profile is not an RGB one"))?;
-        let mut out = vec![0.0; samples.len()];
-        transform
-            .transform(&samples, &mut out)
+        // In place, a chunk of whole pixels at a time, so no second copy of the
+        // picture is made; each pixel is converted alone, as it would be whole.
+        const CHUNK: usize = 3 * 4096;
+        samples
+            .par_chunks_mut(CHUNK)
+            .try_for_each(|chunk| {
+                let mut out = vec![0.0; chunk.len()];
+                transform.transform(chunk, &mut out)?;
+                for (sample, converted) in chunk.iter_mut().zip(out) {
+                    *sample = converted.clamp(0.0, 1.0);
+                }
+                Ok::<_, CmsError>(())
+            })
             .map_err(|_| HeicError::Corrupt("its colours can't be converted"))?;
-        out.iter_mut().for_each(|v| *v = v.clamp(0.0, 1.0));
-        Ok(out)
+        Ok(samples)
     }
 }
 
@@ -795,7 +842,7 @@ mod tests {
     /// can run. Where it can't they say so and pass, unless `AG_REQUIRE_HEIC`
     /// is set: then the decoder must be there.
     fn decoder_here() -> bool {
-        match decode(&fixture("metadata.heic"), Rule::LATEST) {
+        match decode(&fixture("metadata.heic"), Rule::LATEST, Purpose::Open) {
             Err(HeicError::NoDecoder(why)) => {
                 assert!(
                     std::env::var_os("AG_REQUIRE_HEIC").is_none(),
@@ -892,6 +939,128 @@ mod tests {
         assert!(Header::read(&fixture("ten-bit.heic")).unwrap().deep);
     }
 
+    /// `bytes` with every `ispe` (image size) box saying `width` × `height`.
+    fn declaring(mut bytes: Vec<u8>, width: u32, height: u32) -> Vec<u8> {
+        for at in 0..bytes.len().saturating_sub(16) {
+            if &bytes[at..at + 4] == b"ispe" {
+                bytes[at + 8..at + 12].copy_from_slice(&width.to_be_bytes());
+                bytes[at + 12..at + 16].copy_from_slice(&height.to_be_bytes());
+            }
+        }
+        bytes
+    }
+
+    /// A stand-in system decoder: the 16 × 12 crop of the fixture, flat grey,
+    /// whatever size the header declares. `during` runs while it "decodes".
+    fn stand_in(during: impl FnOnce()) -> impl FnOnce(&Header, &[u8]) -> Result<Pixels, HeicError> {
+        move |_, _| {
+            during();
+            Ok(Pixels {
+                width: 16,
+                height: 12,
+                rgb: vec![128; 16 * 12 * 3],
+            })
+        }
+    }
+
+    #[test]
+    fn nothing_over_the_limit_is_decoded_and_nothing_under_it_is_refused() {
+        let at = |w, h| Header::read(&declaring(fixture("metadata.heic"), w, h));
+        assert!(at(12_247, 12_247).is_ok());
+        assert_eq!(
+            at(12_248, 12_247).unwrap_err(),
+            HeicError::Unsupported("over 150-megapixel")
+        );
+        // Over the limit, refused for every purpose, before the decoder is asked.
+        let over = declaring(fixture("metadata.heic"), 12_248, 12_247);
+        for purpose in [Purpose::Open, Purpose::Thumbnail] {
+            let result = decode_with(&over, Rule::LATEST, purpose, |_: &Header, _: &[u8]| {
+                panic!("decoded a photo over the limit")
+            });
+            assert_eq!(result, Err(HeicError::Unsupported("over 150-megapixel")));
+        }
+    }
+
+    /// One test, because the gate is shared by every thread of the process.
+    #[test]
+    fn a_large_thumbnail_is_decoded_alone_and_never_refused() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let small = fixture("metadata.heic");
+        // 11648 × 8736, a 102 MP photo (Fujifilm GFX100 II): within the limit.
+        let large = declaring(small.clone(), 11_648, 8_736);
+
+        // A large thumbnail comes out as an image, decoded with the gate held.
+        let held = std::cell::Cell::new(false);
+        let image = decode_with(
+            &large,
+            Rule::LATEST,
+            Purpose::Thumbnail,
+            stand_in(|| held.set(LARGE_DECODE.try_lock().is_err())),
+        );
+        assert_eq!(image.map(|i| (i.width(), i.height())), Ok((16, 12)));
+        assert!(held.get(), "a large thumbnail is decoded alone");
+
+        // Opening, and a small photo's thumbnail, do not wait on the gate.
+        for (bytes, purpose) in [(&large, Purpose::Open), (&small, Purpose::Thumbnail)] {
+            let free = std::cell::Cell::new(false);
+            decode_with(
+                bytes,
+                Rule::LATEST,
+                purpose,
+                stand_in(|| free.set(LARGE_DECODE.try_lock().is_ok())),
+            )
+            .unwrap();
+            assert!(free.get(), "{purpose:?} of {} bytes", bytes.len());
+        }
+
+        // Several at once: never two inside the gate.
+        let (now, most) = (AtomicUsize::new(0), AtomicUsize::new(0));
+        std::thread::scope(|scope| {
+            for _ in 0..6 {
+                scope.spawn(|| {
+                    decode_with(
+                        &large,
+                        Rule::LATEST,
+                        Purpose::Thumbnail,
+                        stand_in(|| {
+                            let inside = now.fetch_add(1, Ordering::SeqCst) + 1;
+                            most.fetch_max(inside, Ordering::SeqCst);
+                            std::thread::sleep(std::time::Duration::from_millis(30));
+                            now.fetch_sub(1, Ordering::SeqCst);
+                        }),
+                    )
+                    .unwrap();
+                });
+            }
+        });
+        assert_eq!(most.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn colour_converted_in_chunks_is_the_whole_conversion() {
+        let header = Header::read(&fixture("p3.heic")).unwrap();
+        // More than one chunk of whole pixels, in a rule that does not read
+        // profiles (the other converts in place already).
+        let samples: Vec<f32> = (0..3 * 10_000).map(|i| (i % 251) as f32 / 250.0).collect();
+        let converted = header
+            .to_srgb(samples.clone(), Rule::PullShadowsDemosaic)
+            .unwrap();
+        let profile = ColorProfile::new_from_slice(header.icc.as_ref().unwrap()).unwrap();
+        let mut whole = vec![0.0; samples.len()];
+        profile
+            .create_transform_f32(
+                Layout::Rgb,
+                &ColorProfile::new_srgb(),
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap()
+            .transform(&samples, &mut whole)
+            .unwrap();
+        whole.iter_mut().for_each(|v| *v = v.clamp(0.0, 1.0));
+        assert_eq!(converted, whole);
+    }
+
     #[test]
     fn a_grids_size_is_its_own_and_its_colour_its_tiles_when_it_has_none() {
         let header = Header::read(&fixture("grid.heic")).unwrap();
@@ -975,13 +1144,13 @@ mod tests {
     fn a_damaged_file_is_a_typed_error_not_a_panic() {
         let whole = fixture("metadata.heic");
         for cut in 0..whole.len() {
-            match decode(&whole[..cut], Rule::LATEST) {
+            match decode(&whole[..cut], Rule::LATEST, Purpose::Open) {
                 Err(HeicError::Corrupt(_) | HeicError::NoDecoder(_)) => {}
                 other => panic!("cut at {cut}: {other:?}"),
             }
         }
         assert_eq!(
-            decode(b"\0\0\0\x10ftypheic\0\0\0\0", Rule::LATEST),
+            decode(b"\0\0\0\x10ftypheic\0\0\0\0", Rule::LATEST, Purpose::Open),
             Err(HeicError::Corrupt("its header is damaged"))
         );
     }
@@ -1028,7 +1197,7 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = decode(&fixture("metadata.heic"), Rule::LATEST).unwrap();
+        let image = decode(&fixture("metadata.heic"), Rule::LATEST, Purpose::Open).unwrap();
         assert_eq!((image.width(), image.height()), (16, 12));
         assert_corners(&image, [RED, GREEN, WHITE, BLUE]);
         assert!(near(at(&image, 8, 6), [128; 3]), "{:?}", at(&image, 8, 6));
@@ -1040,11 +1209,16 @@ mod tests {
             return;
         }
         // A quarter turn anticlockwise: green comes to the top left.
-        let turned = decode(&fixture("rotated.heic"), Rule::LATEST).unwrap();
+        let turned = decode(&fixture("rotated.heic"), Rule::LATEST, Purpose::Open).unwrap();
         assert_eq!((turned.width(), turned.height()), (12, 16));
         assert_corners(&turned, [GREEN, WHITE, BLUE, RED]);
         // Then top and bottom swapped: the transpose.
-        let mirrored = decode(&fixture("rotated-mirrored.heic"), Rule::LATEST).unwrap();
+        let mirrored = decode(
+            &fixture("rotated-mirrored.heic"),
+            Rule::LATEST,
+            Purpose::Open,
+        )
+        .unwrap();
         assert_eq!((mirrored.width(), mirrored.height()), (12, 16));
         assert_corners(&mirrored, [RED, BLUE, WHITE, GREEN]);
     }
@@ -1054,10 +1228,10 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let grid = decode(&fixture("grid.heic"), Rule::LATEST).unwrap();
+        let grid = decode(&fixture("grid.heic"), Rule::LATEST, Purpose::Open).unwrap();
         assert_eq!((grid.width(), grid.height()), (120, 100));
         assert_corners(&grid, [RED, GREEN, WHITE, BLUE]);
-        let deep = decode(&fixture("ten-bit.heic"), Rule::LATEST).unwrap();
+        let deep = decode(&fixture("ten-bit.heic"), Rule::LATEST, Purpose::Open).unwrap();
         assert_eq!((deep.width(), deep.height()), (16, 12));
         assert_corners(&deep, [RED, GREEN, WHITE, BLUE]);
     }
@@ -1070,7 +1244,7 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image = decode(&fixture("p3.heic"), Rule::LATEST).unwrap();
+        let image = decode(&fixture("p3.heic"), Rule::LATEST, Purpose::Open).unwrap();
         assert_corners(&image, [RED, GREEN, WHITE, BLUE]);
         assert!(near(at(&image, 8, 6), [128; 3]), "{:?}", at(&image, 8, 6));
     }
@@ -1090,8 +1264,13 @@ mod tests {
         if !decoder_here() {
             return;
         }
-        let image =
-            crate::image_loader::load_image_with_orientation(&bytes, None, Rule::LATEST).unwrap();
+        let image = crate::image_loader::load_image_with_orientation(
+            &bytes,
+            None,
+            Rule::LATEST,
+            Purpose::Open,
+        )
+        .unwrap();
         assert_eq!((image.width(), image.height()), (16, 12));
     }
 }

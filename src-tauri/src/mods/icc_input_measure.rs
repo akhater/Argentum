@@ -87,9 +87,14 @@ fn png16(samples: &[f32], w: u32, h: u32, icc: Option<Vec<u8>>) -> Vec<u8> {
 }
 
 fn loaded(bytes: &[u8], rule: Rule) -> Rgb32FImage {
-    crate::image_loader::load_image_with_orientation(bytes, None, rule)
-        .unwrap()
-        .into_rgb32f()
+    crate::image_loader::load_image_with_orientation(
+        bytes,
+        None,
+        rule,
+        crate::mods::heic::Purpose::Open,
+    )
+    .unwrap()
+    .into_rgb32f()
 }
 
 /// Mean and 99th percentile of CIEDE2000 between two sRGB-encoded images.
