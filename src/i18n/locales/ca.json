@@ -894,6 +894,8 @@
         "shortEdge": "Vora curta",
         "width": "Amplada"
       },
+      "invalid": "Introduïu un nombre enter d'1 píxel o més.",
+      "overLimit": "Aquesta mida supera el límit de {{limit}} megapíxels. Introduïu un valor més petit.",
       "pixels": "píxels",
       "resizeToFit": "Redimensionar per ajustar"
     },

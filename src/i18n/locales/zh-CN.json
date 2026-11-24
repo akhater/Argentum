@@ -891,6 +891,8 @@
         "shortEdge": "短边",
         "width": "宽度"
       },
+      "invalid": "请输入不小于 1 像素的整数。",
+      "overLimit": "该尺寸超过 {{limit}} 百万像素的上限，请输入更小的值。",
       "pixels": "像素",
       "resizeToFit": "调整大小以适应"
     },

@@ -893,6 +893,8 @@
         "shortEdge": "Kurze Kante",
         "width": "Breite"
       },
+      "invalid": "Geben Sie eine ganze Zahl von mindestens 1 Pixel ein.",
+      "overLimit": "Diese Größe überschreitet das Limit von {{limit}} Megapixeln. Geben Sie einen kleineren Wert ein.",
       "pixels": "Pixel",
       "resizeToFit": "In Rahmen einpassen"
     },

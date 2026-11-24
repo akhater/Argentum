@@ -939,6 +939,8 @@
         "shortEdge": "Krótsza krawędź",
         "width": "Szerokość"
       },
+      "invalid": "Wpisz liczbę całkowitą równą co najmniej 1 piksel.",
+      "overLimit": "Ten rozmiar przekracza limit {{limit}} megapikseli. Wpisz mniejszą wartość.",
       "pixels": "pikseli",
       "resizeToFit": "Zmień rozmiar, aby dopasować"
     },
