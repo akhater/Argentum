@@ -20,6 +20,15 @@ pub const BYTES_PER_MB: u64 = 1_000_000;
 pub const TYPICAL_PHOTO_MB: u32 = 288;
 pub const MIN_MB: u32 = 512;
 pub const MAX_MB: u32 = 8192;
+/// The setting moves in steps of this many MB from `MIN_MB`; a converted value lands on the grid.
+pub const STEP_MB: u32 = 128;
+/// The cache always keeps the open photo and the one before it, whatever the
+/// budget: at 61 MP two photos are 1,465 MB, over the default, and going back
+/// to the previous photo must still be instant. The budget limits the rest.
+pub const ALWAYS_KEPT_PHOTOS: usize = 2;
+/// The count the old setting started at, written into every settings file: a
+/// stored 5 is a default never changed, not a choice.
+const OLD_DEFAULT_COUNT: u64 = 5;
 const DEFAULT_MIN_MB: u32 = 1024;
 const DEFAULT_MAX_MB: u32 = 2048;
 const DEFAULT_STEP_MB: u64 = 256;
@@ -39,13 +48,15 @@ pub fn default_mb(installed_bytes: u64) -> u32 {
     (stepped as u32).clamp(DEFAULT_MIN_MB, DEFAULT_MAX_MB)
 }
 
-/// What an old count of photos comes to: that many typical photos.
+/// What an old count of photos comes to: that many typical photos, rounded up
+/// to the next step of the setting and kept within its range.
 pub fn from_photo_count(count: u32) -> u32 {
-    clamp_mb(count.saturating_mul(TYPICAL_PHOTO_MB))
+    let mb = clamp_mb(count.saturating_mul(TYPICAL_PHOTO_MB));
+    MIN_MB + (mb - MIN_MB).div_ceil(STEP_MB) * STEP_MB
 }
 
-/// Gives `current` a value when it has none: the old count converted, else the
-/// default. Returns whether it changed. A value already there is never touched,
+/// Gives `current` a value when it has none: the old count converted when the
+/// user changed it, else the default. Returns whether it changed. A value already there is never touched,
 /// so the conversion happens once, whatever the file still holds.
 pub fn fill(current: &mut Option<u32>, stored: &Map<String, Value>, installed_bytes: u64) -> bool {
     if current.is_some() {
@@ -54,6 +65,7 @@ pub fn fill(current: &mut Option<u32>, stored: &Map<String, Value>, installed_by
     let old_count = stored
         .get(OLD_COUNT_KEY)
         .and_then(Value::as_u64)
+        .filter(|&n| n != OLD_DEFAULT_COUNT)
         .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
     *current = Some(match old_count {
         Some(count) => from_photo_count(count),
@@ -115,8 +127,13 @@ mod tests {
 
     #[test]
     fn a_stored_count_becomes_that_many_typical_photos_within_the_range() {
-        assert_eq!(from_photo_count(5), 1440);
         assert_eq!(from_photo_count(8), 2304);
+        assert_eq!(
+            from_photo_count(6),
+            1792,
+            "1,728 rounds up to the next step"
+        );
+        assert_eq!(from_photo_count(3), 896);
         assert_eq!(from_photo_count(1), MIN_MB, "never under the smallest size");
         assert_eq!(from_photo_count(0), MIN_MB);
         assert_eq!(from_photo_count(1000), MAX_MB, "nor over the largest");
@@ -125,6 +142,11 @@ mod tests {
 
     #[test]
     fn the_old_count_is_converted_once_and_a_missing_one_gets_the_default() {
+        // The old default was written into every file: it is no choice.
+        let mut untouched = None;
+        assert!(fill(&mut untouched, &stored(Value::from(5)), 16 * GB));
+        assert_eq!(untouched, Some(1536));
+
         let mut value = None;
         assert!(fill(&mut value, &stored(Value::from(8)), 16 * GB));
         assert_eq!(value, Some(2304));
@@ -147,6 +169,35 @@ mod tests {
             fill(&mut value, &stored(odd), 16 * GB);
             assert_eq!(value, Some(1536), "a value that is no count is no count");
         }
+    }
+
+    /// The interface repeats the limits (src/argentum/photoCacheLimits.ts); a test ties them.
+    fn interface_constant(name: &str) -> u32 {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../src/argentum/photoCacheLimits.ts");
+        let source = std::fs::read_to_string(path).unwrap();
+        let prefix = format!("export const {name} =");
+        let line = source.lines().find(|l| l.starts_with(&prefix)).unwrap();
+        line.split('=')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .trim_end_matches(';')
+            .trim()
+            .parse()
+            .unwrap()
+    }
+
+    #[test]
+    fn the_interface_uses_the_same_limits() {
+        assert_eq!(interface_constant("DECODED_PHOTO_CACHE_MIN_MB"), MIN_MB);
+        assert_eq!(interface_constant("DECODED_PHOTO_CACHE_MAX_MB"), MAX_MB);
+        assert_eq!(interface_constant("DECODED_PHOTO_CACHE_STEP_MB"), STEP_MB);
+        assert_eq!(interface_constant("TYPICAL_PHOTO_MB"), TYPICAL_PHOTO_MB);
+        assert_eq!(
+            interface_constant("DECODED_PHOTO_CACHE_FALLBACK_MB"),
+            default_mb(16 * GB)
+        );
     }
 
     #[test]

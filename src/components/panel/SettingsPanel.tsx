@@ -48,6 +48,13 @@ import { folderOnDisk } from '../../argentum/modern/folders';
 import { useAgTranslation } from '../../argentum/locales';
 import { RawDecoderSetting } from '../../argentum/RawDecoder';
 import { getWhiteBalanceMode, WhiteBalanceMode } from '../../utils/whiteBalance';
+import {
+  DECODED_PHOTO_CACHE_FALLBACK_MB,
+  DECODED_PHOTO_CACHE_MAX_MB,
+  DECODED_PHOTO_CACHE_MIN_MB,
+  DECODED_PHOTO_CACHE_STEP_MB,
+  TYPICAL_PHOTO_MB,
+} from '../../argentum/photoCacheLimits';
 
 interface ConfirmModalState {
   confirmText: string;
@@ -109,10 +116,6 @@ interface MyLens {
 }
 
 const EXECUTE_TIMEOUT_MS = 3000;
-// Mirror mods/photo_cache_budget.rs: the size shown before the app has stored one,
-// and the megabytes one typical 24-megapixel decoded photo holds.
-const DECODED_PHOTO_CACHE_FALLBACK_MB = 1536;
-const TYPICAL_PHOTO_MB = 288;
 
 const resolutions: OptionItem<number>[] = [
   { value: 720, label: '720px' },
@@ -1688,9 +1691,9 @@ export default function SettingsPanel({
                       >
                         <Slider
                           label={t('settings.processing.imageCacheSize')}
-                          min={512}
-                          max={8192}
-                          step={128}
+                          min={DECODED_PHOTO_CACHE_MIN_MB}
+                          max={DECODED_PHOTO_CACHE_MAX_MB}
+                          step={DECODED_PHOTO_CACHE_STEP_MB}
                           suffix="MB"
                           value={processingSettings.decodedPhotoCacheMb}
                           defaultValue={DECODED_PHOTO_CACHE_FALLBACK_MB}

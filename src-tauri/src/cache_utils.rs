@@ -470,8 +470,9 @@ struct DecodedEntry {
 
 /// Recently opened photos, decoded, limited by the bytes they hold and not by
 /// how many there are (mods/photo_cache_budget.rs). The newest entry is the
-/// photo that is open: it is never evicted, so one photo larger than the whole
-/// budget stays while it is open and goes when the next one is inserted.
+/// photo that is open, and the one before it is the one the user goes back to:
+/// both are kept whatever the budget (`ALWAYS_KEPT_PHOTOS`), so a photo larger
+/// than the whole budget stays while it is open and until two more arrive.
 pub struct DecodedImageCache {
     budget_bytes: u64,
     held_bytes: u64,
@@ -498,9 +499,11 @@ impl DecodedImageCache {
         self.held_bytes
     }
 
-    /// Drops the oldest photos until the rest fit, always keeping the newest.
+    /// Drops the oldest photos until the rest fit, always keeping the newest two.
     fn evict_oldest_over_budget(&mut self) {
-        while self.held_bytes > self.budget_bytes && self.items.len() > 1 {
+        while self.held_bytes > self.budget_bytes
+            && self.items.len() > crate::mods::photo_cache_budget::ALWAYS_KEPT_PHOTOS
+        {
             self.held_bytes -= self.items.remove(0).bytes;
         }
     }
@@ -617,6 +620,7 @@ pub fn clear_session_caches(state: tauri::State<AppState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mods::photo_cache_budget::ALWAYS_KEPT_PHOTOS;
     use std::time::Duration;
 
     fn scratch_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
@@ -839,7 +843,7 @@ mod tests {
             put(&mut cache, &format!("p{}", i % 5), &fp, *side);
             cache.get(&format!("p{}", (i + 2) % 5), &fp);
             assert!(
-                cache.held_bytes() <= budget,
+                cache.held_bytes() <= budget || cache.items.len() <= ALWAYS_KEPT_PHOTOS,
                 "{} bytes held after insert {i}",
                 cache.held_bytes()
             );
@@ -866,26 +870,27 @@ mod tests {
         assert!(cache.get("big", &fp).is_some());
     }
 
-    /// The newest entry is the open photo: a smaller budget keeps it, and one
-    /// photo bigger than the whole budget stays alone until the next arrives.
+    /// The open photo and the one before it stay whatever the budget: with
+    /// photos each over the budget (61 MP against 1.4 GB), open A, open B, back
+    /// to A is a hit. A third photo pushes the oldest out.
     #[test]
-    fn the_open_photo_survives_and_a_photo_over_the_budget_goes_when_left() {
+    fn the_open_photo_and_the_one_before_it_survive_a_budget_below_either() {
         let fp = fp_for_tests();
         let mut cache = DecodedImageCache::new(5_000);
-        put(&mut cache, "small", &fp, 10);
-        put(&mut cache, "huge", &fp, 30); // 10,800 bytes, over the budget
-        assert!(cache.get("huge", &fp).is_some(), "usable while open");
-        assert!(cache.get("small", &fp).is_none(), "but it pushed the rest out");
-        assert_eq!(cache.held_bytes(), 10_800);
+        put(&mut cache, "a", &fp, 30); // 10,800 bytes each, over the budget
+        put(&mut cache, "b", &fp, 30);
+        assert!(cache.get("a", &fp).is_some(), "back to A is a hit");
+        assert!(cache.get("b", &fp).is_some());
+        assert_eq!(cache.held_bytes(), 21_600);
 
-        put(&mut cache, "next", &fp, 10);
-        assert!(cache.get("huge", &fp).is_none(), "dropped when left");
-        assert!(cache.get("next", &fp).is_some());
+        put(&mut cache, "c", &fp, 30);
+        assert!(cache.get("a", &fp).is_none(), "dropped once two more arrived");
+        assert!(cache.get("b", &fp).is_some());
+        assert!(cache.get("c", &fp).is_some());
 
-        // A smaller budget while a photo is open keeps that photo.
+        // A smaller budget keeps the two newest.
         cache.set_budget_bytes(1);
-        assert!(cache.get("next", &fp).is_some());
-        assert_eq!(cache.held_bytes(), 1_200);
+        assert_eq!(cache.items.len(), ALWAYS_KEPT_PHOTOS);
     }
 
     #[test]
@@ -920,7 +925,7 @@ mod tests {
         assert!(cache.held_bytes() <= budget);
         let largest = 27_000_000;
         assert!(
-            peak as u64 <= budget + largest + 1_000_000,
+            peak as u64 <= budget + 2 * largest + 1_000_000,
             "{peak} bytes held at once"
         );
     }

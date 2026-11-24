@@ -99,7 +99,7 @@ pub const DROPPED: &[Dropped] = &[
         file: SETTINGS,
         path: "/imageCacheSize",
         reason: "the decoded-photo cache is limited by size now; the stored count is converted once to decodedPhotoCacheMb",
-        pr: "decoded-photo-cache-byte-budget",
+        pr: "#487",
     },
 ];
 
