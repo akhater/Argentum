@@ -3,6 +3,9 @@
 //!
 //!     cargo test --lib mods::compat_fixture -- --ignored
 //!
+//! The processing settings (`argentum-processing.json`) are written one key at a
+//! time by `ag_settings`; the generator writes the same shape with synthetic values.
+//!
 //! The settings and the edit are written through `AppSettings` and
 //! `ImageMetadata`, as save_settings and write_sidecar write them, so the
 //! files are in this version's shape. Every setting and every key of the
@@ -25,7 +28,7 @@ use serde_json::{Value, json};
 
 use crate::app_settings::{AppSettings, all_available_adjustments, default_included_adjustments};
 use crate::image_processing::{ImageFlag, ImageMetadata};
-use crate::mods::compat_corpus::{EDIT, SETTINGS, UNORDERED, root, uncovered};
+use crate::mods::compat_corpus::{EDIT, PROCESSING, SETTINGS, UNORDERED, root, uncovered};
 use crate::mods::compat_snapshot::PHOTO_PX;
 use crate::mods::history::HistoryRecord;
 use crate::mods::snapshots::Snapshot;
@@ -52,6 +55,7 @@ fn write_this_release() {
     let pretty = |value: &Value| serde_json::to_string_pretty(value).expect("writes") + "\n";
     std::fs::write(dir.join(SETTINGS), pretty(&settings)).expect("settings.json");
     std::fs::write(dir.join(EDIT), pretty(&metadata)).expect("photo.agdata");
+    std::fs::write(dir.join(PROCESSING), processing()).expect(PROCESSING);
     std::fs::write(
         dir.join("README.md"),
         format!(
@@ -66,6 +70,42 @@ fn write_this_release() {
     )
     .expect("README.md");
     println!("wrote {}", dir.display());
+}
+
+/// The processing settings file, as ag_settings.rs writes it (one object, pretty
+/// printed, keys sorted). One value per key; every one synthetic.
+fn processing() -> String {
+    let values = [
+        (
+            "editorLayoutPanels",
+            json!({
+                "navigatorOpen": false, "tab": "presets", "tabWidthPx": 320,
+                "historyOpen": true, "historyHeightPx": 180, "snapshotsHeightPx": null,
+                "navigatorFloating": true, "navigatorAt": [0.25, 0.5],
+                "folded": ["crop.rotation"]
+            }),
+        ),
+        ("modernTheme", json!("deep")),
+        ("modernTextSize", json!("large")),
+        ("compactSliderGap", json!(6)),
+        ("tiffBitDepth", json!(8)),
+        ("focusPointsShown", json!(true)),
+        ("highlightRecovery", json!(true)),
+        ("looksFavourites", json!(["example-look"])),
+        ("lutProvider", json!("")),
+        ("providerLooksOn", json!(false)),
+        ("rawDecoder", json!("flashraw")),
+        ("recentFolders", json!(["/example/photos"])),
+        ("preSharpeningRetired", json!(true)),
+        ("whiteBalancePresetsMigrated", json!(true)),
+    ];
+    let file: serde_json::Map<String, Value> = values
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect();
+    serde_json::to_string_pretty(&Value::Object(file)).expect("writes")
+        + "
+"
 }
 
 /// Through `AppSettings`, as save_settings writes it; its sets sorted.

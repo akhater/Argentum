@@ -49,14 +49,19 @@
 //! again whenever a change adds a setting or a key while that version is
 //! unreleased; `the_newest_fixture_has_every_key` fails until it is. Once a
 //! release has shipped its folder is never written again: the generator only
-//! writes the version being worked on.
+//! writes the version being worked on. Cutting a release writes it for the
+//! version being released (step 2 of docs/RELEASING.md, which runs
+//! `the_release_being_cut_has_its_folder`); see "THE RELEASE'S FOLDER" below
+//! for why that check is not run on every build.
 //!
 //! UPDATING THE SNAPSHOTS ON PURPOSE
 //!
-//!     AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus
+//!     AG_COMPAT_UPDATE=<release> cargo test --lib mods::compat_corpus
+//!     AG_COMPAT_UPDATE=all cargo test --lib mods::compat_corpus
 //!
-//! rewrites every `snapshots/<release>.txt` from the code of today; the diff
-//! is the review. A change meant to change pixels also bumps `PIPELINE` in
+//! rewrites `snapshots/<release>.txt`, or every one, from the code of today;
+//! the diff is the review. Recording a new release uses its own version, so an
+//! older snapshot cannot be rewritten by mistake and the tests still check it. A change meant to change pixels also bumps `PIPELINE` in
 //! cache_version.rs, so cached thumbnails are made again.
 
 use std::path::PathBuf;
@@ -90,7 +95,7 @@ pub const EDIT_AT_DEFAULT: &[(&str, &str)] = &[(
 
 const SNAPSHOT_ADVICE: &str = "If the move is meant (a change to how stored edits render), bump \
      PIPELINE in src-tauri/src/mods/cache_version.rs so cached thumbnails are made again, and \
-     rewrite the snapshots: AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus";
+     rewrite the snapshots: AG_COMPAT_UPDATE=all cargo test --lib mods::compat_corpus";
 
 pub fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -359,7 +364,13 @@ fn every_edit_reads_and_keeps_every_key() {
 
 #[test]
 fn the_gpu_input_of_every_edit_is_as_recorded() {
-    let update = std::env::var_os("AG_COMPAT_UPDATE").is_some();
+    let update = std::env::var("AG_COMPAT_UPDATE").ok();
+    if let Some(which) = &update {
+        assert!(
+            which == "all" || releases().contains(which),
+            "AG_COMPAT_UPDATE is a release folder's name or `all`, not {which:?}"
+        );
+    }
     let mut problems = Vec::new();
     for release in releases() {
         let Ok(metadata) = serde_json::from_str::<ImageMetadata>(&read(&release, EDIT)) else {
@@ -374,18 +385,21 @@ fn the_gpu_input_of_every_edit_is_as_recorded() {
         let header = format!(
             "What the code of today gives the renderer for fixtures/compat/{release}/{EDIT}\n\
              (src-tauri/src/mods/compat_snapshot.rs). Rewritten on purpose, never by hand:\n\
-             AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus"
+             AG_COMPAT_UPDATE=<release> cargo test --lib mods::compat_corpus"
         );
         let today = render(&header, &sections);
         let path = root().join("snapshots").join(format!("{release}.txt"));
-        if update {
+        if update
+            .as_deref()
+            .is_some_and(|u| u == "all" || u == release)
+        {
             std::fs::create_dir_all(root().join("snapshots")).expect("snapshots folder");
             std::fs::write(&path, &today).expect("writes the snapshot");
             continue;
         }
         let Ok(committed) = std::fs::read_to_string(&path) else {
             problems.push(format!(
-                "{release} has no snapshot: record it with AG_COMPAT_UPDATE=1 cargo test --lib \
+                "{release} has no snapshot: record it with AG_COMPAT_UPDATE={release} cargo test --lib \
                  mods::compat_corpus"
             ));
             continue;
@@ -676,5 +690,257 @@ fn a_key_written_back_without_its_value_is_lost() {
     assert_eq!(
         lost(EDIT, &stored, &kept),
         ["/b/c/1 was 2, now 3", "/b/d~1e is gone"]
+    );
+}
+
+// THE RELEASE'S FOLDER
+//
+// Which versions need a folder: the one being RELEASED. A folder stands for the
+// releases around it whose stored shape is the same, so a release that changed
+// no stored key may have none of its own, and the development version moves on
+// right after each release: a test that wanted a folder for every version
+// Cargo.toml names would be red on every bump. The version being cut is
+// different: it is named when the release is made (docs/RELEASING.md), and
+// its folder is written and committed with it. That check is an ignored test,
+// run by that step.
+
+/// What is missing for `version`'s own folder, if anything.
+pub fn release_without_folder(version: &str, releases: &[String]) -> Option<String> {
+    let mut missing = Vec::new();
+    if !releases.iter().any(|r| r == version) {
+        missing.push(format!("fixtures/compat/{version}/"));
+    }
+    if !root()
+        .join("snapshots")
+        .join(format!("{version}.txt"))
+        .is_file()
+    {
+        missing.push(format!("fixtures/compat/snapshots/{version}.txt"));
+    }
+    if missing.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "{version} is being released and the compatibility corpus has no {}. Write them: \
+         `cargo test --lib mods::compat_fixture -- --ignored`, then \
+         `AG_COMPAT_UPDATE={version} cargo test --lib mods::compat_corpus`; check that they hold only \
+         synthetic values; commit them with the release (docs/RELEASING.md).",
+        missing.join(" and ")
+    ))
+}
+
+#[test]
+fn a_version_with_no_folder_is_named() {
+    let message = release_without_folder("99.99.9", &releases()).expect("no such folder");
+    assert!(message.contains("fixtures/compat/99.99.9/"), "{message}");
+    assert!(message.contains("snapshots/99.99.9.txt"), "{message}");
+    assert!(message.contains("compat_fixture"), "{message}");
+    let newest = releases().pop().expect("a release folder");
+    assert_eq!(release_without_folder(&newest, &releases()), None);
+}
+
+/// Run by the release step: the version in Cargo.toml has its folder, and the
+/// folder holds every file a folder of today holds.
+#[test]
+#[ignore = "the release step (docs/RELEASING.md) runs it on the version being released"]
+fn the_release_being_cut_has_its_folder() {
+    let version = env!("CARGO_PKG_VERSION");
+    if let Some(message) = release_without_folder(version, &releases()) {
+        panic!("{message}");
+    }
+    for file in [SETTINGS, EDIT, PROCESSING] {
+        assert!(
+            root().join(version).join(file).is_file(),
+            "fixtures/compat/{version}/{file} is missing: write the folder again with \
+             `cargo test --lib mods::compat_fixture -- --ignored`"
+        );
+    }
+}
+
+// THE PROCESSING SETTINGS FILE
+//
+// `argentum-processing.json` is read and written by ag_settings.rs, one key at
+// a time. It joined the corpus at PROCESSING_SINCE: older folders predate it
+// and are accepted without it, by that rule and no other.
+
+pub const PROCESSING: &str = "argentum-processing.json";
+
+/// The first release folder that holds the processing settings.
+const PROCESSING_SINCE: &str = "26.47.4";
+
+fn version_parts(name: &str) -> Vec<u32> {
+    name.split('.').filter_map(|p| p.parse().ok()).collect()
+}
+
+fn has_processing_file(release: &str) -> bool {
+    root().join(release).join(PROCESSING).is_file()
+}
+
+/// Does `key` of the file in `dir` read as the type its owner reads it as?
+/// `None` if this table has no entry for it: a new setting, add it here.
+fn reads_as_its_type(key: &str, dir: &std::path::Path) -> Option<bool> {
+    use crate::mods::ag_settings::Setting;
+    use crate::mods::editor_layout::{LayoutPanels, ModernTheme, TextSize};
+    use crate::mods::raw_decoder::RawDecoder;
+    macro_rules! reads {
+        ($t:ty, $key:literal) => {
+            Setting::<$t>::new($key).load(dir).is_some()
+        };
+    }
+    Some(match key {
+        "editorLayoutPanels" => reads!(LayoutPanels, "editorLayoutPanels"),
+        "modernTheme" => reads!(ModernTheme, "modernTheme"),
+        "modernTextSize" => reads!(TextSize, "modernTextSize"),
+        "rawDecoder" => reads!(RawDecoder, "rawDecoder"),
+        "compactSliderGap" => reads!(u64, "compactSliderGap"),
+        "tiffBitDepth" => reads!(u8, "tiffBitDepth"),
+        "looksFavourites" => reads!(Vec<String>, "looksFavourites"),
+        "recentFolders" => reads!(Vec<String>, "recentFolders"),
+        "lutProvider" => reads!(String, "lutProvider"),
+        "focusPointsShown" => reads!(bool, "focusPointsShown"),
+        "highlightRecovery" => reads!(bool, "highlightRecovery"),
+        "providerLooksOn" => reads!(bool, "providerLooksOn"),
+        "preSharpeningRetired" => reads!(bool, "preSharpeningRetired"),
+        "whiteBalancePresetsMigrated" => reads!(bool, "whiteBalancePresetsMigrated"),
+        _ => return None,
+    })
+}
+
+/// Every key the code declares as a processing setting, found in the source of
+/// `src/mods` and its subfolders: a `const` or `static` of type `Setting<..>`, made with a quoted key or with
+/// its file's own `KEY` constant. Only constants count: a test may use others.
+pub fn declared_processing_keys() -> std::collections::BTreeSet<String> {
+    let mut keys = std::collections::BTreeSet::new();
+    let mut files = Vec::new();
+    let mut folders = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/mods")];
+    while let Some(folder) = folders.pop() {
+        for entry in std::fs::read_dir(folder).expect("src/mods").flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                folders.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs")
+                && !path.ends_with("ag_settings.rs")
+            {
+                files.push(path);
+            }
+        }
+    }
+    for path in files {
+        let text = std::fs::read_to_string(&path).expect("a source file");
+        for (at, _) in text
+            .match_indices("const ")
+            .chain(text.match_indices("static "))
+        {
+            let statement = text[at..].split(';').next().unwrap_or_default();
+            if !statement.contains("Setting<") {
+                continue;
+            }
+            let Some(args) = statement.split("new(").nth(1) else {
+                continue;
+            };
+            if let Some(key) = args.strip_prefix('"').and_then(|a| a.split('"').next()) {
+                keys.insert(key.to_string());
+            } else if args.starts_with("KEY)")
+                && let Some(key) = text
+                    .split("const KEY: &str = \"")
+                    .nth(1)
+                    .and_then(|a| a.split('"').next())
+            {
+                keys.insert(key.to_string());
+            }
+        }
+    }
+    keys
+}
+
+#[test]
+fn a_processing_file_may_be_missing_only_before_it_existed() {
+    let since = version_parts(PROCESSING_SINCE);
+    for release in releases() {
+        if version_parts(&release) >= since {
+            assert!(
+                has_processing_file(&release),
+                "{release}/{PROCESSING} is missing; only folders before {PROCESSING_SINCE} \
+                 predate it. Write it with `cargo test --lib mods::compat_fixture -- --ignored`"
+            );
+        }
+    }
+    assert!(
+        has_processing_file(PROCESSING_SINCE),
+        "PROCESSING_SINCE names {PROCESSING_SINCE}, which has no {PROCESSING}: if that folder was \n         renamed or removed, set PROCESSING_SINCE to the oldest folder that holds one"
+    );
+}
+
+#[test]
+fn every_processing_file_reads_and_keeps_every_key() {
+    use crate::mods::ag_settings::Setting;
+    let mut problems = Vec::new();
+    for release in releases().into_iter().filter(|r| has_processing_file(r)) {
+        let file = format!("{release}/{PROCESSING}");
+        let dir = tempfile::tempdir().expect("a folder");
+        std::fs::copy(
+            root().join(&release).join(PROCESSING),
+            dir.path().join(PROCESSING),
+        )
+        .expect("copies");
+        let stored: Value = serde_json::from_str(&read(&release, PROCESSING)).expect("JSON");
+        for key in stored.as_object().expect("an object").keys() {
+            match reads_as_its_type(key, dir.path()) {
+                None => problems.push(format!(
+                    "{file}: {key} has no type check in compat_corpus.rs"
+                )),
+                Some(false) => problems.push(format!(
+                    "{file}: {key} no longer reads as its type, so it counts as never set"
+                )),
+                Some(true) => {}
+            }
+        }
+        // Saving one setting leaves every other one as it was.
+        Setting::<Value>::new("compatCorpusProbe")
+            .save(dir.path(), &Value::Bool(true))
+            .expect("saves");
+        let kept: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join(PROCESSING)).expect("reads"),
+        )
+        .expect("JSON");
+        problems.extend(
+            lost(PROCESSING, &stored, &kept)
+                .into_iter()
+                .map(|p| format!("{file}: saving another setting changed {p}")),
+        );
+    }
+    assert!(problems.is_empty(), "{}", report(&problems));
+}
+
+#[test]
+fn the_newest_processing_file_has_every_key() {
+    let newest = releases().pop().expect("a release folder");
+    let stored: Value = serde_json::from_str(&read(&newest, PROCESSING))
+        .unwrap_or_else(|e| panic!("{newest}/{PROCESSING} does not read: {e}"));
+    let declared = declared_processing_keys();
+    assert!(
+        declared.len() >= 10,
+        "the scan of src/mods found only {declared:?}: has the way settings are declared changed?"
+    );
+    let missing: Vec<&String> = declared
+        .iter()
+        .filter(|key| stored.get(key.as_str()).is_none_or(Value::is_null))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "the newest fixture, {newest}/{PROCESSING}, does not cover the code of today: {missing:?}\n\
+         Add a value for each to `processing` in compat_fixture.rs, and a type check to \
+         `reads_as_its_type` in compat_corpus.rs, then write this version's folder with \
+         `cargo test --lib mods::compat_fixture -- --ignored`."
+    );
+    let unknown: Vec<&String> = stored
+        .as_object()
+        .expect("an object")
+        .keys()
+        .filter(|key| !declared.contains(*key))
+        .collect();
+    assert!(
+        unknown.is_empty(),
+        "{newest}/{PROCESSING} holds {unknown:?}, which no setting declares any more"
     );
 }

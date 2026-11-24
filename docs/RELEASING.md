@@ -7,12 +7,55 @@ A release is a merge commit on `main`, published in this order.
    ISO week has rolled over since (`date +%g.%V`), the release sets the real
    `yy.ww.n` in `src-tauri/Cargo.toml`, Argentum's entry in `src-tauri/Cargo.lock`
    and `src-tauri/tauri.conf.json`.
-2. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
+2. **Compatibility corpus.** With the real version set by step 1, from
+   `src-tauri/`. The corpus holds a folder for each release, written once and
+   never edited after it ships, so this step only ever adds this release's.
+
+   a. If step 1 changed the version, the tree's development version never
+      shipped (`gh release view <it>` finds nothing) and its folder is
+      the wrong name. Rename `fixtures/compat/<development version>/` and its
+      snapshot `fixtures/compat/snapshots/<development version>.txt` to the
+      release version with `git mv`, and if `PROCESSING_SINCE` in
+      `src/mods/compat_corpus.rs` names the development version, set it to the
+      release version. (`a_processing_file_may_be_missing_only_before_it_existed`
+      fails until it does.)
+   b. Run the corpus tests as they are, and go on only when they are green:
+
+      ```bash
+      cargo test --lib mods::compat_corpus
+      ```
+
+      Red here is a regression in how an old release's files load or render:
+      fix it, do not record it.
+   c. Write this release's folder and its snapshot. The snapshot switch takes
+      the release's version, so no other snapshot can be rewritten:
+
+      ```bash
+      cargo test --lib mods::compat_fixture -- --ignored
+      AG_COMPAT_UPDATE=<version> cargo test --lib mods::compat_corpus
+      ```
+
+   d. `git status` may show only files under
+      `src-tauri/fixtures/compat/<version>/`, `snapshots/<version>.txt` and the
+      renames of (a). Any change to an older folder or snapshot is a regression
+      to investigate, not to commit. Open the new files and check they hold only
+      synthetic values (no path, name or value taken from a real photo or
+      machine).
+   e. Commit them with the release, then run
+      `cargo test --lib mods::compat_corpus -- --include-ignored`: its
+      `the_release_being_cut_has_its_folder` fails, naming what is absent, if the
+      version in `Cargo.toml` lacks a folder, snapshot or processing-settings
+      file.
+
+   Creating the release (step 5) starts a check, `node scripts/check-compat-corpus.mjs
+   <tag>`, ahead of every build: a release whose folder or snapshot is missing
+   builds no installer.
+3. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
    `changelog.d/` into the version's section of `CHANGELOG.md`. That section, its plain-language line in
    `src/argentum/releases.ts`, and its rows in `docs/ROADMAP.md` and
    `src/argentum/roadmap.ts` say what actually shipped. Whatever a later PR made
    stale is fixed in a "Release <version>" PR.
-3. **Speed check.** At the commit being released, on the laptop the budgets come
+4. **Speed check.** At the commit being released, on the laptop the budgets come
    from (named in `src-tauri/src/mods/speed_budgets.rs`), on mains power and with
    nothing else using the GPU, from `src-tauri/`:
 
@@ -64,7 +107,7 @@ A release is a merge commit on `main`, published in this order.
    `drafts.local/look/LEDGER.tsv`. If they do not, it blocks the release like a
    speed breach. The first run has no references: bless every case with
    `AG_LOOK_CASES="*"`.
-4. **Publish.** `gh release create <version> --target <merge sha> --title
+5. **Publish.** `gh release create <version> --target <merge sha> --title
    "Argentum <version> — <summary>" --notes-file <notes>`, with no `v` in the
    tag. Creating the release starts `.github/workflows/release.yml`, which builds
    the installers and attaches them. Its last job then opens the notes with a
@@ -83,7 +126,7 @@ A release is a merge commit on `main`, published in this order.
    `MACOS_CERTIFICATE` secret, and fail without it. Keep that certificate:
    macOS ties each user's privacy answers to it, so a new one makes every Mac
    ask again once.
-5. **Bump.** A "Bump development version to <next>" PR changes the same three
+6. **Bump.** A "Bump development version to <next>" PR changes the same three
    lines as step 1.
 
 ## Periodic checks
