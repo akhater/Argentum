@@ -1,1 +1,0 @@
-- Removed the Flatpak packaging files inherited from RapidRAW; they built RapidRAW, not Argentum, and nothing used them.

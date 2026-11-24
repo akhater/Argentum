@@ -1,1 +1,0 @@
-Exports are written to a temporary file in the same folder and renamed over the final name only once complete, so a full disk, a crash or a cancelled batch no longer leaves a truncated file, and re-exporting over an existing file keeps the old one until the new one is whole.

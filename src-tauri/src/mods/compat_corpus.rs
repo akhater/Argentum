@@ -766,7 +766,7 @@ fn the_release_being_cut_has_its_folder() {
 pub const PROCESSING: &str = "argentum-processing.json";
 
 /// The first release folder that holds the processing settings.
-const PROCESSING_SINCE: &str = "26.47.4";
+const PROCESSING_SINCE: &str = "26.48.1";
 
 fn version_parts(name: &str) -> Vec<u32> {
     name.split('.').filter_map(|p| p.parse().ok()).collect()

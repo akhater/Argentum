@@ -1,1 +1,0 @@
-- An export preset now keeps its DPI when it is saved, and the export preset type in the interface is generated from the one stored in the settings file, so the two cannot differ. Presets saved before keep loading at 300 DPI, as they did.

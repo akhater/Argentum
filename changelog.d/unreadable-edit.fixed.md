@@ -1,1 +1,0 @@
-- An edit file that cannot be read for a moment (a network share dropping out, another program holding it) is left alone and the save reports an error, instead of being replaced by an empty edit or deleted. An edit file with bytes that are not valid text is copied aside and read as far as it goes, instead of showing as unedited.

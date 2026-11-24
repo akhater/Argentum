@@ -1,1 +1,0 @@
-- A request that names a virtual copy with an invalid id, or a LUT outside the LUT library, is now refused and changes nothing.

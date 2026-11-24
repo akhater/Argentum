@@ -1,4 +1,4 @@
-# What the code of today gives the renderer for fixtures/compat/26.47.4/photo.agdata
+# What the code of today gives the renderer for fixtures/compat/26.48.1/photo.agdata
 # (src-tauri/src/mods/compat_snapshot.rs). Rewritten on purpose, never by hand:
 # AG_COMPAT_UPDATE=<release> cargo test --lib mods::compat_corpus
 

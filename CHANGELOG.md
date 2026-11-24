@@ -4,6 +4,61 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.48.1 — 2026-11-24
+
+### Changed
+
+- The Metadata panel no longer loads a map from the internet when a photo has GPS data: it shows a "Show map" button, and the map loads when you click it.
+- The app no longer re-reads the optional GPU runtime at every start; it is verified again whenever the file changes and before first use after a download.
+- Eight large dialogs (panorama, HDR, focus stacking, negative conversion, denoise, culling, collage and super resolution) now load the first time they are opened, so the app reads about 88 KB less script at start. They look and work as before.
+- The Settings window, the About tab (release notes, credits, known issues, roadmap), the Community presets page and the Tethering panel now load the first time they are shown. The script read at start drops from 1,985,209 to 1,867,618 bytes (about 118 KB, 6%). They look and work as before.
+- The lens database is read the first time a lens is needed (shortly after the window appears) instead of before the window opens, so Argentum starts a little faster.
+- Deleting photos or a folder now never deletes for good without asking. When the Recycle Bin cannot take the files (some network drives, memory cards or protected locations), nothing is deleted at that point: a dialog says how many files cannot go to the Recycle Bin and will be deleted permanently, with Cancel as the default choice. Files the Recycle Bin can take still go there as before, and an ordinary delete asks nothing new.
+- The cache of recently opened photos is now limited by memory, not by a number of photos: Settings > Processing > Decoded Image Cache is a size in MB, so a few large files can no longer hold several gigabytes. The open photo is always kept. The default is a tenth of installed memory (1,024 to 2,048 MB), and an old photo count converts once to that many typical 24-megapixel photos.
+- Exported images, XMP packets and the community-preset request now name the application "Argentum" instead of "RapidRAW". Files written before keep their old name.
+- The engine test bench (`?shell=new`) is now part of development builds only.
+
+### Fixed
+
+- Batch edits (paste, reset) no longer carry on as if a photo was saved when its edit file could not be written: the failure is logged with the path, and that photo's XMP is not updated and its thumbnail is not redrawn.
+- A damaged camera list (`cameras.json`) is no longer replaced by an empty one when a photo is opened, so each camera's default profile is kept; saving a camera's default profile or forgetting a camera now says when it could not be saved, and the list is written whole or not at all.
+- Clear AI tags and Clear all tags now work on current edit files (`.agdata`, virtual copies included), and clearing tags no longer risks overwriting an edit saved at the same moment.
+- A request that names a virtual copy with an invalid id, or a LUT outside the LUT library, is now refused and changes nothing.
+- A tone curve is limited to 16 points: the editor adds no point past that, and a longer curve (an older edit, a converted preset) is thinned to the points that change its shape least, so it renders as drawn instead of using only the first 16.
+- Non-RAW images (PNG, TIFF, JPEG and similar) now have a size limit when decoded: a file whose header declares more than 400 megapixels is refused with a normal "cannot open" error instead of trying to reserve memory for it. Every real photo and stitched panorama below that size opens as before.
+- Holding a key no longer runs a once-per-press shortcut again and again (delete, paste files, ratings, toggles); stepping, zoom, undo and brush size still follow the key. Paste files, Generate and a confirm dialog's action run once, however often they are triggered. Shortcuts now stay quiet while a dropdown has focus, and work again after a switch was clicked.
+- Exports are written to a temporary file in the same folder and renamed over the final name only once complete, so a full disk, a crash or a cancelled batch no longer leaves a truncated file, and re-exporting over an existing file keeps the old one until the new one is whole.
+- An export preset now keeps its DPI when it is saved, and the export preset type in the interface is generated from the one stored in the settings file, so the two cannot differ. Presets saved before keep loading at 300 DPI, as they did.
+- The export dialog no longer lets a typed size past 400 megapixels (an extra zero) reach the export, which used to run out of memory and crash: the size field is flagged and Export is disabled, and the export itself refuses such a size with a clear message naming it and the limit.
+- A DNG whose gain map list is larger than a camera writes is no longer applied, so such a file opens without a long delay.
+- Browsing a folder of very large HEIC photos (over 64 megapixels) no longer decodes several of them at once: their thumbnails and previews are made one at a time, so memory use stays at one large photo. Every HEIC that opened before still shows a thumbnail. A HEIC with a colour profile is also converted to sRGB without a second full-size copy.
+- Switching to another photo while a metadata refresh, a lens pick in the Crop panel, an AI mask or a generative replace is still working no longer writes the first photo's result into the photo you moved to. The result is saved on the first photo, which no longer stays stuck on a spinner, and a History step queued for one photo is no longer added to another's.
+- Switching to another photo while Auto, a LUT pick, Paste, Reset or a batch refresh is still working no longer writes the first photo's result into the photo you moved to; the result is dropped for the open photo, and the first photo is still updated on disk.
+- Lens colour-fringe correction now stays inside the image on images one pixel wide or tall, and leaves normal images unchanged.
+- A LUT file whose declared size does not match its data, or is outside 2 to 256, is refused with a message instead of being imported.
+- Downloading an AI model no longer waits forever on a server that stops answering: after 30 seconds without data the download moves on to the next address, and Stop takes effect within about a second even while waiting for the network.
+- Moving photos to another folder now carries each photo's edits, virtual copies, XMP and look files over before the photo itself, and undoes that photo's move if any of them fails, so a photo is never left in one folder with its edit in the other. Across drives a file appears under its real name only when completely copied, and a failed copy leaves no partial file.
+- Settings and edit files written by a newer version keep the parts this version does not understand, instead of losing them the next time they are saved.
+- Opening a photo whose edit file cannot be read now shows an error instead of an unedited photo that could overwrite the real edit.
+- New installs and Reset layout start the side panels at their designed widths, 268 px for the left column and 330 px for the right, in the Modern window.
+- Panels still at the old starting width (320 px in both columns) move to the designed widths once; widths you set yourself are kept.
+- Showing a hidden side panel again, by button or by key, now keeps the width you gave it; only a width below the column's smallest allowed one comes back at its starting width.
+- Presets: a presets file that is there but cannot be read or parsed is no longer shown as an empty list and then saved over by the next change. A copy of it is kept beside it, changes are not saved while it cannot be loaded (a message says so), and importing presets or saving a community preset stops with an error instead of overwriting it.
+- A change made just before closing the window is now saved: the open photo's last edit, its last History step and the last preset change are written first, waiting at most two seconds.
+- A change made just before switching photo, changing folder or going back to the library is now saved instead of being lost.
+- The message shown when an enlargement needs more memory than is free now gives the size in the right unit.
+- A photo's snapshots are saved one at a time and through the sidecar's lock and atomic write, so a quick second change, or the editor's own save, can no longer put an older edit or snapshot list back, and a failed save leaves the sidecar as it was.
+- An edit file that cannot be read for a moment (a network share dropping out, another program holding it) is left alone and the save reports an error, instead of being replaced by an empty edit or deleted. An edit file with bytes that are not valid text is copied aside and read as far as it goes, instead of showing as unedited.
+- Converting old white balance edits in a folder now works from each photo's saved edit at the moment it is saved, so exposure or other changes made while the folder was still being converted are no longer overwritten; the session also keeps far less of each converted edit in memory.
+
+### Removed
+
+- Removed the unused cloud branch of generative replace (its request code and web address). It could not be selected, so no feature changes.
+- The unused cloud client code and its two npm packages (`tauri-plugin-clerk`, `@tauri-apps/plugin-http`) were removed. No feature changes.
+- Removed the unused file-system plugin registration and its direct dependency. Nothing in the interface called it, so no feature changes.
+- Removed the Flatpak packaging files inherited from RapidRAW; they built RapidRAW, not Argentum, and nothing used them.
+- The `uuid` npm package was removed. Random ids now come from the built-in `crypto.randomUUID()`, which the app already uses elsewhere. No feature changes.
+
 ## 26.47.3 — 2026-11-22
 
 ### Added

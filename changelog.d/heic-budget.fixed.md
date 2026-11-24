@@ -1,1 +1,0 @@
-- Browsing a folder of very large HEIC photos (over 64 megapixels) no longer decodes several of them at once: their thumbnails and previews are made one at a time, so memory use stays at one large photo. Every HEIC that opened before still shows a thumbnail. A HEIC with a colour profile is also converted to sRGB without a second full-size copy.

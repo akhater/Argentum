@@ -1,1 +1,0 @@
-- Exported images, XMP packets and the community-preset request now name the application "Argentum" instead of "RapidRAW". Files written before keep their old name.
