@@ -1,0 +1,6093 @@
+{
+  "adjustments": {
+    "activeTools": {
+      "chromaticAberration": false,
+      "colorCalibration": true
+    },
+    "agBlackWhite": {
+      "aquas": 5,
+      "blues": -30,
+      "enabled": true,
+      "greens": -20,
+      "magentas": 25,
+      "oranges": 20,
+      "purples": 15,
+      "reds": 10,
+      "yellows": -10
+    },
+    "agLutDeclaredInput": true,
+    "agLutExposureEv": 0.5,
+    "agRestore": {
+      "captureRadius": 0.8
+    },
+    "agSharpen": {
+      "amount": 60,
+      "autoContrast": false,
+      "autoRadius": false,
+      "capture": false,
+      "captureAmount": 70,
+      "contrast": 30,
+      "cornerBoost": 0.2,
+      "enabled": false,
+      "iterCheck": false,
+      "iterations": 30,
+      "radius": 0.9,
+      "threshold": 2.5,
+      "usmAutoContrast": false,
+      "usmContrast": 25,
+      "usmOwnMask": true,
+      "usmRadius": 1.4
+    },
+    "aiDenoiseAmount": 60,
+    "aiDenoiseDetail": 30,
+    "aiDenoiseEnabled": true,
+    "aiPatches": [
+      {
+        "id": "patch-1",
+        "invert": false,
+        "isLoading": false,
+        "name": "Quick erase",
+        "patchData": {
+          "color": "iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAIAAAAt2Q6oAAABUklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a/Cu1aoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKHS878JAJWe/00AqPT8bwJAped/EwAqPf+bAFDp+d8EgErP/yYAVHr+NwGg0vO/CQCVnv9NAKj0/G8CQKXnfxMAKj3/mwBQ6fnfBIBKz/8mAFR6/jcBoNLzvwkAlZ7/TQCo9PxvAkCl538TACo9/5sAUOn53wSASs//JgBUev43AaDS878JAJWe/00AqPT8bwJAped/EwAqPf+bAFDp+d8EgErP/yYAVHr+NwGg0vO/CQCVnv9NAKj0/G8CQKXnfxMAKj3/mwBQ6fnfBIBKz/8mAPwjyIEC0SM3LMsAAAAASUVORK5CYII=",
+          "height": 40,
+          "isSrgbEncoded": true,
+          "mask": "iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAABIUlEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1S/4twEg+LcBIPi3ASD4twEg+LcBIHihzAsAgHi+zHMRzwkA8TzMCyCeDQDxnMwLJZ4JAPEczL9AXAGAeADzIhAAAIhnMS8iAQCI+5kXmQAA8UzmX0EAEPzbACCuMP8qAkAAYP6VBBD82wAQ/NsAEPzbACAAzL8WAgQA5l9JAMG/DQDBvw0Awb8NAOIK868iAMQzmX8FAUDwbwOAuJ95kQkAEM9iXkQCABAPYF4EAgAA8RzMv0BcAYB4TuaFEs8EgHge5gUQzwaAeL7McxHPCQDxQlk8fwCIfxsAgn8bAIJ/GwCCfxsA/hFqSRc5vm36NAAAAABJRU5ErkJggg==",
+          "offsetX": 100,
+          "offsetY": 120,
+          "width": 60
+        },
+        "prompt": "",
+        "subMasks": [
+          {
+            "id": "patch-sub-1",
+            "invert": false,
+            "mode": "additive",
+            "name": "Quick Eraser",
+            "opacity": 90,
+            "parameters": {
+              "endX": 160,
+              "endY": 160,
+              "feather": 75,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 75,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5,
+              "startX": 100,
+              "startY": 120
+            },
+            "type": "quick-eraser",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "id": "patch-2",
+        "invert": false,
+        "isLoading": false,
+        "name": "Replace",
+        "patchData": {
+          "color": "iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAIAAAAt2Q6oAAABUklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a/Cu1aoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKFChQoVKlSoUKHS878JAJWe/00AqPT8bwJAped/EwAqPf+bAFDp+d8EgErP/yYAVHr+NwGg0vO/CQCVnv9NAKj0/G8CQKXnfxMAKj3/mwBQ6fnfBIBKz/8mAFR6/jcBoNLzvwkAlZ7/TQCo9PxvAkCl538TACo9/5sAUOn53wSASs//JgBUev43AaDS878JAJWe/00AqPT8bwJAped/EwAqPf+bAFDp+d8EgErP/yYAVHr+NwGg0vO/CQCVnv9NAKj0/G8CQKXnfxMAKj3/mwBQ6fnfBIBKz/8mAPwjyIEC0SM3LMsAAAAASUVORK5CYII=",
+          "height": 40,
+          "isSrgbEncoded": true,
+          "mask": "iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAABIUlEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1S/4twEg+LcBIPi3ASD4twEg+LcBIHihzAsAgHi+zHMRzwkA8TzMCyCeDQDxnMwLJZ4JAPEczL9AXAGAeADzIhAAAIhnMS8iAQCI+5kXmQAA8UzmX0EAEPzbACCuMP8qAkAAYP6VBBD82wAQ/NsAEPzbACAAzL8WAgQA5l9JAMG/DQDBvw0Awb8NAOIK868iAMQzmX8FAUDwbwOAuJ95kQkAEM9iXkQCABAPYF4EAgAA8RzMv0BcAYB4TuaFEs8EgHge5gUQzwaAeL7McxHPCQDxQlk8fwCIfxsAgn8bAIJ/GwCCfxsA/hFqSRc5vm36NAAAAABJRU5ErkJggg==",
+          "offsetX": 100,
+          "offsetY": 120,
+          "width": 60
+        },
+        "prompt": "a stone wall",
+        "subMasks": [
+          {
+            "id": "patch-sub-2a",
+            "invert": false,
+            "mode": "additive",
+            "name": "Subject",
+            "opacity": 90,
+            "parameters": {
+              "endX": 160,
+              "endY": 160,
+              "feather": 25,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 50,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5,
+              "startX": 100,
+              "startY": 120
+            },
+            "type": "ai-subject",
+            "visible": true
+          },
+          {
+            "id": "patch-sub-2b",
+            "invert": false,
+            "mode": "subtractive",
+            "name": "Brush",
+            "opacity": 90,
+            "parameters": {
+              "lines": [
+                {
+                  "brushSize": 40,
+                  "feather": 0.5,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 150
+                    },
+                    {
+                      "x": 160,
+                      "y": 200
+                    },
+                    {
+                      "x": 220,
+                      "y": 260
+                    }
+                  ],
+                  "tool": "brush"
+                },
+                {
+                  "brushSize": 20,
+                  "feather": 0.3,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 150,
+                      "y": 190
+                    },
+                    {
+                      "x": 170,
+                      "y": 210
+                    }
+                  ],
+                  "tool": "eraser"
+                }
+              ]
+            },
+            "type": "brush",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "id": "patch-3",
+        "invert": false,
+        "isLoading": false,
+        "name": "Clone",
+        "patchData": null,
+        "prompt": "",
+        "subMasks": [
+          {
+            "id": "patch-sub-3",
+            "invert": false,
+            "mode": "additive",
+            "name": "Clone",
+            "opacity": 90,
+            "parameters": {
+              "lines": [
+                {
+                  "brushSize": 40,
+                  "feather": 0.5,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 150
+                    },
+                    {
+                      "x": 160,
+                      "y": 200
+                    },
+                    {
+                      "x": 220,
+                      "y": 260
+                    }
+                  ],
+                  "tool": "brush"
+                },
+                {
+                  "brushSize": 20,
+                  "feather": 0.3,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 150,
+                      "y": 190
+                    },
+                    {
+                      "x": 170,
+                      "y": 210
+                    }
+                  ],
+                  "tool": "eraser"
+                }
+              ],
+              "sourceX": 300,
+              "sourceY": 220
+            },
+            "type": "clone",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "id": "patch-4",
+        "invert": false,
+        "isLoading": false,
+        "name": "Heal",
+        "patchData": null,
+        "prompt": "",
+        "subMasks": [
+          {
+            "id": "patch-sub-4",
+            "invert": false,
+            "mode": "additive",
+            "name": "Heal",
+            "opacity": 90,
+            "parameters": {
+              "lines": [
+                {
+                  "brushSize": 40,
+                  "feather": 0.5,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 150
+                    },
+                    {
+                      "x": 160,
+                      "y": 200
+                    },
+                    {
+                      "x": 220,
+                      "y": 260
+                    }
+                  ],
+                  "tool": "brush"
+                },
+                {
+                  "brushSize": 20,
+                  "feather": 0.3,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 150,
+                      "y": 190
+                    },
+                    {
+                      "x": 170,
+                      "y": 210
+                    }
+                  ],
+                  "tool": "eraser"
+                }
+              ],
+              "sourceX": 260,
+              "sourceY": 180
+            },
+            "type": "heal",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "id": "patch-5",
+        "invert": false,
+        "isLoading": false,
+        "name": "Liquify",
+        "patchData": null,
+        "prompt": "",
+        "subMasks": [
+          {
+            "id": "patch-sub-5",
+            "invert": false,
+            "mode": "additive",
+            "name": "Liquify",
+            "opacity": 90,
+            "parameters": {
+              "lines": [
+                {
+                  "brushSize": 40,
+                  "feather": 0.5,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 150
+                    },
+                    {
+                      "x": 160,
+                      "y": 200
+                    },
+                    {
+                      "x": 220,
+                      "y": 260
+                    }
+                  ],
+                  "tool": "brush"
+                },
+                {
+                  "brushSize": 20,
+                  "feather": 0.3,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 150,
+                      "y": 190
+                    },
+                    {
+                      "x": 170,
+                      "y": 210
+                    }
+                  ],
+                  "tool": "eraser"
+                }
+              ],
+              "liquifyMode": "twirl",
+              "pressure": 60
+            },
+            "type": "liquify",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "id": "patch-6",
+        "invert": false,
+        "isLoading": false,
+        "name": "Retouch",
+        "patchData": null,
+        "prompt": "",
+        "subMasks": [
+          {
+            "id": "patch-sub-6",
+            "invert": false,
+            "mode": "additive",
+            "name": "Retouch",
+            "opacity": 90,
+            "parameters": {
+              "intensity": 55,
+              "lines": [
+                {
+                  "brushSize": 40,
+                  "feather": 0.5,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 150
+                    },
+                    {
+                      "x": 160,
+                      "y": 200
+                    },
+                    {
+                      "x": 220,
+                      "y": 260
+                    }
+                  ],
+                  "tool": "brush"
+                },
+                {
+                  "brushSize": 20,
+                  "feather": 0.3,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 150,
+                      "y": 190
+                    },
+                    {
+                      "x": 170,
+                      "y": 210
+                    }
+                  ],
+                  "tool": "eraser"
+                }
+              ]
+            },
+            "type": "retouch",
+            "visible": true
+          }
+        ],
+        "visible": true
+      }
+    ],
+    "aspectRatio": 0.6666666666666666,
+    "baselineExposure": false,
+    "blacks": -12,
+    "brightness": 0.35,
+    "cameraProfile": "Corpus Camera.dcp",
+    "centré": 18,
+    "centréX": 0.42,
+    "centréY": 0.58,
+    "chromaticAberrationBlueYellow": -7,
+    "chromaticAberrationRedCyan": 9,
+    "clarity": 22,
+    "colorCalibration": {
+      "blueHue": 12,
+      "blueSaturation": 7,
+      "greenHue": 8,
+      "greenSaturation": -9,
+      "redHue": -11,
+      "redSaturation": 14,
+      "shadowsTint": 6
+    },
+    "colorGrading": {
+      "agLightroom": 1,
+      "balance": -15,
+      "blending": 65,
+      "global": {
+        "hue": 40,
+        "luminance": -5,
+        "saturation": 12
+      },
+      "highlights": {
+        "hue": 55,
+        "luminance": 6,
+        "saturation": 18
+      },
+      "midtones": {
+        "hue": 200,
+        "luminance": -3,
+        "saturation": 9
+      },
+      "shadows": {
+        "hue": 220,
+        "luminance": 4,
+        "saturation": 21
+      }
+    },
+    "colorNoiseReduction": 25,
+    "contrast": 18,
+    "crop": {
+      "height": 510,
+      "unit": "px",
+      "width": 340,
+      "x": 20,
+      "y": 30
+    },
+    "curveMode": "parametric",
+    "curves": {
+      "blue": [
+        {
+          "x": 0,
+          "y": 10
+        },
+        {
+          "x": 255,
+          "y": 245
+        }
+      ],
+      "green": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 128,
+          "y": 124
+        },
+        {
+          "x": 255,
+          "y": 250
+        }
+      ],
+      "luma": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 64,
+          "y": 58
+        },
+        {
+          "x": 192,
+          "y": 200
+        },
+        {
+          "x": 255,
+          "y": 255
+        }
+      ],
+      "red": [
+        {
+          "x": 0,
+          "y": 4
+        },
+        {
+          "x": 128,
+          "y": 132
+        },
+        {
+          "x": 255,
+          "y": 255
+        }
+      ]
+    },
+    "dehaze": 14,
+    "exposure": 0.65,
+    "flareAmount": 12,
+    "flipHorizontal": true,
+    "flipVertical": true,
+    "fogAmount": 40,
+    "fogDensity": 60,
+    "fogDepthMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAAFCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9Sa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrRERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqJGRERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERUSMiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiImpERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIioERERERERERERERERERERERERERERERERERERERERNSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFRIyIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERH/CFb8E7kz0f5iAAAAAElFTkSuQmCC",
+    "fogEnabled": true,
+    "fogGlow": 15,
+    "fogHeight": 20,
+    "fogStart": 10,
+    "fogTemperature": -12,
+    "fogTint": 6,
+    "fogVariation": 30,
+    "glowAmount": 20,
+    "grainAmount": 15,
+    "grainRoughness": 60,
+    "grainSize": 35,
+    "guidedPerspective": {
+      "autoCrop": false,
+      "enabled": true,
+      "lines": [
+        {
+          "id": "guide-1",
+          "p1": {
+            "x": 0.2,
+            "y": 0.1
+          },
+          "p2": {
+            "x": 0.22,
+            "y": 0.9
+          },
+          "type": "vertical"
+        },
+        {
+          "id": "guide-2",
+          "p1": {
+            "x": 0.8,
+            "y": 0.1
+          },
+          "p2": {
+            "x": 0.77,
+            "y": 0.9
+          },
+          "type": "vertical"
+        }
+      ]
+    },
+    "halationAmount": 18,
+    "highlights": -35,
+    "hsl": {
+      "aquas": {
+        "hue": 5,
+        "luminance": 4,
+        "saturation": -10
+      },
+      "blues": {
+        "hue": -8,
+        "luminance": -6,
+        "saturation": 12
+      },
+      "greens": {
+        "hue": 10,
+        "luminance": 3,
+        "saturation": -15
+      },
+      "magentas": {
+        "hue": -4,
+        "luminance": -2,
+        "saturation": 6
+      },
+      "oranges": {
+        "hue": 3,
+        "luminance": 7,
+        "saturation": 9
+      },
+      "purples": {
+        "hue": 6,
+        "luminance": 1,
+        "saturation": -5
+      },
+      "reds": {
+        "hue": -6,
+        "luminance": -3,
+        "saturation": 14
+      },
+      "yellows": {
+        "hue": 2,
+        "luminance": 5,
+        "saturation": -7
+      }
+    },
+    "hue": 7,
+    "lensBlurAmount": 55,
+    "lensBlurDepthMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAAFCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9Sa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrRERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqJGRERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERUSMiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiImpERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIioERERERERERERERERERERERERERERERERERERERERNSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFRIyIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERH/CFb8E7kz0f5iAAAAAElFTkSuQmCC",
+    "lensBlurDiffusion": 20,
+    "lensBlurEnabled": true,
+    "lensBlurMaxDepth": 85,
+    "lensBlurMaxFade": 10,
+    "lensBlurMinDepth": 30,
+    "lensBlurMinFade": 25,
+    "lensBlurShape": "hexagon",
+    "lensBuiltin": true,
+    "lensBuiltinParams": {
+      "chromatic": [
+        {
+          "knots": [
+            0,
+            1
+          ],
+          "values": [
+            1,
+            1.0004
+          ]
+        },
+        {
+          "knots": [
+            0,
+            1
+          ],
+          "values": [
+            1,
+            0.9997
+          ]
+        }
+      ],
+      "default_on": true,
+      "distortion": {
+        "knots": [
+          0,
+          0.5,
+          1
+        ],
+        "values": [
+          1,
+          0.995,
+          0.985
+        ]
+      },
+      "source": "Corpus built-in",
+      "vignetting": {
+        "knots": [
+          0,
+          0.5,
+          1
+        ],
+        "values": [
+          1,
+          1.15,
+          1.6
+        ]
+      }
+    },
+    "lensCorrectionMode": "auto",
+    "lensDistortionAmount": 80,
+    "lensDistortionEnabled": false,
+    "lensDistortionParams": {
+      "k1": -0.012,
+      "k2": 0.004,
+      "k3": -0.001,
+      "model": 0,
+      "tca_vb": 0.9998,
+      "tca_vr": 1.0003,
+      "vig_k1": -0.3,
+      "vig_k2": 0.1,
+      "vig_k3": -0.02
+    },
+    "lensMaker": "Corpus",
+    "lensModel": "Corpus 35mm f/2",
+    "lensTcaAmount": 90,
+    "lensTcaEnabled": false,
+    "lensVignetteAmount": 120,
+    "lensVignetteEnabled": false,
+    "lumaNoiseReduction": 20,
+    "lutData": null,
+    "lutIntensity": 140,
+    "lutIsSceneReferred": true,
+    "lutName": "Corpus Film",
+    "lutPath": "/luts/corpus-film.cube",
+    "lutSize": 33,
+    "masks": [
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.2,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-0",
+        "invert": false,
+        "name": "Radial",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-0",
+            "invert": false,
+            "mode": "additive",
+            "name": "Radial",
+            "opacity": 90,
+            "parameters": {
+              "centerX": 200,
+              "centerY": 260,
+              "feather": 0.6,
+              "radiusX": 120,
+              "radiusY": 160,
+              "rotation": 15
+            },
+            "type": "radial",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.3,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-1",
+        "invert": true,
+        "name": "Linear",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-1",
+            "invert": false,
+            "mode": "additive",
+            "name": "Linear",
+            "opacity": 90,
+            "parameters": {
+              "endX": 340,
+              "endY": 420,
+              "range": 80,
+              "startX": 60,
+              "startY": 100
+            },
+            "type": "linear",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.4,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-2",
+        "invert": false,
+        "name": "Brush",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-2",
+            "invert": false,
+            "mode": "additive",
+            "name": "Brush",
+            "opacity": 90,
+            "parameters": {
+              "lines": [
+                {
+                  "brushSize": 40,
+                  "feather": 0.5,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 100,
+                      "y": 150
+                    },
+                    {
+                      "x": 160,
+                      "y": 200
+                    },
+                    {
+                      "x": 220,
+                      "y": 260
+                    }
+                  ],
+                  "tool": "brush"
+                },
+                {
+                  "brushSize": 20,
+                  "feather": 0.3,
+                  "flow": 100,
+                  "points": [
+                    {
+                      "x": 150,
+                      "y": 190
+                    },
+                    {
+                      "x": 170,
+                      "y": 210
+                    }
+                  ],
+                  "tool": "eraser"
+                }
+              ]
+            },
+            "type": "brush",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.5,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-3",
+        "invert": true,
+        "name": "Flow",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-3",
+            "invert": false,
+            "mode": "additive",
+            "name": "Flow",
+            "opacity": 90,
+            "parameters": {
+              "flow": 30,
+              "lines": [
+                {
+                  "brushSize": 50,
+                  "feather": 0.7,
+                  "flow": 30,
+                  "points": [
+                    {
+                      "x": 80,
+                      "y": 400
+                    },
+                    {
+                      "x": 200,
+                      "y": 380
+                    },
+                    {
+                      "x": 320,
+                      "y": 420
+                    }
+                  ],
+                  "tool": "brush"
+                }
+              ]
+            },
+            "type": "flow",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.6,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-4",
+        "invert": false,
+        "name": "Colour",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-4",
+            "invert": false,
+            "mode": "additive",
+            "name": "Color",
+            "opacity": 90,
+            "parameters": {
+              "feather": 40,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 10,
+              "orientationSteps": 1,
+              "rotation": 2.5,
+              "targetX": 150,
+              "targetY": 300,
+              "tolerance": 35
+            },
+            "type": "color",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.7,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-5",
+        "invert": true,
+        "name": "Luminance",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-5",
+            "invert": false,
+            "mode": "additive",
+            "name": "Luminance",
+            "opacity": 90,
+            "parameters": {
+              "feather": 30,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": -10,
+              "orientationSteps": 1,
+              "rotation": 2.5,
+              "targetX": 250,
+              "targetY": 120,
+              "tolerance": 25
+            },
+            "type": "luminance",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.8,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-6",
+        "invert": false,
+        "name": "Whole image",
+        "opacity": 40,
+        "subMasks": [
+          {
+            "id": "sub-6",
+            "invert": false,
+            "mode": "additive",
+            "name": "Whole Image",
+            "opacity": 90,
+            "parameters": {},
+            "type": "all",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 0.9,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-7",
+        "invert": true,
+        "name": "Depth",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-7",
+            "invert": false,
+            "mode": "additive",
+            "name": "Depth",
+            "opacity": 90,
+            "parameters": {
+              "feather": 15,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "maskDataBase64": "data:image/png;base64,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",
+              "maxDepth": 75,
+              "maxFade": 20,
+              "minDepth": 25,
+              "minFade": 10,
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-depth",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.0,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-8",
+        "invert": false,
+        "name": "Subject",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-8",
+            "invert": false,
+            "mode": "additive",
+            "name": "Subject",
+            "opacity": 90,
+            "parameters": {
+              "agSelection": "subject",
+              "feather": 10,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 5,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.1,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-9",
+        "invert": true,
+        "name": "Sky",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-9",
+            "invert": false,
+            "mode": "additive",
+            "name": "Sky",
+            "opacity": 90,
+            "parameters": {
+              "agSelection": "sky",
+              "feather": 20,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": -5,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-sky",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.2,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-10",
+        "invert": false,
+        "name": "Background",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-10",
+            "invert": false,
+            "mode": "additive",
+            "name": "Background",
+            "opacity": 90,
+            "parameters": {
+              "agSelection": "background",
+              "feather": 25,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 0,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.3,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-11",
+        "invert": true,
+        "name": "Object, less a circle, within a band",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-11a",
+            "invert": false,
+            "mode": "additive",
+            "name": "Object",
+            "opacity": 90,
+            "parameters": {
+              "agBounds": {
+                "endX": 320,
+                "endY": 480,
+                "startX": 80,
+                "startY": 150
+              },
+              "agClicks": [
+                {
+                  "positive": true,
+                  "x": 120,
+                  "y": 200
+                },
+                {
+                  "positive": false,
+                  "x": 300,
+                  "y": 450
+                }
+              ],
+              "agSelection": "object",
+              "feather": 12,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 8,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          },
+          {
+            "id": "sub-11b",
+            "invert": true,
+            "mode": "subtractive",
+            "name": "Radial",
+            "opacity": 90,
+            "parameters": {
+              "centerX": 200,
+              "centerY": 260,
+              "feather": 0.6,
+              "radiusX": 120,
+              "radiusY": 160,
+              "rotation": 15
+            },
+            "type": "radial",
+            "visible": true
+          },
+          {
+            "id": "sub-11c",
+            "invert": false,
+            "mode": "intersect",
+            "name": "Linear",
+            "opacity": 90,
+            "parameters": {
+              "endX": 340,
+              "endY": 420,
+              "range": 80,
+              "startX": 60,
+              "startY": 100
+            },
+            "type": "linear",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.4,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-12",
+        "invert": false,
+        "name": "Text",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-12",
+            "invert": false,
+            "mode": "additive",
+            "name": "Text",
+            "opacity": 90,
+            "parameters": {
+              "agSelection": "text",
+              "agWords": "OPEN",
+              "feather": 4,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 2,
+              "maskDataBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAGQCAAAAABXXkFEAAAJCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1S+46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88Klf9j2f+e4h/M4KrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4yGuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+PfwQvEQQimk2Z8gAAAABJRU5ErkJggg==",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.5,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-13",
+        "invert": true,
+        "name": "Face",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-13",
+            "invert": false,
+            "mode": "additive",
+            "name": "Face",
+            "opacity": 90,
+            "parameters": {
+              "agParts": [
+                "faceSkin",
+                "lips",
+                "hair"
+              ],
+              "agSelection": "face",
+              "feather": 6,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 0,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          }
+        ],
+        "visible": true
+      }
+    ],
+    "orientationSteps": 1,
+    "parametricCurve": {
+      "blue": {
+        "blackLevel": 4,
+        "darks": 6,
+        "highlights": 4,
+        "lights": -2,
+        "shadows": -4,
+        "split1": 15,
+        "split2": 40,
+        "split3": 65,
+        "whiteLevel": -3
+      },
+      "green": {
+        "blackLevel": 2,
+        "darks": -2,
+        "highlights": 2,
+        "lights": -1,
+        "shadows": 3,
+        "split1": 25,
+        "split2": 55,
+        "split3": 75,
+        "whiteLevel": -1
+      },
+      "luma": {
+        "blackLevel": 3,
+        "darks": 10,
+        "highlights": 6,
+        "lights": -4,
+        "shadows": -8,
+        "split1": 20,
+        "split2": 45,
+        "split3": 70,
+        "whiteLevel": -5
+      },
+      "red": {
+        "blackLevel": 1,
+        "darks": 4,
+        "highlights": -3,
+        "lights": 1,
+        "shadows": 2,
+        "split1": 30,
+        "split2": 50,
+        "split3": 80,
+        "whiteLevel": -2
+      }
+    },
+    "pointCurves": {
+      "blue": [
+        {
+          "x": 0,
+          "y": 6
+        },
+        {
+          "x": 255,
+          "y": 250
+        }
+      ],
+      "green": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 96,
+          "y": 90
+        },
+        {
+          "x": 255,
+          "y": 255
+        }
+      ],
+      "luma": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 128,
+          "y": 140
+        },
+        {
+          "x": 255,
+          "y": 255
+        }
+      ],
+      "red": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 160,
+          "y": 150
+        },
+        {
+          "x": 255,
+          "y": 255
+        }
+      ]
+    },
+    "rawToneCurve": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 64,
+        "y": 52
+      },
+      {
+        "x": 128,
+        "y": 140
+      },
+      {
+        "x": 192,
+        "y": 214
+      },
+      {
+        "x": 255,
+        "y": 255
+      }
+    ],
+    "rawToneCurveMode": "baseCurve",
+    "rawToneRendering": "baseCurve",
+    "relightAmbient": -10,
+    "relightEnabled": true,
+    "relightLights": [
+      {
+        "angle": 120,
+        "color": "#ffd8a8",
+        "cone": 50,
+        "depth": 20,
+        "elevation": 45,
+        "feather": 40,
+        "id": "light-1",
+        "intensity": 70,
+        "radius": 35,
+        "temperature": 15,
+        "tint": -5,
+        "type": "spot",
+        "x": 0.3,
+        "y": 0.4
+      }
+    ],
+    "relightNormalMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAYAAACiu5n/AAABOklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a/CH7sCFahABSpQgQpUoAIVqEAFKlCBClSgAhWoQAUqUIEKVKACFahABSpQgQpUoAIVqEAFKlCBClSgAhWoQAUqUIEKVKACFahABSpQgQpUoAIVqECl5/8TKj3/n1Dp+f+ESs//J1R6/j+h0vP/CZWe/0+o9Px/QqXn/xMqPf+fUOn5/4RKz/8nVHr+P6HS8/8JlZ7/T6j0/H9Cpef/Eyo9/59Q6fn/hErP/ydUev4/odLz/wmVnv9PqPT8f0Kl5/8TKj3/n1Dp+f+ESs//J1R6/j+h0vP/CZWe/0+o9Px/QqXn/xMqPf+fUOn5/4RKz/8nVHr+P6HS8/8JlZ7/T/hHn6IEPpqEogQAAAAASUVORK5CYII=",
+    "relightShadowSoftness": 25,
+    "relightShadows": true,
+    "relightShine": 15,
+    "relightSoftness": 35,
+    "rotation": 2.5,
+    "saturation": 12,
+    "sectionVisibility": {
+      "basic": true,
+      "color": true,
+      "curves": true,
+      "details": true,
+      "effects": false
+    },
+    "shadows": 28,
+    "sharpness": 30,
+    "sharpnessThreshold": 25,
+    "showClipping": 3,
+    "structure": 10,
+    "temperature": 8,
+    "tint": -4,
+    "toneMapper": "agx",
+    "transformAspect": 4,
+    "transformDistortion": 6,
+    "transformHorizontal": 5,
+    "transformRotate": 1.5,
+    "transformScale": 95,
+    "transformVertical": -8,
+    "transformXOffset": 3,
+    "transformYOffset": -2,
+    "vibrance": 16,
+    "vignetteAmount": -25,
+    "vignetteCenterX": 0.45,
+    "vignetteCenterY": 0.55,
+    "vignetteFeather": 65,
+    "vignetteMidpoint": 40,
+    "vignetteRoundness": 15,
+    "whiteBalance": {
+      "temperature": 4300,
+      "tint": 12
+    },
+    "whiteBalanceAuto": {
+      "photo": "/photos/2026/october/corpus-0001.raw",
+      "temperature": 4300,
+      "tint": 12
+    },
+    "whites": 9
+  },
+  "agHistory": {
+    "edit": "892c06bd6a5bfe58",
+    "end": 2,
+    "steps": [
+      {
+        "name": "Initial State"
+      },
+      {
+        "name": "Exposure",
+        "set": {
+          "/exposure": 0.65
+        }
+      },
+      {
+        "name": "Mask Opacity",
+        "set": {
+          "/masks/0/opacity": 85
+        }
+      },
+      {
+        "name": "Crop",
+        "unset": [
+          "/crop"
+        ]
+      }
+    ]
+  },
+  "agSnapshots": [
+    {
+      "adjustments": {
+        "activeTools": {
+          "chromaticAberration": false,
+          "colorCalibration": true
+        },
+        "agBlackWhite": {
+          "aquas": 5,
+          "blues": -30,
+          "enabled": false,
+          "greens": -20,
+          "magentas": 25,
+          "oranges": 20,
+          "purples": 15,
+          "reds": 10,
+          "yellows": -10
+        },
+        "agLutDeclaredInput": true,
+        "agLutExposureEv": 0.5,
+        "agRestore": {
+          "captureRadius": 0.8
+        },
+        "agSharpen": {
+          "amount": 60,
+          "autoContrast": false,
+          "autoRadius": false,
+          "capture": true,
+          "captureAmount": 70,
+          "contrast": 30,
+          "cornerBoost": 0.2,
+          "enabled": true,
+          "iterCheck": false,
+          "iterations": 30,
+          "radius": 0.9,
+          "threshold": 2.5,
+          "usmAutoContrast": false,
+          "usmContrast": 25,
+          "usmOwnMask": true,
+          "usmRadius": 1.4
+        },
+        "aiDenoiseAmount": 60,
+        "aiDenoiseDetail": 30,
+        "aiDenoiseEnabled": true,
+        "aiPatches": [],
+        "aspectRatio": 0.6666666666666666,
+        "baselineExposure": false,
+        "blacks": -12,
+        "brightness": 0.35,
+        "cameraProfile": "Corpus Camera.dcp",
+        "centré": 18,
+        "centréX": 0.42,
+        "centréY": 0.58,
+        "chromaticAberrationBlueYellow": -7,
+        "chromaticAberrationRedCyan": 9,
+        "clarity": 22,
+        "colorCalibration": {
+          "blueHue": 12,
+          "blueSaturation": 7,
+          "greenHue": 8,
+          "greenSaturation": -9,
+          "redHue": -11,
+          "redSaturation": 14,
+          "shadowsTint": 6
+        },
+        "colorGrading": {
+          "agLightroom": 1,
+          "balance": -15,
+          "blending": 65,
+          "global": {
+            "hue": 40,
+            "luminance": -5,
+            "saturation": 12
+          },
+          "highlights": {
+            "hue": 55,
+            "luminance": 6,
+            "saturation": 18
+          },
+          "midtones": {
+            "hue": 200,
+            "luminance": -3,
+            "saturation": 9
+          },
+          "shadows": {
+            "hue": 220,
+            "luminance": 4,
+            "saturation": 21
+          }
+        },
+        "colorNoiseReduction": 25,
+        "contrast": 18,
+        "crop": {
+          "height": 510,
+          "unit": "px",
+          "width": 340,
+          "x": 20,
+          "y": 30
+        },
+        "curveMode": "parametric",
+        "curves": {
+          "blue": [
+            {
+              "x": 0,
+              "y": 10
+            },
+            {
+              "x": 255,
+              "y": 245
+            }
+          ],
+          "green": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 128,
+              "y": 124
+            },
+            {
+              "x": 255,
+              "y": 250
+            }
+          ],
+          "luma": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 64,
+              "y": 58
+            },
+            {
+              "x": 192,
+              "y": 200
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ],
+          "red": [
+            {
+              "x": 0,
+              "y": 4
+            },
+            {
+              "x": 128,
+              "y": 132
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ]
+        },
+        "dehaze": 14,
+        "exposure": 0.65,
+        "flareAmount": 12,
+        "flipHorizontal": true,
+        "flipVertical": true,
+        "fogAmount": 40,
+        "fogDensity": 60,
+        "fogDepthMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAAFCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9Sa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrRERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqJGRERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERUSMiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiImpERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIioERERERERERERERERERERERERERERERERERERERERNSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFRIyIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERH/CFb8E7kz0f5iAAAAAElFTkSuQmCC",
+        "fogEnabled": true,
+        "fogGlow": 15,
+        "fogHeight": 20,
+        "fogStart": 10,
+        "fogTemperature": -12,
+        "fogTint": 6,
+        "fogVariation": 30,
+        "glowAmount": 20,
+        "grainAmount": 15,
+        "grainRoughness": 60,
+        "grainSize": 35,
+        "guidedPerspective": {
+          "autoCrop": false,
+          "enabled": true,
+          "lines": [
+            {
+              "id": "guide-1",
+              "p1": {
+                "x": 0.2,
+                "y": 0.1
+              },
+              "p2": {
+                "x": 0.22,
+                "y": 0.9
+              },
+              "type": "vertical"
+            },
+            {
+              "id": "guide-2",
+              "p1": {
+                "x": 0.8,
+                "y": 0.1
+              },
+              "p2": {
+                "x": 0.77,
+                "y": 0.9
+              },
+              "type": "vertical"
+            }
+          ]
+        },
+        "halationAmount": 18,
+        "highlights": -35,
+        "hsl": {
+          "aquas": {
+            "hue": 5,
+            "luminance": 4,
+            "saturation": -10
+          },
+          "blues": {
+            "hue": -8,
+            "luminance": -6,
+            "saturation": 12
+          },
+          "greens": {
+            "hue": 10,
+            "luminance": 3,
+            "saturation": -15
+          },
+          "magentas": {
+            "hue": -4,
+            "luminance": -2,
+            "saturation": 6
+          },
+          "oranges": {
+            "hue": 3,
+            "luminance": 7,
+            "saturation": 9
+          },
+          "purples": {
+            "hue": 6,
+            "luminance": 1,
+            "saturation": -5
+          },
+          "reds": {
+            "hue": -6,
+            "luminance": -3,
+            "saturation": 14
+          },
+          "yellows": {
+            "hue": 2,
+            "luminance": 5,
+            "saturation": -7
+          }
+        },
+        "hue": 7,
+        "lensBlurAmount": 55,
+        "lensBlurDepthMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAAFCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9Sa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrRERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqJGRERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERUSMiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiImpERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIioERERERERERERERERERERERERERERERERERERERERNSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFRIyIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERH/CFb8E7kz0f5iAAAAAElFTkSuQmCC",
+        "lensBlurDiffusion": 20,
+        "lensBlurEnabled": true,
+        "lensBlurMaxDepth": 85,
+        "lensBlurMaxFade": 10,
+        "lensBlurMinDepth": 30,
+        "lensBlurMinFade": 25,
+        "lensBlurShape": "hexagon",
+        "lensBuiltin": false,
+        "lensBuiltinParams": {
+          "chromatic": [
+            {
+              "knots": [
+                0,
+                1
+              ],
+              "values": [
+                1,
+                1.0004
+              ]
+            },
+            {
+              "knots": [
+                0,
+                1
+              ],
+              "values": [
+                1,
+                0.9997
+              ]
+            }
+          ],
+          "default_on": true,
+          "distortion": {
+            "knots": [
+              0,
+              0.5,
+              1
+            ],
+            "values": [
+              1,
+              0.995,
+              0.985
+            ]
+          },
+          "source": "Corpus built-in",
+          "vignetting": {
+            "knots": [
+              0,
+              0.5,
+              1
+            ],
+            "values": [
+              1,
+              1.15,
+              1.6
+            ]
+          }
+        },
+        "lensCorrectionMode": "auto",
+        "lensDistortionAmount": 80,
+        "lensDistortionEnabled": true,
+        "lensDistortionParams": {
+          "k1": -0.012,
+          "k2": 0.004,
+          "k3": -0.001,
+          "model": 0,
+          "tca_vb": 0.9998,
+          "tca_vr": 1.0003,
+          "vig_k1": -0.3,
+          "vig_k2": 0.1,
+          "vig_k3": -0.02
+        },
+        "lensMaker": "Corpus",
+        "lensModel": "Corpus 35mm f/2",
+        "lensTcaAmount": 90,
+        "lensTcaEnabled": true,
+        "lensVignetteAmount": 120,
+        "lensVignetteEnabled": true,
+        "lumaNoiseReduction": 20,
+        "lutData": null,
+        "lutIntensity": 140,
+        "lutIsSceneReferred": true,
+        "lutName": "Corpus Film",
+        "lutPath": "/luts/corpus-film.cube",
+        "lutSize": 33,
+        "masks": [],
+        "orientationSteps": 1,
+        "parametricCurve": {
+          "blue": {
+            "blackLevel": 4,
+            "darks": 6,
+            "highlights": 4,
+            "lights": -2,
+            "shadows": -4,
+            "split1": 15,
+            "split2": 40,
+            "split3": 65,
+            "whiteLevel": -3
+          },
+          "green": {
+            "blackLevel": 2,
+            "darks": -2,
+            "highlights": 2,
+            "lights": -1,
+            "shadows": 3,
+            "split1": 25,
+            "split2": 55,
+            "split3": 75,
+            "whiteLevel": -1
+          },
+          "luma": {
+            "blackLevel": 3,
+            "darks": 10,
+            "highlights": 6,
+            "lights": -4,
+            "shadows": -8,
+            "split1": 20,
+            "split2": 45,
+            "split3": 70,
+            "whiteLevel": -5
+          },
+          "red": {
+            "blackLevel": 1,
+            "darks": 4,
+            "highlights": -3,
+            "lights": 1,
+            "shadows": 2,
+            "split1": 30,
+            "split2": 50,
+            "split3": 80,
+            "whiteLevel": -2
+          }
+        },
+        "pointCurves": {
+          "blue": [
+            {
+              "x": 0,
+              "y": 6
+            },
+            {
+              "x": 255,
+              "y": 250
+            }
+          ],
+          "green": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 96,
+              "y": 90
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ],
+          "luma": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 128,
+              "y": 140
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ],
+          "red": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 160,
+              "y": 150
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ]
+        },
+        "rawToneCurve": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 64,
+            "y": 52
+          },
+          {
+            "x": 128,
+            "y": 140
+          },
+          {
+            "x": 192,
+            "y": 214
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "rawToneCurveMode": "baseCurve",
+        "rawToneRendering": "baseCurve",
+        "relightAmbient": -10,
+        "relightEnabled": true,
+        "relightLights": [
+          {
+            "angle": 120,
+            "color": "#ffd8a8",
+            "cone": 50,
+            "depth": 20,
+            "elevation": 45,
+            "feather": 40,
+            "id": "light-1",
+            "intensity": 70,
+            "radius": 35,
+            "temperature": 15,
+            "tint": -5,
+            "type": "spot",
+            "x": 0.3,
+            "y": 0.4
+          }
+        ],
+        "relightNormalMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAYAAACiu5n/AAABOklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a/CH7sCFahABSpQgQpUoAIVqEAFKlCBClSgAhWoQAUqUIEKVKACFahABSpQgQpUoAIVqEAFKlCBClSgAhWoQAUqUIEKVKACFahABSpQgQpUoAIVqECl5/8TKj3/n1Dp+f+ESs//J1R6/j+h0vP/CZWe/0+o9Px/QqXn/xMqPf+fUOn5/4RKz/8nVHr+P6HS8/8JlZ7/T6j0/H9Cpef/Eyo9/59Q6fn/hErP/ydUev4/odLz/wmVnv9PqPT8f0Kl5/8TKj3/n1Dp+f+ESs//J1R6/j+h0vP/CZWe/0+o9Px/QqXn/xMqPf+fUOn5/4RKz/8nVHr+P6HS8/8JlZ7/T/hHn6IEPpqEogQAAAAASUVORK5CYII=",
+        "relightShadowSoftness": 25,
+        "relightShadows": true,
+        "relightShine": 15,
+        "relightSoftness": 35,
+        "rotation": 2.5,
+        "saturation": 12,
+        "sectionVisibility": {
+          "basic": true,
+          "color": true,
+          "curves": true,
+          "details": true,
+          "effects": true
+        },
+        "shadows": 28,
+        "sharpness": 30,
+        "sharpnessThreshold": 25,
+        "showClipping": 0,
+        "structure": 10,
+        "temperature": 8,
+        "tint": -4,
+        "toneMapper": "agx",
+        "transformAspect": 4,
+        "transformDistortion": 6,
+        "transformHorizontal": 5,
+        "transformRotate": 1.5,
+        "transformScale": 95,
+        "transformVertical": -8,
+        "transformXOffset": 3,
+        "transformYOffset": -2,
+        "vibrance": 16,
+        "vignetteAmount": -25,
+        "vignetteCenterX": 0.45,
+        "vignetteCenterY": 0.55,
+        "vignetteFeather": 65,
+        "vignetteMidpoint": 40,
+        "vignetteRoundness": 15,
+        "whiteBalance": {
+          "temperature": 4300,
+          "tint": 12
+        },
+        "whiteBalanceAuto": {
+          "photo": "/photos/2026/october/corpus-0001.raw",
+          "temperature": 4300,
+          "tint": 12
+        },
+        "whites": 9
+      },
+      "at": 1792000060000,
+      "id": "snapshot-1",
+      "name": "Colour, sharpening and lens on, no masks"
+    },
+    {
+      "adjustments": {
+        "activeTools": {
+          "chromaticAberration": false,
+          "colorCalibration": true
+        },
+        "agBlackWhite": {
+          "aquas": 5,
+          "blues": -30,
+          "enabled": true,
+          "greens": -20,
+          "magentas": 25,
+          "oranges": 20,
+          "purples": 15,
+          "reds": 10,
+          "yellows": -10
+        },
+        "agLutDeclaredInput": true,
+        "agLutExposureEv": 0.5,
+        "agRestore": {
+          "captureRadius": 0.8
+        },
+        "agSharpen": {
+          "amount": 60,
+          "autoContrast": false,
+          "autoRadius": false,
+          "capture": false,
+          "captureAmount": 70,
+          "contrast": 30,
+          "cornerBoost": 0.2,
+          "enabled": false,
+          "iterCheck": false,
+          "iterations": 30,
+          "radius": 0.9,
+          "threshold": 2.5,
+          "usmAutoContrast": false,
+          "usmContrast": 25,
+          "usmOwnMask": true,
+          "usmRadius": 1.4
+        },
+        "aiDenoiseAmount": 60,
+        "aiDenoiseDetail": 30,
+        "aiDenoiseEnabled": true,
+        "aiPatches": [],
+        "aspectRatio": 0.6666666666666666,
+        "baselineExposure": false,
+        "blacks": -12,
+        "brightness": 0.35,
+        "cameraProfile": "Corpus Camera.dcp",
+        "centré": 18,
+        "centréX": 0.42,
+        "centréY": 0.58,
+        "chromaticAberrationBlueYellow": -7,
+        "chromaticAberrationRedCyan": 9,
+        "clarity": 22,
+        "colorCalibration": {
+          "blueHue": 12,
+          "blueSaturation": 7,
+          "greenHue": 8,
+          "greenSaturation": -9,
+          "redHue": -11,
+          "redSaturation": 14,
+          "shadowsTint": 6
+        },
+        "colorGrading": {
+          "agLightroom": 1,
+          "balance": -15,
+          "blending": 65,
+          "global": {
+            "hue": 40,
+            "luminance": -5,
+            "saturation": 12
+          },
+          "highlights": {
+            "hue": 55,
+            "luminance": 6,
+            "saturation": 18
+          },
+          "midtones": {
+            "hue": 200,
+            "luminance": -3,
+            "saturation": 9
+          },
+          "shadows": {
+            "hue": 220,
+            "luminance": 4,
+            "saturation": 21
+          }
+        },
+        "colorNoiseReduction": 25,
+        "contrast": 18,
+        "crop": {
+          "height": 510,
+          "unit": "px",
+          "width": 340,
+          "x": 20,
+          "y": 30
+        },
+        "curveMode": "parametric",
+        "curves": {
+          "blue": [
+            {
+              "x": 0,
+              "y": 10
+            },
+            {
+              "x": 255,
+              "y": 245
+            }
+          ],
+          "green": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 128,
+              "y": 124
+            },
+            {
+              "x": 255,
+              "y": 250
+            }
+          ],
+          "luma": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 64,
+              "y": 58
+            },
+            {
+              "x": 192,
+              "y": 200
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ],
+          "red": [
+            {
+              "x": 0,
+              "y": 4
+            },
+            {
+              "x": 128,
+              "y": 132
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ]
+        },
+        "dehaze": 14,
+        "exposure": 0.65,
+        "flareAmount": 12,
+        "flipHorizontal": true,
+        "flipVertical": true,
+        "fogAmount": 40,
+        "fogDensity": 60,
+        "fogDepthMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAAFCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9Sa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrRERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqJGRERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERUSMiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiImpERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIioERERERERERERERERERERERERERERERERERERERERNSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFRIyIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERH/CFb8E7kz0f5iAAAAAElFTkSuQmCC",
+        "fogEnabled": true,
+        "fogGlow": 15,
+        "fogHeight": 20,
+        "fogStart": 10,
+        "fogTemperature": -12,
+        "fogTint": 6,
+        "fogVariation": 30,
+        "glowAmount": 20,
+        "grainAmount": 15,
+        "grainRoughness": 60,
+        "grainSize": 35,
+        "guidedPerspective": {
+          "autoCrop": false,
+          "enabled": true,
+          "lines": [
+            {
+              "id": "guide-1",
+              "p1": {
+                "x": 0.2,
+                "y": 0.1
+              },
+              "p2": {
+                "x": 0.22,
+                "y": 0.9
+              },
+              "type": "vertical"
+            },
+            {
+              "id": "guide-2",
+              "p1": {
+                "x": 0.8,
+                "y": 0.1
+              },
+              "p2": {
+                "x": 0.77,
+                "y": 0.9
+              },
+              "type": "vertical"
+            }
+          ]
+        },
+        "halationAmount": 18,
+        "highlights": -35,
+        "hsl": {
+          "aquas": {
+            "hue": 5,
+            "luminance": 4,
+            "saturation": -10
+          },
+          "blues": {
+            "hue": -8,
+            "luminance": -6,
+            "saturation": 12
+          },
+          "greens": {
+            "hue": 10,
+            "luminance": 3,
+            "saturation": -15
+          },
+          "magentas": {
+            "hue": -4,
+            "luminance": -2,
+            "saturation": 6
+          },
+          "oranges": {
+            "hue": 3,
+            "luminance": 7,
+            "saturation": 9
+          },
+          "purples": {
+            "hue": 6,
+            "luminance": 1,
+            "saturation": -5
+          },
+          "reds": {
+            "hue": -6,
+            "luminance": -3,
+            "saturation": 14
+          },
+          "yellows": {
+            "hue": 2,
+            "luminance": 5,
+            "saturation": -7
+          }
+        },
+        "hue": 7,
+        "lensBlurAmount": 55,
+        "lensBlurDepthMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAAAAACH0MYjAAAFCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a9Sa6211lprrbXWWmuttdZaa6211lprrbXWWmuttdZaa6211lprrRERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqJGRERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERUSMiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiImpERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIioERERERERERERERERERERERERERERERERERERERERNSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFRIyIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiokZERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERESNiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIGhERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERETUiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiJqRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE1IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiKgRERERERERERERERERERERERERERERERERERERERH/CFb8E7kz0f5iAAAAAElFTkSuQmCC",
+        "lensBlurDiffusion": 20,
+        "lensBlurEnabled": true,
+        "lensBlurMaxDepth": 85,
+        "lensBlurMaxFade": 10,
+        "lensBlurMinDepth": 30,
+        "lensBlurMinFade": 25,
+        "lensBlurShape": "hexagon",
+        "lensBuiltin": true,
+        "lensBuiltinParams": {
+          "chromatic": [
+            {
+              "knots": [
+                0,
+                1
+              ],
+              "values": [
+                1,
+                1.0004
+              ]
+            },
+            {
+              "knots": [
+                0,
+                1
+              ],
+              "values": [
+                1,
+                0.9997
+              ]
+            }
+          ],
+          "default_on": true,
+          "distortion": {
+            "knots": [
+              0,
+              0.5,
+              1
+            ],
+            "values": [
+              1,
+              0.995,
+              0.985
+            ]
+          },
+          "source": "Corpus built-in",
+          "vignetting": {
+            "knots": [
+              0,
+              0.5,
+              1
+            ],
+            "values": [
+              1,
+              1.15,
+              1.6
+            ]
+          }
+        },
+        "lensCorrectionMode": "auto",
+        "lensDistortionAmount": 80,
+        "lensDistortionEnabled": false,
+        "lensDistortionParams": {
+          "k1": -0.012,
+          "k2": 0.004,
+          "k3": -0.001,
+          "model": 0,
+          "tca_vb": 0.9998,
+          "tca_vr": 1.0003,
+          "vig_k1": -0.3,
+          "vig_k2": 0.1,
+          "vig_k3": -0.02
+        },
+        "lensMaker": "Corpus",
+        "lensModel": "Corpus 35mm f/2",
+        "lensTcaAmount": 90,
+        "lensTcaEnabled": false,
+        "lensVignetteAmount": 120,
+        "lensVignetteEnabled": false,
+        "lumaNoiseReduction": 20,
+        "lutData": null,
+        "lutIntensity": 140,
+        "lutIsSceneReferred": true,
+        "lutName": "Corpus Film",
+        "lutPath": "/luts/corpus-film.cube",
+        "lutSize": 33,
+        "masks": [],
+        "orientationSteps": 1,
+        "parametricCurve": {
+          "blue": {
+            "blackLevel": 4,
+            "darks": 6,
+            "highlights": 4,
+            "lights": -2,
+            "shadows": -4,
+            "split1": 15,
+            "split2": 40,
+            "split3": 65,
+            "whiteLevel": -3
+          },
+          "green": {
+            "blackLevel": 2,
+            "darks": -2,
+            "highlights": 2,
+            "lights": -1,
+            "shadows": 3,
+            "split1": 25,
+            "split2": 55,
+            "split3": 75,
+            "whiteLevel": -1
+          },
+          "luma": {
+            "blackLevel": 3,
+            "darks": 10,
+            "highlights": 6,
+            "lights": -4,
+            "shadows": -8,
+            "split1": 20,
+            "split2": 45,
+            "split3": 70,
+            "whiteLevel": -5
+          },
+          "red": {
+            "blackLevel": 1,
+            "darks": 4,
+            "highlights": -3,
+            "lights": 1,
+            "shadows": 2,
+            "split1": 30,
+            "split2": 50,
+            "split3": 80,
+            "whiteLevel": -2
+          }
+        },
+        "pointCurves": {
+          "blue": [
+            {
+              "x": 0,
+              "y": 6
+            },
+            {
+              "x": 255,
+              "y": 250
+            }
+          ],
+          "green": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 96,
+              "y": 90
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ],
+          "luma": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 128,
+              "y": 140
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ],
+          "red": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 160,
+              "y": 150
+            },
+            {
+              "x": 255,
+              "y": 255
+            }
+          ]
+        },
+        "rawToneCurve": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 64,
+            "y": 52
+          },
+          {
+            "x": 128,
+            "y": 140
+          },
+          {
+            "x": 192,
+            "y": 214
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "rawToneCurveMode": "baseCurve",
+        "rawToneRendering": "baseCurve",
+        "relightAmbient": -10,
+        "relightEnabled": true,
+        "relightLights": [
+          {
+            "angle": 120,
+            "color": "#ffd8a8",
+            "cone": 50,
+            "depth": 20,
+            "elevation": 45,
+            "feather": 40,
+            "id": "light-1",
+            "intensity": 70,
+            "radius": 35,
+            "temperature": 15,
+            "tint": -5,
+            "type": "spot",
+            "x": 0.3,
+            "y": 0.4
+          }
+        ],
+        "relightNormalMap": "data:image/png;space=source;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAAoCAYAAACiu5n/AAABOklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1a/CH7sCFahABSpQgQpUoAIVqEAFKlCBClSgAhWoQAUqUIEKVKACFahABSpQgQpUoAIVqEAFKlCBClSgAhWoQAUqUIEKVKACFahABSpQgQpUoAIVqECl5/8TKj3/n1Dp+f+ESs//J1R6/j+h0vP/CZWe/0+o9Px/QqXn/xMqPf+fUOn5/4RKz/8nVHr+P6HS8/8JlZ7/T6j0/H9Cpef/Eyo9/59Q6fn/hErP/ydUev4/odLz/wmVnv9PqPT8f0Kl5/8TKj3/n1Dp+f+ESs//J1R6/j+h0vP/CZWe/0+o9Px/QqXn/xMqPf+fUOn5/4RKz/8nVHr+P6HS8/8JlZ7/T/hHn6IEPpqEogQAAAAASUVORK5CYII=",
+        "relightShadowSoftness": 25,
+        "relightShadows": true,
+        "relightShine": 15,
+        "relightSoftness": 35,
+        "rotation": 2.5,
+        "saturation": 12,
+        "sectionVisibility": {
+          "basic": false,
+          "color": false,
+          "curves": false,
+          "details": false,
+          "effects": false
+        },
+        "shadows": 28,
+        "sharpness": 30,
+        "sharpnessThreshold": 25,
+        "showClipping": 3,
+        "structure": 10,
+        "temperature": 8,
+        "tint": -4,
+        "toneMapper": "agx",
+        "transformAspect": 4,
+        "transformDistortion": 6,
+        "transformHorizontal": 5,
+        "transformRotate": 1.5,
+        "transformScale": 95,
+        "transformVertical": -8,
+        "transformXOffset": 3,
+        "transformYOffset": -2,
+        "vibrance": 16,
+        "vignetteAmount": -25,
+        "vignetteCenterX": 0.45,
+        "vignetteCenterY": 0.55,
+        "vignetteFeather": 65,
+        "vignetteMidpoint": 40,
+        "vignetteRoundness": 15,
+        "whiteBalance": {
+          "temperature": 4300,
+          "tint": 12
+        },
+        "whiteBalanceAuto": {
+          "photo": "/photos/2026/october/corpus-0001.raw",
+          "temperature": 4300,
+          "tint": 12
+        },
+        "whites": 9
+      },
+      "at": 1792000120000,
+      "id": "snapshot-2",
+      "name": "Every section hidden, no masks"
+    },
+    {
+      "adjustments": {
+        "baselineExposure": true
+      },
+      "at": 1792000180000,
+      "id": "snapshot-3",
+      "name": "Reset"
+    }
+  ],
+  "exif": {
+    "DateTimeOriginal": "2026:10:14 10:20:30",
+    "ExposureTime": "1/250 s",
+    "FNumber": "f/2.8",
+    "FocalLength": "35 mm",
+    "LensModel": "Corpus 35mm f/2",
+    "Make": "Corpus",
+    "Model": "Corpus One",
+    "PhotographicSensitivity": "400"
+  },
+  "flag": "pick",
+  "rating": 4,
+  "tags": [
+    "corpus",
+    "fixture"
+  ],
+  "version": 1
+}

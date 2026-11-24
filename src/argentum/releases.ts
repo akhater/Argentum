@@ -32,6 +32,11 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.48.2',
+    date: '2026-11-24',
+    notes: ['Fixes 26.48.1 closing itself half a second after its window opened.'],
+  },
+  {
     version: '26.48.1',
     date: '2026-11-24',
     notes: [

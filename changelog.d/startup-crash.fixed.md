@@ -1,1 +1,0 @@
-- Argentum 26.48.1 closed itself about half a second after its window opened, on every start. It starts normally again.
