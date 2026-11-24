@@ -156,6 +156,7 @@ pub mod restore;
 pub mod retired_keys;
 pub mod rr_demosaic;
 pub mod rt_profiles;
+mod runtime_calls;
 pub mod salvage;
 pub mod selection;
 pub mod selection_again;

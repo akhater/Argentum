@@ -1854,9 +1854,11 @@ fn frontend_ready(
             log::error!("Failed to show window: {}", e);
         }
         // The window is up: parse the lens database now so the first photo rarely waits for it.
+        // Tauri's runtime, not `tokio::` directly: this runs on the main thread, outside any
+        // Tokio context, where `tokio::task::spawn_blocking` panics at start.
         if is_first_run {
             let app_handle = app_handle.clone();
-            tokio::task::spawn_blocking(move || {
+            tauri::async_runtime::spawn_blocking(move || {
                 app_handle.state::<AppState>().lens_db.get();
             });
         }

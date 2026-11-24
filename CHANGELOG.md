@@ -4,6 +4,12 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.48.2 — 2026-11-24
+
+### Fixed
+
+- Argentum 26.48.1 closed itself about half a second after its window opened, on every start. It starts normally again.
+
 ## 26.48.1 — 2026-11-24
 
 ### Changed
