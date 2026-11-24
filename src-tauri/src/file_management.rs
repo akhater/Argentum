@@ -361,6 +361,11 @@ pub const VIRTUAL_COPY: &str = "?vc=";
 /// The edit file of `photo`, or of its virtual copy `copy_id`:
 /// `IMG.CR2.agdata`, `IMG.CR2.a1b2c3.agdata`.
 pub fn sidecar_for(photo: &Path, copy_id: Option<&str>) -> PathBuf {
+    if let Some(id) = copy_id
+        && !crate::mods::copy_id::is_valid(id)
+    {
+        return PathBuf::from(crate::mods::copy_id::unusable(&photo.to_string_lossy()));
+    }
     let mut name = photo.file_name().unwrap_or_default().to_os_string();
     if let Some(id) = copy_id {
         name.push(".");
@@ -395,7 +400,12 @@ pub fn parse_sidecar_name(file_name: &str) -> Option<(&str, Option<&str>)> {
 
 pub fn parse_virtual_path(virtual_path: &str) -> (PathBuf, PathBuf) {
     let (photo, copy_id) = split_virtual_path(virtual_path);
-    let source_path = PathBuf::from(photo);
+    let source_path = match copy_id {
+        Some(id) if !crate::mods::copy_id::is_valid(id) => {
+            PathBuf::from(crate::mods::copy_id::unusable(photo))
+        }
+        _ => PathBuf::from(photo),
+    };
     let sidecar_path = sidecar_for(&source_path, copy_id);
     (source_path, sidecar_path)
 }
@@ -3918,6 +3928,7 @@ pub fn create_virtual_copy(
     target_album_id: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String, String> {
+    crate::mods::copy_id::checked_split(&source_virtual_path)?;
     let (source_path, source_sidecar_path) = parse_virtual_path(&source_virtual_path);
 
     let new_copy_id = Uuid::new_v4().to_string()[..6].to_string();

@@ -43,6 +43,7 @@ mod compat_corpus;
 mod compat_fixture;
 #[cfg(test)]
 mod compat_snapshot;
+pub mod copy_id;
 pub mod copy_keys;
 pub mod crash_log;
 pub mod curve_limit;
@@ -111,6 +112,7 @@ pub mod lens_names;
 mod lens_reference;
 pub mod lens_shot;
 pub mod lens_units;
+pub mod library_path;
 #[cfg(test)]
 mod look_check;
 pub mod look_grain;
