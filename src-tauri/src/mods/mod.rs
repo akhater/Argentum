@@ -155,6 +155,7 @@ mod render_check;
 pub mod restore;
 pub mod retired_keys;
 pub mod rr_demosaic;
+mod runtime_calls;
 pub mod rt_profiles;
 pub mod salvage;
 pub mod selection;
