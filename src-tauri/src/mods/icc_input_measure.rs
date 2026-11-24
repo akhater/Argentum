@@ -91,7 +91,7 @@ fn loaded(bytes: &[u8], rule: Rule) -> Rgb32FImage {
         bytes,
         None,
         rule,
-        crate::mods::heic::Budget::Open,
+        crate::mods::heic::Purpose::Open,
     )
     .unwrap()
     .into_rgb32f()
