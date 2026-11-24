@@ -464,25 +464,47 @@ struct DecodedEntry {
     fingerprint: DecodeFingerprint,
     image: Arc<DynamicImage>,
     exif: HashMap<String, String>,
+    /// What `image` holds, counted once when it is inserted.
+    bytes: u64,
 }
 
+/// Recently opened photos, decoded, limited by the bytes they hold and not by
+/// how many there are (mods/photo_cache_budget.rs). The newest entry is the
+/// photo that is open, and the one before it is the one the user goes back to:
+/// both are kept whatever the budget (`ALWAYS_KEPT_PHOTOS`), so a photo larger
+/// than the whole budget stays while it is open and until two more arrive.
 pub struct DecodedImageCache {
-    capacity: usize,
+    budget_bytes: u64,
+    held_bytes: u64,
     items: Vec<DecodedEntry>,
 }
 
 impl DecodedImageCache {
-    pub fn new(capacity: usize) -> Self {
+    pub fn new(budget_bytes: u64) -> Self {
         Self {
-            capacity,
-            items: Vec::with_capacity(capacity),
+            budget_bytes,
+            held_bytes: 0,
+            items: Vec::new(),
         }
     }
 
-    pub fn set_capacity(&mut self, capacity: usize) {
-        self.capacity = capacity;
-        while self.items.len() > self.capacity {
-            self.items.remove(0);
+    pub fn set_budget_bytes(&mut self, budget_bytes: u64) {
+        self.budget_bytes = budget_bytes;
+        self.evict_oldest_over_budget();
+    }
+
+    /// The bytes of the decoded photos held.
+    #[cfg(test)]
+    fn held_bytes(&self) -> u64 {
+        self.held_bytes
+    }
+
+    /// Drops the oldest photos until the rest fit, always keeping the newest two.
+    fn evict_oldest_over_budget(&mut self) {
+        while self.held_bytes > self.budget_bytes
+            && self.items.len() > crate::mods::photo_cache_budget::ALWAYS_KEPT_PHOTOS
+        {
+            self.held_bytes -= self.items.remove(0).bytes;
         }
     }
 
@@ -496,16 +518,19 @@ impl DecodedImageCache {
     ) -> Option<(Arc<DynamicImage>, HashMap<String, String>)> {
         let pos = self.items.iter().position(|e| e.path == path)?;
         let entry = self.items.remove(pos);
+        self.held_bytes -= entry.bytes;
         if entry.fingerprint != *fingerprint {
             return None;
         }
         let result = (Arc::clone(&entry.image), entry.exif.clone());
+        self.held_bytes += entry.bytes;
         self.items.push(entry);
         Some(result)
     }
 
     pub fn clear(&mut self) {
         self.items.clear();
+        self.held_bytes = 0;
     }
 
     pub fn insert(
@@ -516,16 +541,18 @@ impl DecodedImageCache {
         exif: HashMap<String, String>,
     ) {
         if let Some(pos) = self.items.iter().position(|e| e.path == path) {
-            self.items.remove(pos);
-        } else if self.items.len() >= self.capacity {
-            self.items.remove(0);
+            self.held_bytes -= self.items.remove(pos).bytes;
         }
+        let bytes = image.as_bytes().len() as u64;
+        self.held_bytes += bytes;
         self.items.push(DecodedEntry {
             path,
             fingerprint,
             image,
             exif,
+            bytes,
         });
+        self.evict_oldest_over_budget();
     }
 }
 
@@ -593,6 +620,7 @@ pub fn clear_session_caches(state: tauri::State<AppState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mods::photo_cache_budget::ALWAYS_KEPT_PHOTOS;
     use std::time::Duration;
 
     fn scratch_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
@@ -734,7 +762,7 @@ mod tests {
         let base = AppSettings::default();
         let other = AppSettings {
             theme: Some("something else".into()),
-            image_cache_size: Some(9),
+            decoded_photo_cache_mb: Some(9),
             ..base.clone()
         };
         assert_eq!(
@@ -749,7 +777,7 @@ mod tests {
         let settings = AppSettings::default();
         let now = fingerprint(&path, &settings, true);
         let other = fingerprint(&path, &settings, false);
-        let mut cache = DecodedImageCache::new(5);
+        let mut cache = DecodedImageCache::new(1_000_000);
         let decoded = image();
         cache.insert(
             "a.cr3".into(),
@@ -769,13 +797,27 @@ mod tests {
         );
     }
 
+    /// A decoded photo of `side` x `side` pixels: 12 bytes a pixel.
+    fn photo(side: u32) -> Arc<DynamicImage> {
+        Arc::new(DynamicImage::new_rgb32f(side, side))
+    }
+
+    fn put(cache: &mut DecodedImageCache, name: &str, fp: &DecodeFingerprint, side: u32) {
+        cache.insert(name.into(), fp.clone(), photo(side), HashMap::new());
+    }
+
+    fn fp_for_tests() -> DecodeFingerprint {
+        let path = scratch_file("budget", b"raw bytes");
+        fingerprint(&path, &AppSettings::default(), true)
+    }
+
     #[test]
     fn the_oldest_photo_still_leaves_first() {
-        let path = scratch_file("capacity", b"raw bytes");
-        let fp = fingerprint(&path, &AppSettings::default(), true);
-        let mut cache = DecodedImageCache::new(2);
+        let fp = fp_for_tests();
+        // Each photo is 1,200 bytes; the budget holds two.
+        let mut cache = DecodedImageCache::new(2_500);
         for name in ["a", "b", "c"] {
-            cache.insert(name.into(), fp.clone(), image(), HashMap::new());
+            put(&mut cache, name, &fp, 10);
         }
         assert!(cache.get("a", &fp).is_none());
         assert!(cache.get("b", &fp).is_some());
@@ -783,9 +825,109 @@ mod tests {
 
         // Using a photo makes it the newest.
         cache.get("b", &fp);
-        cache.insert("d".into(), fp.clone(), image(), HashMap::new());
+        put(&mut cache, "d", &fp, 10);
         assert!(cache.get("c", &fp).is_none());
         assert!(cache.get("b", &fp).is_some());
+    }
+
+    /// Photos of mixed sizes: the bytes held never pass the budget, however
+    /// the inserts, hits and replacements fall.
+    #[test]
+    fn the_bytes_held_never_pass_the_budget() {
+        let fp = fp_for_tests();
+        let budget = 20_000;
+        let mut cache = DecodedImageCache::new(budget);
+        // 300, 1,200, 4,800 and 10,800 bytes.
+        let sides = [5u32, 10, 20, 30, 10, 5, 30, 20, 10, 30, 5, 20];
+        for (i, side) in sides.iter().enumerate() {
+            put(&mut cache, &format!("p{}", i % 5), &fp, *side);
+            cache.get(&format!("p{}", (i + 2) % 5), &fp);
+            assert!(
+                cache.held_bytes() <= budget || cache.items.len() <= ALWAYS_KEPT_PHOTOS,
+                "{} bytes held after insert {i}",
+                cache.held_bytes()
+            );
+        }
+        // The count is what the entries add up to.
+        let counted: u64 = cache.items.iter().map(|e| e.bytes).sum();
+        assert_eq!(counted, cache.held_bytes());
+    }
+
+    /// Entries count at their real size: one big photo takes the room of
+    /// several small ones.
+    #[test]
+    fn a_big_photo_pushes_out_several_small_ones() {
+        let fp = fp_for_tests();
+        let mut cache = DecodedImageCache::new(12_000);
+        for name in ["a", "b", "c", "d"] {
+            put(&mut cache, name, &fp, 10); // 1,200 bytes each
+        }
+        put(&mut cache, "big", &fp, 30); // 10,800 bytes
+        assert!(cache.get("a", &fp).is_none());
+        assert!(cache.get("b", &fp).is_none());
+        assert!(cache.get("c", &fp).is_none());
+        assert!(cache.get("d", &fp).is_some(), "1,200 + 10,800 fit");
+        assert!(cache.get("big", &fp).is_some());
+    }
+
+    /// The open photo and the one before it stay whatever the budget: with
+    /// photos each over the budget (61 MP against 1.4 GB), open A, open B, back
+    /// to A is a hit. A third photo pushes the oldest out.
+    #[test]
+    fn the_open_photo_and_the_one_before_it_survive_a_budget_below_either() {
+        let fp = fp_for_tests();
+        let mut cache = DecodedImageCache::new(5_000);
+        put(&mut cache, "a", &fp, 30); // 10,800 bytes each, over the budget
+        put(&mut cache, "b", &fp, 30);
+        assert!(cache.get("a", &fp).is_some(), "back to A is a hit");
+        assert!(cache.get("b", &fp).is_some());
+        assert_eq!(cache.held_bytes(), 21_600);
+
+        put(&mut cache, "c", &fp, 30);
+        assert!(cache.get("a", &fp).is_none(), "dropped once two more arrived");
+        assert!(cache.get("b", &fp).is_some());
+        assert!(cache.get("c", &fp).is_some());
+
+        // A smaller budget keeps the two newest.
+        cache.set_budget_bytes(1);
+        assert_eq!(cache.items.len(), ALWAYS_KEPT_PHOTOS);
+    }
+
+    #[test]
+    fn a_smaller_budget_drops_the_oldest_first() {
+        let fp = fp_for_tests();
+        let mut cache = DecodedImageCache::new(10_000);
+        for name in ["a", "b", "c"] {
+            put(&mut cache, name, &fp, 10);
+        }
+        cache.set_budget_bytes(2_500);
+        assert!(cache.get("a", &fp).is_none());
+        assert!(cache.get("b", &fp).is_some());
+        assert!(cache.get("c", &fp).is_some());
+        cache.clear();
+        assert_eq!(cache.held_bytes(), 0);
+    }
+
+    /// Real allocations, not the bookkeeping: six photos of 12 MB and 27 MB
+    /// go through a 50 MB cache and what is held at once stays within the
+    /// budget plus the one photo being inserted.
+    #[test]
+    fn real_memory_held_stays_within_the_budget() {
+        let fp = fp_for_tests();
+        let budget = 50_000_000;
+        let (cache, peak) = crate::mods::mem_probe::peak_bytes(|| {
+            let mut cache = DecodedImageCache::new(budget);
+            for (i, side) in [1000u32, 1500, 1000, 1500, 1000, 1500].into_iter().enumerate() {
+                put(&mut cache, &format!("p{i}"), &fp, side);
+            }
+            cache
+        });
+        assert!(cache.held_bytes() <= budget);
+        let largest = 27_000_000;
+        assert!(
+            peak as u64 <= budget + 2 * largest + 1_000_000,
+            "{peak} bytes held at once"
+        );
     }
 
     fn geometry_of(adjustments: &serde_json::Value) -> u64 {

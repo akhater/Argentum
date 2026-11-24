@@ -191,6 +191,7 @@
       "width": 5.0
     }
   ],
+  "decodedPhotoCacheMb": 2304,
   "decorations": true,
   "defaultNonRawTonemapper": "agx",
   "defaultRawTonemapper": "basic",
@@ -263,7 +264,6 @@
   "fontFamily": "system",
   "grouping": "raw",
   "highResZoomMultiplier": 1.5,
-  "imageCacheSize": 8,
   "isWaveformVisible": true,
   "keybinds": {
     "copy_files": [

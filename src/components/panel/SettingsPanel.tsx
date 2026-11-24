@@ -48,6 +48,13 @@ import { folderOnDisk } from '../../argentum/modern/folders';
 import { useAgTranslation } from '../../argentum/locales';
 import { RawDecoderSetting } from '../../argentum/RawDecoder';
 import { getWhiteBalanceMode, WhiteBalanceMode } from '../../utils/whiteBalance';
+import {
+  DECODED_PHOTO_CACHE_FALLBACK_MB,
+  DECODED_PHOTO_CACHE_MAX_MB,
+  DECODED_PHOTO_CACHE_MIN_MB,
+  DECODED_PHOTO_CACHE_STEP_MB,
+  TYPICAL_PHOTO_MB,
+} from '../../argentum/photoCacheLimits';
 
 interface ConfirmModalState {
   confirmText: string;
@@ -459,7 +466,7 @@ export default function SettingsPanel({
     useFullDpiRendering: appSettings?.useFullDpiRendering ?? false,
     useWgpuRenderer: appSettings?.useWgpuRenderer ?? osPlatform !== 'linux',
     thumbnailWorkerThreads: appSettings?.thumbnailWorkerThreads ?? 4,
-    imageCacheSize: appSettings?.imageCacheSize ?? 5,
+    decodedPhotoCacheMb: appSettings?.decodedPhotoCacheMb ?? DECODED_PHOTO_CACHE_FALLBACK_MB,
     rawPreprocessingColorNr: appSettings?.rawPreprocessingColorNr ?? 0.5,
     rawPreprocessingSharpening: appSettings?.rawPreprocessingSharpening ?? 0.35,
     applyPreprocessingToNonRaws: appSettings?.applyPreprocessingToNonRaws ?? false,
@@ -560,7 +567,7 @@ export default function SettingsPanel({
       useFullDpiRendering: appSettings?.useFullDpiRendering ?? false,
       useWgpuRenderer: appSettings?.useWgpuRenderer ?? true,
       thumbnailWorkerThreads: appSettings?.thumbnailWorkerThreads ?? 4,
-      imageCacheSize: appSettings?.imageCacheSize ?? 5,
+      decodedPhotoCacheMb: appSettings?.decodedPhotoCacheMb ?? DECODED_PHOTO_CACHE_FALLBACK_MB,
       rawPreprocessingColorNr: appSettings?.rawPreprocessingColorNr ?? 0.5,
       rawPreprocessingSharpening: appSettings?.rawPreprocessingSharpening ?? 0.35,
       applyPreprocessingToNonRaws: appSettings?.applyPreprocessingToNonRaws ?? false,
@@ -1683,17 +1690,23 @@ export default function SettingsPanel({
                         description={t('settings.processing.imageCacheDesc')}
                       >
                         <Slider
-                          label={t('settings.processing.images')}
-                          min={2}
-                          max={10}
-                          step={1}
-                          value={processingSettings.imageCacheSize}
-                          defaultValue={5}
+                          label={t('settings.processing.imageCacheSize')}
+                          min={DECODED_PHOTO_CACHE_MIN_MB}
+                          max={DECODED_PHOTO_CACHE_MAX_MB}
+                          step={DECODED_PHOTO_CACHE_STEP_MB}
+                          suffix="MB"
+                          value={processingSettings.decodedPhotoCacheMb}
+                          defaultValue={DECODED_PHOTO_CACHE_FALLBACK_MB}
                           onChange={(e: any) =>
-                            handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))
+                            handleProcessingSettingChange('decodedPhotoCacheMb', parseInt(e.target.value))
                           }
                           fillOrigin="min"
                         />
+                        <p className="text-xs text-text-secondary mt-2">
+                          {t('settings.processing.imageCacheHint', {
+                            photos: Math.floor(processingSettings.decodedPhotoCacheMb / TYPICAL_PHOTO_MB),
+                          })}
+                        </p>
                       </SettingItem>
 
                       <SettingItem

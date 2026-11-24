@@ -577,7 +577,9 @@ pub struct AppSettings {
     #[serde(default)]
     pub thumbnail_worker_threads: Option<u32>,
     #[serde(default)]
-    pub image_cache_size: Option<u32>,
+    /// Megabytes the decoded-photo cache may hold (mods/photo_cache_budget.rs).
+    /// Replaces the stored count `imageCacheSize`.
+    pub decoded_photo_cache_mb: Option<u32>,
     #[serde(default)]
     pub tonemapper_override_enabled: Option<bool>,
     #[serde(default)]
@@ -688,7 +690,7 @@ impl Default for AppSettings {
             zoom_photo_to_pixel_click: Some(false),
             keybinds: HashMap::new(),
             thumbnail_worker_threads: Some(4),
-            image_cache_size: Some(5),
+            decoded_photo_cache_mb: None,
             tonemapper_override_enabled: Some(false),
             default_raw_tonemapper: Some("agx".to_string()),
             default_non_raw_tonemapper: Some("basic".to_string()),
@@ -753,8 +755,15 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         AppSettings::default()
     };
 
+    // The stored count of photos becomes a size, once, before its key is retired.
+    let mut settings_modified = crate::mods::photo_cache_budget::fill(
+        &mut settings.decoded_photo_cache_mb,
+        &settings.extra,
+        crate::mods::photo_cache_budget::installed_memory_bytes(),
+    );
+
     // A key this release retired is not kept for a newer one (mods/retired_keys.rs).
-    let mut settings_modified = crate::mods::retired_keys::strip(
+    settings_modified |= crate::mods::retired_keys::strip(
         &mut settings.extra,
         crate::mods::retired_keys::SETTINGS,
     );
@@ -835,12 +844,13 @@ pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(),
     crate::mods::atomic_write::write_atomic(&path, json_string).map_err(|e| e.to_string())?;
 
     let state = app_handle.state::<AppState>();
-    let cache_size = settings.image_cache_size.unwrap_or(5) as usize;
     state
         .decoded_image_cache
         .lock()
         .unwrap()
-        .set_capacity(cache_size);
+        .set_budget_bytes(crate::mods::photo_cache_budget::budget_bytes(
+            settings.decoded_photo_cache_mb,
+        ));
     Ok(())
 }
 

@@ -2017,8 +2017,9 @@ fn run_app() {
 
             {
                 let state = app.state::<AppState>();
-                let cache_size = settings.image_cache_size.unwrap_or(5) as usize;
-                state.decoded_image_cache.lock().unwrap().set_capacity(cache_size);
+                state.decoded_image_cache.lock().unwrap().set_budget_bytes(
+                    mods::photo_cache_budget::budget_bytes(settings.decoded_photo_cache_mb),
+                );
             }
 
             let last_gpu_run = {
@@ -2364,7 +2365,7 @@ fn run_app() {
             working_cache: Mutex::new(None),
             effects_cache: Mutex::new(None),
             full_transformed_cache: Mutex::new(None),
-            decoded_image_cache: Mutex::new(DecodedImageCache::new(5)),
+            decoded_image_cache: Mutex::new(DecodedImageCache::new(mods::photo_cache_budget::budget_bytes(None))),
             thumbnail_manager: ThumbnailManager::new(),
             metadata_manager: MetadataManager::new(),
             disks_cache: Mutex::new(None),
