@@ -1,1 +1,0 @@
-- Downloading an AI model no longer waits forever on a server that stops answering: after 30 seconds without data the download moves on to the next address, and Stop takes effect within about a second even while waiting for the network.

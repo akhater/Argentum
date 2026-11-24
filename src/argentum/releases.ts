@@ -32,6 +32,20 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.48.1',
+    date: '2026-11-24',
+    notes: [
+      'Your edits are much harder to lose: a change made just before switching photo or closing the window is saved, an edit file that cannot be read for a moment is never overwritten, and a photo whose edit cannot be read says so instead of opening unedited.',
+      'Moving photos carries their edits, copies and XMP first, and undoes the move if anything fails; exports never leave a half-written file.',
+      'Deleting never removes files for good without asking: when the Recycle Bin cannot take them, a dialog asks first.',
+      'A result that arrives after you switch photo (Auto, Paste, a lens pick, an AI mask) stays on the photo it was for.',
+      'Starts faster and uses less memory: the lens database, Settings and large dialogs load when first needed, and the photo cache is limited by size (Settings > Processing).',
+      'Side panels start at their designed widths and keep the width you give them when hidden and shown again.',
+      'The GPS map loads only when you click Show map. Exports and XMP files now say Argentum.',
+      'Unusual files can no longer crash or freeze the app: oversized images, LUTs, HEIC and DNG files are checked first.',
+    ],
+  },
+  {
     version: '26.47.3',
     date: '2026-11-22',
     notes: [

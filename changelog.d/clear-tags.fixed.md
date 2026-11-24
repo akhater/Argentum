@@ -1,1 +1,0 @@
-- Clear AI tags and Clear all tags now work on current edit files (`.agdata`, virtual copies included), and clearing tags no longer risks overwriting an edit saved at the same moment.

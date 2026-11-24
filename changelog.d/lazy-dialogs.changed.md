@@ -1,1 +1,0 @@
-- Eight large dialogs (panorama, HDR, focus stacking, negative conversion, denoise, culling, collage and super resolution) now load the first time they are opened, so the app reads about 88 KB less script at start. They look and work as before.

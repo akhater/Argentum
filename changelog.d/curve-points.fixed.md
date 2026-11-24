@@ -1,1 +1,0 @@
-- A tone curve is limited to 16 points: the editor adds no point past that, and a longer curve (an older edit, a converted preset) is thinned to the points that change its shape least, so it renders as drawn instead of using only the first 16.

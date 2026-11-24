@@ -1,1 +1,0 @@
-- The `uuid` npm package was removed. Random ids now come from the built-in `crypto.randomUUID()`, which the app already uses elsewhere. No feature changes.

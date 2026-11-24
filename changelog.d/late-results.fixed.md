@@ -1,1 +1,0 @@
-- Switching to another photo while Auto, a LUT pick, Paste, Reset or a batch refresh is still working no longer writes the first photo's result into the photo you moved to; the result is dropped for the open photo, and the first photo is still updated on disk.

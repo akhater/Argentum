@@ -214,6 +214,7 @@
       "borderVerticalPercent": 4.5,
       "destinationType": "originalFolder",
       "dontEnlarge": false,
+      "dpi": null,
       "enableBorder": true,
       "enablePad": true,
       "enableResize": true,

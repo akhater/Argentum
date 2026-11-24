@@ -1,1 +1,0 @@
-- Settings and edit files written by a newer version keep the parts this version does not understand, instead of losing them the next time they are saved.

@@ -1,1 +1,0 @@
-- The Metadata panel no longer loads a map from the internet when a photo has GPS data: it shows a "Show map" button, and the map loads when you click it.

@@ -1,1 +1,0 @@
-- The lens database is read the first time a lens is needed (shortly after the window appears) instead of before the window opens, so Argentum starts a little faster.

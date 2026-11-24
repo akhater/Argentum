@@ -1,1 +1,0 @@
-- Switching to another photo while a metadata refresh, a lens pick in the Crop panel, an AI mask or a generative replace is still working no longer writes the first photo's result into the photo you moved to. The result is saved on the first photo, which no longer stays stuck on a spinner, and a History step queued for one photo is no longer added to another's.

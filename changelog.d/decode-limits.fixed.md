@@ -1,1 +1,0 @@
-Non-RAW images (PNG, TIFF, JPEG and similar) now have a size limit when decoded: a file whose header declares more than 400 megapixels is refused with a normal "cannot open" error instead of trying to reserve memory for it. Every real photo and stitched panorama below that size opens as before.

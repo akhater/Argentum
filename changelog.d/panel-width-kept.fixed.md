@@ -1,1 +1,0 @@
-- Showing a hidden side panel again, by button or by key, now keeps the width you gave it; only a width below the column's smallest allowed one comes back at its starting width.

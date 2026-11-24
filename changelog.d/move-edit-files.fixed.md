@@ -1,1 +1,0 @@
-- Moving photos to another folder now carries each photo's edits, virtual copies, XMP and look files over before the photo itself, and undoes that photo's move if any of them fails, so a photo is never left in one folder with its edit in the other. Across drives a file appears under its real name only when completely copied, and a failed copy leaves no partial file.
