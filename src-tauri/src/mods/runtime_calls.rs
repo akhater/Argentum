@@ -13,7 +13,11 @@
 mod tests {
     use std::path::Path;
 
-    const CALLS: [&str; 3] = ["tokio::task::spawn_blocking(", "tokio::spawn(", "tokio::task::spawn("];
+    const CALLS: [&str; 3] = [
+        "tokio::task::spawn_blocking(",
+        "tokio::spawn(",
+        "tokio::task::spawn(",
+    ];
 
     /// The signature of the function a line sits in: the nearest line above it
     /// that declares one.
@@ -23,7 +27,10 @@ mod tests {
             .rev()
             .find(|l| {
                 let t = l.trim_start();
-                (t.starts_with("fn ") || t.contains(" fn ") || t.starts_with("pub fn ") || t.starts_with("async fn "))
+                (t.starts_with("fn ")
+                    || t.contains(" fn ")
+                    || t.starts_with("pub fn ")
+                    || t.starts_with("async fn "))
                     && !t.starts_with("//")
             })
             .map(|l| l.trim().to_string())
@@ -73,7 +80,8 @@ mod tests {
 
     #[test]
     fn the_check_catches_a_spawn_in_a_plain_fn() {
-        let text = "fn setup() {\n    let x = 1;\n    tokio::task::spawn_blocking(move || {});\n}\n";
+        let text =
+            "fn setup() {\n    let x = 1;\n    tokio::task::spawn_blocking(move || {});\n}\n";
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(enclosing_fn(&lines, 2).as_deref(), Some("fn setup() {"));
         let text = "pub async fn cmd() {\n    tokio::task::spawn_blocking(move || {});\n}\n";
