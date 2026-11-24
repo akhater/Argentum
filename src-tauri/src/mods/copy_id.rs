@@ -5,9 +5,15 @@
 //! id can belong to a real copy. The id becomes part of a file name, so a
 //! string from the interface is checked before it is used as one.
 
-/// What stands in a file name for an id that is not valid: it names a file
-/// beside the photo that no copy owns, and never one elsewhere.
-pub const INVALID_STAND_IN: &str = "invalid";
+/// A NUL byte can be in no file name, and a path that starts with one is
+/// empty to the calls that stop at it: every file call given such a path
+/// fails with its normal error and touches nothing.
+const UNUSABLE_DIR: &str = "\0invalid-copy-id";
+
+/// `path` made unusable by any file call.
+pub fn unusable(path: &str) -> String {
+    format!("{UNUSABLE_DIR}/{path}")
+}
 
 /// Whether `id` is the shape the app generates.
 pub fn is_valid(id: &str) -> bool {
@@ -73,17 +79,54 @@ mod tests {
     }
 
     #[test]
-    fn an_invalid_id_names_no_file_outside_the_photos_folder() {
-        let photo = Path::new("/p/IMG.CR2");
-        for id in ["../x", "..", "a/b", "a\\b", "/abs/path", ""] {
-            let sidecar = sidecar_for(photo, Some(id));
-            assert_eq!(sidecar.parent(), photo.parent(), "{id:?}");
-            assert_ne!(sidecar, sidecar_for(photo, None), "{id:?}");
-        }
+    fn a_valid_id_names_its_sidecar_as_before() {
         assert_eq!(
-            sidecar_for(photo, Some("a1b2c3")),
+            sidecar_for(Path::new("/p/IMG.CR2"), Some("a1b2c3")),
             Path::new("/p/IMG.CR2.a1b2c3.agdata")
         );
+        let (photo, sidecar) = crate::file_management::parse_virtual_path("/p/IMG.CR2?vc=a1b2c3");
+        assert_eq!(photo, Path::new("/p/IMG.CR2"));
+        assert_eq!(sidecar, Path::new("/p/IMG.CR2.a1b2c3.agdata"));
+    }
+
+    #[test]
+    fn a_command_given_an_invalid_id_fails_and_touches_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR2");
+        std::fs::write(&photo, b"raw").unwrap();
+        let sub = dir.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        for id in [
+            "../x",
+            "..",
+            "a/b",
+            "a\\b",
+            "/abs/path",
+            "",
+            "zzzzzz",
+            "a1b2c3d",
+        ] {
+            let virtual_path = format!("{}{VIRTUAL_COPY}{id}", photo.display());
+            let (source, sidecar) = crate::file_management::parse_virtual_path(&virtual_path);
+            assert!(
+                crate::mods::atomic_write::write_atomic(&sidecar, "{}").is_err(),
+                "{id:?}"
+            );
+            assert!(std::fs::write(&sidecar, b"{}").is_err(), "{id:?}");
+            assert!(std::fs::copy(&photo, &sidecar).is_err(), "{id:?}");
+            assert!(std::fs::remove_file(&source).is_err(), "{id:?}");
+            assert!(!sidecar.exists() && !source.exists(), "{id:?}");
+            let direct = sidecar_for(&photo, Some(id));
+            assert!(std::fs::write(&direct, b"{}").is_err(), "{id:?}");
+        }
+        let mut left: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        left.sort();
+        assert_eq!(left, ["IMG.CR2", "sub"]);
+        assert_eq!(std::fs::read_dir(&sub).unwrap().count(), 0);
+        assert_eq!(std::fs::read(&photo).unwrap(), b"raw");
     }
 
     #[test]

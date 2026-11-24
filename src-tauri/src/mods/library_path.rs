@@ -4,15 +4,22 @@
 //! resolves it here: both sides are made canonical (so `..` and links are
 //! followed), then compared component by component, never as strings.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-/// The canonical path of `target` when it lies inside `root`, else an error.
-/// `target` must exist; a link that leads out of `root` is refused.
-pub fn inside(root: &Path, target: &Path) -> Result<PathBuf, String> {
+/// Whether `target` is strictly below `root`, component by component. Both
+/// must be canonical, so each carries the same prefix (`\\?\`, `\\?\UNC\`).
+fn is_below(root: &Path, target: &Path) -> bool {
+    target != root && target.starts_with(root)
+}
+
+/// Checks that `target` lies inside `root` once both are canonical. The check
+/// only: the caller keeps using the path it was given, so a network share
+/// still works. `target` must exist; a link leading out of `root` is refused.
+pub fn check_inside(root: &Path, target: &Path) -> Result<(), String> {
     let root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
     let target = std::fs::canonicalize(target).map_err(|e| e.to_string())?;
-    if target != root && target.starts_with(&root) {
-        Ok(target)
+    if is_below(&root, &target) {
+        Ok(())
     } else {
         Err("Access denied: Cannot remove files outside the user LUT directory".to_string())
     }
@@ -21,6 +28,7 @@ pub fn inside(root: &Path, target: &Path) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn library() -> (tempfile::TempDir, PathBuf, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
@@ -36,14 +44,30 @@ mod tests {
         let (_d, root, _) = library();
         let lut = root.join("a.cube");
         std::fs::write(&lut, b"x").unwrap();
-        assert_eq!(
-            inside(&root, &lut).unwrap(),
-            std::fs::canonicalize(&lut).unwrap()
-        );
+        assert!(check_inside(&root, &lut).is_ok());
         let sub = root.join("sub");
         std::fs::create_dir(&sub).unwrap();
         std::fs::write(sub.join("b.cube"), b"x").unwrap();
-        assert!(inside(&root, &sub.join("b.cube")).is_ok());
+        assert!(check_inside(&root, &sub.join("b.cube")).is_ok());
+    }
+
+    #[test]
+    fn network_style_prefixes_compare_by_component() {
+        let root = Path::new(r"\\?\UNC\server\share\luts");
+        for inside in [
+            r"\\?\UNC\server\share\luts\a.cube",
+            r"\\?\UNC\server\share\luts\s\a.cube",
+        ] {
+            assert!(is_below(root, Path::new(inside)), "{inside}");
+        }
+        for outside in [
+            r"\\?\UNC\server\share\luts-other\a.cube",
+            r"\\?\UNC\server\share\x\luts\a.cube",
+            r"\\?\UNC\server\share\luts",
+            r"\\?\C:\luts\a.cube",
+        ] {
+            assert!(!is_below(root, Path::new(outside)), "{outside}");
+        }
     }
 
     #[test]
@@ -52,11 +76,11 @@ mod tests {
         let other = outside.join("a.cube");
         std::fs::write(&other, b"x").unwrap();
         // Shares a string prefix with the library folder, not a component.
-        assert!(inside(&root, &other).is_err());
+        assert!(check_inside(&root, &other).is_err());
         let around = root.join("..").join("luts-other").join("a.cube");
-        assert!(inside(&root, &around).is_err());
-        assert!(inside(&root, &root).is_err());
-        assert!(inside(&root, &d.path().join("missing.cube")).is_err());
+        assert!(check_inside(&root, &around).is_err());
+        assert!(check_inside(&root, &root).is_err());
+        assert!(check_inside(&root, &d.path().join("missing.cube")).is_err());
     }
 
     #[test]
@@ -70,7 +94,7 @@ mod tests {
         #[cfg(unix)]
         let made = std::os::unix::fs::symlink(&other, &link).is_ok();
         if made {
-            assert!(inside(&root, &link).is_err());
+            assert!(check_inside(&root, &link).is_err());
         }
         // A junction needs no privilege on Windows.
         #[cfg(windows)]
@@ -84,7 +108,7 @@ mod tests {
                 .map(|o| o.status.success())
                 .unwrap_or(false);
             if ok {
-                assert!(inside(&root, &junction.join("a.cube")).is_err());
+                assert!(check_inside(&root, &junction.join("a.cube")).is_err());
                 let _ = std::fs::remove_dir(&junction);
             }
         }

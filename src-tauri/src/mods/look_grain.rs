@@ -889,7 +889,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_virtual_copy_has_its_photos_grain() {
-        let (photo, copy) = ("C:/a/b.CR3", "C:/a/b.CR3?vc=1");
+        let (photo, copy) = ("C:/a/b.CR3", "C:/a/b.CR3?vc=a1b2c3");
         assert_eq!(parse_virtual_path(copy).0, parse_virtual_path(photo).0);
         assert_eq!(seed_of(photo), seed_of(copy));
     }

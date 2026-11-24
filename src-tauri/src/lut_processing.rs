@@ -874,7 +874,7 @@ pub fn remove_lut(app_handle: AppHandle, path: String) -> Result<Vec<LutEntry>, 
     if !target_path.exists() {
         return Err("LUT file not found".to_string());
     }
-    let target_path = strip_verbatim(&crate::mods::library_path::inside(&luts_dir, &target_path)?);
+    crate::mods::library_path::check_inside(&luts_dir, &target_path)?;
 
     let mut manifest = load_library_manifest(&luts_dir).map_err(|e| e.to_string())?;
     let assignment_key = manifest_key(&luts_dir, &path);
