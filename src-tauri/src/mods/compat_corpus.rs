@@ -56,10 +56,12 @@
 //!
 //! UPDATING THE SNAPSHOTS ON PURPOSE
 //!
-//!     AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus
+//!     AG_COMPAT_UPDATE=<release> cargo test --lib mods::compat_corpus
+//!     AG_COMPAT_UPDATE=all cargo test --lib mods::compat_corpus
 //!
-//! rewrites every `snapshots/<release>.txt` from the code of today; the diff
-//! is the review. A change meant to change pixels also bumps `PIPELINE` in
+//! rewrites `snapshots/<release>.txt`, or every one, from the code of today;
+//! the diff is the review. Recording a new release uses its own version, so an
+//! older snapshot cannot be rewritten by mistake and the tests still check it. A change meant to change pixels also bumps `PIPELINE` in
 //! cache_version.rs, so cached thumbnails are made again.
 
 use std::path::PathBuf;
@@ -93,7 +95,7 @@ pub const EDIT_AT_DEFAULT: &[(&str, &str)] = &[(
 
 const SNAPSHOT_ADVICE: &str = "If the move is meant (a change to how stored edits render), bump \
      PIPELINE in src-tauri/src/mods/cache_version.rs so cached thumbnails are made again, and \
-     rewrite the snapshots: AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus";
+     rewrite the snapshots: AG_COMPAT_UPDATE=all cargo test --lib mods::compat_corpus";
 
 pub fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -362,7 +364,13 @@ fn every_edit_reads_and_keeps_every_key() {
 
 #[test]
 fn the_gpu_input_of_every_edit_is_as_recorded() {
-    let update = std::env::var_os("AG_COMPAT_UPDATE").is_some();
+    let update = std::env::var("AG_COMPAT_UPDATE").ok();
+    if let Some(which) = &update {
+        assert!(
+            which == "all" || releases().contains(which),
+            "AG_COMPAT_UPDATE is a release folder's name or `all`, not {which:?}"
+        );
+    }
     let mut problems = Vec::new();
     for release in releases() {
         let Ok(metadata) = serde_json::from_str::<ImageMetadata>(&read(&release, EDIT)) else {
@@ -377,18 +385,21 @@ fn the_gpu_input_of_every_edit_is_as_recorded() {
         let header = format!(
             "What the code of today gives the renderer for fixtures/compat/{release}/{EDIT}\n\
              (src-tauri/src/mods/compat_snapshot.rs). Rewritten on purpose, never by hand:\n\
-             AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus"
+             AG_COMPAT_UPDATE=<release> cargo test --lib mods::compat_corpus"
         );
         let today = render(&header, &sections);
         let path = root().join("snapshots").join(format!("{release}.txt"));
-        if update {
+        if update
+            .as_deref()
+            .is_some_and(|u| u == "all" || u == release)
+        {
             std::fs::create_dir_all(root().join("snapshots")).expect("snapshots folder");
             std::fs::write(&path, &today).expect("writes the snapshot");
             continue;
         }
         let Ok(committed) = std::fs::read_to_string(&path) else {
             problems.push(format!(
-                "{release} has no snapshot: record it with AG_COMPAT_UPDATE=1 cargo test --lib \
+                "{release} has no snapshot: record it with AG_COMPAT_UPDATE={release} cargo test --lib \
                  mods::compat_corpus"
             ));
             continue;
@@ -712,7 +723,7 @@ pub fn release_without_folder(version: &str, releases: &[String]) -> Option<Stri
     Some(format!(
         "{version} is being released and the compatibility corpus has no {}. Write them: \
          `cargo test --lib mods::compat_fixture -- --ignored`, then \
-         `AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus`; check that they hold only \
+         `AG_COMPAT_UPDATE={version} cargo test --lib mods::compat_corpus`; check that they hold only \
          synthetic values; commit them with the release (docs/RELEASING.md).",
         missing.join(" and ")
     ))
@@ -796,18 +807,30 @@ fn reads_as_its_type(key: &str, dir: &std::path::Path) -> Option<bool> {
 }
 
 /// Every key the code declares as a processing setting, found in the source of
-/// `src/mods`: a `const` of type `Setting<..>`, made with a quoted key or with
+/// `src/mods` and its subfolders: a `const` or `static` of type `Setting<..>`, made with a quoted key or with
 /// its file's own `KEY` constant. Only constants count: a test may use others.
 pub fn declared_processing_keys() -> std::collections::BTreeSet<String> {
     let mut keys = std::collections::BTreeSet::new();
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/mods");
-    for entry in std::fs::read_dir(dir).expect("src/mods").flatten() {
-        let path = entry.path();
-        if path.extension().is_none_or(|e| e != "rs") || path.ends_with("ag_settings.rs") {
-            continue;
+    let mut files = Vec::new();
+    let mut folders = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/mods")];
+    while let Some(folder) = folders.pop() {
+        for entry in std::fs::read_dir(folder).expect("src/mods").flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                folders.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs")
+                && !path.ends_with("ag_settings.rs")
+            {
+                files.push(path);
+            }
         }
+    }
+    for path in files {
         let text = std::fs::read_to_string(&path).expect("a source file");
-        for (at, _) in text.match_indices("const ") {
+        for (at, _) in text
+            .match_indices("const ")
+            .chain(text.match_indices("static "))
+        {
             let statement = text[at..].split(';').next().unwrap_or_default();
             if !statement.contains("Setting<") {
                 continue;
@@ -844,7 +867,7 @@ fn a_processing_file_may_be_missing_only_before_it_existed() {
     }
     assert!(
         has_processing_file(PROCESSING_SINCE),
-        "the folder the file starts with, {PROCESSING_SINCE}, has none"
+        "PROCESSING_SINCE names {PROCESSING_SINCE}, which has no {PROCESSING}: if that folder was \n         renamed or removed, set PROCESSING_SINCE to the oldest folder that holds one"
     );
 }
 

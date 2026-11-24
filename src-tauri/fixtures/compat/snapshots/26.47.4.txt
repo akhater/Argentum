@@ -1,6 +1,6 @@
 # What the code of today gives the renderer for fixtures/compat/26.47.4/photo.agdata
 # (src-tauri/src/mods/compat_snapshot.rs). Rewritten on purpose, never by hand:
-# AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus
+# AG_COMPAT_UPDATE=<release> cargo test --lib mods::compat_corpus
 
 [edit / gpu, raw]
 global.exposure = 0.8125

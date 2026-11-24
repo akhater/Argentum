@@ -165,7 +165,7 @@ version being worked on, after a version bump or a new setting or edit key:
 `cargo test --lib mods::compat_fixture -- --ignored` in `src-tauri`, then record
 its snapshot. To rewrite the snapshots after a change meant to move them (and
 bump `PIPELINE` in `mods/cache_version.rs` when it changes pixels):
-`AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus`. A released folder is
+`AG_COMPAT_UPDATE=all cargo test --lib mods::compat_corpus` (one release's: its version in place of `all`). A released folder is
 never edited; a key dropped on purpose goes in the module's `DROPPED` list.
 
 ---

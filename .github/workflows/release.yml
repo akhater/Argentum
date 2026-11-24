@@ -14,7 +14,19 @@ permissions:
   contents: read
 
 jobs:
+  # The compatibility corpus has this version's folder and snapshot (docs/RELEASING.md step 2).
+  # Nothing is built without them: a forgotten step stops here, before any installer.
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Corpus folder for this version
+        run: node scripts/check-compat-corpus.mjs "$TAG"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+
   release:
+    needs: corpus
     strategy:
       fail-fast: false
       matrix:

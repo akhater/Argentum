@@ -8,30 +8,48 @@ A release is a merge commit on `main`, published in this order.
    `yy.ww.n` in `src-tauri/Cargo.toml`, Argentum's entry in `src-tauri/Cargo.lock`
    and `src-tauri/tauri.conf.json`.
 2. **Compatibility corpus.** With the real version set by step 1, from
-   `src-tauri/`, write this release's folder and the snapshot of what the code
-   renders for it:
+   `src-tauri/`. The corpus holds a folder for each release, written once and
+   never edited after it ships, so this step only ever adds this release's.
 
-   ```bash
-   cargo test --lib mods::compat_fixture -- --ignored
-   AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus
-   ```
+   a. If step 1 changed the version, the tree's development version never
+      shipped (`gh release view <it>` finds nothing) and its folder is
+      the wrong name. Rename `fixtures/compat/<development version>/` and its
+      snapshot `fixtures/compat/snapshots/<development version>.txt` to the
+      release version with `git mv`, and if `PROCESSING_SINCE` in
+      `src/mods/compat_corpus.rs` names the development version, set it to the
+      release version. (`a_processing_file_may_be_missing_only_before_it_existed`
+      fails until it does.)
+   b. Run the corpus tests as they are, and go on only when they are green:
 
-   Open `src-tauri/fixtures/compat/<version>/` and
-   `src-tauri/fixtures/compat/snapshots/<version>.txt` and check that they hold
-   only synthetic values (no path, name or value taken from a real photo or
-   machine), and that the snapshot's diff from the previous release's is what
-   the release changed. Commit both with the release. The folder of a version
-   that has shipped is never written again. Then confirm nothing is missing:
+      ```bash
+      cargo test --lib mods::compat_corpus
+      ```
 
-   ```bash
-   cargo test --lib mods::compat_corpus -- --include-ignored
-   ```
+      Red here is a regression in how an old release's files load or render:
+      fix it, do not record it.
+   c. Write this release's folder and its snapshot. The snapshot switch takes
+      the release's version, so no other snapshot can be rewritten:
 
-   `the_release_being_cut_has_its_folder` in that run fails, naming what is
-   absent, if the version in `Cargo.toml` has no folder, snapshot or
-   processing-settings file. The release does not continue until it passes. (It is
-   ignored in CI because the development version is always one ahead of the
-   last folder.)
+      ```bash
+      cargo test --lib mods::compat_fixture -- --ignored
+      AG_COMPAT_UPDATE=<version> cargo test --lib mods::compat_corpus
+      ```
+
+   d. `git status` may show only files under
+      `src-tauri/fixtures/compat/<version>/`, `snapshots/<version>.txt` and the
+      renames of (a). Any change to an older folder or snapshot is a regression
+      to investigate, not to commit. Open the new files and check they hold only
+      synthetic values (no path, name or value taken from a real photo or
+      machine).
+   e. Commit them with the release, then run
+      `cargo test --lib mods::compat_corpus -- --include-ignored`: its
+      `the_release_being_cut_has_its_folder` fails, naming what is absent, if the
+      version in `Cargo.toml` lacks a folder, snapshot or processing-settings
+      file.
+
+   Creating the release (step 5) starts a check, `node scripts/check-compat-corpus.mjs
+   <tag>`, ahead of every build: a release whose folder or snapshot is missing
+   builds no installer.
 3. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
    `changelog.d/` into the version's section of `CHANGELOG.md`. That section, its plain-language line in
    `src/argentum/releases.ts`, and its rows in `docs/ROADMAP.md` and
