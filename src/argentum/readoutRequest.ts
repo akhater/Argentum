@@ -4,8 +4,8 @@
  * Rust renders that pixel with the whole edit: every slider, the AI patches
  * (they change the warped base) and the Lens blur, Relight and Fog maps. It
  * never applies masks (`mask_bitmaps: &[]`), so their bitmaps are dead weight.
- * The whole edit used to go at every mouse move, megabytes of JSON about 12
- * times a second; this is the same edit without what Rust cannot read.
+ * The whole edit would be megabytes of JSON about 12 times a second; this is
+ * the same edit without what Rust cannot read.
  *
  * - Mask bitmaps: always dropped. The definitions stay, so the mask count Rust
  *   reads is the one the preview has.

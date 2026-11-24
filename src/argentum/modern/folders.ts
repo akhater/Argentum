@@ -275,7 +275,7 @@ export function folderOfPhoto(path: string): string {
 /**
  * Opens a photo handed in from outside, and takes the library to its folder:
  * the path over the photo, the filmstrip and the arrows are all of the folder
- * on show, which until now was whichever was open last.
+ * on show, not whichever was open last.
  */
 export function openFromOutside(path: string, openPhoto: (path: string) => void, showFolder: (folder: string) => void) {
   openPhoto(path);

@@ -109,8 +109,7 @@ mod tests {
     /// It is not asserted to fail: `MONITOR_DEFAULTTONEAREST` answers a null
     /// handle with the primary display, so on a machine with a profiled screen
     /// this returns a real one. Windows being helpful, not the code being
-    /// wrong — the first version of this test asserted `None` and failed on
-    /// exactly that.
+    /// wrong.
     #[test]
     fn a_nonsense_window_does_not_crash() {
         let _ = profile_for_window(0);
@@ -162,8 +161,8 @@ fn main_window() -> Option<isize> {
 /// The conversion for the main window's screen, for the render path.
 ///
 /// Everything below takes a window handle; this is the one place that finds it,
-/// so their file asks a question with no arguments and does not have to know
-/// what a window handle is.
+/// so the render path asks a question with no arguments and does not have to
+/// know what a window handle is.
 pub fn shader_rows_for_main_window() -> super::display_profile::ShaderRows {
     match main_window() {
         Some(hwnd) => shader_rows_for_window(hwnd),
@@ -332,16 +331,14 @@ fn monitor_key(_hwnd: isize) -> isize {
 ///
 /// WHY THIS EXISTS SEPARATELY FROM THE RENDER PATH
 ///
-/// The conversion used to be refreshed only inside `update_wgpu_transform`,
-/// which the frontend calls when *its* idea of the transform changes — window
-/// size, the image's position within the client area, clipping, backgrounds.
-/// None of that is the desktop position and none of it is which monitor.
+/// `update_wgpu_transform` refreshes the conversion only when the frontend's
+/// idea of the transform changes — window size, the image's position within the
+/// client area, clipping, backgrounds. None of that is the desktop position and
+/// none of it is which monitor.
 ///
 /// So dragging the window from one screen to another of the same size and
-/// scaling changed nothing the frontend compares, the call was suppressed, and
-/// the old screen's matrix stayed on a picture now being shown somewhere else.
-/// Found by an audit reading the call paths; it would have taken two monitors
-/// and a steady hand to find by using it.
+/// scaling changes nothing the frontend compares, the call is suppressed, and
+/// the old screen's matrix would stay on a picture now shown somewhere else.
 ///
 /// The window's own move and resize events are the signal, and they are native:
 /// they happen whether or not anything on the page changed.
@@ -403,10 +400,10 @@ mod cache_tests {
 
     /// A failed lookup must not be remembered as the answer.
     ///
-    /// The cache used to key on the monitor alone, so a lookup that failed once
-    /// — a profile briefly unreadable, a screen still settling — cached the
-    /// identity and never tried again while the window stayed put. Panning
-    /// could not repair it because panning hits the same key.
+    /// Keyed on the monitor alone, a lookup that failed once — a profile
+    /// briefly unreadable, a screen still settling — would cache the identity
+    /// and never try again while the window stayed put, because panning hits
+    /// the same key.
     #[test]
     fn a_failure_is_retried_rather_than_kept() {
         let _turn = in_turn();
@@ -427,8 +424,8 @@ mod cache_tests {
     /// Nothing about the key changes when it starts working, so the only thing
     /// that can bring the conversion back is refusing to keep a failure.
     ///
-    /// Against the previous version this fails on the second assertion: the
-    /// identity from the failed read was returned for the rest of the session.
+    /// The second assertion fails if the identity from the failed read is
+    /// returned for the rest of the session.
     #[test]
     fn a_read_that_fails_once_recovers_with_the_file_unchanged() {
         let _turn = in_turn();

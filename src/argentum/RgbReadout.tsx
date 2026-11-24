@@ -7,14 +7,13 @@
  *
  * WHY THE COLOUR COMES FROM RUST
  *
- * The displayed photo is not in the DOM. RapidRAW renders the editor view to a
+ * The displayed photo is not in the DOM. The editor view is rendered to a
  * native WGPU surface composited behind the webview — no canvas, no `<img>`
- * carrying the live result. Three frontend attempts failed on that, the last
- * one silently: it sampled the only large image present, which is the cached
- * `_medium.jpg` thumbnail, regenerated on save and never while a slider moves.
- * Caught in use — the same spot on a nose read 207/177/179 at correct white
- * balance and 214/189/192 at temperature -100, on a picture that had gone
- * completely blue.
+ * carrying the live result. The only large image in the page is the cached
+ * `_medium.jpg` thumbnail, regenerated on save and never while a slider moves,
+ * so sampling it reads a stale colour (the same spot on a nose read 207/177/179
+ * at correct white balance and 214/189/192 at temperature -100, on a picture
+ * that had gone completely blue).
  *
  * So the pixel is rendered on demand by `sample_processed_pixel`, over a
  * one-texel ROI.
@@ -99,11 +98,10 @@ export default function RgbReadout() {
       // under a stationary cursor, so the displayed value is now wrong.
       //
       // It is not enough for it to skip the rate limit. If a read is already in
-      // flight the forced one was simply dropped and nothing retried it, which
-      // is why the readout still showed the pre-correction colour after using
-      // the white balance picker: the click's own read was mid-flight when the
-      // sliders moved. Remember it instead, and re-fire when the current one
-      // lands.
+      // flight, a dropped forced read would leave the pre-correction colour on
+      // show after using the white balance picker: the click's own read is
+      // mid-flight when the sliders move. So it is remembered, and re-fired
+      // when the current one lands.
       const now = Date.now();
       if (pending.current) {
         if (force) {

@@ -11,16 +11,13 @@
  *
  * WHY IT IS NOT IN THE EXPORT SETTINGS OBJECT
  *
- * Upstream's own version of this (pull request #1466) puts `tiffBitDepth` on
- * `ExportSettings`, into their presets, and threads it through six of their
- * files down to a fourth parameter on the encoder. That is the pattern
- * `CLAUDE.md` names as the thing that kills a fork - and it would also mean this
- * feature owning a field in a struct upstream edits every release.
- *
- * So the depth is Argentum's own preference, stored beside the profile library
- * in `argentum-processing.json`, exactly as highlight recovery is. Their panel
- * carries one marker line and nothing else. The cost of the next Argentum export
- * control is zero lines of theirs, which is the entire point.
+ * RapidRAW's own version of this (pull request #1466) puts `tiffBitDepth` on
+ * `ExportSettings`, into the presets, and threads it through six files down to
+ * a fourth parameter on the encoder. Here the depth is Argentum's own
+ * preference instead, stored beside the profile library in
+ * `argentum-processing.json`, exactly as highlight recovery is. The export
+ * panel carries one marker line and nothing else, so the next export control
+ * needs no change there.
  *
  * WHAT IT DOES NOT SAY
  *

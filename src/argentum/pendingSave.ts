@@ -1,6 +1,6 @@
 // The open photo's edit is queued for saving by an idle timer in useImageProcessing (EDIT_QUEUE_AFTER_MS),
-// then held by debouncedSave (EDIT_SAVE_AFTER_MS). Leaving the photo inside the idle wait used to lose
-// the change: the flush found nothing queued and the timer was then cancelled. Anything about to leave the open
+// then held by debouncedSave (EDIT_SAVE_AFTER_MS). Leaving the photo inside the idle wait would lose
+// the change: the flush finds nothing queued and the timer is then cancelled. Anything about to leave the open
 // photo (another photo, another folder, the library, closing the window) calls this first.
 import { useEditorStore } from '../store/useEditorStore';
 import { debouncedSave } from '../hooks/useEditorActions';

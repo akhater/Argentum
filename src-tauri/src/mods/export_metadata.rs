@@ -1,6 +1,6 @@
-//! EXIF for formats upstream's writer turns away.
+//! EXIF for formats the inherited writer turns away.
 //!
-//! Upstream gathers metadata beautifully — `write_image_with_metadata` reads a
+//! The inherited writer gathers metadata well — `write_image_with_metadata` reads a
 //! source's full EXIF block, falls back to our sidecar, falls back again to
 //! rawler for a RAW, and applies GPS. What it cannot do is put the result into
 //! a TIFF, and it says so:
@@ -11,21 +11,20 @@
 //!
 //! The reason is structural rather than missing support. `little_exif` treats a
 //! TIFF as one big EXIF structure: writing to one *replaces the whole file*
-//! with an encoding of the `Metadata`, strip data and all. Upstream builds a
+//! with an encoding of the `Metadata`, strip data and all. That writer builds a
 //! fresh `Metadata::new()` — right for JPEG, where metadata is a segment spliced
 //! into a file that already exists — and a fresh one holds no strips, no
 //! dimensions and none of the ten structural tags a TIFF is required to carry.
 //! It fails the library's own check and the write is dropped with a warning.
 //!
 //! So we do the opposite: **seed from the TIFF we just encoded**, which already
-//! has the strips and the structural tags, and merge upstream's tags into that.
+//! has the strips and the structural tags, and merge the writer's tags into that.
 //!
-//! Getting upstream's tags without reimplementing 250 lines of tag copying, and
-//! without editing their file, is what the carrier is for: we hand their own
-//! function a one-pixel JPEG, let it do its work, and read the metadata back
-//! out of the result. Their gathering stays theirs, bugs, fixes and all.
+//! Getting those tags without reimplementing 250 lines of tag copying is what
+//! the carrier is for: we hand the inherited function a one-pixel JPEG, let it
+//! do its work, and read the metadata back out of the result.
 //!
-//! Everything that is not a TIFF is passed straight through to them.
+//! Everything that is not a TIFF is passed straight through to it.
 
 use std::io::Cursor;
 
@@ -95,8 +94,8 @@ fn is_tiff(format: &str) -> bool {
 
 /// Attach metadata to an encoded image, whatever the format.
 ///
-/// Upstream's function for everything it handles; ours for TIFF. The signature
-/// matches theirs so the call site reads the same.
+/// The inherited function for everything it handles; ours for TIFF. The
+/// signature matches it so the call site reads the same.
 pub fn write_export_metadata(
     image_bytes: &mut Vec<u8>,
     original_path_str: &str,
@@ -167,7 +166,7 @@ fn merge_into_tiff(
         }
     }
 
-    // The carrier is one pixel, so whatever upstream put in these is wrong for
+    // The carrier is one pixel, so whatever the inherited writer put in these is wrong for
     // this file. They are the photograph's dimensions, not the file's, but a
     // reader that trusts them deserves the truth.
     if let Ok(reader) =

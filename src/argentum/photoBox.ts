@@ -2,18 +2,16 @@
  * Where the photo is on screen. Ours.
  *
  * The RGB readout needs to turn a cursor position into a place on the photo,
- * and cannot ask `ImageCanvas` for it without a hook in their file.
+ * and `ImageCanvas` does not expose it.
  */
 
 /**
  * The overlay `<svg>` the editor lays over the photo.
  *
- * This used to hunt for the largest `<img>` in the page. That was never sound:
- * with the GPU renderer on there is no `<img>` for the photo at all — it is a
- * native surface composited behind the webview — so what it actually latched
- * onto was the cached `_medium.jpg` thumbnail, which is in the tree only
- * sometimes. Clear the thumbnail cache and the readout goes silent, with no
- * error to explain why.
+ * Not the largest `<img>` in the page: with the GPU renderer on there is no
+ * `<img>` for the photo at all — it is a native surface composited behind the
+ * webview — so the largest image would be the cached `_medium.jpg` thumbnail,
+ * which is in the tree only sometimes.
  *
  * What is always present is the overlay `<svg>` the editor lays over the photo
  * for masks and crop handles. `ImageCanvas` sizes it in pixels to the drawn

@@ -742,12 +742,11 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
 /// or more, and the camera matrix turns that into flat magenta. A blown window
 /// behind a portrait came out pink.
 ///
-/// Until 2026-09-23 that was hidden by a compression pass in
-/// `raw_processing.rs` that desaturated everything above white. RapidRAW
-/// removed it (85bf424a) and covered the gap with a post-demosaic colour
-/// correction (40cfa3df). Argentum took the removal and declined the
-/// correction, because it would stack on this module's recovery — and from
-/// then on nothing did the job. This is the job, done where the evidence is:
+/// RapidRAW hid it with a compression pass in `raw_processing.rs` that
+/// desaturated everything above white, removed it (85bf424a) and covered the
+/// gap with a post-demosaic colour correction (40cfa3df). Argentum took the
+/// removal and declined the correction, because it would stack on this
+/// module's recovery. This is the job, done where the evidence is:
 /// in the CFA before demosaic, where "every photosite of this block is at its
 /// ceiling" is a measurement rather than a guess made from a colour.
 ///
@@ -1385,11 +1384,10 @@ mod proof {
             // How far the three levels sit from agreeing, as a fraction of
             // their average.
             //
-            // The first version of this took the spread between the highest
-            // and the lowest, and reported exactly 0% improvement on a
-            // reconstruction that was working: green clips, so green is the
-            // *middle* channel once it has been rebuilt, and a measure that
-            // only watches the two extremes cannot see the middle one move.
+            // Not the spread between the highest and the lowest: green clips,
+            // so green is the *middle* channel once it has been rebuilt, and a
+            // measure that only watches the two extremes cannot see the middle
+            // one move.
             let level = [v[0] / ratio[0], v[1] / ratio[1], v[2] / ratio[2]];
             let mean = (level[0] + level[1] + level[2]) / 3.0;
             if mean > 1e-6 {

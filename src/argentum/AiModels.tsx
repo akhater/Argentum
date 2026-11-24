@@ -2,7 +2,7 @@
  * Settings > General > AI Models: what has been downloaded, downloading what
  * has not, deleting it, and clearing what no model uses. Ours.
  *
- * Under their Generative AI card, which RapidRAW 1.6.5 moved to General: that card
+ * Under the Generative AI card, which RapidRAW 1.6.5 moved to General: that card
  * chooses how the AI features run, this one shows what they have downloaded.
  *
  * Every AI feature fetches its model the first time it is used, and a few uses

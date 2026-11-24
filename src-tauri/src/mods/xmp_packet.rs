@@ -164,8 +164,8 @@ mod tests {
     }
 
     /// A start marker followed by the whole 16 MB packet cap of near-matches of
-    /// the end marker and no real end. Every chunk used to rescan the whole
-    /// packet so far.
+    /// the end marker and no real end. Each chunk scans only what is new, not
+    /// the whole packet so far.
     #[test]
     fn a_long_unterminated_packet_is_scanned_in_linear_time() {
         let mut buf = b"<?xpacket begin=".to_vec();

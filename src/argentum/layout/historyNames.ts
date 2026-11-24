@@ -3,13 +3,12 @@
  *
  * Moved here from RapidRAW's src/components/panel/editor/EditorToolbar.tsx
  * (RapidRAW 1.6.6 @ 52138689), where it named the steps of the menu under the
- * toolbar's undo and redo buttons. That toolbar is gone; the naming is theirs,
- * unchanged (stepName).
+ * toolbar's undo and redo buttons. The naming is RapidRAW's, unchanged
+ * (stepName).
  *
- * Ours: a name is kept with the state it names, not its place in the list. Their
- * cache went by place, so a History put back from a sidecar (history/historyKeeper.ts)
- * would have shown the last photo's names. A step put back keeps the name it was
- * saved with.
+ * Ours: a name is kept with the state it names, not its place in the list, so
+ * a History put back from a sidecar (history/historyKeeper.ts) keeps the names
+ * it was saved with rather than showing the last photo's.
  */
 
 import { useMemo } from 'react';

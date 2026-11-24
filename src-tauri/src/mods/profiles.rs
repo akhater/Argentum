@@ -61,8 +61,8 @@ fn normalise(model: &str) -> String {
         .collect();
 
     // "canon canon eos 5d" -> "canon eos 5d". A loop, not a single check:
-    // removing a filler word can leave a fresh duplicate behind, which is how
-    // the Nikon case slipped through the first version of this.
+    // removing a filler word can leave a fresh duplicate behind (the Nikon
+    // case).
     while words.len() >= 2 && words[0] == words[1] {
         words.remove(0);
     }
@@ -219,11 +219,10 @@ pub fn library_dir(app_data: &Path) -> std::io::Result<PathBuf> {
 /// is not.
 /// Asks about the matrix rendering will *choose*, not about any matrix.
 ///
-/// The first version accepted a profile if either illuminant carried a forward
-/// matrix. Rendering does not take either one — it takes whichever illuminant is
-/// nearest daylight. A profile with a tungsten forward matrix and a daylight
-/// entry without one therefore passed the check and then rendered nothing,
-/// which is the exact failure the check was written to prevent.
+/// Rendering does not take either illuminant's forward matrix — it takes
+/// whichever illuminant is nearest daylight. A profile with a tungsten forward
+/// matrix and a daylight entry without one would render nothing, which is the
+/// exact failure the check prevents.
 pub fn is_renderable(profile: &dcp::Profile) -> bool {
     super::decode::daylight_matrix(profile).is_some_and(|(_, _, forward)| forward.is_some())
 }
@@ -499,8 +498,7 @@ mod tests {
     /// whose forward matrix has to exist.
     ///
     /// A profile with a tungsten forward matrix and a daylight entry without one
-    /// passed the first version of this check and then rendered nothing — the
-    /// exact failure the check was written to prevent.
+    /// would render nothing — the exact failure the check prevents.
     #[test]
     fn the_check_asks_about_the_matrix_rendering_will_choose() {
         const M: [f32; 9] = [

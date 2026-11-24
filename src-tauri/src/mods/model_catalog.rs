@@ -155,9 +155,9 @@ pub const FACE_MASKS: &str = "face-masks";
 
 // The Text and Face masks run on RapidRAW 1.6.7's files, under the names,
 // addresses and checksums they give them (ai_processing.rs @ 211ef559 and
-// 07ef9211, `ESAM3_*`, `FACE_*` and `AiMaskModel`). Their 1.6.6 code here
-// never saves these, so the copies are held to `text_mask` and `face_mask`,
-// which download them, rather than to their file.
+// 07ef9211, `ESAM3_*`, `FACE_*` and `AiMaskModel`). The inherited 1.6.6 code
+// here never saves these, so the copies are held to `text_mask` and
+// `face_mask`, which download them.
 
 /// EfficientSAM3's image encoder and decoder: the Text and Face masks' shared part.
 const ESAM3_IMAGE_ENCODER: File = rapidraw!(

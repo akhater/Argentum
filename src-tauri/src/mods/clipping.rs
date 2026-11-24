@@ -20,18 +20,18 @@
 //!
 //! WHY NOT ONE VIEW WITH THE CHANNELS COLOUR-CODED
 //!
-//! That was the first version, and it was better on paper: one look tells you
-//! whether a highlight is savable, with no remembering. It was also misread
-//! within seconds of being shown, because in the first mode red already means
-//! *blown highlight* and in that one it would have meant *the red channel*.
-//! Two meanings on one button. Red is blown and blue is crushed in every mode
-//! here, and which channel you are looking at is the thing the button says.
+//! One view would tell you whether a highlight is savable in one look, with no
+//! remembering, but in the first mode red already means *blown highlight* and
+//! in that one it would mean *the red channel*: two meanings on one button.
+//! Red is blown and blue is crushed in every mode here, and which channel you
+//! are looking at is the thing the button says.
 //!
 //! WHY THE FIELD IS STILL CALLED `showClipping`
 //!
-//! Because it is theirs, and it is stored per photo alongside every other
-//! adjustment. Their button reads it as a truthy value and highlights when it is
-//! set, which a mode number satisfies without them knowing anything about modes.
+//! Because it is an inherited field, stored per photo alongside every other
+//! adjustment. The inherited button reads it as a truthy value and highlights
+//! when it is set, which a mode number satisfies without the button knowing
+//! anything about modes.
 //! Adding a second field of our own would have meant a new key in the saved
 //! adjustments — and every key there is part of the thumbnail cache hash, so a
 //! new one rebuilds the user's whole library once for nothing.

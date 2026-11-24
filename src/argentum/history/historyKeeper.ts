@@ -1,15 +1,15 @@
 /**
  * Each photo keeps its History: in its sidecar, given back when it opens. Ours.
  *
- * Their editor starts a new History whenever a photo opens (resetHistory in
+ * The editor starts a new History whenever a photo opens (resetHistory in
  * useAppNavigation.ts and useImageLoader.ts) and keeps none, so leaving a photo
- * lost its steps. This watches the editor's store, as historyOnRelease.ts does,
- * and no line of theirs changes:
+ * would lose its steps. This watches the editor's store, as historyOnRelease.ts
+ * does:
  *
- * - When their code starts a History (one state, the edit itself), the one the
+ * - When the editor starts a History (one state, the edit itself), the one the
  *   photo's sidecar keeps goes in its place, at the step it was at, if it was
  *   written for that edit and replaying it lands there (historyRecord.ts).
- *   Otherwise theirs stays. Their reset and paste start one too, and the edit
+ *   Otherwise the fresh one stays. Reset and paste start one too, and the edit
  *   they leave is not the one the sidecar's History was written for.
  * - After a step, an undo or a redo, the History is written HISTORY_WRITE_AFTER_MS
  *   after the last change: after their save of the edit (EDIT_SAVE_AFTER_MS) and

@@ -20,8 +20,8 @@
  * thumbnail cache keys are built from the adjustments, so writing to them mid
  * drag would rebuild the library.
  *
- * `previewOverride` is theirs and is exactly this: adjustments used for
- * rendering only, never saved. Their before/after view already works that way.
+ * `previewOverride` is exactly this: adjustments used for rendering only,
+ * never saved. The before/after view already works that way.
  *
  * WHY IT WATCHES THE STORE WHILE IT IS UP
  *
@@ -43,8 +43,7 @@ const BLACK_POINT = 6;
 /**
  * Which slider the pointer went down on, by its visible label.
  *
- * There is no id on their sliders and adding one would be a line in their file
- * for every slider we ever care about. The label is already there, already
+ * The sliders carry no id. The label is already there, already
  * unique within the panel, and already translated — so the same translation
  * this app is showing the user is what gets compared, and it works in all
  * thirteen languages without a list of our own.
@@ -73,15 +72,10 @@ function sliderUnder(target: EventTarget | null, labels: { white: string; black:
 
 export function useThresholdPreview(labels: { white: string; black: string; hint: string }) {
     // Which slider is under the pointer, and whether the preview is actually
-    // up, are two different facts and were one variable.
-    //
-    // Pointer-down set the slider whether Ctrl was held or not, and the
-    // subscriber that keeps the mask in step with the drag only checked that a
-    // slider was set — so an ordinary drag of Whites blanked the picture. And
-    // releasing Ctrl cleared the slider along with the preview, so pressing it
-    // again in the same drag did nothing. Found by an audit that ran the hook
-    // in a harness rather than by using it, which is the only way this shows up
-    // without a mouse in hand.
+    // up, are two different facts, so they are two variables: pointer-down sets
+    // the slider whether Ctrl is held or not, and only `showing` says the
+    // preview is up. Releasing Ctrl clears `showing` and keeps the slider, so
+    // pressing Ctrl again in the same drag brings the preview back.
     const slider = useRef<number | null>(null);
     const showing = useRef<number | null>(null);
     const dragging = useRef(false);

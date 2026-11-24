@@ -2,9 +2,9 @@
  * A pane that folds by its heading, and stays folded. Ours.
  *
  * For today's panels whose parts are a heading over their controls rather
- * than their CollapsibleSection, such as the Crop tab's Aspect Ratio,
- * Rotation, Orientation, Transform and Lens Correction. The heading is theirs
- * (Text, heading variant) with a chevron in front; what was beside it, such as
+ * than a CollapsibleSection, such as the Crop tab's Aspect Ratio,
+ * Rotation, Orientation, Transform and Lens Correction. The heading is the
+ * shared Text (heading variant) with a chevron in front; what was beside it, such as
  * the overlay and orientation buttons, stays beside it and does not fold the
  * pane. Which panes are folded is kept with the layout (editorLayout.ts
  * panels.folded), by an id such as "crop.rotation".

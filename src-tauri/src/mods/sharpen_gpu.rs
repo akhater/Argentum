@@ -1156,9 +1156,9 @@ impl Engine {
 /// lock is let go and anyone waiting gets it - for a submission small enough
 /// that the first usually finishes it.
 ///
-/// The first version polled without blocking and slept half a millisecond
-/// between polls. On Windows a sleep that short lasts up to a timer tick,
-/// 15 ms, and a 32 MP photo is hundreds of steps: seconds per render at 100%.
+/// It waits on the submission rather than polling and sleeping: on Windows a
+/// sleep of half a millisecond lasts up to a timer tick, 15 ms, and a 32 MP
+/// photo is hundreds of steps: seconds per render at 100%.
 fn wait_briefly(device: &wgpu::Device, index: wgpu::SubmissionIndex) {
     let started = Instant::now();
     while started.elapsed() < Duration::from_secs(30) {

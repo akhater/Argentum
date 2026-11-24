@@ -56,8 +56,9 @@ x: number, y: number,
  */
 temperatureK: number, 
 /**
- * Kelvin and tint in RapidRAW 1.6.5's units, absolute, as their picker
- * returns them. The frontend writes it the way their picker does.
+ * Kelvin and tint in RapidRAW 1.6.5's units, absolute, as the white
+ * balance picker returns them. The frontend writes it the way the picker
+ * does.
  */
 whiteBalance: WhiteBalance, };
 

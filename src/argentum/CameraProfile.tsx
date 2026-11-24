@@ -79,12 +79,11 @@ export default function CameraProfile() {
   /**
    * Change the profile and redraw.
    *
-   * One writer, and only one. This used to set the store, save the sidecar
-   * itself, and force a reload. Three writers for one value: the debounced
-   * auto-save fired afterwards with a stale copy and won, so a chosen profile
-   * reverted to the previous one a second later — the picture went right, then
-   * wrong again. Setting the store and letting their own save persist it is the
-   * whole of it.
+   * One writer, and only one: the store. Saving the sidecar or forcing a reload
+   * here as well would make three writers for one value, and the debounced
+   * auto-save would fire afterwards with a stale copy and win, reverting the
+   * chosen profile a second later. Setting the store and letting the editor's
+   * own save persist it is the whole of it.
    */
   const choose = (file: string) => {
     setNote(null);

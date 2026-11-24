@@ -1,14 +1,12 @@
-//! Argentum's GPU work on the input, before RapidRAW's shader runs. One anchor.
+//! Argentum's GPU work on the input, before the main shader runs. One anchor.
 //!
 //! `gpu_processing.rs` calls `run` once per render, after it has the input
 //! texture and before its own passes, and renders whatever comes back - or
 //! its own texture, untouched, when nothing does - with the request that
-//! comes back. That call is the whole upstream cost of every multi-pass tool
-//! Argentum will add: Noise Reduction and sharpening now, and the next thing
-//! that needs whole-image passes rather than one pixel at a time (diffuse or
-//! sharpen) goes in here, not in another line of theirs. See `modules.wgsl`
-//! for the per-pixel stages, which are the same idea one level down. Decided
-//! 2026-10-10.
+//! comes back. Every multi-pass tool goes in here: Noise Reduction and
+//! sharpening now, and the next thing that needs whole-image passes rather
+//! than one pixel at a time (diffuse or sharpen). See `modules.wgsl` for the
+//! per-pixel stages, which are the same idea one level down.
 //!
 //! ORDER IS THE CONTRACT
 //!
@@ -70,7 +68,7 @@ pub struct At<'p> {
     pub family: u64,
 }
 
-/// The anchor. Called from `process_and_get_dynamic_image_inner`, under their
+/// The anchor. Called from `process_and_get_dynamic_image_inner`, under the
 /// processor lock, so the kept results can be reused between frames.
 #[allow(clippy::too_many_arguments)]
 pub fn run<'a>(
@@ -95,9 +93,9 @@ pub fn run<'a>(
         px_scale,
         measure_on: full.as_deref().unwrap_or(base_image),
         measure_key: transform_hash,
-        // Which picture this is, whichever texture of theirs holds it: their
-        // cache rebuilds the texture from the same image after every
-        // thumbnail render.
+        // Which picture this is, whichever texture holds it: the texture cache
+        // rebuilds the texture from the same image after every thumbnail
+        // render.
         source: sharpen::picture_key(base_image, transform_hash),
         // The drag preview is a smaller copy of the same full picture.
         family: full
@@ -240,8 +238,7 @@ pub fn develop<'a>(
 ///
 /// This runs inside their preview worker, holding their processor lock. A
 /// panic here poisons that lock and ends the worker thread, after which no
-/// preview is drawn until the app restarts - which is what a bug in this
-/// stage did on 2026-10-10. So a failure skips the stage for that frame,
+/// preview is drawn until the app restarts. So a failure skips the stage for that frame,
 /// says why in the log, and lets the engines start clean next time; their
 /// render goes ahead on their own texture, with their own Noise Reduction.
 fn guarded<T>(stage: impl FnOnce() -> Option<T>) -> Option<T> {
@@ -337,10 +334,10 @@ fn sharpening(
 }
 
 /// The full-resolution picture the editor's preview is a smaller copy of: the
-/// open photo, warped, rotated and cropped, under its transform. RapidRAW kept
-/// it in `full_transformed_cache` until 1.6.6, whose staged preview (lib.rs
-/// `compute_transformed_preview`) crops a smaller working copy instead. Kept
-/// here so sharpening still measures the preview on what the export renders.
+/// open photo, warped, rotated and cropped, under its transform. The staged
+/// preview (lib.rs `compute_transformed_preview`) crops a smaller working copy,
+/// so it is kept here: sharpening measures the preview on what the export
+/// renders.
 static FULL_PICTURE: Mutex<Option<(u64, Arc<DynamicImage>)>> = Mutex::new(None);
 
 fn photo_key(path: &str, transform_hash: u64) -> u64 {

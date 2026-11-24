@@ -11,20 +11,19 @@
  * not in any dependency list, so the estimate went on showing the size of the
  * depth you had before — 8-bit selected, 16-bit number, or the reverse.
  *
- * It showed up within a minute of first running it. It is exactly the kind of
- * thing the unit tests could not see: every layer was correct on its own, and
- * the number on screen was still wrong.
+ * Every layer is correct on its own, which unit tests cannot see: the number on
+ * screen is what goes wrong.
  *
- * So the depth is published here as well as saved, and their effect takes it as
- * a dependency. `useSyncExternalStore` rather than a React context because the
- * writer and the reader are in different trees — the control is portalled into
- * their panel from `Argentum.tsx`, so there is no common provider to hang a
- * context on without adding one to a file of theirs.
+ * So the depth is published here as well as saved, and the panel's effect takes
+ * it as a dependency. `useSyncExternalStore` rather than a React context because
+ * the writer and the reader are in different trees — the control is portalled
+ * into the panel from `Argentum.tsx`, so there is no common provider to hang a
+ * context on.
  *
- * This is the second line Argentum spends in `ExportPanel.tsx`, and it buys the
- * estimate telling the truth. There is no cheaper version: `estimatedSize` is
- * `useState` inside their component and the debounced estimator is a `useMemo`
- * beside it, so nothing outside can trigger a re-estimate.
+ * `ExportPanel.tsx` reads it so the estimate tells the truth. There is no
+ * cheaper version: `estimatedSize` is `useState` inside the panel and the
+ * debounced estimator is a `useMemo` beside it, so nothing outside can trigger
+ * a re-estimate.
  */
 
 import { useSyncExternalStore } from 'react';

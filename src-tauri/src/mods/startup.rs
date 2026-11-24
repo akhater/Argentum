@@ -1,9 +1,7 @@
 //! Everything Argentum does when the app starts. One anchor.
 //!
-//! `lib.rs` calls `init` once, and that call is the whole upstream cost of any
-//! startup work we ever add. It replaced a direct call to the thumbnail cache
-//! check for exactly that reason: the second thing that needed to happen at
-//! startup would otherwise have been a second line of their file.
+//! `lib.rs` calls `init` once, and every piece of startup work is a step in it,
+//! so `lib.rs` keeps a single call.
 //!
 //! It takes the app handle rather than a path because different things want
 //! different directories, and resolving them here keeps that decision on our

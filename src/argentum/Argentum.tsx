@@ -1,28 +1,18 @@
 /**
  * Argentum's entire UI, mounted from one place.
  *
- * THE POINT OF THIS FILE — read before adding UI anywhere else.
+ * HOW IT WORKS — read before adding UI anywhere else.
  *
- * A fork dies when your changes and upstream's land in the same lines of the
- * same files. The mergeability linter caps how much of their code we touch, but
- * a cap is not a solution: at one or two lines per feature, we run out. Six of
- * their files had already been edited before this existed.
+ * Everything of ours renders through a **portal**, anchored to a DOM element
+ * the inherited interface already renders for its own reasons. That keeps new
+ * UI in modules of ours with one job each, rather than grown into the large
+ * inherited components, which are mounted once, by one tag in `App.tsx`.
  *
- * So instead of adding a tag to their component wherever we want something,
- * everything of ours renders through a **portal**, anchored to a DOM element
- * they already have. Their JSX never changes. The cost to upstream is one tag
- * in `App.tsx`, once, no matter how much we build afterwards.
+ * If an anchor disappears, the portal quietly renders nothing and the app
+ * still runs: a missing button is a better failure than a broken screen, and
+ * `useAnchor` keeps looking, so it reappears if the element comes back.
  *
- * Anchors must be things upstream already renders for its own reasons. We do
- * not add anchors; that would just be the same problem with extra steps.
- *
- * If an anchor disappears in an upstream update, the portal quietly renders
- * nothing and the app still runs. That is the right failure: a missing button
- * beats a merge conflict, and `useAnchor` keeps looking, so it reappears if the
- * element comes back.
- *
- * TO ADD UI: write the component, give it an anchor here. Do not touch a file
- * of theirs.
+ * TO ADD UI: write the component, give it an anchor here.
  */
 
 import { lazy, useEffect, useState } from 'react';
@@ -138,7 +128,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
   // what is being blown or crushed, which is how those two are actually set.
-  // Their own slider labels identify which slider, so their files stay untouched.
+  // The inherited slider labels identify which slider.
   useThresholdPreview({
     white: t('adjustments.basic.whites'),
     black: t('adjustments.basic.blacks'),
@@ -156,7 +146,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   const whiteBalance = useAnchor('[data-argentum="white-balance"]');
 
   // The About tab in Settings, which is ours entirely — About, Roadmap and
-  // Releases are sections inside it, so more of them cost their file nothing.
+  // Releases are sections inside it.
   const about = useAnchor('[data-argentum="about"]');
 
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
@@ -168,9 +158,9 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // The Modern window's Settings > AI and models: its AI card, then AI Models.
   const aiModels = useAnchor('[data-argentum="ai"]');
 
-  // Under the format buttons in the export panel. Their file renders this marker
-  // only while TIFF is selected, so the control appearing and disappearing costs
-  // no state of ours and no polling.
+  // Under the format buttons in the export panel. The export panel renders this
+  // marker only while TIFF is selected, so the control appearing and
+  // disappearing costs no state of ours and no polling.
   const exportPrecision = useAnchor('[data-argentum="export-precision"]');
 
   // Inside their Sharpening section in Details, first: our sharpening takes

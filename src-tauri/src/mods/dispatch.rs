@@ -2,21 +2,18 @@
 //!
 //! WHY
 //!
-//! `tauri::generate_handler!` takes a literal list, and it lives in *their*
-//! `lib.rs`. Registering commands one by one means one line of upstream code per
-//! feature — the cost that decides whether a fork survives. Four features is
-//! four lines and looks free. A hundred is a hundred lines in the file every
-//! upstream release also edits, and the merge becomes an argument every time.
+//! `tauri::generate_handler!` takes a literal list in `lib.rs`. Registering
+//! commands one by one would grow that list with every feature.
 //!
 //! So the frontend calls a single command, `ag`, with a name and a bag of
-//! arguments, and the match below routes it. Adding a command from here on costs
-//! one arm in this file and nothing at all in theirs.
+//! arguments, and the match below routes it. Adding a command costs one arm in
+//! this file and nothing in `lib.rs`.
 //!
 //! WHAT IT COSTS
 //!
 //! Tauri's per-command argument typing happens here instead, in a struct per
-//! command, deserialised explicitly. That is the same checking, in our file
-//! rather than generated in theirs — and it is why each arm names its arguments
+//! command, deserialised explicitly. That is the same checking, done in this
+//! file rather than generated — and it is why each arm names its arguments
 //! rather than passing `serde_json::Value` around.
 //!
 //! An unknown name is an error rather than a silent no-op: a typo in a command

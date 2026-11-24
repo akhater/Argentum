@@ -1,8 +1,8 @@
 //! The Lensfun database, parsed the first time something needs it.
 //!
-//! Start-up used to parse its 59 XML files before the window was built. Now
-//! `set_dir` only remembers where they are; `get` parses them once, on the
-//! thread that asks first, and every other caller waits for that one parse.
+//! `set_dir` only remembers where the 59 XML files are; `get` parses them once,
+//! on the thread that asks first, and every other caller waits for that one
+//! parse, so start-up does not wait for the parse.
 //! A missing folder gives an empty database, as before (CLAUDE.md, rule 4).
 
 use std::path::PathBuf;

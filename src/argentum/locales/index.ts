@@ -3,20 +3,16 @@
  *
  * WHY A SEPARATE NAMESPACE
  *
- * i18next only reads the files it is given, and RapidRAW gives it thirteen —
- * one per language. Putting a feature's strings there means thirteen edited
- * files per feature, in files upstream also edits, forever. It is the largest
- * per-feature cost in the whole fork and the one that scales worst.
+ * i18next only reads the files it is given, and the inherited interface gives
+ * it thirteen — one per language. Argentum's strings get their own namespace,
+ * `ag`, registered here at startup, so a new string is one line in
+ * `locales/en.json` next door rather than thirteen edited files. Use it as
+ * `t('ag:wbMenuTooltip')`.
  *
- * So Argentum gets its own namespace, `ag`, registered here at startup.
- * A new string costs one line in `locales/en.json` next door and nothing at all
- * in theirs. Use it as `t('ag:wbMenuTooltip')`.
+ * WHAT STAYS IN THE INHERITED FILES
  *
- * WHAT STAYS IN THEIRS
- *
- * The rebrand — "RapidRAW" becoming "Argentum" inside their existing sentences,
- * and `.rrdata` becoming `.agdata`. Those are edits to strings that are already
- * there, they happened once, and they do not grow.
+ * The inherited strings: the interface's own sentences, with "RapidRAW"
+ * reading "Argentum" and `.rrdata` reading `.agdata`.
  *
  * TRANSLATIONS
  *

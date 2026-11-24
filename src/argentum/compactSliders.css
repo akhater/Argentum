@@ -7,17 +7,17 @@
  * times as many. This lays their slider out the Lightroom way while the
  * attribute is on <html>, which compactSliders.ts sets from the preference.
  *
- * WHY CSS AND NOT AN EDIT TO THEIR SLIDER
+ * WHY CSS AND NOT AN EDIT TO THE SLIDER
  *
- * Their Slider.tsx is 663 lines of behaviour - drag, fine adjust, click to
- * type, double-click to reset - and every slider in the app is one of them.
- * Changing its markup would be lines in a file upstream works on, and copying
- * it would be a second slider to keep in step. Neither is needed: their markup
- * already has the three parts in it, and only where they sit changes.
+ * Slider.tsx is 663 lines of behaviour - drag, fine adjust, click to type,
+ * double-click to reset - and every slider in the app is one of them. Copying
+ * it would be a second slider to keep in step, and changing its markup is not
+ * needed: its markup already has the three parts in it, and only where they
+ * sit changes.
  *
  * WHAT IT RELIES ON
  *
- * Their slider's shape, found without any marker of ours:
+ * The slider's shape, found without any marker of ours:
  *
  *   div.group                         the slider
  *     div.flex                        header: name, value
@@ -26,11 +26,11 @@
  *     div.relative.w-full.h-5         the bar, ending in input.slider-input
  *
  * The header is dissolved (display: contents) so the name and the value become
- * columns of the slider itself, either side of the bar. If upstream reshapes
- * the slider, the selector stops matching and the slider is simply drawn their
- * way again. That is the right failure: a big slider beats a broken one.
+ * columns of the slider itself, either side of the bar. If the slider's markup
+ * changes, the selector stops matching and the slider is simply drawn in its
+ * original layout. That is the right failure: a big slider beats a broken one.
  *
- * Their colour grading sliders sit under the wheels, often half a panel wide,
+ * The colour grading sliders sit under the wheels, often half a panel wide,
  * where one line leaves no room for the bar. They keep two lines, identified by
  * their gradient track classes, but get the thin bar and the bar thumb like the rest:
  * the layout rules below exclude them, the bar and thumb rules do not.

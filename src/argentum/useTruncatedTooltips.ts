@@ -4,24 +4,22 @@
  * A library card is narrower than most file names, so what you see is
  * "2026-09-06_Canon EOS 5D Mark II…" and the part that tells one frame from
  * another is the part that got cut. The same is true of a folder path, a preset
- * name, a lens — anywhere `truncate` is used, which upstream uses a great many
- * places.
+ * name, a lens — anywhere `truncate` is used, which is a great many places.
  *
  * WHY THIS IS NOT A TOOLTIP ON THE FILE NAME
  *
  * Because then it would be a tooltip on the file name, and next week a tooltip
- * on the folder path, and each one is a line in a file of theirs. Their
- * `GlobalTooltip` already shows a tooltip for any element carrying a
+ * on the folder path, one component at a time. `GlobalTooltip` already shows a
+ * tooltip for any element carrying a
  * `data-tooltip` attribute, wherever it is; it just has no way to know that a
  * particular element is clipped, because that is a fact about layout and only
  * true at the moment you point at it.
  *
- * So this fills that in. On the way in — capture phase, before their listener
- * on `document` runs — it looks at what the pointer is over, asks the browser
- * whether the text is actually clipped, and if it is, writes the full text into
- * `data-tooltip`. Their tooltip does the rest. Nothing of theirs changes, and
- * every clipped label in the app gets the behaviour at once, including ones
- * that do not exist yet.
+ * So this fills that in. On the way in — capture phase, before the tooltip's
+ * listener on `document` runs — it looks at what the pointer is over, asks the
+ * browser whether the text is actually clipped, and if it is, writes the full
+ * text into `data-tooltip`. The tooltip does the rest, and every clipped label
+ * in the app gets the behaviour at once, including ones that do not exist yet.
  *
  * WHAT IT DELIBERATELY DOES NOT DO
  *
