@@ -1158,9 +1158,8 @@ fn raw_view_curve(
     let mode = crate::mods::raw_tone::mode_of(adjustments);
     if mode != 0 {
         let stored = crate::mods::raw_tone::points_of(adjustments, mode, photo);
-        let mut points = curve_points(&Value::Array(stored));
+        let points = curve_points(&Value::Array(stored));
         if points.len() >= 2 {
-            points.truncate(16);
             return RawViewCurve::Points(points);
         }
     }
@@ -1268,8 +1267,10 @@ fn fold_into_luma_curve(adjustments: &mut Value, view: &dyn Fn(f32) -> f32) {
 }
 
 fn curve_points(value: &Value) -> Vec<(f32, f32)> {
+    // The same thinning as the renderer's (curve_limit.rs), so an enlargement matches the editor.
     value
         .as_array()
+        .map(|points| crate::mods::curve_limit::fit_values(points.clone()))
         .map(|points| {
             points
                 .iter()
@@ -1284,7 +1285,7 @@ fn curve_points(value: &Value) -> Vec<(f32, f32)> {
 /// shader.wgsl's `apply_curve`, step for step: a cubic Hermite through up to
 /// sixteen points on a 0-255 scale, with tangents limited to stay monotone.
 pub(crate) fn apply_curve(value: f32, points: &[(f32, f32)]) -> f32 {
-    let count = points.len().min(16);
+    let count = points.len().min(crate::mods::curve_limit::MAX_CURVE_POINTS);
     if count < 2 {
         return value;
     }
