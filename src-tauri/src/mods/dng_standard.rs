@@ -374,10 +374,12 @@ pub fn offset_of(points: &[ToneCurvePoint], linear: bool) -> Option<f32> {
     Some(0.5 * (low + high))
 }
 
+// 16 is the shader's curve length (`MAX_CURVE_POINTS`, curve_limit.rs). It stays a literal because
+// the engine's reference crate compiles this file on its own; a test in curve_limit.rs ties them.
 fn sixteen_points(curve: impl Fn(f32) -> f32) -> Vec<ToneCurvePoint> {
-    (0..crate::mods::curve_limit::MAX_CURVE_POINTS)
+    (0..16)
         .map(|i| {
-            let x = (i as f32 / (crate::mods::curve_limit::MAX_CURVE_POINTS - 1) as f32).powf(1.3);
+            let x = (i as f32 / 15.0).powf(1.3);
             ToneCurvePoint {
                 x: x * 255.0,
                 y: srgb_encode(curve(srgb_decode(x))) * 255.0,

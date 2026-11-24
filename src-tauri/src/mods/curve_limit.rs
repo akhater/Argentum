@@ -365,4 +365,11 @@ mod tests {
             .unwrap();
         assert_eq!(number, MAX_CURVE_POINTS);
     }
+
+    #[test]
+    fn the_dng_curve_has_the_shader_length() {
+        let source = include_str!("dng_standard.rs");
+        assert!(source.contains(&format!("(0..{MAX_CURVE_POINTS})")));
+        assert!(source.contains(&format!("i as f32 / {}.0", MAX_CURVE_POINTS - 1)));
+    }
 }
